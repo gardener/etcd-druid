@@ -1,0 +1,2131 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="etcd druid documentation">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="../assets/logo/etcd-druid-transparentbg.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>Immutable etcd Cluster Backups - Etcd Druid</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+
+      
+    
+<script src="../assets/pymdownx-extras/material-extra-theme-2ek1P7jT.js" type="text/javascript"></script>
+<script src="../assets/pymdownx-extras/material-extra-3rdparty-BUCF4rjN.js" type="text/javascript"></script>
+
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/css/custom.css">
+    
+      <link rel="stylesheet" href="../assets/pymdownx-extras/extra-c6ab11540a.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dep-06-immutable-etcd-cluster-backups" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="header.title">
+    <a href="../index.html" title="Etcd Druid" class="md-header__button md-logo" aria-label="Etcd Druid">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Etcd Druid
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Immutable etcd Cluster Backups
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="md-header__options">
+      <div class="md-header-nav__scheme md-header-nav__button md-source__icon md-icon">
+          <a href="javascript:toggleScheme();" title="Light mode" class="light-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="Dark mode" class="dark-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="System preference" class="system-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 2c-1.79 1.15-3 3.18-3 5.5s1.21 4.35 3.03 5.5C4.46 13 2 10.54 2 7.5A5.5 5.5 0 0 1 7.5 2m11.57 1.5 1.43 1.43L4.93 20.5 3.5 19.07zm-6.18 2.43L11.41 5 9.97 6l.42-1.7L9 3.24l1.75-.12.58-1.65L12 3.1l1.73.03-1.35 1.13zm-3.3 3.61-1.16-.73-1.12.78.34-1.32-1.09-.83 1.36-.09.45-1.29.51 1.27 1.36.03-1.05.87zM19 13.5a5.5 5.5 0 0 1-5.5 5.5c-1.22 0-2.35-.4-3.26-1.07l7.69-7.69c.67.91 1.07 2.04 1.07 3.26m-4.4 6.58 2.77-1.15-.24 3.35zm4.33-2.7 1.15-2.77 2.2 2.54zm1.15-4.96-1.14-2.78 3.34.24zM9.63 18.93l2.77 1.15-2.53 2.19z"></path></svg>
+          </a>
+           <a href="javascript:toggleScheme();" title="Unknown scheme" class="unknown-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m15.07 11.25-.9.92C13.45 12.89 13 13.5 13 15h-2v-.5c0-1.11.45-2.11 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41a2 2 0 0 0-2-2 2 2 0 0 0-2 2H8a4 4 0 0 1 4-4 4 4 0 0 1 4 4 3.2 3.2 0 0 1-.93 2.25M13 19h-2v-2h2M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10c0-5.53-4.5-10-10-10"></path></svg>
+          </a>
+      </div>
+    </div>
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-tabs__link">
+          
+  
+  
+  Deployment
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../usage/managing-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Usage
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/etcd-cluster-components.html" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../development/controllers.html" class="md-tabs__link">
+          
+  
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api-reference/etcd-druid-api.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../monitoring/metrics.html" class="md-tabs__link">
+          
+  
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="01-multi-node-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Proposals
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="Etcd Druid" class="md-nav__button md-logo" aria-label="Etcd Druid" data-md-component="logo">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    Etcd Druid
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Deployment
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/configure-etcd-druid.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuring Etcd Druid
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/feature-gates.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feature Gates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/version-compatibility-matrix.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Version Compatibility Matrix
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/production-setup-recommendations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Productive Setup Recommendations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/managing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Managing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/recovering-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Recovering Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/securing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Securing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-components.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Components in an Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-resource-protection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Protecting resources in Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Development
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Development
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/controllers.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Controllers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/prepare-dev-environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Prepare Dev Environment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contribution.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contribution Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/changing-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changing API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/add-new-etcd-cluster-component.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Adding New Etcd Cluster Component
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/raising-a-pr.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Raising a PR
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/dependency-management.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Manage Dependencies
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/updating-documentation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Updating documentation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/etcd-druid-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Druid API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Monitoring
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../monitoring/metrics.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Metrics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8">
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Proposals
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Proposals
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="01-multi-node-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Node Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="02-snapshot-compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Snapshot Compaction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="03-scaling-up-an-etcd-cluster.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Scaling Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="04-etcd-member-custom-resource.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Member
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="05-etcd-operator-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Operator Tasks
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      Terminology
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Motivation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Motivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goals
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Non-Goals
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proposal
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-cloud-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Cloud Providers
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Supported Cloud Providers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#types-of-immutability" class="md-nav__link">
+    <span class="md-ellipsis">
+      Types of Immutability
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comparison-of-bucket-level-and-object-level-immutability" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comparison of Bucket-Level and Object-Level Immutability
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recommended Approach
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuring-immutable-backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuring Immutable Backups
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring Immutable Backups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#handling-of-hibernated-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Handling of Hibernated Clusters
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Handling of Hibernated Clusters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#proposal_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proposal
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd-cr-api-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd CR API Changes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etcd-backup-restore-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      etcd-backup-restore Enhancements
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etcd-controller-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      etcd Controller Enhancements
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operator-task-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Operator Task Enhancements
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operator Task Enhancements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle-of-extendfullsnapshotimmutabilitytask" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle of ExtendFullSnapshotImmutabilityTask
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-task-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example Task Config
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disabling-immutability" class="md-nav__link">
+    <span class="md-ellipsis">
+      Disabling Immutability
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      Compatibility
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compatibility">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#impact-for-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Impact for Operators
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+  
+                  
+
+
+  
+  
+
+
+<h1 id="dep-06-immutable-etcd-cluster-backups">DEP-06: Immutable etcd Cluster Backups<a class="headerlink" href="#dep-06-immutable-etcd-cluster-backups" title="Permanent link">¶</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">¶</a></h2>
+<p>This proposal introduces immutable backups for etcd clusters managed by <code>etcd-druid</code>. By leveraging cloud provider immutability features, backups taken by <code>etcd-backup-restore</code> can neither be modified nor deleted once created for a configurable retention duration (immutability period). This approach strengthens the reliability and fault tolerance of the etcd restoration process.</p>
+<h2 id="terminology">Terminology<a class="headerlink" href="#terminology" title="Permanent link">¶</a></h2>
+<ul>
+<li><strong>etcd-druid:</strong> An etcd operator that configures, provisions, reconciles, and monitors etcd clusters.</li>
+<li><strong>etcd-backup-restore:</strong> A sidecar container that manages backups and restores of etcd cluster state. For more information, see the <a href="https://github.com/gardener/etcd-backup-restore/blob/master/README.md">etcd-backup-restore</a> documentation.</li>
+<li><strong>WORM (Write Once, Read Many):</strong> A storage model in which data, once written, cannot be modified or deleted until certain conditions are met.</li>
+<li><strong>Immutability:</strong> The property of an object that prevents it from being modified or deleted after creation.</li>
+<li><strong>Immutability Period:</strong> The duration for which data must remain immutable before it can be modified or deleted.</li>
+<li><strong>Bucket-Level Immutability:</strong> A policy that applies a uniform immutability period to all objects within a bucket.</li>
+<li><strong>Object-Level Immutability:</strong> A policy that allows setting immutability periods individually for objects within a bucket, offering more granular control.</li>
+<li><strong>Garbage Collection:</strong> The process of deleting old snapshot data that is no longer needed, in order to free up storage space. For more information, see the <a href="https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/garbage_collection.md">garbage collection documentation</a>.</li>
+<li><strong>Hibernation:</strong> A state in which an etcd cluster is scaled down to zero replicas, effectively pausing its operations. This is typically done to save costs when the cluster is not needed for an extended period. During hibernation, the cluster's data remains intact, and it can be resumed to its previous state when required.</li>
+</ul>
+<h2 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">¶</a></h2>
+<p><code>etcd-druid</code> provisions etcd clusters and manages their lifecycle. For every etcd cluster, consumers can enable periodic backups of the cluster state by configuring the <code>spec.backup</code> section in an Etcd custom resource. Periodic backups are taken via the <code>etcd-backup-restore</code> sidecar container that runs in each etcd member pod.</p>
+<p>Periodic backups of an etcd cluster state ensure the ability to recover from a data loss or a quorum loss, enhancing reliability and fault tolerance. It is crucial that these backups, which are vital for restoring the etcd cluster, remain protected from any form of tampering, whether intentional or accidental. To safeguard the integrity of these backups, the authors recommend utilizing <code>WORM</code> protection, a feature offered by various cloud providers, to ensure the backups remain immutable and secure.</p>
+<h3 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">¶</a></h3>
+<ul>
+<li>Protect backup data against modifications and deletions post-creation through immutability policies offered by storage providers.</li>
+</ul>
+<h3 id="non-goals">Non-Goals<a class="headerlink" href="#non-goals" title="Permanent link">¶</a></h3>
+<ul>
+<li>Implementing a mechanism to signal hibernation intent for handling snapshot immutability for hibernated etcd clusters, such as adding functionality via <code>etcd.spec</code> or annotations on the <code>Etcd</code> CR, to indicate when an etcd cluster should enter or exit hibernation, as discussed in <a href="https://github.com/gardener/etcd-druid/issues/922">gardener/etcd-druid#922</a>.</li>
+<li>Supporting immutable backups on storage providers that do not offer immutability features (e.g., OpenStack Swift).</li>
+</ul>
+<h2 id="proposal">Proposal<a class="headerlink" href="#proposal" title="Permanent link">¶</a></h2>
+<p>This proposal aims to improve backup storage integrity and security by using immutability features available on major cloud providers.</p>
+<h3 id="supported-cloud-providers">Supported Cloud Providers<a class="headerlink" href="#supported-cloud-providers" title="Permanent link">¶</a></h3>
+<ul>
+<li><strong>Google Cloud Storage (GCS):</strong> <a href="https://cloud.google.com/storage/docs/bucket-lock">Bucket Lock</a></li>
+<li><strong>Amazon S3 (S3):</strong> <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html">Object Lock</a></li>
+<li><strong>Azure Blob Storage (ABS):</strong> <a href="https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-policy-configure-container-scope?tabs=azure-portal">Immutable Blob Storage</a><blockquote>
+<p>[!NOTE]
+Currently, Openstack object storage (swift) doesn't support immutability for objects: https://blueprints.launchpad.net/swift/+spec/immutability-middleware.</p>
+</blockquote>
+</li>
+</ul>
+<h4 id="types-of-immutability">Types of Immutability<a class="headerlink" href="#types-of-immutability" title="Permanent link">¶</a></h4>
+<ol>
+<li><strong>Object-Level Immutability:</strong> Allows setting immutability periods independently for each object within a bucket.</li>
+<li><strong>Bucket-Level Immutability:</strong> Applies a uniform immutability policy to all objects in a bucket.</li>
+</ol>
+<h3 id="comparison-of-bucket-level-and-object-level-immutability">Comparison of Bucket-Level and Object-Level Immutability<a class="headerlink" href="#comparison-of-bucket-level-and-object-level-immutability" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>GCS</th>
+<th>S3</th>
+<th>ABS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Can bucket-level immutability period be increased?</td>
+<td>Yes</td>
+<td>Yes*</td>
+<td>Yes (only 5 times)</td>
+</tr>
+<tr>
+<td>Can bucket-level immutability period be decreased?</td>
+<td>No</td>
+<td>Yes*</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Is bucket-level immutability a prerequisite for object-level immutability?</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes (for existing buckets)</td>
+</tr>
+<tr>
+<td>Can object-level immutability period be increased?</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Can object-level immutability period be decreased?</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Support for enabling object-level immutability in existing buckets</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Support for enabling object-level immutability in new buckets</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Support for enabling bucket-level immutability in existing buckets</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Support for enabling bucket-level immutability in new buckets</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Precedence between bucket-level and object-level immutability periods</td>
+<td>Max(bucket, object)</td>
+<td>Object-level</td>
+<td>Max(bucket, object)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>[!NOTE]
+In AWS S3, it is possible to increase and decrease the bucket-level immutability period; however, this action can be blocked by configuring specific bucket policy settings.<br>
+For GCS, object-level immutability is not yet supported for existing buckets; see <a href="https://issuetracker.google.com/issues/346679415?pli=1">this issue</a>.</p>
+</blockquote>
+<h3 id="recommended-approach">Recommended Approach<a class="headerlink" href="#recommended-approach" title="Permanent link">¶</a></h3>
+<p>At the time of writing this proposal, these are the current limitations seen across providers:</p>
+<ul>
+<li><strong>S3 and ABS:</strong> typically require bucket-level immutability as a prerequisite for object-level immutability.</li>
+<li><strong>GCS</strong> does not currently support object-level immutability in existing buckets.</li>
+<li><strong>ABS</strong> requires a <a href="https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-version-level-worm-policies#migration">migration process</a> to enable version-level immutability on existing containers.</li>
+</ul>
+<p>Consequently, the authors recommend <strong>bucket-level immutability</strong>. This approach simplifies configuration and ensures a uniform immutability policy for all backups in a bucket across all support providers.</p>
+<h3 id="configuring-immutable-backups">Configuring Immutable Backups<a class="headerlink" href="#configuring-immutable-backups" title="Permanent link">¶</a></h3>
+<p>Creating and configuring immutable buckets on providers is not handled by <code>etcd-druid</code> and must be done by the consumers. For a large-scale consumer like Gardener, provider extensions are leveraged to automate both the creation and configuration of buckets. For more details, see <a href="https://github.com/gardener/gardener/blob/75dd7c7488b31d87dc8c683f8ed2ef6aaa12d283/docs/extensions/resources/backupbucket.md">BackupBucket</a> and refer to <a href="https://github.com/gardener/gardener/issues/10866">this issue</a>.</p>
+<h4 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">¶</a></h4>
+<ol>
+<li><strong>Configure or Update the Immutable Bucket</strong>  </li>
+<li>Use your cloud provider’s CLI, SDK, or console to create (or update) a bucket/container with a WORM (write-once-read-many) immutability policy.  </li>
+<li>
+<p>Refer to the <a href="https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/enabling_immutable_snapshots.md#configure-bucket-level-immutability">Configure Bucket-Level Immutability</a> for step-by-step instructions on configuring or updating the immutable bucket across different cloud providers.</p>
+</li>
+<li>
+<p><strong>Provide Valid Credentials in a Kubernetes Secret</strong>  </p>
+</li>
+<li>The <code>store</code> section of the <code>Etcd</code> CR must reference a <code>Secret</code> containing valid credentials.<br>
+    <div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">druid.gardener.cloud/v1alpha1</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Etcd</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nt">metadata</span><span class="p">:</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example-etcd</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nt">spec</span><span class="p">:</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w"> </span><span class="nt">backup</span><span class="p">:</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">store</span><span class="p">:</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">prefix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">etcd-backups</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">container</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-immutable-backups</span><span class="w">  </span><span class="c1"># Bucket name</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aws</span><span class="w">                    </span><span class="c1"># Supported: aws, gcp, azure</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nt">secretRef</span><span class="p">:</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">     </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">etcd-backup-credentials</span><span class="w">  </span><span class="c1"># Reference to the Secret</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="nt">immutability</span><span class="p">:</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">     </span><span class="nt">retentionType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bucket</span><span class="w">          </span><span class="c1"># Enables bucket-level immutability</span>
+</span></code></pre></div></li>
+<li>Confirm that this secret has the proper permissions to upload and retrieve snapshots from the immutable bucket.  </li>
+<li>See the <a href="https://github.com/gardener/etcd-druid/blob/master/docs/deployment/getting-started-locally/getting-started-locally.md#setting-up-cloud-provider-object-store-secret">Getting Started guide</a> for an example.<blockquote>
+<p>[!NOTE]
+The <code>etcd-druid</code> does not handle the rotation of cloud provider credentials. Credential rotation must be managed by the operator.</p>
+</blockquote>
+</li>
+</ol>
+<p>By following these steps, you will have set up an immutable bucket for storing etcd backups, along with the necessary references in your <code>Etcd</code> specification and Kubernetes secret.</p>
+<h3 id="handling-of-hibernated-clusters">Handling of Hibernated Clusters<a class="headerlink" href="#handling-of-hibernated-clusters" title="Permanent link">¶</a></h3>
+<p>When an etcd cluster remains hibernated beyond the bucket’s immutability period, backups might become mutable again, depending on the cloud provider (see <a href="#comparison-of-bucket-level-and-object-level-immutability">Comparison of Storage Provider Properties</a>). This could compromise the intended guarantees of immutability, exposing backups to accidental or malicious alterations.</p>
+<p>As mentioned in <a href="https://github.com/gardener/etcd-druid/issues/922">gardener/etcd-druid#922</a>, a clear hibernation signal is needed. Since <code>etcd-druid</code> does not currently support hibernation natively and addressing that is out of scope for this proposal, we focus solely on maintaining immutability.</p>
+<h4 id="proposal_1">Proposal<a class="headerlink" href="#proposal_1" title="Permanent link">¶</a></h4>
+<p>To mitigate the risk of backups becoming mutable during extended hibernation under bucket-level immutability, the authors propose the following approach:</p>
+<ol>
+<li><strong>Prerequisite: Cut-off Traffic and Take a Final Full Snapshot Before Hibernation</strong>  </li>
+<li>Before scaling the etcd cluster down to zero replicas, the etcd controller removes etcd’s client ports (2379/2380) from the etcd Service to block application traffic.</li>
+<li>
+<p>The etcd controller then triggers an <a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot">on-demand full snapshot</a>. This ensures that the latest state of the etcd cluster is captured and securely stored before hibernation begins.  </p>
+</li>
+<li>
+<p><strong>Periodically Re-Upload the Snapshot</strong>  </p>
+</li>
+<li>Re-uploading the latest full snapshot resets its immutability period in the bucket, ensuring backups remain protected during hibernation.  </li>
+<li>By default, the re-upload schedule follows <code>etcd.spec.backup.fullSnapshotSchedule</code>. Currently, this interval cannot be customized exclusively for re-uploads; future enhancements may introduce a dedicated configuration parameter.  </li>
+<li>A new operator task type, <strong><code>ExtendFullSnapshotImmutabilityTask</code></strong>, periodically calls a new CLI command, <code>extend-snapshot-immutability</code>, to re-upload the snapshot and extend its immutability.  </li>
+<li><strong><code>ExtendFullSnapshotImmutabilityTask</code> also manages garbage collection</strong>, ensuring that <strong>only the latest immutable snapshots are retained</strong> while deleting older snapshots created by the task itself.</li>
+</ol>
+<p>By capturing a final full snapshot before hibernation, periodically re-uploading it to preserve immutability, and removing stale backups, etcd backups remain safeguarded against accidental or malicious alterations until the cluster is resumed.</p>
+<blockquote>
+<p>[!IMPORTANT]
+<strong>Limitation:</strong> There is a potential edge case where a snapshot might become corrupted <strong>before hibernation</strong> or during the <strong>re-upload process by <code>ExtendFullSnapshotImmutabilityTask</code></strong>. If this happens, the process could repeatedly re-upload the same corrupted snapshot, failing to ensure a reliable backup.</p>
+</blockquote>
+<p>An alternative solution could be to trigger the <a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/02-snapshot-compaction.md">snapshot compaction</a> which runs in separate pod and takes a fresh snapshot of the compacted etcd data and re-uploads it to the object store.</p>
+<p>While this approach ensures that only valid snapshots are re-uploaded, it is <strong>resource-intensive</strong>, requiring an operational etcd instance even in hibernation. Given the high cost in terms of compute and memory, the authors <strong>recommend</strong> the snapshot re-upload approach as a more practical solution.</p>
+<h5 id="etcd-cr-api-changes">Etcd CR API Changes<a class="headerlink" href="#etcd-cr-api-changes" title="Permanent link">¶</a></h5>
+<p>A new field is introduced in <code>Etcd.spec.backup.store</code> to indicate the immutability strategy:</p>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">// StoreSpec defines parameters for storing etcd backups.</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kd">type</span><span class="w"> </span><span class="nx">StoreSpec</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="c1">// ...</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="c1">// Immutability configuration for the backup store.</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nx">Immutability</span><span class="w"> </span><span class="o">*</span><span class="nx">ImmutabilitySpec</span><span class="w"> </span><span class="s">`json:"immutability,omitempty"`</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1">// ImmutabilitySpec defines immutability settings.</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ImmutabilitySpec</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="c1">// RetentionType indicates the type of immutability approach. For example, "bucket".</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nx">RetentionType</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="s">`json:"retentionType,omitempty"`</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>If <code>immutability</code> is not specified, <code>etcd-druid</code> will assume that the bucket is mutable, and no immutability-related logic applies. We have defined a new type to allow us future enhancements to the immutability specification.</p>
+<h5 id="etcd-backup-restore-enhancements"><code>etcd-backup-restore</code> Enhancements<a class="headerlink" href="#etcd-backup-restore-enhancements" title="Permanent link">¶</a></h5>
+<p>The authors propose adding new sub-command to the <code>etcd-backup-restore</code> CLI (<code>etcdbrctl</code>) to maintain immutability during hibernation and to clean up snapshots created by <code>ExtendFullSnapshotImmutabilityTask</code>:</p>
+<ul>
+<li><strong><code>extend-snapshot-immutability</code></strong></li>
+<li>Downloads the latest full snapshot from the object store.</li>
+<li>Renames the snapshot (for instance, updates its Unix timestamp) to avoid overwriting an existing immutable snapshot.</li>
+<li>Uploads the renamed snapshot back to object storage, thereby <strong>restarting</strong> its immutability timer.</li>
+<li>Introduces the <code>--gc-from-timestamp=&lt;timestamp&gt;</code> parameter, where <code>&lt;timestamp&gt;</code> is the creation timestamp of the task. This ensures that only snapshots created by the task are subject to garbage collection.<blockquote>
+<p>[!NOTE]<br>
+As an alternative to the download/upload approach, the authors document the possibility of using provider APIs to perform a server-side object copy. This method could significantly reduce network costs and latency by directly copying the snapshot within the cloud provider's infrastructure. While this option is not implemented in the current version, feasibility of server-side copy can be explored in <a href="https://github.com/gardener/etcd-backup-restore/blob/master/pkg/types/snapstore.go#L74-L86">etcd-backup-restore</a> during implementation.</p>
+</blockquote>
+</li>
+</ul>
+<h5 id="etcd-controller-enhancements">etcd Controller Enhancements<a class="headerlink" href="#etcd-controller-enhancements" title="Permanent link">¶</a></h5>
+<p>When a hibernation flow is initiated (by external tooling or higher-level operators), the <a href="https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller">etcd controller</a> can:</p>
+<ol>
+<li>Remove etcd’s client ports (2379/2380) from the etcd Service to block application traffic.</li>
+<li>Trigger an <a href="https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcd-operator-tasks.md#trigger-on-demand-fulldelta-snapshot">on-demand full snapshot</a> via an <code>EtcdOperatorTask</code>.</li>
+<li>Scale down the <code>StatefulSet</code> replicas to zero, provided the previous snapshot step is successful.</li>
+<li>Create the <code>ExtendFullSnapshotImmutabilityTask</code> if <code>etcd.spec.backup.store.immutability.retentionType</code> is <code>"bucket"</code> and based on <code>etcd.spec.backup.fullSnapshotSchedule</code>.</li>
+</ol>
+<h5 id="operator-task-enhancements">Operator Task Enhancements<a class="headerlink" href="#operator-task-enhancements" title="Permanent link">¶</a></h5>
+<p>The <code>ExtendFullSnapshotImmutabilityTask</code> will create a cron job that:</p>
+<ul>
+<li>Runs <code>etcdbrctl extend-snapshot-immutability --gc-from-timestamp=&lt;creation timestamp of task&gt;</code> to preserve the immutability period of the most recent snapshot. This command re-uploads the latest snapshot, effectively resetting its immutability period. Additionally, it removes any snapshots that have become mutable after the creation timestamp of the task.</li>
+</ul>
+<p>By periodically re-uploading (extending) the latest snapshot during hibernation, the authors ensure that the immutability period is extended, and the backups remain <strong>protected throughout the hibernation period</strong>.</p>
+<h6 id="lifecycle-of-extendfullsnapshotimmutabilitytask">Lifecycle of <code>ExtendFullSnapshotImmutabilityTask</code><a class="headerlink" href="#lifecycle-of-extendfullsnapshotimmutabilitytask" title="Permanent link">¶</a></h6>
+<p>The <code>ExtendFullSnapshotImmutabilityTask</code> is <strong>active during hibernation</strong> and is automatically managed by the <code>etcd-controller</code>. Its lifecycle is tied to the cluster’s hibernation state:</p>
+<ol>
+<li><strong>Task Creation</strong>  </li>
+<li>
+<p>When the etcd cluster enters hibernation (e.g., scaling down to zero replicas), the etcd controller:  </p>
+<ul>
+<li>Triggers a final full snapshot.  </li>
+<li>Creates the <code>ExtendFullSnapshotImmutabilityTask</code> to run <code>extend-snapshot-immutability --gc-from-timestamp=&lt;creation timestamp of this task&gt;</code> </li>
+</ul>
+</li>
+<li>
+<p><strong>Task Deletion</strong>  </p>
+</li>
+<li>When the cluster resumes from hibernation (scales up to non-zero replicas), the controller:  <ul>
+<li>Deletes the <code>ExtendFullSnapshotImmutabilityTask</code> to stop extending snapshots.  </li>
+<li>Resumes the normal backup schedule defined in <code>spec.backup.fullSnapshotSchedule</code>.  </li>
+</ul>
+</li>
+<li>When the immutability configuration is removed from the <code>etcd.spec.backup.store</code>, the controller:<ul>
+<li>Deletes the <code>ExtendFullSnapshotImmutabilityTask</code> to stop extending snapshots.</li>
+</ul>
+</li>
+</ol>
+<h6 id="example-task-config">Example Task Config<a class="headerlink" href="#example-task-config" title="Permanent link">¶</a></h6>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">ExtendFullSnapshotImmutabilityTaskConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="c1">// Schedule defines a cron schedule (e.g., "0 0 * * *").</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nx">Schedule</span><span class="w"> </span><span class="o">*</span><span class="kt">string</span><span class="w"> </span><span class="s">`json:"schedule,omitempty"`</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>Sample YAML</strong>:</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">spec</span><span class="p">:</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="s">"0</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*"</span>
+</span></code></pre></div>
+<h5 id="disabling-immutability">Disabling Immutability<a class="headerlink" href="#disabling-immutability" title="Permanent link">¶</a></h5>
+<p>If you remove the immutability configuration from <code>etcd.spec.backup.store</code>, hibernation-based immutability support no longer applies. However, once the bucket itself is locked at the provider level, <strong>it cannot be reverted to a mutable state</strong>. Any objects uploaded by <code>etcd-backup-restore</code> are still subject to the existing WORM policy.</p>
+<p>If you genuinely require a mutable backup again, the recommended approach is:
+1. <strong>Use a new bucket.</strong> In your <code>Etcd</code> custom resource, reference a different bucket that does <strong>not</strong> have immutability enabled.<br>
+2. <strong>Use <code>EtcdCopyBackupsTask</code>.</strong> If you want to start the cluster with a new bucket but retain old data, use the <a href="https://github.com/gardener/etcd-druid/blob/master/examples/etcdcopybackstask/druid_v1alpha1_etcdcopybackupstask.yaml"><code>EtcdCopyBackupsTask</code></a> to copy existing backups from the old immutable bucket to the new mutable bucket.
+3. <strong>Reconcile the <code>Etcd</code> CR.</strong> After pointing <code>etcd.spec.backup.store</code> to the new bucket, <code>etcd-druid</code> will start storing backups there.</p>
+<blockquote>
+<p><strong>Note:</strong> Existing snapshots in the old immutable bucket remain locked according to the configured immutability period.</p>
+</blockquote>
+<h2 id="compatibility">Compatibility<a class="headerlink" href="#compatibility" title="Permanent link">¶</a></h2>
+<p>These changes are compatible with existing etcd clusters and current backup processes.</p>
+<ul>
+<li><strong>Backward Compatibility:</strong></li>
+<li>Clusters without immutable buckets continue to function without any changes.</li>
+<li><strong>Forward Compatibility:</strong></li>
+<li>Clusters can opt in to use immutable backups by configuring the bucket accordingly (as described in <a href="#configuring-immutable-backups">Configuring Immutable Backups</a>) and setting <code>etcd.spec.backup.store.immutability.retentionType == "bucket"</code>.</li>
+<li>The enhanced hibernation logic in the etcd controller is additive, meaning it does not interfere with existing workflows.</li>
+</ul>
+<h3 id="impact-for-operators">Impact for Operators<a class="headerlink" href="#impact-for-operators" title="Permanent link">¶</a></h3>
+<p>In scenarios where you want to exclude certain snapshots from an etcd restore, you previously could simply delete them from object storage. However, when bucket-level immutability is enabled, deleting existing immutable snapshots is no longer possible. To address this need, most cloud providers allow adding <strong>custom annotations or tags</strong> to objects—even immutable ones—so they can be logically excluded without physically removing them.</p>
+<p><code>etcd-backup-restore</code> supports ignoring snapshots based on annotations or tags, rather than deleting them. Operators can add the following key-value pair to any snapshot object to exclude it from future restores:</p>
+<ul>
+<li><strong>Key:</strong> <code>x-etcd-snapshot-exclude</code>  </li>
+<li><strong>Value:</strong> <code>true</code>  </li>
+</ul>
+<p>Because these tags or annotations do not modify the underlying snapshot data, they are permissible even for immutable objects. Once these annotations are in place, <code>etcd-backup-restore</code> will detect them and skip the tagged snapshots during restoration, thus preventing unwanted snapshots from being used. For more details, see the <a href="https://github.com/gardener/etcd-backup-restore/blob/master/docs/usage/enabling_immutable_snapshots.md#ignoring-snapshots-during-restoration">Ignoring Snapshots during Restoration</a>.</p>
+<blockquote>
+<p>[!NOTE]
+At the time of writing this proposal, this feature is not supported for AWS S3 buckets.</p>
+</blockquote>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">¶</a></h2>
+<ul>
+<li><a href="https://cloud.google.com/storage/docs/bucket-lock">GCS Bucket Lock</a></li>
+<li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html">AWS S3 Object Lock</a></li>
+<li><a href="https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-policy-configure-container-scope?tabs=azure-portal">Azure Immutable Blob Storage</a></li>
+<li><a href="https://github.com/gardener/etcd-backup-restore/blob/master/README.md">etcd-backup-restore Documentation</a></li>
+<li><a href="https://github.com/gardener/gardener/issues/10866">Gardener Issue: 10866</a></li>
+</ul>
+<hr>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+  
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        
+
+<footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        with emoji by
+        <a href="https://github.com/twitter/twemoji" target="_blank" rel="noopener">
+          Twemoji
+        </a>
+      </div>
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/gardener/etcd-druid" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+    </a>
+  
+</div>
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.select", "content.code.copy", "content.code.annotate", "header.autohide"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../assets/pymdownx-extras/extra-loader-B5CKpNQx.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

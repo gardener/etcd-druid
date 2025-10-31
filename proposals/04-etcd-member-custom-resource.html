@@ -1,0 +1,2950 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="etcd druid documentation">
+      
+      
+      
+      
+        <link rel="prev" href="03-scaling-up-an-etcd-cluster.html">
+      
+      
+        <link rel="next" href="05-etcd-operator-tasks.html">
+      
+      
+      <link rel="icon" href="../assets/logo/etcd-druid-transparentbg.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>EtcdMember Custom Resource - Etcd Druid</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+
+      
+    
+<script src="../assets/pymdownx-extras/material-extra-theme-2ek1P7jT.js" type="text/javascript"></script>
+<script src="../assets/pymdownx-extras/material-extra-3rdparty-BUCF4rjN.js" type="text/javascript"></script>
+
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/css/custom.css">
+    
+      <link rel="stylesheet" href="../assets/pymdownx-extras/extra-c6ab11540a.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dep-04-etcdmember-custom-resource" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="header.title">
+    <a href="../index.html" title="Etcd Druid" class="md-header__button md-logo" aria-label="Etcd Druid">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Etcd Druid
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              EtcdMember Custom Resource
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="md-header__options">
+      <div class="md-header-nav__scheme md-header-nav__button md-source__icon md-icon">
+          <a href="javascript:toggleScheme();" title="Light mode" class="light-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="Dark mode" class="dark-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"></path></svg>
+          </a>
+          <a href="javascript:toggleScheme();" title="System preference" class="system-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.5 2c-1.79 1.15-3 3.18-3 5.5s1.21 4.35 3.03 5.5C4.46 13 2 10.54 2 7.5A5.5 5.5 0 0 1 7.5 2m11.57 1.5 1.43 1.43L4.93 20.5 3.5 19.07zm-6.18 2.43L11.41 5 9.97 6l.42-1.7L9 3.24l1.75-.12.58-1.65L12 3.1l1.73.03-1.35 1.13zm-3.3 3.61-1.16-.73-1.12.78.34-1.32-1.09-.83 1.36-.09.45-1.29.51 1.27 1.36.03-1.05.87zM19 13.5a5.5 5.5 0 0 1-5.5 5.5c-1.22 0-2.35-.4-3.26-1.07l7.69-7.69c.67.91 1.07 2.04 1.07 3.26m-4.4 6.58 2.77-1.15-.24 3.35zm4.33-2.7 1.15-2.77 2.2 2.54zm1.15-4.96-1.14-2.78 3.34.24zM9.63 18.93l2.77 1.15-2.53 2.19z"></path></svg>
+          </a>
+           <a href="javascript:toggleScheme();" title="Unknown scheme" class="unknown-mode">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m15.07 11.25-.9.92C13.45 12.89 13 13.5 13 15h-2v-.5c0-1.11.45-2.11 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41a2 2 0 0 0-2-2 2 2 0 0 0-2 2H8a4 4 0 0 1 4-4 4 4 0 0 1 4 4 3.2 3.2 0 0 1-.93 2.25M13 19h-2v-2h2M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10c0-5.53-4.5-10-10-10"></path></svg>
+          </a>
+      </div>
+    </div>
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../index.html" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-tabs__link">
+          
+  
+  
+  Deployment
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../usage/managing-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Usage
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/etcd-cluster-components.html" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../development/controllers.html" class="md-tabs__link">
+          
+  
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api-reference/etcd-druid-api.html" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../monitoring/metrics.html" class="md-tabs__link">
+          
+  
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="01-multi-node-etcd-clusters.html" class="md-tabs__link">
+          
+  
+  
+  Proposals
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="Etcd Druid" class="md-nav__button md-logo" aria-label="Etcd Druid" data-md-component="logo">
+      
+  <img src="../assets/logo/etcd-druid-whitebg.png" alt="logo">
+
+    </a>
+    Etcd Druid
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/gardener/etcd-druid" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    gardener/etcd-druid
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2">
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Deployment
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/getting-started-locally/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/configure-etcd-druid.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuring Etcd Druid
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/feature-gates.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Feature Gates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/version-compatibility-matrix.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Version Compatibility Matrix
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/production-setup-recommendations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Productive Setup Recommendations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3">
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/managing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Managing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/recovering-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Recovering Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/securing-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Securing Etcd clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4">
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-components.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Components in an Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/etcd-cluster-resource-protection.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Protecting resources in Etcd cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5">
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Development
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Development
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/controllers.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Controllers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/getting-started-locally.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/prepare-dev-environment.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Prepare Dev Environment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/contribution.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contribution Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/changing-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changing API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/add-new-etcd-cluster-component.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Adding New Etcd Cluster Component
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/raising-a-pr.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Raising a PR
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/dependency-management.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Manage Dependencies
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Testing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/updating-documentation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Updating documentation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6">
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/etcd-druid-api.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Druid API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7">
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Monitoring
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../monitoring/metrics.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Metrics
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Proposals
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Proposals
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="01-multi-node-etcd-clusters.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Node Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="02-snapshot-compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Snapshot Compaction
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="03-scaling-up-an-etcd-cluster.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Scaling Etcd Clusters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Etcd Member
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="04-etcd-member-custom-resource.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Member
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      Terminology
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Motivation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Motivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goals
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Non-Goals
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proposal
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd-member-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd Member Metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etcd-member-state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd Member State Transitions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Etcd Member State Transitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states-and-sub-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      States and Sub-States
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-level-state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Top Level State Transitions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#starting-an-etcd-member-in-a-single-node-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Starting an Etcd-Member in a Single-Node Etcd Cluster
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Addition of a New Etcd-Member in a Multi-Node Etcd Cluster
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deterministic-etcd-member-creationrestart-during-scale-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deterministic Etcd Member Creation/Restart During Scale-Up
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tls-enablement-for-peer-communication" class="md-nav__link">
+    <span class="md-ellipsis">
+      TLS Enablement for Peer Communication
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-backup-health" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Backup Health
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enhanced-snapshot-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enhanced Snapshot Compaction
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enhanced-defragmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enhanced Defragmentation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-defragmentations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Defragmentations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-restorations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Restorations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-volume-mismatches" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Volume Mismatches
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-resource-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Resource API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom Resource API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec-vs-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      Spec vs Status
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#representing-state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Representing State Transitions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Representing State Transitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reason-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reason Codes
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcdmember" class="md-nav__link">
+    <span class="md-ellipsis">
+      EtcdMember
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle-of-an-etcdmember" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle of an EtcdMember
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle of an EtcdMember">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Updation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deletion
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reconciliation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reconciliation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stale-etcdmember-status-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stale EtcdMember Status Handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reference
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="05-etcd-operator-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Etcd Operator Tasks
+    
+  </span>
+  
+    
+  
+  
+    <span class="md-status md-status--implementable"></span>
+  
+
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      Terminology
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Motivation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Motivation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Goals
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      Non-Goals
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proposal
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Proposal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd-member-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd Member Metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etcd-member-state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd Member State Transitions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Etcd Member State Transitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states-and-sub-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      States and Sub-States
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#top-level-state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Top Level State Transitions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#starting-an-etcd-member-in-a-single-node-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Starting an Etcd-Member in a Single-Node Etcd Cluster
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Addition of a New Etcd-Member in a Multi-Node Etcd Cluster
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deterministic-etcd-member-creationrestart-during-scale-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deterministic Etcd Member Creation/Restart During Scale-Up
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tls-enablement-for-peer-communication" class="md-nav__link">
+    <span class="md-ellipsis">
+      TLS Enablement for Peer Communication
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-backup-health" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Backup Health
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enhanced-snapshot-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enhanced Snapshot Compaction
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enhanced-defragmentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enhanced Defragmentation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-defragmentations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Defragmentations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-restorations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Restorations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-volume-mismatches" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring Volume Mismatches
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-resource-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Resource API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Custom Resource API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec-vs-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      Spec vs Status
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#representing-state-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Representing State Transitions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Representing State Transitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reason-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reason Codes
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcdmember" class="md-nav__link">
+    <span class="md-ellipsis">
+      EtcdMember
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#etcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      Etcd
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle-of-an-etcdmember" class="md-nav__link">
+    <span class="md-ellipsis">
+      Lifecycle of an EtcdMember
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle of an EtcdMember">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Updation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deletion
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reconciliation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reconciliation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stale-etcdmember-status-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stale EtcdMember Status Handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reference
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+  
+                  
+
+
+  
+  
+
+
+<h1 id="dep-04-etcdmember-custom-resource">DEP-04: EtcdMember Custom Resource<a class="headerlink" href="#dep-04-etcdmember-custom-resource" title="Permanent link">¶</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">¶</a></h2>
+<p>Today, <a href="https://github.com/gardener/etcd-druid">etcd-druid</a> mainly acts as an etcd cluster provisioner, and seldom takes remediatory actions if the <a href="https://etcd.io/">etcd</a> cluster goes into an undesired state that needs to be resolved by a human operator. In other words, etcd-druid cannot perform day-2 operations on etcd clusters in its current form, and hence cannot carry out its full set of responsibilities as a true "operator" of etcd clusters. For etcd-druid to be fully capable of its responsibilities, it must know the latest state of the etcd clusters and their individual members at all times.</p>
+<p>This proposal aims to bridge that gap by introducing <code>EtcdMember</code> custom resource allowing individual etcd cluster members to publish information/state (previously unknown to etcd-druid). This provides etcd-druid a handle to potentially take cluster-scoped remediatory actions.</p>
+<h2 id="terminology">Terminology<a class="headerlink" href="#terminology" title="Permanent link">¶</a></h2>
+<ul>
+<li>
+<p><strong>druid:</strong> <a href="https://github.com/gardener/etcd-druid">etcd-druid</a> - an operator for etcd clusters.</p>
+</li>
+<li>
+<p><strong>etcd-member:</strong> A single etcd pod in an etcd cluster that is realised as a <a href="https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/">StatefulSet</a>.</p>
+</li>
+<li>
+<p><strong>backup-sidecar:</strong> It is the etcd-backup-restore sidecar container in each etcd-member pod. </p>
+</li>
+</ul>
+<blockquote>
+<p><strong>NOTE:</strong> Term sidecar can now be confused with the latest definition in <a href="https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/753-sidecar-containers/README.md">KEP-73</a>. etcd-backup-restore container is currently not set as an <code>init-container</code> as proposed in the KEP but as a regular container in a multi-container <a href="[Pods | Kubernetes](https://kubernetes.io/docs/concepts/workloads/pods/)">Pod</a>.</p>
+</blockquote>
+<ul>
+<li>
+<p><strong>leading-backup-sidecar:</strong> A backup-sidecar that is associated to an etcd leader.</p>
+</li>
+<li>
+<p><strong>restoration:</strong> It refers to an individual etcd-member restoring etcd data from an existing backup (comprising of full and delta snapshots). The authors have deliberately chosen to distinguish between restoration and learning. Learning refers to a process where a <a href="https://etcd.io/docs/v3.3/learning/learner/#raft-learner">learner</a> "learns" from an etcd-cluster leader.</p>
+</li>
+</ul>
+<h2 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">¶</a></h2>
+<p>Sharing state of an individual etcd-member with druid is essential for diagnostics, monitoring, cluster-wide-operations and potential remediation. At present, only a subset of etcd-member state is shared with druid using <a href="https://kubernetes.io/docs/concepts/architecture/leases/">leases</a>. It was always meant as a stopgap arrangement as mentioned in the <a href="https://github.com/gardener/etcd-druid/pull/207">corresponding issue</a> and is not the best use of leases.</p>
+<p>There is a need to have a clear distinction between an etcd-member state and etcd cluster state since most of an etcd cluster state is often derived by looking at individual etcd-member states. In addition, actors which update each of these states should be clearly identified so as to prevent multiple actors updating a single resource holding the state of either an etcd cluster or an etcd-member. As a consequence, etcd-members should not directly update the <code>Etcd</code> resource status and would therefore need a new custom resource allowing each member to publish detailed information about its latest state.</p>
+<h3 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">¶</a></h3>
+<ul>
+<li>Introduce <code>EtcdMember</code> custom resource via which each etcd-member can publish information about its state. This enables druid to deterministically orchestrate out-of-turn operations like compaction, defragmentation, volume management etc. </li>
+<li>Define and capture states, sub-states and deterministic transitions amongst states of an etcd-member.</li>
+<li>Today <a href="https://kubernetes.io/docs/concepts/architecture/leases/">leases</a> are <em>misused</em> to share member-specific information with druid. Their usage to share member state [leader, follower, learner], member-id, snapshot revisions etc should be removed.</li>
+</ul>
+<h3 id="non-goals">Non-Goals<a class="headerlink" href="#non-goals" title="Permanent link">¶</a></h3>
+<ul>
+<li>Auto-recovery from quorum loss or cluster-split due to network partitioning.</li>
+<li>Auto-recovery of an etcd-member due to volume mismatch.</li>
+<li>Relooking at segregating responsiblities between <code>etcd</code> and <code>backup-sidecar</code> containers.</li>
+</ul>
+<h2 id="proposal">Proposal<a class="headerlink" href="#proposal" title="Permanent link">¶</a></h2>
+<p>This proposal introduces a new custom resource <code>EtcdMember</code>, and in the following sections describes different sets of information that should be captured as part of the new resource.</p>
+<h3 id="etcd-member-metadata">Etcd Member Metadata<a class="headerlink" href="#etcd-member-metadata" title="Permanent link">¶</a></h3>
+<p>Every etcd-member has a unique <code>memberID</code> and it is part of an etcd cluster which has a unique <code>clusterID</code>. In a well-formed etcd cluster every member must have the same <code>clusterID</code>. Publishing this information to druid helps in identifying issues when one or more etcd-members form their own individual clusters, thus resulting in multiple clusters where only one was expected. Issues  <a href="https://github.com/gardener/etcd-druid/issues/419">Issue#419</a>, Canary#4027, Canary#3973  are some such occurrences.</p>
+<p>Today, this information is published by using a member <a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease</a>. Both these fields are populated in the leases' <code>Spec.HolderIdentity</code> by the backup-sidecar container. </p>
+<p>The authors propose to publish member metadata information in <code>EtcdMember</code> resource.</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;etcd-member id&gt;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">clusterID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;etcd cluster id&gt;</span>
+</span></code></pre></div>
+<blockquote>
+<p><strong>NOTE:</strong> Druid would not do any auto-recovery when it finds out that there are more than one clusters being formed. Instead this information today will be used for diagnostic and alerting.</p>
+</blockquote>
+<h3 id="etcd-member-state-transitions">Etcd Member State Transitions<a class="headerlink" href="#etcd-member-state-transitions" title="Permanent link">¶</a></h3>
+<p>Each etcd-member goes through different <code>States</code> during its lifetime. <code>State</code> is a derived high-level summary of where an etcd-member is in its lifecycle. A <code>SubState</code> gives additional information about the state. This proposal extends the concept of states with the notion of a <code>SubState</code>, since <code>State</code> indicates a top-level state of an <code>EtcdMember</code> resource, which can have one or more <code>SubState</code>s.</p>
+<p>While <code>State</code> is sufficient for many human operators, the notion of a <code>SubState</code> provides operators with an insight about the discrete stage of an etcd-member in its lifecycle. For example, consider a top-level <code>State: Starting</code>, which indicates that an etcd-member is starting. <code>Starting</code> is meant to be a transient state for an etcd-member. If an etcd-member remains in this <code>State</code> longer than expected, then an operator would require additional insight, which the authors propose to provide via <code>SubState</code> (in this case, the possible <code>SubStates</code> could be <code>PendingLearner</code> and <code>Learner</code>, which are detailed in the following sections).</p>
+<p>At present, these states are not captured and only the final state is known - i.e the etcd-member either fails to come up (all re-attempts to bring up the pod via the StatefulSet controller has exhausted) or it comes up. Getting an insight into all its state transitions would help in diagnostics.</p>
+<p>The status of an etcd-member at any given point in time can be best categorized as a combination of a top-level <code>State</code> and a <code>SubState</code>. The authors propose to introduce the following states and sub-states:</p>
+<h4 id="states-and-sub-states">States and Sub-States<a class="headerlink" href="#states-and-sub-states" title="Permanent link">¶</a></h4>
+<blockquote>
+<p><strong>NOTE</strong>: Abbreviations have been used wherever possible, only to represent sub-states. These representations are chosen only for brevity and will have proper longer names.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>States</th>
+<th>Sub-States</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New</td>
+<td>-</td>
+<td>Every newly created etcd-member will start in this state and is termed as the initial state or the start state.</td>
+</tr>
+<tr>
+<td>Initializing</td>
+<td>DBV-S (DBValidationSanity)</td>
+<td>This state&nbsp;denotes that backup-restore container in etcd-member pod has started initialization. Sub-State <code>DBV-S</code>&nbsp;which is an abbreviation for <code>DBValidationSanity</code>&nbsp;denotes that currently sanity etcd DB validation is in progress.</td>
+</tr>
+<tr>
+<td>Initializing</td>
+<td>DBV-F (DBValidationFull)</td>
+<td>This state&nbsp;denotes that backup-restore container in etcd-member pod has started initialization. Sub-State <code>DBV-F</code>&nbsp;which is an abbreviation for <code>DBValidationFull</code>&nbsp;denotes that currently full etcd DB validation is in progress.</td>
+</tr>
+<tr>
+<td>Initializing</td>
+<td>R (Restoration)</td>
+<td>This state&nbsp;denotes that backup-restore container in etcd-member pod has started initialization. Sub-State <code>R</code>&nbsp;which is an abbreviation for <code>Restoration</code>&nbsp;denotes that DB validation failed and now backup-restore has commenced restoration of etcd DB from the backup (comprising of full snapshot and delta-snapshots). An etcd-member will transition to this sub-state only when it is part of a single-node etcd-cluster.</td>
+</tr>
+<tr>
+<td>Starting (SI)</td>
+<td>PL (PendingLearner)</td>
+<td>An etcd-member can transition from <code>Initializing</code>&nbsp;state to <code>PendingLearner</code>&nbsp;state. In this state backup-restore container will optionally delete any existing etcd data directory and then attempts to add its peer etcd-member process as a learner. Since there can be only one learner at a time in an etcd cluster, an etcd-member could be in this state for some time till its request to get added as a learner is accepted.</td>
+</tr>
+<tr>
+<td>Starting (SI)</td>
+<td>Learner</td>
+<td>When backup-restore is successfully able to add its peer etcd-member process as a <code>Learner</code>. In this state the etcd-member process will start its DB sync from an etcd leader.</td>
+</tr>
+<tr>
+<td>Started (Sd)</td>
+<td>Follower</td>
+<td>A follower is a voting raft member. A <code>Learner</code> etcd-member will get promoted to a <code>Follower</code>&nbsp;once its DB is in sync with the leader. It could also become a follower if during a re-election it loses leadership and transitions from being a <code>Leader</code>&nbsp;to <code>Follower</code>.</td>
+</tr>
+<tr>
+<td>Started (Sd)</td>
+<td>Leader</td>
+<td>A leader is an etcd-member which will handle all client write requests and linearizable read requests. A member could transition to being a <code>Leader</code>&nbsp;from an existing <code>Follower</code>&nbsp;role due to winning a leader election or for a single node etcd cluster it directly transitions from <code>Initializing</code>&nbsp;state to <code>Leader</code>&nbsp;state as there is no other member.</td>
+</tr>
+</tbody>
+</table>
+<p>In the following sub-sections, the state transitions are categorized into several flows making it easier to grasp the different transitions.</p>
+<h4 id="top-level-state-transitions">Top Level State Transitions<a class="headerlink" href="#top-level-state-transitions" title="Permanent link">¶</a></h4>
+<p>Following DFA represents top level state transitions (without any representation of sub-states). As described in the table above there are 4 top level states:</p>
+<ul>
+<li>
+<p><code>New</code>- this is a start state for all newly created etcd-members</p>
+</li>
+<li>
+<p><code>Initializing</code> - In this state backup-restore will perform pre-requisite actions before it triggers the start of an etcd process. DB validation and optionally restoration is done in this state. Possible sub-states are: <code>DBValidationSanity</code>, <code>DBValidationFull</code> and <code>Restoration</code></p>
+</li>
+<li>
+<p><code>Starting</code> - Once the optional initialization is done backup-restore will trigger the start of an etcd process. It can either directly go to <code>Learner</code> sub-state or wait for getting added as a learner and therefore be in <code>PendingLearner</code> sub-state.</p>
+</li>
+<li>
+<p><code>Started</code> - In this state the etcd-member is a full voting member. It can either be in <code>Leader</code> or <code>Follower</code> sub-states.</p>
+</li>
+</ul>
+<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="assets/04-top-level-state-transitions.excalidraw.png" data-desc-position="bottom"><img title="" src="assets/04-top-level-state-transitions.excalidraw.png" alt="" data-align="center"></a></p>
+<h4 id="starting-an-etcd-member-in-a-single-node-etcd-cluster">Starting an Etcd-Member in a Single-Node Etcd Cluster<a class="headerlink" href="#starting-an-etcd-member-in-a-single-node-etcd-cluster" title="Permanent link">¶</a></h4>
+<p>Following DFA represents the states, sub-states and transitions of a single etcd-member for a cluster that is bootstrapped from cluster size of 0 -&gt; 1.</p>
+<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="assets/04-state-transitions-bootstrap-0-1.excalidraw.png" data-desc-position="bottom"><img title="" src="assets/04-state-transitions-bootstrap-0-1.excalidraw.png" alt="" data-align="center"></a></p>
+<h4 id="addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">Addition of a New Etcd-Member in a Multi-Node Etcd Cluster<a class="headerlink" href="#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster" title="Permanent link">¶</a></h4>
+<p>Following DFA represents the states, sub-states and transitions of an etcd cluster which starts with having a single member (Leader) and then one or more new members are added which represents a scale-up of an etcd cluster from 1 -&gt; n, where n is <a href="https://etcd.io/docs/v3.5/faq/#why-an-odd-number-of-cluster-members">odd</a>.</p>
+<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="assets/04-state-transitions-scaleup-1-n.excalidraw.png" data-desc-position="bottom"><img title="" src="assets/04-state-transitions-scaleup-1-n.excalidraw.png" alt="" data-align="center"></a></p>
+<h4 id="restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster">Restart of a Voting Etcd-Member in a Multi-Node Etcd Cluster<a class="headerlink" href="#restart-of-a-voting-etcd-member-in-a-multi-node-etcd-cluster" title="Permanent link">¶</a></h4>
+<p>Following DFA represents the states, sub-states and transitions when a voting etcd-member in a multi-node etcd cluster restarts.</p>
+<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="assets/04-state-transitions-restart-member.excalidraw.png" data-desc-position="bottom"><img title="" src="assets/04-state-transitions-restart-member.excalidraw.png" alt="" data-align="center"></a></p>
+<blockquote>
+<p>NOTE: If the DB validation fails then data directory of the etcd-member is removed and etcd-member is removed from cluster membership, thus transitioning it to <code>New</code> state. The state transitions from <code>New</code> state are depicted by <a href="#addition-of-a-new-etcd-member-in-a-multi-node-etcd-cluster">this section</a>.</p>
+</blockquote>
+<h3 id="deterministic-etcd-member-creationrestart-during-scale-up">Deterministic Etcd Member Creation/Restart During Scale-Up<a class="headerlink" href="#deterministic-etcd-member-creationrestart-during-scale-up" title="Permanent link">¶</a></h3>
+<p><strong>Bootstrap information:</strong></p>
+<p>When an etcd-member starts, then it needs to find out:</p>
+<ul>
+<li>
+<p>If it should join an existing cluster or start a new cluster.</p>
+</li>
+<li>
+<p>If it should add itself as a <code>Learner</code> or directly start as a voting member.</p>
+</li>
+</ul>
+<p><strong>Issue with the current approach</strong>:</p>
+<p><em>At present</em>, this is facilitated by three things:</p>
+<ol>
+<li>
+<p>During scale-up, druid adds an annotation <code>gardener.cloud/scaled-to-multi-node</code> to the <code>StatefulSet</code>. Each etcd-members looks up this annotation.</p>
+</li>
+<li>
+<p>backup-sidecar attempts to fetch etcd cluster member-list and checks if this etcd-member is already part of the cluster.</p>
+</li>
+<li>
+<p>Size of the cluster by checking <code>initial-cluster</code> in the etcd config.</p>
+</li>
+</ol>
+<p>Druid adds an annotation <code>gardener.cloud/scaled-to-multi-node</code> on the <code>StatefulSet</code> which is then shared by all etcd-members irrespective of the starting state of an etcd-member (as <code>Learner</code> or <code>Voting-Member</code>). This especially creates an issue for the current leader (often pod with index 0) during the scale-up of an etcd cluster as described in <a href="https://github.com/gardener/etcd-backup-restore/issues/646">this</a> issue. </p>
+<p>It has been agreed that the current solution to <a href="https://github.com/gardener/etcd-backup-restore/issues/646">this issue</a> is a quick and dirty fix and needs to be revisited to be uniformly applied to all etcd-members. The authors propose to provide a more deterministic approach to scale-up using the <code>EtcdMember</code> resource.</p>
+<p><strong>New approach</strong></p>
+<p>Instead of adding an annotation <code>gardener.cloud/scaled-to-multi-node</code> on the <code>StatefulSet</code>, a new annotation <code>druid.gardener.cloud/create-as-learner</code> should be added by druid on an <code>EtcdMember</code> resource. This annotation will only be added to newly created members during scale-up.</p>
+<p>Each etcd-member should look at the following to deterministically compute the <code>bootstrap information</code> specified above:</p>
+<ul>
+<li><code>druid.gardener.cloud/create-as-learner</code> annotation on its respective <code>EtcdMember</code> resource. This new annotation will be honored in the following cases:</li>
+<li>
+<p>When an etcd-member is created for the very first time.</p>
+</li>
+<li>
+<p>An etcd-member is restarted while it is in <code>Starting</code> state (<code>PendingLearner</code> and <code>Learner</code> sub-states).</p>
+</li>
+<li>
+<p>Etcd-cluster member list.  to check if it is already part of the cluster. </p>
+</li>
+<li>
+<p>Existing etcd data directory and its validity.</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>NOTE:</strong> When the etcd-member gets promoted to a voting-member, then it should remove the annotation on its respective <code>EtcdMember</code> resource.</p>
+</blockquote>
+<h3 id="tls-enablement-for-peer-communication">TLS Enablement for Peer Communication<a class="headerlink" href="#tls-enablement-for-peer-communication" title="Permanent link">¶</a></h3>
+<p>Etcd-members in a cluster use <a href="https://etcd.io/docs/v3.4/op-guide/configuration/#--initial-advertise-peer-urls">peer URL(s)</a> to communicate amongst each other. If the advertised peer URL(s) for an etcd-member are updated then <a href="https://etcd.io/docs/v3.4/op-guide/runtime-configuration/#update-advertise-peer-urls">etcd mandates a restart</a> of the etcd-member.</p>
+<p>Druid only supports toggling the transport level security for the advertised peer URL(s). To indicate that the etcd process within the etcd-member has the updated advertised peer URL(s), an annotation <code>member.etcd.gardener.cloud/tls-enabled</code> is added by backup-sidecar container to the member lease object.</p>
+<p>During the reconciliation run for an <code>Etcd</code> resource in druid, if reconciler detects a change in advertised peer URL(s) TLS configuration then it will watch for the above mentioned annotation on the member lease. If the annotation has a value of <code>false</code> then it will trigger a restart of the etcd-member pod. </p>
+<p>The authors propose to publish member metadata information in <code>EtcdMember</code> resource and not misuse member <a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease</a>s.</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">peerTLSEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;bool&gt;</span>
+</span></code></pre></div>
+<h3 id="monitoring-backup-health">Monitoring Backup Health<a class="headerlink" href="#monitoring-backup-health" title="Permanent link">¶</a></h3>
+<p>Backup-sidecar takes delta and full snapshot both periodically and threshold based. These backed-up snapshots are essential for restoration operations for bootstrapping an etcd cluster from 0 -&gt; 1 replicas. It is essential that leading-backup-sidecar container which is responsible for taking delta/full snapshots and uploading these snapshots to the configured backup store, publishes this information for druid to consume.</p>
+<p>At present, information about backed-up snapshot (<em>only</em> <code>latest-revision-number</code>) is published by leading-backup-sidecar container by updating <code>Spec.HolderIdentity</code> of the delta-snapshot and full-snapshot <a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease</a>s.</p>
+<p>Druid maintains <code>conditions</code> in the <code>Etcd</code> resource status, which include but are not limited to maintaining information on whether backups being taken for an etcd cluster are healthy (up-to-date) or stale (outdated in context to a configured schedule). Druid computes these conditions using information from full/delta snapshot leases.</p>
+<p>In order to provide a holistic view of the health of backups to human operators, druid requires additional information about the snapshots that are being backed-up. The authors propose to not misuse <a href="https://kubernetes.io/docs/concepts/architecture/leases/">lease</a>s and instead publish the following snapshot information as part <code>EtcdMember</code> custom resource:</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">snapshots</span><span class="p">:</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">lastFull</span><span class="p">:</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of full snapshot&gt;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the file that is uploaded&gt;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of the un-compressed snapshot file uploaded&gt;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">startRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">endRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">lastDelta</span><span class="p">:</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nt">timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of delta snapshot&gt;</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the file that is uploaded&gt;</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="nt">size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of the un-compressed snapshot file uploaded&gt;</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="nt">startRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="nt">endRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end revision of etcd db captured in the snapshot&gt;</span>
+</span></code></pre></div>
+<p>While this information will primarily help druid compute accurate conditions regarding backup health from snapshot information and publish this to human operators, it could be further utilised by human operators to take remediatory actions (e.g. manually triggering a full or delta snapshot or further restarting the leader if the issue is still not resolved) if backup is unhealthy.</p>
+<h3 id="enhanced-snapshot-compaction">Enhanced Snapshot Compaction<a class="headerlink" href="#enhanced-snapshot-compaction" title="Permanent link">¶</a></h3>
+<p>Druid can be configured to perform regular snapshot compactions for etcd clusters, to reduce the total number of delta snapshots to be restored if and when a DB restoration for an etcd cluster is required. Druid triggers a snapshot compaction job when the accumulated etcd events in the latest set of delta snapshots (taken after the last full snapshot) crosses a specified threshold.</p>
+<p>As described in <a href="https://github.com/gardener/etcd-druid/issues/591">Issue#591</a> scheduling compaction only based on number of accumulated etcd events is not sufficient to ensure a successful compaction. This is specifically targeted for kubernetes clusters where each etcd event is larger in size owing to large spec or status fields or respective resources. </p>
+<p>Druid will now need information regarding snapshot sizes, and more importantly the total size of accumulated delta snapshots since the last full snapshot.</p>
+<p>The authors propose to enhance the proposed <code>snapshots</code> field described in <a href="#use-case-3-monitoring-backup-health">Use Case #3</a> with the following additional field:</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">snapshots</span><span class="p">:</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">accumulatedDeltaSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;total size of delta snapshots since last full snapshot&gt;</span>
+</span></code></pre></div>
+<p>Druid can then use this information in addition to the existing revision information to decide to trigger an early snapshot compaction job. This effectively allows druid to be proactive in performing regular compactions for etcds receiving large events, reducing the probability of a failed snapshot compaction or restoration.</p>
+<h3 id="enhanced-defragmentation">Enhanced Defragmentation<a class="headerlink" href="#enhanced-defragmentation" title="Permanent link">¶</a></h3>
+<p>Reader is recommended to read <a href="https://etcd.io/docs/v3.4/op-guide/maintenance/">Etcd Compaction &amp; Defragmentation</a> in order to understand the following terminology:</p>
+<p><a href="https://github.com/etcd-io/etcd/blob/a603c0798948941d453b158af794edab1a8230be/mvcc/backend/backend.go#L60-L64"><code>dbSize</code></a> - total storage space used by the etcd database</p>
+<p><a href="https://github.com/etcd-io/etcd/blob/a603c0798948941d453b158af794edab1a8230be/mvcc/backend/backend.go#L65-L68"><code>dbSizeInUse</code></a> - logical storage space used by the etcd database, not accounting for free pages in the DB due to etcd history compaction</p>
+<p>The leading-backup-sidecar performs periodic defragmentations of the DBs of all the etcd-members in the cluster, controlled via a defragmentation cron schedule provided to each backup-sidecar. Defragmentation is a costly maintenance operation and causes a brief downtime to the etcd-member being defragmented, due to which the leading-backup-sidecar defragments each etcd-member sequentially. This ensures that only one etcd-member would be unavailable at any given time, thus avoiding an accidental quorum loss in the etcd cluster.</p>
+<p>The authors propose to move the responsibility of orchestrating these individual defragmentations to druid due to the following reasons:</p>
+<ul>
+<li>Since each backup-sidecar only has knowledge of the health of its own etcd, it can only determine whether its own etcd can be defragmented or not, based on etcd-member health. Trying to defragment a different healthy etcd-member while another etcd-member is unhealthy would lead to a transient quorum loss.</li>
+<li>Each backup-sidecar is only a <code>sidecar</code> to its own etcd-member, and by good design principles, it must not be performing any cluster-wide maintenance operations, and this responsibility should remain with the etcd cluster operator.</li>
+</ul>
+<p>Additionally, defragmentation of an etcd DB becomes inevitable if the DB size exceeds the specified DB space quota, since the etcd DB then becomes read-only, ie no write operations on the etcd would be possible unless the etcd DB is defragmented and storage space is freed up. In order to automate this, druid will now need information about the etcd DB size from each member, specifically the leading etcd-member, so that a cluster-wide defragmentation can be triggered if the DB size reaches a certain threshold, as already described by <a href="https://github.com/gardener/etcd-backup-restore/issues/556">this issue</a>.</p>
+<p>The authors propose to enhance each etcd-member to regularly publish information about the <code>dbSize</code> and <code>dbSizeInUse</code> so that druid may trigger defragmentation for the etcd cluster. </p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">dbSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;db-size&gt;</span><span class="w"> </span><span class="c1"># e.g 6Gi</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">dbSizeInUse</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;db-size-in-use&gt;</span><span class="w"> </span><span class="c1"># e.g 3.5Gi</span>
+</span></code></pre></div>
+<p>Difference between <code>dbSize</code> and <code>dbSizeInUse</code> gives a clear indication of how much storage space would be freed up if a defragmentation is performed. If the difference is not significant (based on a configurable threshold provided to druid), then no defragmentation should be performed. This will ensure that druid does not perform frequent defragmentations that do not yield much benefit. Effectively it is to maximise the benefit of defragmentation since this operations involves transient downtime for each etcd-member. </p>
+<h3 id="monitoring-defragmentations">Monitoring Defragmentations<a class="headerlink" href="#monitoring-defragmentations" title="Permanent link">¶</a></h3>
+<p>As discussed in the previous section, every etcd-member is defragmented periodically, and can also be defragmented based on the DB size reaching a certain threshold. It is beneficial for druid to have knowledge of this data from each etcd-member for the following reasons:</p>
+<ul>
+<li>
+<p>[<strong>Diagnostics</strong>] It is expected that <code>backup-sidecar</code> will push releveant metrics and configure alerts on these metrics.</p>
+</li>
+<li>
+<p>[<strong>Operational</strong>] Derive status of defragmentation at etcd cluster level. In case of partial failures for a subset of etcd-members druid can potentially re-trigger defragmentation only for those etcd-members.</p>
+</li>
+</ul>
+<p>The authors propose to capture this information as part of <code>lastDefragmentation</code> section in the <code>EtcdMember</code> resource.</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">lastDefragmentation</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">startTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start time of defragmentation&gt;</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">endTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end time of defragmentation&gt;</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;Succeeded | Failed&gt;</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;success or failure message&gt;</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">initialDBSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of etcd DB prior to defragmentation&gt;</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">finalDBSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of etcd DB post defragmentation&gt;</span>
+</span></code></pre></div>
+<blockquote>
+<p><strong>NOTE</strong>: Defragmentation is a cluster-wide operation, and insights derived from aggregating defragmentation data from individual etcd-members would be captured in the <code>Etcd</code> resource status </p>
+</blockquote>
+<h3 id="monitoring-restorations">Monitoring Restorations<a class="headerlink" href="#monitoring-restorations" title="Permanent link">¶</a></h3>
+<p>Each etcd-member may perform restoration of data multiple times throughout its lifecycle, possibly owing to data corruptions. It would be useful to capture this information as part of an <code>EtcdMember</code> resource, for the following use cases:</p>
+<ul>
+<li>
+<p>[<strong>Diagnostics</strong>] It is expected that <code>backup-sidecar</code> will push a metric indicating failure to restore.</p>
+</li>
+<li>
+<p>[<strong>Operational</strong>] Restoration from backup-bucket only happens for a single node etcd cluster. If restoration is failing then druid cannot take any remediatory actions since there is no etcd quorum.</p>
+</li>
+</ul>
+<p>The authors propose to capture this information under <code>lastRestoration</code> section in the <code>EtcdMember</code> resource.</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">lastRestoration</span><span class="p">:</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;Failed | Success | In-Progress&gt;</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;reason-code for status&gt;</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;human readable message for status&gt;</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">startTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start time of restoration&gt;</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">endTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end time of restoration&gt;</span>
+</span></code></pre></div>
+<p>Authors have considered the following cases to better understand how errors during restoration will be handled:</p>
+<p><strong>Case #1</strong> - <em>Failure to connect to Provider Object Store</em></p>
+<p>At present full and delta snapshots are downloaded during restoration. If there is a failure then initialization status transitions to <code>Failed</code>  followed by <code>New</code> which forces <code>etcd-wrapper</code> to trigger the initialization again. This in a way forces a retry and currently there is no limit on the number of attempts. </p>
+<p>Authors propose to improve the retry logic but keep the overall behavior of not forcing a container restart the same.</p>
+<p><strong>Case #2</strong> - <em>Read-Only Mounted volume</em></p>
+<p>If a mounted volume which is used to create the etcd data directory turns <code>read-only</code> then authors propose to capture this state via <code>EtcdMember</code>. </p>
+<p>Authors propose that <code>druid</code> should initiate recovery by deleting the PVC for this etcd-member and letting <code>StatefulSet</code> controller re-create the Pod and the PVC. Removing PVC and deleting the pod is considered safe because:</p>
+<ul>
+<li>Data directory is present and is the DB is corrupt resulting in an un-usasble etcd.</li>
+<li>Data directory is not present but any attempt to create a directory structure fails due to <code>read-only</code> FS.</li>
+</ul>
+<p>In both these cases there is no side-effect of deleting the PVC and the Pod.</p>
+<p><strong>Case #3</strong> - <em>Revision mismatch</em></p>
+<p>There is currently an issue in <code>backup-sidecar</code> which results in a revision mismatch in the snapshots (full/delta) taken by leading the <code>backup-sidecar</code> container. This results in a restoration failure. One occurance of such issue has been captured in <a href="https://github.com/gardener/etcd-backup-restore/issues/583">Issue#583</a>.  This occurence points to a bug which should be fixed however there is a rare possibility that these snapshots (full/delta) get corrupted. In this rare situation, <code>backup-sidecar</code> should only raise an alert. </p>
+<p>Authors propose that <code>druid</code> should not take any remediatory actions as this involves:</p>
+<ul>
+<li>Inspecting snapshots</li>
+<li>If the full snapshot is corrupt then a decision needs to be taken to recover from the last full snapshot as the base snapshot. This can result in data loss and therefore needs manual intervention.</li>
+<li>If a delta snapshot is corrupt, then recovery can be done till the corrupt revision in the delta snapshot. Since this will also result in a loss of data therefore this decision needs to be take by an operator.</li>
+</ul>
+<h3 id="monitoring-volume-mismatches">Monitoring Volume Mismatches<a class="headerlink" href="#monitoring-volume-mismatches" title="Permanent link">¶</a></h3>
+<p>Each etcd-member checks for possible etcd data volume mismatches, based on which it decides whether to start the etcd process or not, but this information is not captured anywhere today. It would be beneficial to capture this information as part of the <code>EtcdMember</code> resource so that a human operator may check this and manually fix the underlying problem with the wrong volume being attached or mounted to an etcd-member pod.</p>
+<p>The authors propose to capture this information under <code>volumeMismatches</code> section in the <code>EtcdMember</code> resource.</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">volumeMismatches</span><span class="p">:</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">identifiedAt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time at which wrong volume mount was identified&gt;</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">fixedAt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time at which correct volume was mounted&gt;</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">volumeID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;volume ID of wrong volume that got mounted&gt;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">numRestarts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;num of etcd-member restarts that were attempted&gt;</span>
+</span></code></pre></div>
+<p>Each entry under <code>volumeMismatches</code> will be for a unique <code>volumeID</code>. If there is a pod restart and it results in yet another unexpected <code>volumeID</code> (different from the already captured volumeIDs) then a new entry will get created. <code>numRestarts</code> denotes the number of restarts seen by the etcd-member for a specific <code>volumeID</code>.</p>
+<p>Based on information from the <code>volumeMismatches</code> section, druid <em>may</em> choose to perform rudimentary remediatory actions as simple as restarting the member pod to force a possible rescheduling of the pod to a different node which could potentially force the correct volume to be mounted to the member.</p>
+<h3 id="custom-resource-api">Custom Resource API<a class="headerlink" href="#custom-resource-api" title="Permanent link">¶</a></h3>
+<h4 id="spec-vs-status">Spec vs Status<a class="headerlink" href="#spec-vs-status" title="Permanent link">¶</a></h4>
+<p>Information that is captured in the etcd-member custom resource could be represented either as <code>EtcdMember.Status</code> or <code>EtcdMemberState.Spec</code>. </p>
+<p>Gardener has a similar need to capture a shoot state and they have taken the decision to represent it via <a href="https://github.com/gardener/gardener/blob/9e1a20aa9cc32fc806123003ba6079b284948767/pkg/apis/core/types_shootstate.go#L27-L33">ShootState</a> resource where the state or status of a shoot is captured as part of the <code>Spec</code> field in the <code>ShootState</code> custom resource.</p>
+<p>The authors wish to instead align themselves with the <a href="https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#spec-and-status">K8S API conventions</a> and choose to use <code>EtcdMember</code> custom resource and capture the status of each member in <code>Status</code> field of this resource. This has the following advantages:</p>
+<ul>
+<li>
+<p><code>Spec</code> represents a desired state of a resource and what is intended to be captured is the <code>As-Is</code> state of a resource which <code>Status</code> is meant to capture. Therefore, semantically using <code>Status</code> is the correct choice.</p>
+</li>
+<li>
+<p>Not mis-using <code>Spec</code> now to represent <code>As-Is</code> state provides us with a choice to extend the custom resource with any future need for a <code>Spec</code> a.k.a desired state.</p>
+</li>
+</ul>
+<h4 id="representing-state-transitions">Representing State Transitions<a class="headerlink" href="#representing-state-transitions" title="Permanent link">¶</a></h4>
+<p>The authors propose to use a custom representation for states, sub-states and transitions.</p>
+<p>Consider the following representation:</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">transitions</span><span class="p">:</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the state that the etcd-member has transitioned to&gt;</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the sub-state if any&gt;</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;reason code for the transition&gt;</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of transition to this state&gt;</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;detailed message if any&gt;</span>
+</span></code></pre></div>
+<p>As an example, consider the following transitions which represent addition of an etcd-member during scale-up of an etcd cluster, followed by a restart of the etcd-member which detects a corrupt DB:</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">status</span><span class="p">:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">transitions</span><span class="p">:</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">New</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">New</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterScaledUp</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T05:00:00Z"</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"New</span><span class="nv"> </span><span class="s">member</span><span class="nv"> </span><span class="s">added</span><span class="nv"> </span><span class="s">due</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">etcd</span><span class="nv"> </span><span class="s">cluster</span><span class="nv"> </span><span class="s">scale-up"</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Starting</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PendingLearner</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">WaitingToJoinAsLearner</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T05:00:30Z"</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Waiting</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">join</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">cluster</span><span class="nv"> </span><span class="s">as</span><span class="nv"> </span><span class="s">a</span><span class="nv"> </span><span class="s">learner"</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Starting</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Learner</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">JoinedAsLearner</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T05:01:20Z"</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Joined</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">cluster</span><span class="nv"> </span><span class="s">as</span><span class="nv"> </span><span class="s">a</span><span class="nv"> </span><span class="s">learner"</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Started</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Follower</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PromotedAsVotingMember</span>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T05:02:00Z"</span>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Now</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">sync</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">leader,</span><span class="nv"> </span><span class="s">promoted</span><span class="nv"> </span><span class="s">as</span><span class="nv"> </span><span class="s">voting</span><span class="nv"> </span><span class="s">member"</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Initializing</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DBValidationFull</span>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DetectedPreviousUncleanExit</span>
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T08:00:00Z"</span>
+</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Detected</span><span class="nv"> </span><span class="s">previous</span><span class="nv"> </span><span class="s">unclean</span><span class="nv"> </span><span class="s">exit,</span><span class="nv"> </span><span class="s">requires</span><span class="nv"> </span><span class="s">full</span><span class="nv"> </span><span class="s">DB</span><span class="nv"> </span><span class="s">validation"</span>
+</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">New</span>
+</span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">New</span>
+</span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DBCorruptionDetected</span>
+</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T08:01:30Z"</span>
+</span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Detected</span><span class="nv"> </span><span class="s">DB</span><span class="nv"> </span><span class="s">corruption</span><span class="nv"> </span><span class="s">during</span><span class="nv"> </span><span class="s">initialization,</span><span class="nv"> </span><span class="s">removing</span><span class="nv"> </span><span class="s">member</span><span class="nv"> </span><span class="s">from</span><span class="nv"> </span><span class="s">cluster"</span>
+</span><span id="__span-9-33"><a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Starting</span>
+</span><span id="__span-9-34"><a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PendingLearner</span>
+</span><span id="__span-9-35"><a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">WaitingToJoinAsLearner</span>
+</span><span id="__span-9-36"><a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T08:02:10Z"</span>
+</span><span id="__span-9-37"><a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Waiting</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">join</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">cluster</span><span class="nv"> </span><span class="s">as</span><span class="nv"> </span><span class="s">a</span><span class="nv"> </span><span class="s">learner"</span>
+</span><span id="__span-9-38"><a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Starting</span>
+</span><span id="__span-9-39"><a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Learner</span>
+</span><span id="__span-9-40"><a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">JoinedAsLearner</span>
+</span><span id="__span-9-41"><a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T08:02:20Z"</span>
+</span><span id="__span-9-42"><a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Joined</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">cluster</span><span class="nv"> </span><span class="s">as</span><span class="nv"> </span><span class="s">a</span><span class="nv"> </span><span class="s">learner"</span>
+</span><span id="__span-9-43"><a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Started</span>
+</span><span id="__span-9-44"><a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Follower</span>
+</span><span id="__span-9-45"><a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PromotedAsVotingMember</span>
+</span><span id="__span-9-46"><a id="__codelineno-9-46" name="__codelineno-9-46" href="#__codelineno-9-46"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="s">"2023-07-17T08:04:00Z"</span>
+</span><span id="__span-9-47"><a id="__codelineno-9-47" name="__codelineno-9-47" href="#__codelineno-9-47"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">"Now</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">sync</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">leader,</span><span class="nv"> </span><span class="s">promoted</span><span class="nv"> </span><span class="s">as</span><span class="nv"> </span><span class="s">voting</span><span class="nv"> </span><span class="s">member"</span>
+</span></code></pre></div>
+<h5 id="reason-codes">Reason Codes<a class="headerlink" href="#reason-codes" title="Permanent link">¶</a></h5>
+<p>The authors propose the following list of possible reason codes for transitions. This list is not exhaustive, and can be further enhanced to capture any new transitions in the future.</p>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>Transition From State (SubState)</th>
+<th>Transition To State (SubState)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ClusterScaledUp</code> | <code>NewSingleNodeClusterCreated</code></td>
+<td>nil</td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>DetectedPreviousCleanExit</code></td>
+<td>New | Started (Leader) | Started (Follower)</td>
+<td>Initializing (DBValidationSanity)</td>
+</tr>
+<tr>
+<td><code>DetectedPreviousUncleanExit</code></td>
+<td>New | Started (Leader) | Started (Follower)</td>
+<td>Initializing (DBValidationFull)</td>
+</tr>
+<tr>
+<td><code>DBValidationFailed</code></td>
+<td>Initializing (DBValidationSanity) | Initializing (DBValidationFull)</td>
+<td>Initializing (Restoration) | New</td>
+</tr>
+<tr>
+<td><code>DBValidationSucceeded</code></td>
+<td>Initializing (DBValidationSanity) | Initializing (DBValidationFull)</td>
+<td>Started (Leader) | Started (Follower)</td>
+</tr>
+<tr>
+<td><code>Initializing (Restoration)Succeeded</code></td>
+<td>Initializing (Restoration)</td>
+<td>Started (Leader)</td>
+</tr>
+<tr>
+<td><code>WaitingToJoinAsLearner</code></td>
+<td>New</td>
+<td>Starting (PendingLearner)</td>
+</tr>
+<tr>
+<td><code>JoinedAsLearner</code></td>
+<td>Starting (PendingLearner)</td>
+<td>Starting (Learner)</td>
+</tr>
+<tr>
+<td><code>PromotedAsVotingMember</code></td>
+<td>Starting (Learner)</td>
+<td>Started (Follower)</td>
+</tr>
+<tr>
+<td><code>GainedClusterLeadership</code></td>
+<td>Started (Follower)</td>
+<td>Started (Leader)</td>
+</tr>
+<tr>
+<td><code>LostClusterLeadership</code></td>
+<td>Started (Leader)</td>
+<td>Started (Follower)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="api">API<a class="headerlink" href="#api" title="Permanent link">¶</a></h4>
+<h5 id="etcdmember">EtcdMember<a class="headerlink" href="#etcdmember" title="Permanent link">¶</a></h5>
+<p>The authors propose to add the <code>EtcdMember</code> custom resource API to etcd-druid APIs and initially introduce it with <code>v1alpha1</code> version.</p>
+<div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">druid.gardener.cloud/v1alpha1</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EtcdMember</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nt">metadata</span><span class="p">:</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nt">gardener.cloud/owned-by</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of parent Etcd resource&gt;</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the etcd-member&gt;</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;namespace | will be the same as that of parent Etcd resource&gt;</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nt">ownerReferences</span><span class="p">:</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">druid.gardener.cloud/v1alpha1</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span><span class="nt">blockOwnerDeletion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="nt">controller</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Etcd</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the parent Etcd resource&gt;</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">    </span><span class="nt">uid</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;UID of the parent Etcd resource&gt;</span><span class="w"> </span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="nt">status</span><span class="p">:</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;etcd-member id&gt;</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="w">  </span><span class="nt">clusterID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;etcd cluster id&gt;</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="w">  </span><span class="nt">peerTLSEnabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;bool&gt;</span>
+</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="w">  </span><span class="nt">dbSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;db-size&gt;</span>
+</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="w">  </span><span class="nt">dbSizeInUse</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;db-size-in-use&gt;</span>
+</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="w">  </span><span class="nt">snapshots</span><span class="p">:</span>
+</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="w">    </span><span class="nt">lastFull</span><span class="p">:</span>
+</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="w">      </span><span class="nt">timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of full snapshot&gt;</span>
+</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the file that is uploaded&gt;</span>
+</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="w">      </span><span class="nt">size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of the un-compressed snapshot file uploaded&gt;</span>
+</span><span id="__span-10-26"><a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="w">      </span><span class="nt">startRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-10-27"><a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a><span class="w">      </span><span class="nt">endRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-10-28"><a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a><span class="w">    </span><span class="nt">lastDelta</span><span class="p">:</span>
+</span><span id="__span-10-29"><a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="w">      </span><span class="nt">timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of delta snapshot&gt;</span>
+</span><span id="__span-10-30"><a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the file that is uploaded&gt;</span>
+</span><span id="__span-10-31"><a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a><span class="w">      </span><span class="nt">size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of the un-compressed snapshot file uploaded&gt;</span>
+</span><span id="__span-10-32"><a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="w">      </span><span class="nt">startRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-10-33"><a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="w">      </span><span class="nt">endRevision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end revision of etcd db captured in the snapshot&gt;</span>
+</span><span id="__span-10-34"><a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a><span class="w">    </span><span class="nt">accumulatedDeltaSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;total size of delta snapshots since last full snapshot&gt;</span>
+</span><span id="__span-10-35"><a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a><span class="w">  </span><span class="nt">lastRestoration</span><span class="p">:</span>
+</span><span id="__span-10-36"><a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;FromSnapshot | FromLeader&gt;</span>
+</span><span id="__span-10-37"><a id="__codelineno-10-37" name="__codelineno-10-37" href="#__codelineno-10-37"></a><span class="w">    </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;Failed | Success | In-Progress&gt;</span>
+</span><span id="__span-10-38"><a id="__codelineno-10-38" name="__codelineno-10-38" href="#__codelineno-10-38"></a><span class="w">    </span><span class="nt">startTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start time of restoration&gt;</span>
+</span><span id="__span-10-39"><a id="__codelineno-10-39" name="__codelineno-10-39" href="#__codelineno-10-39"></a><span class="w">    </span><span class="nt">endTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end time of restoration&gt;</span>
+</span><span id="__span-10-40"><a id="__codelineno-10-40" name="__codelineno-10-40" href="#__codelineno-10-40"></a><span class="w">  </span><span class="nt">lastDefragmentation</span><span class="p">:</span>
+</span><span id="__span-10-41"><a id="__codelineno-10-41" name="__codelineno-10-41" href="#__codelineno-10-41"></a><span class="w">    </span><span class="nt">startTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;start time of defragmentation&gt;</span>
+</span><span id="__span-10-42"><a id="__codelineno-10-42" name="__codelineno-10-42" href="#__codelineno-10-42"></a><span class="w">    </span><span class="nt">endTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;end time of defragmentation&gt;</span>
+</span><span id="__span-10-43"><a id="__codelineno-10-43" name="__codelineno-10-43" href="#__codelineno-10-43"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span>
+</span><span id="__span-10-44"><a id="__codelineno-10-44" name="__codelineno-10-44" href="#__codelineno-10-44"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span>
+</span><span id="__span-10-45"><a id="__codelineno-10-45" name="__codelineno-10-45" href="#__codelineno-10-45"></a><span class="w">    </span><span class="nt">initialDBSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of etcd DB prior to defragmentation&gt;</span>
+</span><span id="__span-10-46"><a id="__codelineno-10-46" name="__codelineno-10-46" href="#__codelineno-10-46"></a><span class="w">    </span><span class="nt">finalDBSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;size of etcd DB post defragmentation&gt;</span>
+</span><span id="__span-10-47"><a id="__codelineno-10-47" name="__codelineno-10-47" href="#__codelineno-10-47"></a><span class="w">  </span><span class="nt">volumeMismatches</span><span class="p">:</span>
+</span><span id="__span-10-48"><a id="__codelineno-10-48" name="__codelineno-10-48" href="#__codelineno-10-48"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">identifiedAt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time at which wrong volume mount was identified&gt;</span>
+</span><span id="__span-10-49"><a id="__codelineno-10-49" name="__codelineno-10-49" href="#__codelineno-10-49"></a><span class="w">    </span><span class="nt">fixedAt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time at which correct volume was mounted&gt;</span>
+</span><span id="__span-10-50"><a id="__codelineno-10-50" name="__codelineno-10-50" href="#__codelineno-10-50"></a><span class="w">    </span><span class="nt">volumeID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;volume ID of wrong volume that got mounted&gt;</span>
+</span><span id="__span-10-51"><a id="__codelineno-10-51" name="__codelineno-10-51" href="#__codelineno-10-51"></a><span class="w">    </span><span class="nt">numRestarts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;num of pod restarts that were attempted&gt;</span>
+</span><span id="__span-10-52"><a id="__codelineno-10-52" name="__codelineno-10-52" href="#__codelineno-10-52"></a><span class="w">  </span><span class="nt">transitions</span><span class="p">:</span>
+</span><span id="__span-10-53"><a id="__codelineno-10-53" name="__codelineno-10-53" href="#__codelineno-10-53"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the state that the etcd-member has transitioned to&gt;</span>
+</span><span id="__span-10-54"><a id="__codelineno-10-54" name="__codelineno-10-54" href="#__codelineno-10-54"></a><span class="w">    </span><span class="nt">subState</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;name of the sub-state if any&gt;</span>
+</span><span id="__span-10-55"><a id="__codelineno-10-55" name="__codelineno-10-55" href="#__codelineno-10-55"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;reason code for the transition&gt;</span>
+</span><span id="__span-10-56"><a id="__codelineno-10-56" name="__codelineno-10-56" href="#__codelineno-10-56"></a><span class="w">    </span><span class="nt">transitionTime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;time of transition to this state&gt;</span>
+</span><span id="__span-10-57"><a id="__codelineno-10-57" name="__codelineno-10-57" href="#__codelineno-10-57"></a><span class="w">    </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">&lt;detailed message if any&gt;</span>
+</span></code></pre></div>
+<h5 id="etcd">Etcd<a class="headerlink" href="#etcd" title="Permanent link">¶</a></h5>
+<p>Authors propose the following changes to the <code>Etcd</code> API:</p>
+<ol>
+<li>In the <code>Etcd.Status</code> resource API, <a href="https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L419">member status</a> is computed and stored. This field will be marked as deprecated and in a later version of druid it will be removed. In its place, the authors propose to introduce the following:</li>
+</ol>
+<div class="language-go highlight"><span class="filename">Go</span><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">EtcdStatus</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="c1">// MemberRefs contains references to all existing EtcdMember resources</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nx">MemberRefs</span><span class="w"> </span><span class="p">[]</span><span class="nx">CrossVersionObjectReference</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<ol>
+<li>In <code>Etcd.Status</code> resource API, <a href="https://github.com/gardener/etcd-druid/blob/9a598d05e639099ddf404803f87376852261a052/api/v1alpha1/types_etcd.go#L422">PeerUrlTLSEnabled</a> reflects  the status of enabling TLS for peer communication across all etcd-members. Currentlty this field is not been used anywhere. In this proposal, the authors have also proposed that each <code>EtcdMember</code> resource should capture the status of TLS enablement of peer URL. The authors propose to relook at the need to have this field under <code>EtcdStatus</code>.</li>
+</ol>
+<h3 id="lifecycle-of-an-etcdmember">Lifecycle of an EtcdMember<a class="headerlink" href="#lifecycle-of-an-etcdmember" title="Permanent link">¶</a></h3>
+<h4 id="creation">Creation<a class="headerlink" href="#creation" title="Permanent link">¶</a></h4>
+<p>Druid creates an <code>EtcdMember</code> resource for every replica in <code>etcd.Spec.Replicas</code> during reconciliation of an etcd resource. For a fresh etcd cluster this is done prior to creation of the StatefulSet resource and for an existing cluster which has now been scaled-up, it is done prior to updating the StatefulSet resource.</p>
+<h4 id="updation">Updation<a class="headerlink" href="#updation" title="Permanent link">¶</a></h4>
+<p>All fields in <code>EtcdMember.Status</code> are <em>only</em> updated by the corresponding etcd-member. Druid only consumes the information published via <code>EtcdMember</code> resources.</p>
+<h4 id="deletion">Deletion<a class="headerlink" href="#deletion" title="Permanent link">¶</a></h4>
+<p>Druid is responsible for deletion of all existing <code>EtcdMember</code> resources for an etcd cluster. There are three scenarios where an <code>EtcdMember</code> resource will be deleted:</p>
+<ol>
+<li>
+<p>Deletion of etcd resource.</p>
+</li>
+<li>
+<p>Scale down of an etcd cluster to 0 replicas due to hibernation of the k8s control plane.</p>
+</li>
+<li>
+<p>Transient scale down of an etcd cluster to 0 replicas to recover from a quorum loss.</p>
+</li>
+</ol>
+<p>Authors found no reason to retain EtcdMember resources when the etcd cluster is scale down to 0 replicas since the information contained in each EtcdMember resource would no longer represent the current state of each member and would thus be stale. Any controller in druid which acts upon the <code>EtcdMember.Status</code> could potentially take incorrect actions.</p>
+<h4 id="reconciliation">Reconciliation<a class="headerlink" href="#reconciliation" title="Permanent link">¶</a></h4>
+<p>Authors propose to introduce a new controller (let's call it <code>etcd-member-controller</code>) which watches for changes to the <code>EtcdMember</code> resource(s). If a reconciliation of an <code>Etcd</code> resource is required as a result of change in <code>EtcdMember</code> status then this controller should enqueue an event and force a reconciliation via existing <code>etcd-controller</code>, thus preserving the single-actor-principal constraint which ensures deterministic changes to etcd cluster resources.</p>
+<blockquote>
+<p>NOTE: Further decisions w.r.t responsibility segregation will be taken during implementation and will not be documented in this proposal.</p>
+</blockquote>
+<h5 id="stale-etcdmember-status-handling">Stale EtcdMember Status Handling<a class="headerlink" href="#stale-etcdmember-status-handling" title="Permanent link">¶</a></h5>
+<p>It is possible that an etcd-member is unable to update its respective <code>EtcdMember</code> resource. Following can be some of the implications which should be kept in mind while reconciling <code>EtcdMember</code> resource in druid:</p>
+<ul>
+<li>Druid sees stale state transitions (this assumes that the backup-sidecar attempts to update the state/sub-state in <code>etcdMember.status.transitions</code> with best attempt). There is currently no implication other than an operator seeing a stale state.</li>
+<li><code>dbSize</code> and <code>dbSizeInUse</code> could not be updated. A consequence could be that druid continues to see high value for  <code>dbSize - dbSizeInUse</code> for a extended amount of time. Druid should ensure that it does not trigger repeated defragmentations. </li>
+<li>If <code>VolumeMismatches</code> is stale, then druid should no longer attempt to recover by repeatedly restarting the pod.</li>
+<li>Failed <code>restoration</code> was recorded last and further updates to this array failed. Druid should not repeatedly take full-snapshots.</li>
+<li>If <code>snapshots.accumulatedDeltaSize</code> could not be updated, then druid should not schedule repeated compaction Jobs.</li>
+</ul>
+<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">¶</a></h2>
+<ul>
+<li>
+<p><a href="https://etcd.io/docs/v3.3/op-guide/recovery/#snapshotting-the-keyspace">Disaster recovery | etcd</a></p>
+</li>
+<li>
+<p><a href="https://etcd.io/docs/v3.3/dev-guide/api_reference_v3/#message-statusresponse-etcdserveretcdserverpbrpcproto">etcd API Reference | etcd</a></p>
+</li>
+<li>
+<p><a href="https://raft.github.io/raft.pdf">Raft Consensus Algorithm</a></p>
+</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+  
+
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        
+
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="footer.title">
+      
+        <a href="03-scaling-up-an-etcd-cluster.html" class="md-footer__link md-footer__link--prev" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Scaling Etcd Clusters
+            </div>
+          </div>
+        </a>
+      
+      
+        <a href="05-etcd-operator-tasks.html" class="md-footer__link md-footer__link--next" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Etcd Operator Tasks
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"></path></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        with emoji by
+        <a href="https://github.com/twitter/twemoji" target="_blank" rel="noopener">
+          Twemoji
+        </a>
+      </div>
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/gardener/etcd-druid" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+    </a>
+  
+</div>
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.tabs.link", "content.code.select", "content.code.copy", "content.code.annotate", "header.autohide"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="../assets/pymdownx-extras/extra-loader-B5CKpNQx.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
