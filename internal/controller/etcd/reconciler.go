@@ -114,7 +114,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var reconcileSpecResult ctrlutils.ReconcileStepResult
 	if shouldReconcileSpec {
-		reconcileSpecResult = r.reconcileSpec(operatorCtx, req.NamespacedName)
+		reconcileSpecResult = r.reconcileSpec(operatorCtx, etcd)
 	}
 
 	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
@@ -137,7 +137,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// if any failure is encountered during reconciliation, then reconciliation is re-attempted upon the next requeue.
 	// r.completeReconcile() is executed only if the spec was reconciled, as denoted by the `shouldReconcileSpec` flag.
 	if shouldReconcileSpec {
-		if result := r.completeReconcile(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+		if result := r.completeReconcile(operatorCtx, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 			return result.ReconcileResult()
 		}
 	}

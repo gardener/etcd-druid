@@ -12,8 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (r *Reconciler) completeReconcile(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "completeReconcile").WithValues("runID", ctx.RunID)
+func (r *Reconciler) completeReconcile(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	rLog := r.logger.WithValues("etcd", etcd.Name, "operation", "completeReconcile").WithValues("runID", ctx.RunID)
 	ctx.SetLogger(rLog)
 
 	reconcileCompletionStepFns := []reconcileFn{
@@ -22,19 +22,15 @@ func (r *Reconciler) completeReconcile(ctx component.OperatorContext, etcdObject
 	}
 
 	for _, fn := range reconcileCompletionStepFns {
-		if stepResult := fn(ctx, etcdObjectKey); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
-			return r.recordIncompleteReconcileOperation(ctx, etcdObjectKey, stepResult)
+		if stepResult := fn(ctx, etcd); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
+			return r.recordIncompleteReconcileOperation(ctx, etcd, stepResult)
 		}
 	}
 	ctx.Logger.Info("Finished reconciliation completion flow")
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) updateObservedGeneration(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) updateObservedGeneration(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	originalEtcd := etcd.DeepCopy()
 	etcd.Status.ObservedGeneration = &etcd.Generation
 	if err := r.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd)); err != nil {
@@ -45,17 +41,12 @@ func (r *Reconciler) updateObservedGeneration(ctx component.OperatorContext, etc
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-
-	if druidv1alpha1.HasReconcileOperationAnnotation(etcdPartialObjMeta.ObjectMeta) {
+func (r *Reconciler) removeOperationAnnotation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	if druidv1alpha1.HasReconcileOperationAnnotation(etcd.ObjectMeta) {
 		ctx.Logger.Info("Removing operation annotation")
-		withOpAnnotation := etcdPartialObjMeta.DeepCopy()
-		druidv1alpha1.RemoveOperationAnnotation(etcdPartialObjMeta.ObjectMeta)
-		if err := r.client.Patch(ctx, etcdPartialObjMeta, client.MergeFrom(withOpAnnotation)); err != nil {
+		withOpAnnotation := etcd.DeepCopy()
+		druidv1alpha1.RemoveOperationAnnotation(etcd.ObjectMeta)
+		if err := r.client.Patch(ctx, etcd, client.MergeFrom(withOpAnnotation)); err != nil {
 			ctx.Logger.Error(err, "failed to remove operation annotation")
 			return ctrlutils.ReconcileWithError(err)
 		}

@@ -18,15 +18,14 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // syncRetryInterval will be used by both sync and preSync stages for a component and should be used when there is a need to requeue for retrying after a specific interval.
 const syncRetryInterval = 10 * time.Second
 
-func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	rLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
+func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	rLog := r.logger.WithValues("etcd", etcd.Name, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
 	ctx.SetLogger(rLog)
 
 	reconcileStepFns := []reconcileFn{
@@ -40,18 +39,14 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey 
 
 	for _, fn := range reconcileStepFns {
 		if stepResult := fn(ctx, etcd); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
-			return r.recordIncompleteReconcileOperation(ctx, etcdObjectKey, stepResult)
+			return r.recordIncompleteReconcileOperation(ctx, etcd, stepResult)
 		}
 	}
 	ctx.Logger.Info("Finished spec reconciliation flow")
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	if !controllerutil.ContainsFinalizer(etcd, common.FinalizerName) {
 		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
 		if err := kubernetes.AddFinalizers(ctx, r.client, etcd, common.FinalizerName); err != nil {
@@ -62,11 +57,7 @@ func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcdObjKey c
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	resourceOperators := r.getOrderedOperatorsForPreSync()
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
@@ -82,11 +73,7 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcdObj
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	resourceOperators := r.getOrderedOperatorsForSync(etcd.ObjectMeta)
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
@@ -105,11 +92,7 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcdObjKey
 // cleanupEtcdResources cleans up the resources that are no longer required for the Etcd cluster.
 // This is required when runtime components are disabled for an Etcd cluster after it was created with runtime components enabled,
 // so druid needs to ensure that the previously created runtime components are now cleaned up to avoid leaked resources in the cluster.
-func (r *Reconciler) cleanupEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcd := &druidv1alpha1.Etcd{}
-	if result := ctrlutils.GetLatestEtcd(ctx, r.client, etcdObjKey, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) cleanupEtcdResources(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	resourceOperators := r.getOperatorsForCleanup(etcd.ObjectMeta)
 	deleteTasks := make([]utils.OperatorTask, 0, len(resourceOperators))
 	for _, kind := range resourceOperators {
@@ -129,24 +112,24 @@ func (r *Reconciler) cleanupEtcdResources(ctx component.OperatorContext, etcdObj
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) recordReconcileStartOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	if err := r.lastOpErrRecorder.RecordStart(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile); err != nil {
+func (r *Reconciler) recordReconcileStartOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	if err := r.lastOpErrRecorder.RecordStart(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile start operation")
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile); err != nil {
+func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile success operation")
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
-	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult); err != nil {
+func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
+	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile, exitReconcileStepResult); err != nil {
 		ctx.Logger.Error(err, "failed to record last operation and last errors for etcd reconciliation")
 		return ctrlutils.ReconcileWithError(err)
 	}
