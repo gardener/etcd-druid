@@ -93,17 +93,17 @@ func FetchPVCWarningMessagesForStatefulSet(ctx context.Context, cl client.Client
 }
 
 var (
-	etcdTLSVolumeMountNames = sets.New[string](common.VolumeNameEtcdCA,
+	etcdTLSVolumeMountNames = sets.New(common.VolumeNameEtcdCA,
 		common.VolumeNameEtcdServerTLS,
 		common.VolumeNameEtcdClientTLS,
 		common.VolumeNameEtcdPeerCA,
 		common.VolumeNameEtcdPeerServerTLS,
 		common.VolumeNameBackupRestoreCA)
-	possiblePeerTLSVolumeMountNames = sets.New[string](common.VolumeNameEtcdPeerCA,
+	possiblePeerTLSVolumeMountNames = sets.New(common.VolumeNameEtcdPeerCA,
 		common.OldVolumeNameEtcdPeerCA,
 		common.VolumeNameEtcdPeerServerTLS,
 		common.OldVolumeNameEtcdPeerServerTLS)
-	etcdbrTLSVolumeMountNames = sets.New[string](common.VolumeNameBackupRestoreServerTLS,
+	etcdbrTLSVolumeMountNames = sets.New(common.VolumeNameBackupRestoreServerTLS,
 		common.VolumeNameEtcdCA,
 		common.VolumeNameEtcdClientTLS)
 )
