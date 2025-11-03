@@ -117,7 +117,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		reconcileSpecResult = r.reconcileSpec(operatorCtx, etcd)
 	}
 
-	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+	if result := r.reconcileStatus(operatorCtx, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		r.logger.Error(result.GetCombinedError(), "Failed to reconcile status")
 		return result.ReconcileResult()
 	}
@@ -169,7 +169,7 @@ func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcd *
 	if druidv1alpha1.IsEtcdMarkedForDeletion(etcd.ObjectMeta) {
 		dLog := r.logger.WithValues("etcd", etcd.ObjectMeta, "operation", "delete").WithValues("runId", ctx.RunID)
 		ctx.SetLogger(dLog)
-		return r.triggerDeletionFlow(ctx, dLog, client.ObjectKeyFromObject(etcd))
+		return r.triggerDeletionFlow(ctx, dLog, etcd)
 	}
 	return ctrlutils.ContinueReconcile()
 }
