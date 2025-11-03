@@ -645,19 +645,6 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 })
 
-func ensureEtcdCopyBackupsTaskCreation(ctx context.Context, name, namespace string, fakeClient client.WithWatch) *druidv1alpha1.EtcdCopyBackupsTask {
-	task := testutils.CreateEtcdCopyBackupsTask(name, namespace, "aws", false)
-	By("create task")
-	Expect(fakeClient.Create(ctx, task)).To(Succeed())
-
-	By("Ensure that copy backups task is created")
-	Eventually(func() error {
-		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-	}).Should(Succeed())
-
-	return task
-}
-
 func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
 	task := &druidv1alpha1.EtcdCopyBackupsTask{}
 	if err := fakeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
@@ -678,12 +665,6 @@ func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace strin
 	Eventually(func() error {
 		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
 	}).Should(testutils.BeNotFoundError())
-}
-
-func addDeletionTimestampToTask(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, deletionTime time.Time, fakeClient client.WithWatch) error {
-	patch := client.MergeFrom(task.DeepCopy())
-	task.DeletionTimestamp = &metav1.Time{Time: deletionTime}
-	return fakeClient.Patch(ctx, task, patch)
 }
 
 func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefix, volumePrefix string) {

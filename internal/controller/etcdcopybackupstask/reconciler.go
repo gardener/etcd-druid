@@ -34,7 +34,6 @@ import (
 
 const (
 	sourcePrefix = "source-"
-	targetPrefix = "target-"
 )
 
 // Reconciler reconciles EtcdCopyBackupsTask object.
