@@ -39,7 +39,7 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcdObjectKey 
 	}
 
 	for _, fn := range reconcileStepFns {
-		if stepResult := fn(ctx, etcdObjectKey); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
+		if stepResult := fn(ctx, etcd); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
 			return r.recordIncompleteReconcileOperation(ctx, etcdObjectKey, stepResult)
 		}
 	}
