@@ -57,11 +57,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			conditions := getConditions(jobConditions)
 			Expect(len(conditions)).To(Equal(len(jobConditions)))
 			for i, condition := range conditions {
-				if condition.Type == druidv1alpha1.EtcdCopyBackupsTaskSucceeded {
+				switch condition.Type {
+				case druidv1alpha1.EtcdCopyBackupsTaskSucceeded:
 					Expect(jobConditions[i].Type).To(Equal(batchv1.JobComplete))
-				} else if condition.Type == druidv1alpha1.EtcdCopyBackupsTaskFailed {
+				case druidv1alpha1.EtcdCopyBackupsTaskFailed:
 					Expect(jobConditions[i].Type).To(Equal(batchv1.JobFailed))
-				} else {
+				default:
 					Fail("got unexpected condition type")
 				}
 				Expect(condition.Status).To(Equal(druidv1alpha1.ConditionStatus(jobConditions[i].Status)))
