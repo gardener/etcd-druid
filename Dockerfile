@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM golang:1.25.3 as builder
+FROM golang:1.25.3 AS builder
 WORKDIR /go/src/github.com/gardener/etcd-druid
 COPY . .
 
