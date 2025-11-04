@@ -7,7 +7,6 @@ REPO_ROOT           := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))
 HACK_DIR            := $(REPO_ROOT)/hack
 API_HACK_DIR        := $(REPO_ROOT)/api/hack
 VERSION             := $(shell $(HACK_DIR)/get-version.sh)
-GIT_SHA             := $(shell git rev-parse --short HEAD || echo "GitNotFound")
 REGISTRY_ROOT       := europe-docker.pkg.dev/gardener-project
 REGISTRY            := $(REGISTRY_ROOT)/snapshots
 IMAGE_NAME          := gardener/etcd-druid
@@ -47,7 +46,7 @@ update-dependencies:
 
 .PHONY: add-license-headers
 add-license-headers: $(GO_ADD_LICENSE)
-	@$(HACK_DIR)/addlicenseheaders.sh ${YEAR}
+	@$(HACK_DIR)/addlicenseheaders.sh
 
 # Format code and arrange imports.
 .PHONY: format
@@ -58,6 +57,23 @@ format: $(GOIMPORTS_REVISER)
 .PHONY: check
 check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 	@$(HACK_DIR)/check.sh --golangci-lint-config=./.golangci.yaml ./internal/...
+
+# Check license headers
+.PHONY: check-license-headers
+check-license-headers: $(GO_ADD_LICENSE)
+	@$(HACK_DIR)/check-license-headers.sh
+
+# Check git status is clean
+.PHONY: check-git-status
+check-git-status:
+	@if [[ -n $$(git status --porcelain) ]]; then \
+		echo "Repository is dirty. Please commit or stash changes."; \
+		git status; \
+		git diff; \
+		exit 1; \
+	else \
+		echo "Repository is clean ✓"; \
+	fi
 
 .PHONY: sast
 sast: $(GOSEC)
@@ -106,16 +122,18 @@ start-envtest: $(SETUP_ENVTEST)
 test-cov-clean:
 	@$(HACK_DIR)/test-cover-clean.sh
 
-# Set -v for verbose logs
-# Set -count=1 to not use cached results
-# Set -run <TestName> to run specific tests
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
+# Set GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`
+# Set -run <TestName> to run specific tests
+# Set -count=1 to not use cached results
+# Set -v for verbose logs
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h
+	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
 
 # Set RETAIN_TEST_ARTIFACTS=true to retain the test artifacts
 # Set RETAIN_KIND_CLUSTER=true to retain the kind cluster
+# Set GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`
 .PHONY: ci-e2e-kind
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind.sh
@@ -128,9 +146,13 @@ clean-e2e-test-resources: $(KUBECTL)
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
 # Build manager binary
-.PHONY: druid
-druid: check
-	@env GO111MODULE=on go build -o bin/druid cmd/main.go
+.PHONY: build
+build:
+	@GO111MODULE=on CGO_ENABLED=0 go build \
+		-v \
+		-o bin/etcd-druid \
+		-ldflags "$$(bash -c 'source $(HACK_DIR)/ld-flags.sh && build_ld_flags')" \
+		cmd/main.go
 
 # Clean go build cache
 .PHONY: clean-build-cache
@@ -141,8 +163,6 @@ clean-build-cache:
 .PHONY: docker-build
 docker-build:
 	docker buildx build --platform=$(PLATFORM) --tag $(IMG) --rm .
-	@echo "updating kustomize image patch file for manager resource"
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
 
 # Push the docker image
 .PHONY: docker-push
@@ -213,7 +233,7 @@ deploy-localstack: $(KUBECTL)
 .PHONY: deploy-azurite
 deploy-azurite: $(KUBECTL)
 	@$(HACK_DIR)/deploy-azurite.sh
-	
+
 .PHONY: deploy-fakegcs
 deploy-fakegcs: $(KUBECTL)
 	@$(HACK_DIR)/deploy-fakegcs.sh
