@@ -84,7 +84,7 @@ func newTestTask(namespace string, state *druidv1alpha1.TaskState) *druidv1alpha
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
 					Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
-					TimeoutSecondsFull: ptr.To(int32(30)),
+					TimeoutSecondsFull: ptr.To(int32(150)),
 					IsFinal:            ptr.To(false),
 				},
 			},
