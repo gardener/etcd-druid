@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -88,9 +88,9 @@ func (r *Reconciler) reconcile(ctx context.Context, task *druidv1alpha1.EtcdCopy
 	logger := r.logger.WithValues("etcdCopyBackupsTask", client.ObjectKeyFromObject(task), "operation", "reconcile")
 
 	// Ensure finalizer
-	if !controllerutil.ContainsFinalizer(task, druidapiconstants.EtcdFinalizerName) {
-		logger.V(1).Info("Adding finalizer", "finalizerName", druidapiconstants.EtcdFinalizerName)
-		if err := kubernetes.AddFinalizers(ctx, r.Client, task, druidapiconstants.EtcdFinalizerName); err != nil {
+	if !controllerutil.ContainsFinalizer(task, druidapicommon.EtcdFinalizerName) {
+		logger.V(1).Info("Adding finalizer", "finalizerName", druidapicommon.EtcdFinalizerName)
+		if err := kubernetes.AddFinalizers(ctx, r.Client, task, druidapicommon.EtcdFinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not add finalizer: %w", err)
 		}
 	}
@@ -149,8 +149,8 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 	logger := r.logger.WithValues("task", client.ObjectKeyFromObject(task), "operation", "delete")
 
 	// Check finalizer
-	if !controllerutil.ContainsFinalizer(task, druidapiconstants.EtcdFinalizerName) {
-		logger.V(1).Info("Skipping since finalizer not present", "finalizerName", druidapiconstants.EtcdFinalizerName)
+	if !controllerutil.ContainsFinalizer(task, druidapicommon.EtcdFinalizerName) {
+		logger.V(1).Info("Skipping since finalizer not present", "finalizerName", druidapicommon.EtcdFinalizerName)
 		return ctrl.Result{}, nil
 	}
 
@@ -175,8 +175,8 @@ func (r *Reconciler) delete(ctx context.Context, task *druidv1alpha1.EtcdCopyBac
 
 	// Remove finalizer if requested
 	if removeFinalizer {
-		logger.V(1).Info("Removing finalizer", "finalizerName", druidapiconstants.EtcdFinalizerName)
-		if err := kubernetes.RemoveFinalizers(ctx, r.Client, task, druidapiconstants.EtcdFinalizerName); err != nil {
+		logger.V(1).Info("Removing finalizer", "finalizerName", druidapicommon.EtcdFinalizerName)
+		if err := kubernetes.RemoveFinalizers(ctx, r.Client, task, druidapicommon.EtcdFinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not remove finalizer: %w", err)
 		}
 	}

@@ -170,6 +170,24 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 			expectErr: true,
 		},
 		{
+			name:     "Invalid OnDemandSnapshot - full snapshot timeout less than minimum",
+			taskName: "task-low-timeout-full",
+			config: &druidv1alpha1.OnDemandSnapshotConfig{
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(60)),
+			},
+			expectErr: true,
+		},
+		{
+			name:     "Invalid OnDemandSnapshot - delta snapshot timeout less than minimum",
+			taskName: "task-low-timeout-delta",
+			config: &druidv1alpha1.OnDemandSnapshotConfig{
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(9)),
+			},
+			expectErr: true,
+		},
+		{
 			name:     "Invalid OnDemandSnapshot - negative timeout",
 			taskName: "task-negative-timeout",
 			config: &druidv1alpha1.OnDemandSnapshotConfig{

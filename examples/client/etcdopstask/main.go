@@ -38,7 +38,7 @@ func main() {
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
 					Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
-					IsFinal:            ptr.To(true),
+					IsFinal:            ptr.To(false),
 					TimeoutSecondsFull: ptr.To(int32(480)),
 				},
 			},

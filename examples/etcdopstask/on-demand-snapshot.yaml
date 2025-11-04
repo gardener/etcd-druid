@@ -9,6 +9,6 @@ spec:
       type: full #options: full, delta
       # isFinal: false
       timeoutSecondsFull: 480
-      timeoutSecondsDelta: 60
+      # timeoutSecondsDelta: 60
   etcdName: etcd-test
   ttlSecondsAfterFinished: 3600

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -120,7 +120,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			})
 
 			It("should remove finalizer for task which does not have a corresponding job", func() {
-				Expect(k8sutils.AddFinalizers(ctx, fakeClient, task, druidapiconstants.EtcdFinalizerName)).To(Succeed())
+				Expect(k8sutils.AddFinalizers(ctx, fakeClient, task, druidapicommon.EtcdFinalizerName)).To(Succeed())
 				// use fakeClient.Delete() to simply add deletionTimestamp to `task` object,
 				// due to https://github.com/kubernetes-sigs/controller-runtime/pull/2316
 				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
@@ -137,7 +137,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			It("should delete job but not the task for which the deletion timestamp, finalizer is set and job is present", func() {
 				job := testutils.CreateEtcdCopyBackupsJob(testTaskName, testNamespace)
 				Expect(fakeClient.Create(ctx, job)).To(Succeed())
-				Expect(k8sutils.AddFinalizers(ctx, fakeClient, task, druidapiconstants.EtcdFinalizerName)).To(Succeed())
+				Expect(k8sutils.AddFinalizers(ctx, fakeClient, task, druidapicommon.EtcdFinalizerName)).To(Succeed())
 				Expect(fakeClient.Delete(ctx, task)).To(Succeed())
 				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)).To(Succeed())
 

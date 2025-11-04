@@ -309,7 +309,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			expectedResult: handler.Result{
 				Description: "Failed to get etcdbr CA secret",
 				Error: &druiderr.DruidError{
-					Code:      ErrGetSecret,
+					Code:      ErrGetCASecret,
 					Operation: string(druidv1alpha1.OperationPhaseRunning),
 					Message:   "failed to get etcdbr CA secret test-namespace/ca-etcdbr",
 				},
