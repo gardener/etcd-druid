@@ -31,8 +31,8 @@ const (
 	ErrEtcdNotReady druidv1alpha1.ErrorCode = "ERR_ETCD_NOT_READY"
 	// ErrBackupNotEnabled represents the error in case backup is not enabled
 	ErrBackupNotEnabled druidv1alpha1.ErrorCode = "ERR_BACKUP_NOT_ENABLED"
-	// ErrGetSecret represents the error in case of failure in fetching the secret
-	ErrGetSecret druidv1alpha1.ErrorCode = "ERR_GET_SECRET"
+	// ErrGetCASecret represents the error in case of failure in fetching the secret
+	ErrGetCASecret druidv1alpha1.ErrorCode = "ERR_GET_SECRET"
 	// ErrCreateHTTPRequest represents the error in case of failure in creating http request
 	ErrCreateHTTPRequest druidv1alpha1.ErrorCode = "ERR_CREATE_HTTP_REQUEST"
 	// ErrExecuteHTTPRequest represents the error in case of failure in executing http request
@@ -146,7 +146,7 @@ func (h *Handler) Run(ctx context.Context) handler.Result {
 		if err := h.client.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: tlsConfig.TLSCASecretRef.Name}, etcdbrCASecret); err != nil {
 			return handler.Result{
 				Description: "Failed to get etcdbr CA secret",
-				Error:       druiderr.WrapError(err, ErrGetSecret, string(druidv1alpha1.OperationPhaseRunning), fmt.Sprintf("failed to get etcdbr CA secret %s/%s", etcd.Namespace, tlsConfig.TLSCASecretRef.Name)),
+				Error:       druiderr.WrapError(err, ErrGetCASecret, string(druidv1alpha1.OperationPhaseRunning), fmt.Sprintf("failed to get etcdbr CA secret %s/%s", etcd.Namespace, tlsConfig.TLSCASecretRef.Name)),
 				Requeue:     true,
 			}
 		}

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
@@ -84,8 +84,8 @@ func (r *Reconciler) removeFinalizer(ctx component.OperatorContext, etcdObjKey c
 	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result
 	}
-	ctx.Logger.Info("Removing finalizer", "finalizerName", druidapiconstants.EtcdFinalizerName)
-	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcdPartialObjMeta, druidapiconstants.EtcdFinalizerName); client.IgnoreNotFound(err) != nil {
+	ctx.Logger.Info("Removing finalizer", "finalizerName", druidapicommon.EtcdFinalizerName)
+	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcdPartialObjMeta, druidapicommon.EtcdFinalizerName); client.IgnoreNotFound(err) != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
@@ -340,7 +340,7 @@ func assertETCDFinalizer(t *testing.T, cl client.Client, etcdObjectKey client.Ob
 			}
 			return err
 		}
-		finalizerPresent := slices.Contains(etcdInstance.ObjectMeta.Finalizers, druidapiconstants.EtcdFinalizerName)
+		finalizerPresent := slices.Contains(etcdInstance.ObjectMeta.Finalizers, druidapicommon.EtcdFinalizerName)
 		if expectedFinalizerPresent != finalizerPresent {
 			return fmt.Errorf("expected finalizer to be %s, found %v", utils.IfConditionOr(expectedFinalizerPresent, "present", "removed"), etcdInstance.ObjectMeta.Finalizers)
 		}

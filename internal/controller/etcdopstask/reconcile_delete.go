@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
@@ -103,9 +103,9 @@ func (r *Reconciler) removeTaskFinalizer(ctx context.Context, logger logr.Logger
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
-	if controllerutil.ContainsFinalizer(task, druidapiconstants.EtcdOpsTaskFinalizerName) {
+	if controllerutil.ContainsFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName) {
 		patch := client.MergeFrom(task.DeepCopy())
-		controllerutil.RemoveFinalizer(task, druidapiconstants.EtcdOpsTaskFinalizerName)
+		controllerutil.RemoveFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName)
 		if err := r.client.Patch(ctx, task, patch); err != nil {
 			if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 				Operation: &druidv1alpha1.LastOperation{

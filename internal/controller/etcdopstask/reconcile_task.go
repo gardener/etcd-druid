@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
@@ -58,11 +58,11 @@ func (r *Reconciler) ensureTaskFinalizer(ctx context.Context, _ logr.Logger, tas
 		return ctrlutils.ReconcileWithError(err)
 	}
 
-	if controllerutil.ContainsFinalizer(task, druidapiconstants.EtcdOpsTaskFinalizerName) {
+	if controllerutil.ContainsFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName) {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if err := kubernetes.AddFinalizers(ctx, r.client, task, druidapiconstants.EtcdOpsTaskFinalizerName); err != nil {
+	if err := kubernetes.AddFinalizers(ctx, r.client, task, druidapicommon.EtcdOpsTaskFinalizerName); err != nil {
 		if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 			Operation: &druidv1alpha1.LastOperation{
 				Type:        druidv1alpha1.LastOperationTypeReconcile,

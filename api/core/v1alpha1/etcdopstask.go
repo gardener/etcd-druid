@@ -48,15 +48,6 @@ const (
 	OperationPhaseCleanup OperationPhase = "Cleanup"
 )
 
-// const (
-// 	// OperationStateInProgress indicates that the operation is currently in progress.
-// 	OperationStateInProgress LastOperationState = "InProgress"
-// 	// OperationStateCompleted indicates that the operation has completed.
-// 	OperationStateCompleted LastOperationState = "Completed"
-// 	// OperationStateFailed indicates that the operation has failed.
-// 	OperationStateFailed LastOperationState = "Failed"
-// )
-
 ////////////////////////////////////////////////////////////////////////////////
 // EtcdOpsTask
 ////////////////////////////////////////////////////////////////////////////////

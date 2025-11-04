@@ -23,7 +23,7 @@ type OnDemandSnapshotConfig struct {
 	// +kubebuilder:validation:Required
 	Type OnDemandSnapshotType `json:"type"`
 
-	// IsFinal indicates whether the snapshot is marked as final. This is subject to change.
+	// IsFinal indicates whether the snapshot of type: full is marked as final. This is subject to change.
 	// +optional
 	IsFinal *bool `json:"isFinal,omitempty"`
 
@@ -31,13 +31,13 @@ type OnDemandSnapshotConfig struct {
 	// Defaults to 60 seconds.
 	// +optional
 	// +kubebuilder:default=60
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=10
 	TimeoutSecondsDelta *int32 `json:"timeoutSecondsDelta,omitempty"`
 
 	// TimeoutSecondsFull is the timeout for full snapshot operations.
 	// Defaults to 480 seconds (8 minutes).
 	// +optional
 	// +kubebuilder:default=480
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=120
 	TimeoutSecondsFull *int32 `json:"timeoutSecondsFull,omitempty"`
 }
