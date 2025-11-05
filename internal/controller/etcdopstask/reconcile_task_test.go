@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
@@ -85,7 +85,7 @@ func TestEnsureFinalizer(t *testing.T) {
 					err = cl.Create(context.TODO(), tc.task)
 					g.Expect(err).ToNot(HaveOccurred(), "Failed to create task")
 					if tc.ContainsFinalizer {
-						controllerutil.AddFinalizer(tc.task, druidapiconstants.EtcdOpsTaskFinalizerName)
+						controllerutil.AddFinalizer(tc.task, druidapicommon.EtcdOpsTaskFinalizerName)
 						err = cl.Update(context.TODO(), tc.task)
 						g.Expect(err).ToNot(HaveOccurred(), "Failed to update task with finalizer")
 					}
@@ -113,7 +113,7 @@ func TestEnsureFinalizer(t *testing.T) {
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
 			err = cl.Get(context.TODO(), taskKey, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(controllerutil.ContainsFinalizer(updatedTask, druidapiconstants.EtcdOpsTaskFinalizerName)).To(BeTrue())
+			g.Expect(controllerutil.ContainsFinalizer(updatedTask, druidapicommon.EtcdOpsTaskFinalizerName)).To(BeTrue())
 		})
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
@@ -168,7 +168,7 @@ func TestRemoveTaskFinalizer(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-task",
 					Namespace:  "test-ns",
-					Finalizers: []string{druidapiconstants.EtcdOpsTaskFinalizerName, "other-finalizer"},
+					Finalizers: []string{druidapicommon.EtcdOpsTaskFinalizerName, "other-finalizer"},
 				},
 			},
 			expectedResult: ctrlutils.ContinueReconcile(),

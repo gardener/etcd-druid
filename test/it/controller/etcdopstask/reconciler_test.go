@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	druidapiconstants "github.com/gardener/etcd-druid/api/common"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask"
@@ -185,10 +185,10 @@ func testEtcdOpsTaskAddFinalizer(t *testing.T, namespace string, reconcilerTestE
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdopstaskInstance), etcdopstaskInstance); err != nil {
 			return false
 		}
-		return slices.Contains(etcdopstaskInstance.Finalizers, druidapiconstants.EtcdOpsTaskFinalizerName)
+		return slices.Contains(etcdopstaskInstance.Finalizers, druidapicommon.EtcdOpsTaskFinalizerName)
 	}, 5*time.Second, 100*time.Millisecond).Should(BeTrue(), "finalizer should be added to etcdopstask")
 
-	t.Logf("test completed: finalizer %s was successfully added to etcdopstask %s/%s", druidapiconstants.EtcdOpsTaskFinalizerName, etcdopstaskInstance.Namespace, etcdopstaskInstance.Name)
+	t.Logf("test completed: finalizer %s was successfully added to etcdopstask %s/%s", druidapicommon.EtcdOpsTaskFinalizerName, etcdopstaskInstance.Namespace, etcdopstaskInstance.Name)
 }
 
 // testEtcdOpsTaskRejctedIfEtcdBackupDisabled tests that an EtcdOpsTask is rejected if the referenced etcd has backup disabled.
