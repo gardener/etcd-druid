@@ -8,7 +8,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
-	"github.com/gardener/etcd-druid/druidctl/internal/utils"
 )
 
 type resumeReconcileResult struct {
@@ -36,7 +35,7 @@ func (r *resumeReconcileCmdCtx) validate() error {
 
 // execute removes the suspend reconcile annotation from the Etcd resource.
 func (r *resumeReconcileCmdCtx) execute(ctx context.Context) error {
-	etcdList, err := utils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
 	if err != nil {
 		return err
 	}

@@ -6,13 +6,10 @@ import (
 
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
-	"github.com/gardener/etcd-druid/druidctl/internal/utils"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 )
-
-const namespace = "default"
 
 // GlobalOptions holds all global options and configuration for the CLI
 type GlobalOptions struct {
@@ -35,7 +32,7 @@ type GlobalOptions struct {
 
 // NewOptions returns a new Options instance with default values
 func NewOptions() *GlobalOptions {
-	configFlags := utils.GetConfigFlags()
+	configFlags := GetConfigFlags()
 	factory := client.NewClientFactory(configFlags)
 	return &GlobalOptions{
 		LogType:       log.LogTypeCharm,
