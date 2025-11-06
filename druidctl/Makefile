@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
 PROJECT_ROOT := $(shell pwd)
 BIN_DIR := $(PROJECT_ROOT)/bin
 BIN_NAME := druid
