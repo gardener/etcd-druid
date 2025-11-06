@@ -10,7 +10,6 @@ import (
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
 	"github.com/gardener/etcd-druid/druidctl/internal/printer"
-	"github.com/gardener/etcd-druid/druidctl/internal/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -105,7 +104,7 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 	}
 
 	// Identify etcds to operate on
-	etcdList, err := utils.GetEtcdList(ctx, etcdClient, l.etcdRefList, l.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, etcdClient, l.etcdRefList, l.AllNamespaces)
 	if err != nil {
 		return err
 	}
@@ -255,7 +254,7 @@ func (l *listResourcesCmdCtx) renderListResources(log log.Logger, results []Etcd
 			list := resourceKey.Resources
 			log.RawHeader(l.IOStreams.Out, fmt.Sprintf("%s (%s.%s/%s): %d", resourceKey.Key.Kind, resourceKey.Key.Resource, resourceKey.Key.Group, resourceKey.Key.Version, len(list)))
 			for _, r := range list {
-				age := utils.ShortDuration(r.Age)
+				age := cmdutils.ShortDuration(r.Age)
 				ns := r.Namespace
 				if ns == "" {
 					ns = "-"

@@ -8,7 +8,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
-	"github.com/gardener/etcd-druid/druidctl/internal/utils"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -58,7 +57,7 @@ func (r *reconcileCmdCtx) execute(ctx context.Context) error {
 	}
 	defer cancel()
 
-	etcdList, err := utils.GetEtcdList(ctxWithTimeout, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctxWithTimeout, r.etcdClient, r.etcdRefList, r.AllNamespaces)
 	if err != nil {
 		return err
 	}

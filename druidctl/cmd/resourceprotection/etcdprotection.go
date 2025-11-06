@@ -6,7 +6,6 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
-	"github.com/gardener/etcd-druid/druidctl/internal/utils"
 )
 
 func (r *resourceProtectionCmdCtx) complete(options *cmdutils.GlobalOptions) error {
@@ -34,7 +33,7 @@ func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Co
 	} else {
 		r.Logger.Info(r.IOStreams.Out, "Removing component protection from selected Etcds", r.ResourcesRef)
 	}
-	etcdList, err := utils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func (r *resourceProtectionCmdCtx) removeDisableProtectionAnnotation(ctx context
 	} else {
 		r.Logger.Info(r.IOStreams.Out, "Adding component protection from selected Etcds", r.ResourcesRef)
 	}
-	etcdList, err := utils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
 	if err != nil {
 		return err
 	}
