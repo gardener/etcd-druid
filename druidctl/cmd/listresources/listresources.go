@@ -66,7 +66,7 @@ func (l *listResourcesCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 	}
 	l.GenericClient = genericClient
 
-	l.Formatter, err = printer.NewFormatter(printer.OutputFormat(l.OutputFormat))
+	l.Printer, err = printer.NewFormatter(printer.OutputFormat(l.OutputFormat))
 	if err != nil {
 		options.Logger.Error(l.IOStreams.ErrOut, "Failed to create formatter: ", err)
 		return err
@@ -184,13 +184,13 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 		}
 		return result.Etcds[i].Etcd.Namespace < result.Etcds[j].Etcd.Namespace
 	})
-	if l.Formatter != nil {
+	if l.Printer != nil {
 		var outputData []byte
-		outputData, err = l.Formatter.Format(result)
+		outputData, err = l.Printer.Print(result)
 		if err != nil {
 			return fmt.Errorf("failed to marshal result to desired format: %w", err)
 		}
-		fmt.Printf("%s\n", string(outputData))
+		fmt.Fprintf(l.IOStreams.Out, "%s\n", string(outputData))
 		return nil
 	}
 	l.renderListResources(out, result.Etcds)
@@ -236,35 +236,20 @@ func toResourceRef(u *unstructured.Unstructured) ResourceRef {
 // renderListResources prints results in a grouped, neat format using the Logger.
 func (l *listResourcesCmdCtx) renderListResources(log log.Logger, results []EtcdResourceResult) {
 	for _, etcdResourceResult := range results {
-		log.Header(l.IOStreams.Out, fmt.Sprintf("Etcd %s/%s", etcdResourceResult.Etcd.Namespace, etcdResourceResult.Etcd.Name))
+		log.RawHeader(l.IOStreams.Out, fmt.Sprintf("Etcd [%s/%s]", etcdResourceResult.Etcd.Namespace, etcdResourceResult.Etcd.Name))
 		if len(etcdResourceResult.Items) == 0 {
 			log.Info(l.IOStreams.Out, "No resources found for selected filters")
 			continue
 		}
-		// Order resource kinds consistently
-		// keys := make([]ResourceKey, 0, len(etcdResourceResult.Items))
-		// for _, resourceListPerKey := range etcdResourceResult.Items {
-		// 	keys = append(keys, resourceListPerKey.Key)
-		// }
+
 		keyList := etcdResourceResult.Items
 		sort.Slice(keyList, func(i, j int) bool {
 			if keyList[i].Key.Kind == keyList[j].Key.Kind {
-				return keyList[i].Key.Resource < keyList[j].Key.Resource
+				return len(keyList[i].Key.Resource) < len(keyList[j].Key.Resource)
 			}
-			return keyList[i].Key.Kind < keyList[j].Key.Kind
+			return len(keyList[i].Key.Kind) < len(keyList[j].Key.Kind)
 		})
-
-		for _, resourceKey := range keyList {
-			list := resourceKey.Resources
-			log.RawHeader(l.IOStreams.Out, fmt.Sprintf("%s (%s.%s/%s): %d", resourceKey.Key.Kind, resourceKey.Key.Resource, resourceKey.Key.Group, resourceKey.Key.Version, len(list)))
-			for _, r := range list {
-				age := cmdutils.ShortDuration(r.Age)
-				ns := r.Namespace
-				if ns == "" {
-					ns = "-"
-				}
-				log.Info(l.IOStreams.Out, fmt.Sprintf("%s/%s (age %s)", ns, r.Name, age))
-			}
-		}
+		table := SetupListResourcesTable(keyList)
+		fmt.Fprintln(l.IOStreams.Out, table)
 	}
 }
