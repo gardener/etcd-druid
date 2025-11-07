@@ -142,7 +142,6 @@ func printReconcileStatus(sm *statusManager) {
 		return tasks[i].Etcd < tasks[j].Etcd
 	})
 	table := setupReconcileStatusTable(tasks)
-	fmt.Printf("\nReconciliation Status:\n")
+	fmt.Println("Reconciliation Status:")
 	fmt.Println(table)
-	fmt.Printf("\n")
 }

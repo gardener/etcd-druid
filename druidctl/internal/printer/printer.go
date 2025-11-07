@@ -11,9 +11,9 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// Formatter defines an interface for formatting data into various output formats.
-type Formatter interface {
-	Format(data interface{}) ([]byte, error)
+// Printer defines an interface for formatting data into various output formats.
+type Printer interface {
+	Print(data interface{}) ([]byte, error)
 }
 
 // =======================
@@ -26,7 +26,7 @@ type JSONFormatter struct {
 	Indent bool
 }
 
-func (f *JSONFormatter) Format(data interface{}) ([]byte, error) {
+func (f *JSONFormatter) Print(data interface{}) ([]byte, error) {
 	if f.Indent {
 		return json.MarshalIndent(data, "", "  ")
 	}
@@ -40,7 +40,7 @@ func (f *JSONFormatter) Format(data interface{}) ([]byte, error) {
 // YAMLFormatter formats data as YAML.
 type YAMLFormatter struct{}
 
-func (f *YAMLFormatter) Format(data interface{}) ([]byte, error) {
+func (f *YAMLFormatter) Print(data interface{}) ([]byte, error) {
 	return yaml.Marshal(data)
 }
 
@@ -62,7 +62,7 @@ func (f *TableFormatter) Format(data interface{}) ([]byte, error) {
 // =======================
 
 // NewFormatter creates a new Formatter based on the specified output format.
-func NewFormatter(format OutputFormat) (Formatter, error) {
+func NewFormatter(format OutputFormat) (Printer, error) {
 	switch format {
 	case OutputTypeJSON:
 		return &JSONFormatter{Indent: true}, nil

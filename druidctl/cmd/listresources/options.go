@@ -22,7 +22,7 @@ type listResourcesCmdCtx struct {
 	etcdRefList   []types.NamespacedName
 	EtcdClient    client.EtcdClientInterface
 	GenericClient client.GenericClientInterface
-	Formatter     printer.Formatter
+	Printer       printer.Printer
 }
 
 func newListResourcesOptions(options *cmdutils.GlobalOptions, filter string, outputFormat string) *listResourcesOptions {
