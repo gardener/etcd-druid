@@ -13,7 +13,7 @@ import (
 )
 
 func (r *Reconciler) completeReconcile(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	rLog := r.logger.WithValues("etcd", etcd.Name, "operation", "completeReconcile").WithValues("runID", ctx.RunID)
+	rLog := r.logger.WithValues("etcd", client.ObjectKeyFromObject(etcd), "operation", "completeReconcile").WithValues("runID", ctx.RunID)
 	ctx.SetLogger(rLog)
 
 	reconcileCompletionStepFns := []reconcileFn{

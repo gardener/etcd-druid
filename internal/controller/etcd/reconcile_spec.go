@@ -18,6 +18,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -25,7 +26,7 @@ import (
 const syncRetryInterval = 10 * time.Second
 
 func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	rLog := r.logger.WithValues("etcd", etcd.Name, "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
+	rLog := r.logger.WithValues("etcd", client.ObjectKeyFromObject(etcd), "operation", "reconcileSpec").WithValues("runID", ctx.RunID)
 	ctx.SetLogger(rLog)
 
 	reconcileStepFns := []reconcileFn{
