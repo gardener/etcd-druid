@@ -34,7 +34,7 @@ Each controller package also contains auxiliary files which are relevant to that
 
 A *manager* is first created for all controllers that are a part of etcd-druid.
 The *controller manager* is responsible for all the controllers that are associated with CRDs.
-Once the manager is `Start()`ed, all the controllers that are *registered* with it are started.  
+Once the manager is `Start()`ed, all the controllers that are *registered* with it are started.
 
 Each controller is built using a controller builder, configured with details such as the type of object being reconciled, owned objects whose owner object is reconciled, event filters (predicates), etc. `Predicates` are filters which allow controllers to filter which type of events the controller should respond to and which ones to ignore.
 
@@ -81,6 +81,7 @@ Status fields related to the etcd cluster itself, such as `Members`, `PeerUrlTLS
 - `Ready`: indicates overall readiness of the etcd cluster in serving traffic.
 - `BackupReady`: indicates health of the etcd backups, i.e., whether etcd backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
 - `DataVolumesReady`: indicates health of the persistent volumes containing the etcd data.
+- `NetworkPartitioned`: indicates whether the etcd cluster is suffering from a network partition.
 
 ## Compaction Controller
 
