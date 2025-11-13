@@ -565,14 +565,14 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 
 	// Snapshot compression and timeout command line args
 	// -----------------------------------------------------------------------------------------------------------------
+	compressionEnabled, compressionPolicy := druidv1alpha1.DefaultCompressionEnabled, druidv1alpha1.DefaultCompression
 	if b.etcd.Spec.Backup.SnapshotCompression != nil {
-		if ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, false) {
-			commandArgs = append(commandArgs, fmt.Sprintf("--compress-snapshots=%t", *b.etcd.Spec.Backup.SnapshotCompression.Enabled))
-		}
-		if b.etcd.Spec.Backup.SnapshotCompression.Policy != nil {
-			commandArgs = append(commandArgs, fmt.Sprintf("--compression-policy=%s", string(*b.etcd.Spec.Backup.SnapshotCompression.Policy)))
-		}
+		compressionEnabled = ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Enabled, druidv1alpha1.DefaultCompressionEnabled)
+		compressionPolicy = ptr.Deref(b.etcd.Spec.Backup.SnapshotCompression.Policy, druidv1alpha1.DefaultCompression)
 	}
+
+	commandArgs = append(commandArgs, fmt.Sprintf("--compress-snapshots=%t", compressionEnabled))
+	commandArgs = append(commandArgs, fmt.Sprintf("--compression-policy=%s", compressionPolicy))
 
 	etcdSnapshotTimeout := defaultEtcdSnapshotTimeout
 	if b.etcd.Spec.Backup.EtcdSnapshotTimeout != nil {
