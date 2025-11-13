@@ -41,6 +41,7 @@ const (
 	defaultPodManagementPolicy           = appsv1.ParallelPodManagement
 	rootUser                             = int64(0)
 	nonRootUser                          = int64(65532)
+	etcdWrapperReadyEndpoint             = "/readyz"
 )
 
 var (
@@ -136,7 +137,7 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr[int32](druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
+	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
 	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
 	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if err != nil {
@@ -593,16 +594,12 @@ func (b *stsBuilder) getEtcdContainerReadinessProbe() *corev1.Probe {
 }
 
 func (b *stsBuilder) getEtcdContainerReadinessHandler() corev1.ProbeHandler {
-	multiNodeCluster := b.etcd.Spec.Replicas > 1
-
 	scheme := utils.IfConditionOr(b.etcd.Spec.Backup.TLS == nil, corev1.URISchemeHTTP, corev1.URISchemeHTTPS)
-	path := utils.IfConditionOr(multiNodeCluster, "/readyz", "/healthz")
-	port := utils.IfConditionOr(multiNodeCluster, b.wrapperPort, b.backupPort)
 
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
-			Path:   path,
-			Port:   intstr.FromInt32(port),
+			Path:   etcdWrapperReadyEndpoint,
+			Port:   intstr.FromInt32(b.wrapperPort),
 			Scheme: scheme,
 		},
 	}
