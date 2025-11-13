@@ -611,8 +611,10 @@ spec:
                     ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
                     will disable components that are involved in management of etcd members like Pods, Services and PDBs.
                   items:
+                    format: ipv4
                     type: string
                   type: array
+                  x-kubernetes-list-type: set
                 labels:
                   additionalProperties:
                     type: string

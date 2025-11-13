@@ -185,3 +185,89 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateUpdateSpecExternallyManagedMemberAddresses checks the dynamic addition or removal of the field.
+func TestValidateUpdateSpecExternallyManagedMemberAddresses(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	testNs, g := setupTestEnvironment(t)
+
+	tests := []struct {
+		name                              string
+		etcdName                          string
+		initialReplicas                   int
+		updatedReplicas                   int
+		initialExternallyManagedAddresses []string
+		updatedExternallyManagedAddresses []string
+		expectErr                         bool
+	}{
+		{
+			name:                              "Valid #1: Unchanged non-empty externallyManagedMemberAddresses",
+			etcdName:                          "etcd-valid-1-externally-managed",
+			initialReplicas:                   3,
+			updatedReplicas:                   3,
+			initialExternallyManagedAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			updatedExternallyManagedAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			expectErr:                         false,
+		},
+		{
+			name:                              "Valid #2: Unchanged empty externallyManagedMemberAddresses",
+			etcdName:                          "etcd-valid-2-externally-managed",
+			initialReplicas:                   3,
+			updatedReplicas:                   3,
+			initialExternallyManagedAddresses: []string{},
+			updatedExternallyManagedAddresses: []string{},
+			expectErr:                         false,
+		},
+		{
+			name:                              "Invalid #1: Introduced externallyManagedMemberAddresses when members are being managed by druid",
+			etcdName:                          "etcd-invalid-1-externally-managed",
+			initialReplicas:                   3,
+			updatedReplicas:                   3,
+			initialExternallyManagedAddresses: nil,
+			updatedExternallyManagedAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			expectErr:                         true,
+		},
+		{
+			name:                              "Invalid #2: Removed externallyManagedMemberAddresses when members are being managed externally",
+			etcdName:                          "etcd-invalid-2-externally-managed",
+			initialReplicas:                   3,
+			updatedReplicas:                   3,
+			initialExternallyManagedAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			updatedExternallyManagedAddresses: nil,
+			expectErr:                         true,
+		},
+		{
+			name:                              "Invalid #3: Scaled down to 0 replicas with externallyManagedMemberAddresses set",
+			etcdName:                          "etcd-invalid-3-externally-managed",
+			initialReplicas:                   3,
+			updatedReplicas:                   0,
+			initialExternallyManagedAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			updatedExternallyManagedAddresses: []string{},
+			expectErr:                         true,
+		},
+		{
+			name:                              "Invalid #4: Scaled up from 0 replicas with externallyManagedMemberAddresses set",
+			etcdName:                          "etcd-invalid-4-externally-managed",
+			initialReplicas:                   0,
+			updatedReplicas:                   3,
+			initialExternallyManagedAddresses: []string{},
+			updatedExternallyManagedAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			expectErr:                         true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(int32(test.initialReplicas)).Build()
+			etcd.Spec.ExternallyManagedMemberAddresses = test.initialExternallyManagedAddresses
+
+			cl := itTestEnv.GetClient()
+			ctx := context.Background()
+			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+
+			etcd.Spec.Replicas = int32(test.updatedReplicas)
+			etcd.Spec.ExternallyManagedMemberAddresses = test.updatedExternallyManagedAddresses
+			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+		})
+	}
+}
