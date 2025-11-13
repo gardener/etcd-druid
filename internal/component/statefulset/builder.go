@@ -640,18 +640,19 @@ func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
 	if ptr.Deref(b.etcd.Spec.RunAsRoot, false) {
 		return &corev1.PodSecurityContext{
-			RunAsGroup:   ptr.To[int64](rootUser),
+			RunAsGroup:   ptr.To(rootUser),
 			RunAsNonRoot: ptr.To(false),
-			RunAsUser:    ptr.To[int64](rootUser),
-			FSGroup:      ptr.To[int64](rootUser),
+			RunAsUser:    ptr.To(rootUser),
+			FSGroup:      ptr.To(rootUser),
 		}
 	}
 
 	return &corev1.PodSecurityContext{
-		RunAsGroup:   ptr.To[int64](nonRootUser),
-		RunAsNonRoot: ptr.To(true),
-		RunAsUser:    ptr.To[int64](nonRootUser),
-		FSGroup:      ptr.To[int64](nonRootUser),
+		RunAsGroup:          ptr.To(nonRootUser),
+		RunAsNonRoot:        ptr.To(true),
+		RunAsUser:           ptr.To(nonRootUser),
+		FSGroup:             ptr.To(nonRootUser),
+		FSGroupChangePolicy: ptr.To(corev1.FSGroupChangeOnRootMismatch),
 	}
 }
 

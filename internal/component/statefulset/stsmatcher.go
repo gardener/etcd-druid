@@ -371,10 +371,11 @@ func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatc
 	}
 
 	return PointTo(MatchFields(IgnoreExtras|IgnoreMissing, Fields{
-		"RunAsGroup":   PointTo(Equal(int64(65532))),
-		"RunAsNonRoot": PointTo(Equal(true)),
-		"RunAsUser":    PointTo(Equal(int64(65532))),
-		"FSGroup":      PointTo(Equal(int64(65532))),
+		"RunAsGroup":          PointTo(Equal(int64(65532))),
+		"RunAsNonRoot":        PointTo(Equal(true)),
+		"RunAsUser":           PointTo(Equal(int64(65532))),
+		"FSGroup":             PointTo(Equal(int64(65532))),
+		"FSGroupChangePolicy": PointTo(Equal(corev1.FSGroupChangeOnRootMismatch)),
 	}))
 }
 
