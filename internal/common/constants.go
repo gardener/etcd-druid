@@ -60,6 +60,8 @@ const (
 	EnvPodName = "POD_NAME"
 	// EnvPodNamespace is the environment variable key for the pod namespace.
 	EnvPodNamespace = "POD_NAMESPACE"
+	// EnvPodIP is the environment variable key for the pod IP.
+	EnvPodIP = "POD_IP"
 	// EnvStorageContainer is the environment variable key for the storage container.
 	EnvStorageContainer = "STORAGE_CONTAINER"
 	// EnvSourceStorageContainer is the environment variable key for the source storage container.
