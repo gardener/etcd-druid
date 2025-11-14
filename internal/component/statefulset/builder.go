@@ -389,7 +389,7 @@ func (b *stsBuilder) getEtcdContainer() corev1.Container {
 }
 
 func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
-	env, err := utils.GetBackupRestoreContainerEnvVars(b.etcd.Spec.Backup.Store)
+	env, err := utils.GetBackupRestoreContainerEnvVars(b.etcd, b.etcd.Spec.Backup.Store)
 	if err != nil {
 		return corev1.Container{}, err
 	}
