@@ -1,5 +1,6 @@
 /args
 /bin
+/druidctl/bin
 /.kube-secrets
 /tmp/*
 /dev
