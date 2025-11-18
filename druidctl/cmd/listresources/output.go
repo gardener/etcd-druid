@@ -7,11 +7,13 @@ package listresources
 import (
 	"fmt"
 
+	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 )
 
+// SetupListResourcesTable constructs a lipgloss table representing the provided resource keys.
 func SetupListResourcesTable(keyList []ResourceListPerKey) *table.Table {
 	columns := []string{"Kind", "NamespacedName", "Age"}
 	var rows [][]string
@@ -34,7 +36,7 @@ func SetupListResourcesTable(keyList []ResourceListPerKey) *table.Table {
 		Border(lipgloss.NormalBorder()).
 		Headers(columns...).
 		Rows(rows...).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(_, _ int) lipgloss.Style {
 			return lipgloss.NewStyle()
 		})
 	return t

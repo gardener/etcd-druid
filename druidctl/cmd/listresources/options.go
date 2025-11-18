@@ -8,6 +8,7 @@ import (
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	client "github.com/gardener/etcd-druid/druidctl/internal/client"
 	"github.com/gardener/etcd-druid/druidctl/internal/printer"
+
 	"k8s.io/apimachinery/pkg/types"
 )
 

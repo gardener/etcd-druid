@@ -8,10 +8,12 @@ import (
 	"github.com/gardener/etcd-druid/druidctl/internal/log/charm"
 )
 
+// DefaultLogger returns the default logger implementation used by the CLI.
 func DefaultLogger() Logger {
 	return charm.NewCharmLogger()
 }
 
+// NewLogger constructs a logger based on the provided LogType.
 func NewLogger(logType LogType) Logger {
 	switch logType {
 	case LogTypeCharm:

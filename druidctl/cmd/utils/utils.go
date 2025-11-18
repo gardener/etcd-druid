@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -30,6 +31,7 @@ func GetConfigFlags() *genericclioptions.ConfigFlags {
 	return configFlags
 }
 
+// GetEtcdList returns a list of Etcd objects based on the provided references or all namespaces flag.
 func GetEtcdList(ctx context.Context, cl client.EtcdClientInterface, etcdRefList []types.NamespacedName, allNamespaces bool) (*druidv1alpha1.EtcdList, error) {
 	etcdList := &druidv1alpha1.EtcdList{}
 	var err error
@@ -58,6 +60,7 @@ func GetEtcdList(ctx context.Context, cl client.EtcdClientInterface, etcdRefList
 	return etcdList, nil
 }
 
+// ShortDuration renders a duration in a compact time unit form (s, m, h, d).
 func ShortDuration(d time.Duration) string {
 	if d < time.Minute {
 		return fmt.Sprintf("%ds", int(d.Seconds()))

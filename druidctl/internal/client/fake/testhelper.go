@@ -7,6 +7,7 @@ package fake
 import (
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -35,9 +36,8 @@ func (h *TestHelper) WithEtcdObjects(objects []runtime.Object) *TestHelper {
 	return h
 }
 
-func (h *TestHelper) EtcdObjectCount() int {
-	return len(h.etcdObjects)
-}
+// EtcdObjectCount returns the number of Etcd objects currently tracked by the helper.
+func (h *TestHelper) EtcdObjectCount() int { return len(h.etcdObjects) }
 
 // WithK8sObjects adds k8s objects to the test environment
 func (h *TestHelper) WithK8sObjects(objects []runtime.Object) *TestHelper {

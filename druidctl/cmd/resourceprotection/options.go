@@ -7,6 +7,7 @@ package resourceprotection
 import (
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
+
 	"k8s.io/apimachinery/pkg/types"
 )
 

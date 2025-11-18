@@ -71,5 +71,7 @@ func (w *CharmWriter) SetOutput(output io.Writer) {
 
 // WriteRaw writes a message directly to stdout without any logging prefixes
 func (w *CharmWriter) WriteRaw(writer io.Writer, message string) {
-	fmt.Fprintln(writer, message)
+	if _, err := fmt.Fprintln(writer, message); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "failed to write raw log message:", err)
+	}
 }

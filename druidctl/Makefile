@@ -2,16 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-PROJECT_ROOT := $(shell pwd)
-BIN_DIR := $(PROJECT_ROOT)/bin
-BIN_NAME := druid
-PLUGIN_BIN_NAME := kubectl-druid
-GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
+DRUIDCTL_MODULE_ROOT        := $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))")
+REPO_ROOT                   := $(shell dirname "$(DRUIDCTL_MODULE_ROOT)")
+HACK_DIR					:= $(DRUIDCTL_MODULE_ROOT)/hack
+DRUIDCTL_MODULE_TOOLS_DIR 	:= $(HACK_DIR)/tools
 
-GO ?= go
-GOLANGCI_LINT ?= golangci-lint
-INSTALL_DIR ?= $(or $(GOBIN),$(HOME)/.local/bin)
 
+include $(HACK_DIR)/tools.mk
 
 .PHONY: build
 build: $(BIN_DIR)/$(BIN_NAME) $(BIN_DIR)/$(PLUGIN_BIN_NAME)
@@ -32,33 +29,19 @@ plugin-install: build
 
 .PHONY: tidy
 tidy:
-	$(GO) mod tidy
-
-.PHONY: deps
-deps:
-	$(GO) mod verify
-
-.PHONY: fmt
-fmt:
-	$(GO) fmt ./...
-
-.PHONY: lint
-lint:
-	@if command -v $(GOLANGCI_LINT) >/dev/null 2>&1; then \
-		echo "Running golangci-lint"; \
-		$(GOLANGCI_LINT) run ./... || true; \
-	else \
-		echo "golangci-lint not found (skip). Install: https://golangci-lint.run"; \
-	fi
-
-.PHONY: vet
-vet:
-	$(GO) vet ./...
+	@env GO111MODULE=on go mod tidy
 
 .PHONY: test
 test:
-	$(GO) test -race -coverprofile=coverage.out ./...
-	@echo "Coverage report generated at coverage.out"
+	@go test ./...
+
+.PHONY: format
+format: $(GOIMPORTS_REVISER)
+	@$(REPO_ROOT)/hack/format.sh ./cmd ./internal
+
+.PHONY: check
+check: $(GOLANGCI_LINT) $(GOIMPORTS) format
+	@$(REPO_ROOT)/hack/check.sh --golangci-lint-config=../.golangci.yaml ./...
 
 .PHONY: clean
 clean:
