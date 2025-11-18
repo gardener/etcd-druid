@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-TOOLS_BIN_DIR              := $(DRUIDCTL_MODULE_TOOLS_DIR)/bin
-GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
-GOIMPORTS                  := $(TOOLS_BIN_DIR)/goimports
-GOIMPORTS_REVISER          := $(TOOLS_BIN_DIR)/goimports-reviser
+TOOLS_BIN_DIR				:= $(DRUIDCTL_MODULE_TOOLS_DIR)/bin
+GOLANGCI_LINT				:= $(TOOLS_BIN_DIR)/golangci-lint
+GOIMPORTS					:= $(TOOLS_BIN_DIR)/goimports
+GOIMPORTS_REVISER			:= $(TOOLS_BIN_DIR)/goimports-reviser
 
-# default tool versions
+# Tool versions
 GOLANGCI_LINT_VERSION ?= v1.64.8
 GOIMPORTS_REVISER_VERSION ?= v3.9.1
 GOIMPORTS_VERSION ?= latest
@@ -15,14 +15,11 @@ GOIMPORTS_VERSION ?= latest
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
-BIN_NAME 					:= druid
-PLUGIN_BIN_NAME 			:= kubectl-druid
-GO_FILES 					:= $(shell find . -name '*.go' -not -path './vendor/*')
-INSTALL_DIR ?= $(or $(GOBIN),$(HOME)/.local/bin)
-
-.PHONY: clean-tools-bin
+.PHONY: clean-tools-bin tools
 clean-tools-bin:
 	rm -rf $(TOOLS_BIN_DIR)/*
+
+tools: $(GOLANGCI_LINT) $(GOIMPORTS) $(GOIMPORTS_REVISER)
 
 $(GOLANGCI_LINT):
 	@# CGO_ENABLED has to be set to 1 in order for golangci-lint to be able to load plugins
