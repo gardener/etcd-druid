@@ -26,6 +26,7 @@ type JSONFormatter struct {
 	Indent bool
 }
 
+// Print marshals the provided data into JSON. It pretty-prints if Indent is true.
 func (f *JSONFormatter) Print(data interface{}) ([]byte, error) {
 	if f.Indent {
 		return json.MarshalIndent(data, "", "  ")
@@ -40,6 +41,7 @@ func (f *JSONFormatter) Print(data interface{}) ([]byte, error) {
 // YAMLFormatter formats data as YAML.
 type YAMLFormatter struct{}
 
+// Print marshals the provided data into YAML.
 func (f *YAMLFormatter) Print(data interface{}) ([]byte, error) {
 	return yaml.Marshal(data)
 }
@@ -52,8 +54,9 @@ func (f *YAMLFormatter) Print(data interface{}) ([]byte, error) {
 // (Implementation to be added)
 type TableFormatter struct{}
 
-func (f *TableFormatter) Format(data interface{}) ([]byte, error) {
-	// Implement table formatting logic here
+// Format converts the given data into a table representation. (Not yet implemented.)
+func (f *TableFormatter) Format(_ interface{}) ([]byte, error) {
+	// Implement table formatting logic here. Currently returns no data.
 	return nil, nil
 }
 

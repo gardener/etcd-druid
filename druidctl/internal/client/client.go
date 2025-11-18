@@ -38,11 +38,11 @@ func (e *EtcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, e
 		Cap:      5 * time.Second,
 	}
 	return retry.OnError(backoff, func(err error) bool {
-		return errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsTooManyRequests(err)
+		return errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsInternalError(err)
 	}, func() error {
 		latestEtcd, err := e.GetEtcd(ctx, etcd.Namespace, etcd.Name)
 		if err != nil {
-			return fmt.Errorf("unable to fetch latest etcd object: %w", err)
+			return err
 		}
 		updatedEtcd := latestEtcd.DeepCopy()
 		etcdModifier(updatedEtcd)

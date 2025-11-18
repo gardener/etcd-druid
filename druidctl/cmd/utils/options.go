@@ -10,6 +10,7 @@ import (
 
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
+
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -57,7 +58,7 @@ func (o *GlobalOptions) AddFlags(cmd *cobra.Command) {
 }
 
 // Complete fills in the GlobalOptions based on command line args and flags
-func (o *GlobalOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *GlobalOptions) Complete(_ *cobra.Command, args []string) error {
 	// Initialize Logger
 	o.Logger = log.NewLogger(o.LogType)
 	o.Logger.SetVerbose(o.Verbose)

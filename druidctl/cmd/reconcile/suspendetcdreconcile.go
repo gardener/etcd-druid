@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"sync"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 
 type suspendReconcileResult struct {

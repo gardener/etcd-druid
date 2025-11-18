@@ -9,6 +9,7 @@ import (
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	"github.com/gardener/etcd-druid/druidctl/internal/printer"
+
 	"github.com/spf13/cobra"
 )
 
@@ -49,12 +50,14 @@ func NewListResourcesCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Long:    `List managed resources for an etcd cluster filtered by the specified types. If no types are specified, all managed resources will be listed.`,
 		Args:    cobra.MaximumNArgs(1),
 		Example: example,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			listResourcesCmdCtx := &listResourcesCmdCtx{
 				listResourcesOptions: listResourcesOptions,
 			}
 			if err := listResourcesCmdCtx.validate(); err != nil {
-				cmd.Help()
+				if herr := cmd.Help(); herr != nil {
+					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+				}
 				return err
 			}
 

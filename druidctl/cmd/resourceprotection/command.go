@@ -8,6 +8,7 @@ import (
 	"context"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
+
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +40,7 @@ var (
 		druidctl remove-component-protection --all-namespaces`
 )
 
-// Create add-component-protection subcommand
+// NewAddProtectionCommand creates the add-component-protection subcommand.
 func NewAddProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "add-component-protection <etcd-resource-name>",
@@ -48,14 +49,16 @@ func NewAddProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 			   NOTE: This will only have effect if resource protection webhook has been enabled when deploying etcd-druid.`,
 		Example: addProtectionExample,
 		Args:    cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			resourceProtectionOptions := newResourceProtectionOptions(options)
 			resourceProtectionCmdCtx := &resourceProtectionCmdCtx{
 				resourceProtectionOptions: resourceProtectionOptions,
 			}
 
 			if err := resourceProtectionCmdCtx.validate(); err != nil {
-				cmd.Help()
+				if err := cmd.Help(); err != nil {
+					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+				}
 				return err
 			}
 
@@ -74,7 +77,7 @@ func NewAddProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	}
 }
 
-// Create remove-component-protection subcommand
+// NewRemoveProtectionCommand creates the remove-component-protection subcommand.
 func NewRemoveProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove-component-protection <etcd-resource-name>",
@@ -83,13 +86,16 @@ func NewRemoveProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command 
 			   NOTE: This will only have effect if resource protection webhook has been enabled when deploying etcd-druid.`,
 		Example: removeProtectionExample,
 		Args:    cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			resourceProtectionOptions := newResourceProtectionOptions(options)
 			resourceProtectionCmdCtx := &resourceProtectionCmdCtx{
 				resourceProtectionOptions: resourceProtectionOptions,
 			}
 
 			if err := resourceProtectionCmdCtx.validate(); err != nil {
+				if err := cmd.Help(); err != nil {
+					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+				}
 				return err
 			}
 
