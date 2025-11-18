@@ -60,6 +60,7 @@ func (s *CharmLogger) Header(writer io.Writer, message string, params ...string)
 	s.writer.LogInfo(writer, s.formatter.FormatHeader(constructPrefixFromParams(params...))+s.formatter.FormatHeader(message))
 }
 
+// RawHeader writes a formatted header line directly without log prefixes.
 func (s *CharmLogger) RawHeader(writer io.Writer, message string) {
 	s.writer.WriteRaw(writer, s.formatter.FormatHeader(message))
 }

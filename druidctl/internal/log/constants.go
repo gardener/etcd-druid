@@ -8,5 +8,6 @@ package log
 type LogType string
 
 const (
+	// LogTypeCharm selects the Charm logger implementation.
 	LogTypeCharm LogType = "Charm"
 )

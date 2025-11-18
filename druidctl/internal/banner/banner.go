@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
+
 	"github.com/spf13/cobra"
 )
 
@@ -21,8 +22,10 @@ var asciiArt = `
 ▶  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═════╝  ╚═════╝   ╚═╝   ╚══════╝
 `
 
+// Version defines the current version of the druidctl CLI.
 var Version = "v0.0.1"
 
+// ShowBanner renders the CLI banner when appropriate based on the current command and flags.
 func ShowBanner(rootCmd, cmd *cobra.Command, disableBanner bool) {
 	if disableBanner {
 		return

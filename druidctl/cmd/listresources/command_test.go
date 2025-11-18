@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	fake "github.com/gardener/etcd-druid/druidctl/internal/client/fake"
+
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 )
 
@@ -94,8 +95,7 @@ func TestListResourcesAllNamespaces(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
-	// Set the all-namespaces flag
-	cmd.Flags().Set("all-namespaces", "true")
+	// Set all-namespaces
 	globalOpts.AllNamespaces = true
 
 	// Complete and validate options
@@ -144,7 +144,9 @@ func TestListResourcesWithFilter(t *testing.T) {
 
 	// Set filter flag to specific resource types
 	specificFilter := "pods,services"
-	cmd.Flags().Set("filter", specificFilter)
+	if err := cmd.Flags().Set("filter", specificFilter); err != nil {
+		t.Fatalf("failed to set filter flag: %v", err)
+	}
 
 	// Complete and validate options
 	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
@@ -310,8 +312,7 @@ func TestListResourcesEmptyNamespaces(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
-	// Set the all-namespaces flag
-	cmd.Flags().Set("all-namespaces", "true")
+	// Set all-namespaces
 	globalOpts.AllNamespaces = true
 
 	// Complete and validate options

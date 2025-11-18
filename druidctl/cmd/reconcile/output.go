@@ -23,6 +23,7 @@ type task struct {
 	Done        bool
 }
 
+// setupReconcileStatusTable builds a table summarizing reconcile status for each Etcd.
 func setupReconcileStatusTable(tasks []task) *table.Table {
 	columns := []string{"Etcd", "Reconcile Triggered", "Pods Upto Date", "Time Taken To Reconcile", "Reconciliation Completed"}
 	var rows [][]string
@@ -39,7 +40,7 @@ func setupReconcileStatusTable(tasks []task) *table.Table {
 		Border(lipgloss.NormalBorder()).
 		Headers(columns...).
 		Rows(rows...).
-		StyleFunc(func(row, col int) lipgloss.Style {
+		StyleFunc(func(_, _ int) lipgloss.Style {
 			return lipgloss.NewStyle()
 		})
 	return t

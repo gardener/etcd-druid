@@ -10,6 +10,7 @@ import (
 	"github.com/gardener/etcd-druid/druidctl/cmd/resourceprotection"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	"github.com/gardener/etcd-druid/druidctl/internal/banner"
+
 	"github.com/spf13/cobra"
 )
 
@@ -20,11 +21,13 @@ var rootCmd = &cobra.Command{
 	Use:   "druid [command] [resource] [flags]",
 	Short: "CLI for etcd-druid operator",
 	Long:  `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(cmd *cobra.Command, _ []string) {
 		if options.Verbose {
 			cmd.Println("Verbose mode enabled")
 		}
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+		}
 	},
 }
 
@@ -38,11 +41,18 @@ func Execute() error {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
 		banner.ShowBanner(rootCmd, cmd, options.DisableBanner)
-		options.Complete(cmd, args)
+		if err := options.Complete(cmd, args); err != nil {
+			options.Logger.Error(options.IOStreams.ErrOut, "Completion failed: ", err)
+			return err
+		}
 		if err := options.Validate(); err != nil {
 			options.Logger.Error(options.IOStreams.ErrOut, "Validation failed: ", err)
-			options.IOStreams.Out.Write([]byte("\n"))
-			cmd.Help()
+			if _, werr := options.IOStreams.Out.Write([]byte("\n")); werr != nil {
+				options.Logger.Warning(options.IOStreams.ErrOut, "Failed writing newline: ", werr.Error())
+			}
+			if herr := cmd.Help(); herr != nil {
+				options.Logger.Warning(options.IOStreams.ErrOut, "Help display failed: ", herr.Error())
+			}
 			return err
 		}
 		if originalPreRun != nil {
