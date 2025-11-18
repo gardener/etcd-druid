@@ -358,6 +358,9 @@ type EtcdSpec struct {
 	// run as root. By default, they run as non-root with user 'nobody'.
 	// +optional
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
+	// ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
+	// will disable components that are involved in management of etcd members like Pods, Services and PDBs.
+	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.

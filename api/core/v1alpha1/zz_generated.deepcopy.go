@@ -730,6 +730,11 @@ func (in *EtcdSpec) DeepCopyInto(out *EtcdSpec) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.ExternallyManagedMemberAddresses != nil {
+		in, out := &in.ExternallyManagedMemberAddresses, &out.ExternallyManagedMemberAddresses
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
