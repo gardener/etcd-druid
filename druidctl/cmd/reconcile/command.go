@@ -11,6 +11,7 @@ import (
 	"time"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
+
 	"github.com/spf13/cobra"
 )
 
@@ -87,11 +88,13 @@ func newReconcileBaseCommand(
 		Long:    cmdInfo.long,
 		Example: cmdInfo.example,
 		Args:    cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			reconcileCmdCtx := reconcileCmdCtx(options)
 			if err := reconcileCmdCtx.validate(); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, fmt.Sprintf("%s validation failed", getOperationName(cmdInfo.use)), err)
-				cmd.Help()
+				if herr := cmd.Help(); herr != nil {
+					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+				}
 				return err
 			}
 

@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	fake "github.com/gardener/etcd-druid/druidctl/internal/client/fake"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 )
 
@@ -92,8 +93,7 @@ func TestReconcileCommandAllNamespaces(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
-	// Set all-namespaces flag
-	cmd.Flags().Set("all-namespaces", "true")
+	// Set all-namespaces
 	globalOpts.AllNamespaces = true
 
 	// Complete and validate options

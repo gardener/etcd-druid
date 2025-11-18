@@ -24,24 +24,29 @@ type Factory interface {
 	CreateGenericClient() (GenericClientInterface, error)
 }
 
+// ClientFactory creates concrete Etcd and generic Kubernetes clients based on CLI config flags.
 type ClientFactory struct {
 	configFlags *genericclioptions.ConfigFlags
 }
 
+// NewClientFactory returns a new ClientFactory.
 func NewClientFactory(configFlags *genericclioptions.ConfigFlags) *ClientFactory {
 	return &ClientFactory{configFlags: configFlags}
 }
 
+// EtcdClientInterface describes operations for interacting with Etcd custom resources.
 type EtcdClientInterface interface {
 	GetEtcd(ctx context.Context, namespace, name string) (*druidv1alpha1.Etcd, error)
 	UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, etcdModifier func(*druidv1alpha1.Etcd)) error
 	ListEtcds(ctx context.Context, namespace string) (*druidv1alpha1.EtcdList, error)
 }
 
+// EtcdClient implements EtcdClientInterface using a generated typed client.
 type EtcdClient struct {
 	client v1alpha1.DruidV1alpha1Interface
 }
 
+// NewEtcdClient creates a new EtcdClient.
 func NewEtcdClient(client v1alpha1.DruidV1alpha1Interface) EtcdClientInterface {
 	return &EtcdClient{client: client}
 }
@@ -65,7 +70,10 @@ type genericClient struct {
 	restMapper meta.RESTMapper
 }
 
-func (g *genericClient) Kube() kubernetes.Interface              { return g.kube }
-func (g *genericClient) Dynamic() dynamic.Interface              { return g.dynamic }
+func (g *genericClient) Kube() kubernetes.Interface { return g.kube }
+
+func (g *genericClient) Dynamic() dynamic.Interface { return g.dynamic }
+
 func (g *genericClient) Discovery() discovery.DiscoveryInterface { return g.discovery }
-func (g *genericClient) RESTMapper() meta.RESTMapper             { return g.restMapper }
+
+func (g *genericClient) RESTMapper() meta.RESTMapper { return g.restMapper }
