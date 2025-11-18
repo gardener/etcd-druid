@@ -532,7 +532,7 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 		job.Spec.Template.Spec.Containers[0].VolumeMounts = vms
 	}
 
-	env, err := utils.GetBackupRestoreContainerEnvVars(etcd.Spec.Backup.Store)
+	env, err := utils.GetBackupRestoreContainerEnvVars(etcd, etcd.Spec.Backup.Store)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating compaction job in %v for %v : unable to get backup-restore container environment variables : %w",
 			etcd.Namespace,
