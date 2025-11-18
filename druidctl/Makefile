@@ -10,18 +10,29 @@ DRUIDCTL_MODULE_TOOLS_DIR 	:= $(HACK_DIR)/tools
 
 include $(HACK_DIR)/tools.mk
 
-.PHONY: build
+# Application build variables
+GO ?= go
+BIN_DIR := $(DRUIDCTL_MODULE_ROOT)/bin
+BIN_NAME := druidctl
+PLUGIN_BIN_NAME := kubectl-druid
+GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
+INSTALL_DIR ?= $(or $(GOBIN),$(HOME)/.local/bin)
+
+.PHONY: build build-plugin
 build: $(BIN_DIR)/$(BIN_NAME) $(BIN_DIR)/$(PLUGIN_BIN_NAME)
+
+build-plugin: $(BIN_DIR)/$(PLUGIN_BIN_NAME)
 
 $(BIN_DIR)/$(BIN_NAME): $(GO_FILES) go.mod
 	@mkdir -p $(BIN_DIR)
-	$(GO) build -o $(BIN_DIR)/$(BIN_NAME) .
+	$(GO) build -o $@ .
 
 $(BIN_DIR)/$(PLUGIN_BIN_NAME): $(BIN_DIR)/$(BIN_NAME)
-	cp $(BIN_DIR)/$(BIN_NAME) $(BIN_DIR)/$(PLUGIN_BIN_NAME)
+	cp $(BIN_DIR)/$(BIN_NAME) $@
+
 
 .PHONY: plugin-install
-plugin-install: build
+plugin-install: $(BIN_DIR)/$(PLUGIN_BIN_NAME)
 	@mkdir -p $(INSTALL_DIR)
 	cp $(BIN_DIR)/$(PLUGIN_BIN_NAME) $(INSTALL_DIR)/$(PLUGIN_BIN_NAME)
 	@echo "Installed $(PLUGIN_BIN_NAME) to $(INSTALL_DIR)"
@@ -43,6 +54,8 @@ format: $(GOIMPORTS_REVISER)
 check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 	@$(REPO_ROOT)/hack/check.sh --golangci-lint-config=../.golangci.yaml ./...
 
-.PHONY: clean
+.PHONY: clean clean-all
 clean:
 	rm -rf $(BIN_DIR) coverage.out
+
+clean-all: clean clean-tools-bin
