@@ -8,8 +8,8 @@ import (
 	"context"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
@@ -176,7 +176,7 @@ func TestAddFinalizer(t *testing.T) {
 				finalizers []string
 			)
 			if tc.hasFinalizer {
-				finalizers = []string{common.FinalizerName}
+				finalizers = []string{druidapicommon.EtcdFinalizerName}
 			}
 			secret = buildSecretResource(testSecretName, testutils.TestNamespace, finalizers)
 			if tc.secretExists {
@@ -196,7 +196,7 @@ func TestAddFinalizer(t *testing.T) {
 				getErr := cl.Get(ctx, client.ObjectKeyFromObject(secret), updatedSecret)
 				if tc.secretExists {
 					g.Expect(getErr).To(BeNil())
-					g.Expect(updatedSecret.Finalizers).To(ContainElement(common.FinalizerName))
+					g.Expect(updatedSecret.Finalizers).To(ContainElement(druidapicommon.EtcdFinalizerName))
 				} else {
 					g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 				}
@@ -229,17 +229,17 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name:                        "secret has desired finalizer",
 			secretExists:                true,
-			finalizers:                  []string{common.FinalizerName, "bingo"},
+			finalizers:                  []string{druidapicommon.EtcdFinalizerName, "bingo"},
 			expectedError:               nil,
 			expectedRemainingFinalizers: []string{"bingo"},
 		},
 		{
 			name:                        "secret has finalizer, patch error",
 			secretExists:                true,
-			finalizers:                  []string{common.FinalizerName, "bingo"},
+			finalizers:                  []string{druidapicommon.EtcdFinalizerName, "bingo"},
 			patchErr:                    testutils.TestAPIInternalErr,
 			expectedError:               testutils.TestAPIInternalErr,
-			expectedRemainingFinalizers: []string{common.FinalizerName, "bingo"},
+			expectedRemainingFinalizers: []string{druidapicommon.EtcdFinalizerName, "bingo"},
 		},
 	}
 

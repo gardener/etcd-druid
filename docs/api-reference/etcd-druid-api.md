@@ -68,6 +68,7 @@ _Appears in:_
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
 | `secret` _[SecretControllerConfiguration](#secretcontrollerconfiguration)_ | Secret is the configuration for the Secret controller. |  |  |
+| `etcdOpsTask` _[EtcdOpsTaskControllerConfiguration](#etcdopstaskcontrollerconfiguration)_ | EtcdOpsTask is the configuration for the EtcdOpsTask controller. |  |  |
 
 
 #### EtcdComponentProtectionWebhookConfiguration
@@ -142,6 +143,23 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `notReadyThreshold` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | NotReadyThreshold is the duration after which an etcd member's state is considered `NotReady`. |  |  |
 | `unknownThreshold` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | UnknownThreshold is the duration after which an etcd member's state is considered `Unknown`. |  |  |
+
+
+#### EtcdOpsTaskControllerConfiguration
+
+
+
+EtcdOpsTaskControllerConfiguration defines the configuration for the EtcdOpsTask controller.
+
+
+
+_Appears in:_
+- [ControllerConfiguration](#controllerconfiguration)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
+| `requeueInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask. |  |  |
 
 
 #### LeaderElectionConfiguration
@@ -332,6 +350,7 @@ Package v1alpha1 contains API Schema definitions for the druid v1alpha1 API grou
 ### Resource Types
 - [Etcd](#etcd)
 - [EtcdCopyBackupsTask](#etcdcopybackupstask)
+- [EtcdOpsTask](#etcdopstask)
 
 
 
@@ -682,6 +701,84 @@ _Appears in:_
 | `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the condition's status changed. |  |  |
 
 
+#### EtcdOpsTask
+
+
+
+EtcdOpsTask represents a task to perform operations on an Etcd cluster.
+It defines the desired configuration in Spec and tracks the observed state in Status.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `druid.gardener.cloud/v1alpha1` | | |
+| `kind` _string_ | `EtcdOpsTask` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[EtcdOpsTaskSpec](#etcdopstaskspec)_ | Spec defines the desired specification of the EtcdOpsTask. |  | Required: \{\} <br /> |
+| `status` _[EtcdOpsTaskStatus](#etcdopstaskstatus)_ | Status defines the observed state of the EtcdOpsTask. |  |  |
+
+
+#### EtcdOpsTaskConfig
+
+
+
+EtcdOpsTaskConfig holds the configuration for the specific operation.
+Exactly one of its members must be set according to the operation to be performed.
+
+_Validation:_
+- MaxProperties: 1
+- MinProperties: 1
+
+_Appears in:_
+- [EtcdOpsTaskSpec](#etcdopstaskspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `onDemandSnapshot` _[OnDemandSnapshotConfig](#ondemandsnapshotconfig)_ | OnDemandSnapshot defines the configuration for an on-demand snapshot task. |  |  |
+
+
+#### EtcdOpsTaskSpec
+
+
+
+EtcdOpsTaskSpec defines the desired state of an EtcdOpsTask.
+
+
+
+_Appears in:_
+- [EtcdOpsTask](#etcdopstask)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `config` _[EtcdOpsTaskConfig](#etcdopstaskconfig)_ | Config specifies the configuration for the operation to be performed.<br />Exactly one of the members of EtcdOpsTaskConfig must be set. |  | MaxProperties: 1 <br />MinProperties: 1 <br />Required: \{\} <br /> |
+| `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished is the duration in seconds after which a finished task (status.state == Succeeded\|Failed\|Rejected) will be garbage-collected. | 3600 | Minimum: 1 <br /> |
+| `etcdName` _string_ | EtcdName refers to the name of the Etcd resource that this task will operate on. |  |  |
+
+
+#### EtcdOpsTaskStatus
+
+
+
+EtcdOpsTaskStatus defines the observed state of an EtcdOpsTask.
+
+
+
+_Appears in:_
+- [EtcdOpsTask](#etcdopstask)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `state` _[TaskState](#taskstate)_ | State is the overall state of the task.<br />The controller initializes this field when processing the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br /> |
+| `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the state transitioned from one value to another. |  |  |
+| `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | StartedAt is the time at which the task transitioned from Pending to InProgress. |  |  |
+| `phase` _[OperationPhase](#operationphase)_ | Phase represents the current phase of the task's lifecycle. |  | Enum: [Admit Running Cleanup] <br /> |
+| `lastErrors` _[LastError](#lasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br /> |
+| `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  |  |
+
+
 #### EtcdRole
 
 _Underlying type:_ _string_
@@ -778,6 +875,7 @@ LastError stores details of the most recent error encountered for a resource.
 
 
 _Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
 - [EtcdStatus](#etcdstatus)
 
 | Field | Description | Default | Validation |
@@ -796,6 +894,7 @@ LastOperation holds the information on the last operation done on the Etcd resou
 
 
 _Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
 - [EtcdStatus](#etcdstatus)
 
 | Field | Description | Default | Validation |
@@ -877,6 +976,62 @@ _Appears in:_
 | --- | --- |
 | `basic` | Basic is a constant for metrics level basic.<br /> |
 | `extensive` | Extensive is a constant for metrics level extensive.<br /> |
+
+
+#### OnDemandSnapshotConfig
+
+
+
+OnDemandSnapshotConfig defines the configuration for an on-demand snapshot task.
+
+
+
+_Appears in:_
+- [EtcdOpsTaskConfig](#etcdopstaskconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[OnDemandSnapshotType](#ondemandsnapshottype)_ | Type specifies whether the snapshot is a 'full' or 'delta' snapshot.<br />Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot. |  | Enum: [full delta] <br />Required: \{\} <br /> |
+| `isFinal` _boolean_ | IsFinal indicates whether the snapshot of type: full is marked as final. This is subject to change. |  |  |
+| `timeoutSecondsDelta` _integer_ | TimeoutSeconds is the timeout for the delta snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 10 <br /> |
+| `timeoutSecondsFull` _integer_ | TimeoutSecondsFull is the timeout for full snapshot operations.<br />Defaults to 480 seconds (8 minutes). | 480 | Minimum: 120 <br /> |
+
+
+#### OnDemandSnapshotType
+
+_Underlying type:_ _string_
+
+OnDemandSnapshotType defines the type of on-demand snapshot.
+
+_Validation:_
+- Enum: [full delta]
+
+_Appears in:_
+- [OnDemandSnapshotConfig](#ondemandsnapshotconfig)
+
+| Field | Description |
+| --- | --- |
+| `full` | OnDemandSnapshotTypeFull indicates a full snapshot, capturing the entire etcd database state.<br /> |
+| `delta` | OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.<br /> |
+
+
+#### OperationPhase
+
+_Underlying type:_ _string_
+
+OperationPhase represents the current phase of the EtcdOpstask's lifecycle.
+
+_Validation:_
+- Enum: [Admit Running Cleanup]
+
+_Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
+
+| Field | Description |
+| --- | --- |
+| `Admit` | OperationPhaseAdmit indicates that the task is in the admission phase.<br /> |
+| `Running` | OperationPhaseRunning indicates that the task is currently being executed.<br /> |
+| `Cleanup` | OperationPhaseCleanup indicates that the task is in the cleanup phase.<br /> |
 
 
 #### SchedulingConstraints
@@ -1001,6 +1156,33 @@ _Appears in:_
 | `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  |  |
 | `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
 | `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+
+
+#### TaskState
+
+_Underlying type:_ _string_
+
+TaskState represents the current state of an EtcdOpsTask.
+
+Transitions (irreversible):
+
+	Pending  → InProgress → Succeeded
+	   ↘                 ↘ Failed
+	    └────────────────→ Rejected
+
+_Validation:_
+- Enum: [Pending InProgress Succeeded Failed Rejected]
+
+_Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
+
+| Field | Description |
+| --- | --- |
+| `Pending` | TaskStatePending indicates that the task has been accepted but not yet acted upon.<br /> |
+| `InProgress` | TaskStateInProgress indicates that the task is currently being executed.<br /> |
+| `Succeeded` | TaskStateSucceeded indicates that the task has been completed successfully.<br /> |
+| `Failed` | TaskStateFailed indicates that the task has failed.<br /> |
+| `Rejected` | TaskStateRejected indicates that the task has been rejected as it failed to fulfill required preconditions.<br /> |
 
 
 #### WaitForFinalSnapshotSpec
