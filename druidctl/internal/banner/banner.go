@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
+	"github.com/gardener/etcd-druid/druidctl/internal/version"
 
 	"github.com/spf13/cobra"
 )
@@ -21,9 +22,6 @@ var asciiArt = `
 ▶  ██████╔╝██║  ██║╚██████╔╝██║██████╔╝╚██████╗   ██║   ███████╗
 ▶  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═════╝  ╚═════╝   ╚═╝   ╚══════╝
 `
-
-// Version defines the current version of the druidctl CLI.
-var Version = "v0.0.1"
 
 // ShowBanner renders the CLI banner when appropriate based on the current command and flags.
 func ShowBanner(rootCmd, cmd *cobra.Command, disableBanner bool) {
@@ -52,5 +50,12 @@ func ShowBanner(rootCmd, cmd *cobra.Command, disableBanner bool) {
 	for _, line := range lines {
 		logger.RawHeader(os.Stdout, line)
 	}
-	logger.RawHeader(os.Stdout, "Version: "+Version)
+
+	versionInfo := version.Get()
+	logger.RawHeader(os.Stdout, "Version: "+versionInfo.String())
+
+	// Optional: Show development build warning in banner
+	if !versionInfo.IsRelease() {
+		logger.RawHeader(os.Stdout, "⚠️  Development Build")
+	}
 }

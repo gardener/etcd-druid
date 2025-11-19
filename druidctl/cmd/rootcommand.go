@@ -9,7 +9,9 @@ import (
 	"github.com/gardener/etcd-druid/druidctl/cmd/reconcile"
 	"github.com/gardener/etcd-druid/druidctl/cmd/resourceprotection"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
+	versioncmd "github.com/gardener/etcd-druid/druidctl/cmd/version"
 	"github.com/gardener/etcd-druid/druidctl/internal/banner"
+	"github.com/gardener/etcd-druid/druidctl/internal/version"
 
 	"github.com/spf13/cobra"
 )
@@ -18,9 +20,10 @@ import (
 var options *cmdutils.GlobalOptions
 
 var rootCmd = &cobra.Command{
-	Use:   "druid [command] [resource] [flags]",
-	Short: "CLI for etcd-druid operator",
-	Long:  `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
+	Use:     "druid [command] [resource] [flags]",
+	Short:   "CLI for etcd-druid operator",
+	Long:    `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
+	Version: version.Get().String(),
 	Run: func(cmd *cobra.Command, _ []string) {
 		if options.Verbose {
 			cmd.Println("Verbose mode enabled")
@@ -29,6 +32,11 @@ var rootCmd = &cobra.Command{
 			options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
 		}
 	},
+}
+
+func init() {
+	// Customize the version template for --version flag
+	rootCmd.SetVersionTemplate("{{.Version}}\n")
 }
 
 // Execute runs the root command
@@ -62,6 +70,7 @@ func Execute() error {
 	}
 
 	// Add subcommands
+	rootCmd.AddCommand(versioncmd.NewVersionCommand(options))
 	rootCmd.AddCommand(reconcile.NewReconcileCommand(options))
 	rootCmd.AddCommand(resourceprotection.NewAddProtectionCommand(options))
 	rootCmd.AddCommand(resourceprotection.NewRemoveProtectionCommand(options))
