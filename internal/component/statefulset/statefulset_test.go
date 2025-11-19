@@ -86,14 +86,13 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoSTSExists(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		replicas               int32
-		annotations            map[string]string
-		createErr              *apierrors.StatusError
-		expectedErr            *druiderr.DruidError
-		expectedReplicas       *int32
-		expectNoServiceAccount bool
-		expectNoService        bool
+		name                        string
+		replicas                    int32
+		hasExternallyManagedMembers bool
+		createErr                   *apierrors.StatusError
+		expectedErr                 *druiderr.DruidError
+		expectedReplicas            *int32
+		expectNoService             bool
 	}{
 		{
 			name:             "creates a single replica sts for a single node etcd cluster",
@@ -117,14 +116,11 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			},
 		},
 		{
-			name:     "creates sts with 0 replicas, with no serviceAccount and service defined, with lease renewal and client-service-endpoint CLI flags disabled on backup-restore container when runtime component creation is disabled",
-			replicas: 3,
-			annotations: map[string]string{
-				druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
-			},
-			expectedReplicas:       ptr.To[int32](0),
-			expectNoServiceAccount: true,
-			expectNoService:        true,
+			name:                        "creates sts with 0 replicas, with no service defined and client-service-endpoint CLI flags disabled on backup-restore container when members are managed externally",
+			replicas:                    3,
+			hasExternallyManagedMembers: true,
+			expectedReplicas:            ptr.To[int32](0),
+			expectNoService:             true,
 		},
 	}
 
@@ -135,16 +131,18 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// *************** Build test environment ***************
-			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
-				WithReplicas(tc.replicas).
-				WithAnnotations(tc.annotations).
-				Build()
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+				WithReplicas(tc.replicas)
+			if tc.hasExternallyManagedMembers {
+				etcdBuilder = etcdBuilder.WithExternallyManagedMembers([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+			}
+			etcd := etcdBuilder.Build()
 
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tc.expectedReplicas).ToNot(BeNil())
-			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoServiceAccount, tc.expectNoService)
+			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoService)
 			operator := New(cl, iv)
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())

@@ -27,10 +27,6 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcdObjectKe
 		return result
 	}
 	sLog := r.logger.WithValues("etcd", etcdObjectKey, "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
-	if !druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcd.ObjectMeta) {
-		sLog.Info("Skipping status checks since etcd runtime component creation is disabled")
-		return ctrlutils.ContinueReconcile()
-	}
 	originalEtcd := etcd.DeepCopy()
 
 	var mutateETCDStatusStepFns = []mutateEtcdStatusFn{

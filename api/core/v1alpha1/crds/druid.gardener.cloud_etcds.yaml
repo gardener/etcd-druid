@@ -656,6 +656,15 @@ spec:
                     format: int32
                     type: integer
                 type: object
+              externallyManagedMemberAddresses:
+                description: |-
+                  ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
+                  will disable components that are involved in management of etcd members like Pods, Services and PDBs.
+                items:
+                  format: ipv4
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
               labels:
                 additionalProperties:
                   type: string
@@ -1880,6 +1889,14 @@ spec:
               rule: has(oldSelf.storageClass) ==  has(self.storageClass)
             - message: etcd.spec.volumeClaimTemplate is an immutable field.
               rule: has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)
+            - message: etcd.spec.replicas must be equal to length of etcd.spec.externallyManagedMemberAddresses
+                when etcd.spec.externallyManagedMemberAddresses is specified.
+              rule: 'has(self.externallyManagedMemberAddresses) ? self.replicas ==
+                self.externallyManagedMemberAddresses.size() : true'
+            - message: etcd.spec.externallyManagedMemberAddresses field cannot be
+                added or removed dynamically unless scaling-out from 0.
+              rule: has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)
+                || oldSelf.replicas == 0
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:

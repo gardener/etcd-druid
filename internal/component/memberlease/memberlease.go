@@ -6,6 +6,7 @@ package memberlease
 
 import (
 	"fmt"
+	"slices"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -86,6 +87,31 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			errs = multierror.Append(errs, err)
 		}
 	}
+
+	// Delete any extra member leases that are not needed anymore.
+	// This can happen if a member is replaced when configured with externally managed members.
+	if existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta); err == nil {
+		desiredLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
+		deleteTasks := make([]utils.OperatorTask, 0)
+		for _, existingLeaseName := range existingLeaseNames {
+			if !slices.Contains(desiredLeaseNames, existingLeaseName) {
+				leaseObjKey := client.ObjectKey{Name: existingLeaseName, Namespace: etcd.Namespace}
+				deleteTasks = append(deleteTasks, utils.OperatorTask{
+					Name: "Delete-" + leaseObjKey.String(),
+					Fn: func(ctx component.OperatorContext) error {
+						return r.doDelete(ctx, leaseObjKey)
+					},
+				})
+			}
+		}
+		if errorList := utils.RunConcurrently(ctx, deleteTasks); len(errorList) > 0 {
+			for _, err := range errorList {
+				errs = multierror.Append(errs, err)
+			}
+		}
+	} else {
+		errs = multierror.Append(errs, err)
+	}
 	return errs
 }
 
@@ -102,6 +128,18 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 			fmt.Sprintf("Error syncing member lease: %v for etcd: %v", objKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
 	ctx.Logger.Info("triggered create or update of member lease", "objectKey", objKey, "operationResult", opResult)
+	return nil
+}
+
+func (r _resource) doDelete(ctx component.OperatorContext, objKey client.ObjectKey) error {
+	lease := emptyMemberLease(objKey)
+	if err := r.client.Delete(ctx, lease); err != nil {
+		return druiderr.WrapError(err,
+			ErrDeleteMemberLease,
+			component.OperationTriggerDelete,
+			fmt.Sprintf("Failed to delete member lease: %v", objKey))
+	}
+	ctx.Logger.Info("triggered deletion of member lease", "objectKey", objKey)
 	return nil
 }
 
@@ -127,7 +165,7 @@ func buildResource(etcd *druidv1alpha1.Etcd, lease *coordinationv1.Lease) {
 }
 
 func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
-	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	objectKeys := make([]client.ObjectKey, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		objectKeys = append(objectKeys, client.ObjectKey{Name: leaseName, Namespace: etcd.Namespace})
