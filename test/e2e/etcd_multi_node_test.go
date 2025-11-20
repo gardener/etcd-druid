@@ -408,12 +408,18 @@ func hibernateAndCheckEtcd(ctx context.Context, cl client.Client, logger logr.Lo
 		}
 
 		for _, c := range etcd.Status.Conditions {
-			if c.Status != druidv1alpha1.ConditionTrue {
-				return fmt.Errorf("etcd %s status condition is %q, but expected to be %s ",
-					etcd.Name, c.Status, druidv1alpha1.ConditionTrue)
+			if c.Type == druidv1alpha1.ConditionTypeNetworkPartitioned {
+				if c.Status != druidv1alpha1.ConditionFalse {
+					return fmt.Errorf("etcd %q status %q condition %s is not False",
+						etcd.Name, c.Type, c.Status)
+				}
+			} else {
+				if c.Status != druidv1alpha1.ConditionTrue {
+					return fmt.Errorf("etcd %q status %q condition %s is not True",
+						etcd.Name, c.Type, c.Status)
+				}
 			}
 		}
-
 		return nil
 	}, timeout, pollingInterval).Should(BeNil())
 

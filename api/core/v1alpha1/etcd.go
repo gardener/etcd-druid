@@ -48,6 +48,7 @@ const (
 // +kubebuilder:printcolumn:name="Quorate",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="All Members Ready",type=string,JSONPath=`.status.conditions[?(@.type=="AllMembersReady")].status`
 // +kubebuilder:printcolumn:name="Backup Ready",type=string,JSONPath=`.status.conditions[?(@.type=="BackupReady")].status`
+// +kubebuilder:printcolumn:name="Network Partitioned",type=string,JSONPath=`.status.conditions[?(@.type=="NetworkPartitioned")].status`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
@@ -378,6 +379,8 @@ const (
 	ConditionTypeBackupReady ConditionType = "BackupReady"
 	// ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
+	// ConditionTypeNetworkPartitioned is a constant for a condition type indicating that the etcd cluster has a network partition.
+	ConditionTypeNetworkPartitioned ConditionType = "NetworkPartitioned"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.
