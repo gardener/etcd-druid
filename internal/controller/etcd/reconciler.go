@@ -72,7 +72,7 @@ func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, co
 	}, nil
 }
 
-type reconcileFn func(ctx component.OperatorContext, objectKey client.ObjectKey) ctrlutils.ReconcileStepResult
+type reconcileFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult
 
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds/status,verbs=get;create;update;patch
@@ -114,10 +114,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var reconcileSpecResult ctrlutils.ReconcileStepResult
 	if shouldReconcileSpec {
-		reconcileSpecResult = r.reconcileSpec(operatorCtx, req.NamespacedName)
+		reconcileSpecResult = r.reconcileSpec(operatorCtx, etcd)
 	}
 
-	if result := r.reconcileStatus(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+	if result := r.reconcileStatus(operatorCtx, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 		r.logger.Error(result.GetCombinedError(), "Failed to reconcile status")
 		return result.ReconcileResult()
 	}
@@ -137,7 +137,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// if any failure is encountered during reconciliation, then reconciliation is re-attempted upon the next requeue.
 	// r.completeReconcile() is executed only if the spec was reconciled, as denoted by the `shouldReconcileSpec` flag.
 	if shouldReconcileSpec {
-		if result := r.completeReconcile(operatorCtx, req.NamespacedName); ctrlutils.ShortCircuitReconcileFlow(result) {
+		if result := r.completeReconcile(operatorCtx, etcd); ctrlutils.ShortCircuitReconcileFlow(result) {
 			return result.ReconcileResult()
 		}
 	}
@@ -169,7 +169,7 @@ func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcd *
 	if druidv1alpha1.IsEtcdMarkedForDeletion(etcd.ObjectMeta) {
 		dLog := r.logger.WithValues("etcd", etcd.ObjectMeta, "operation", "delete").WithValues("runId", ctx.RunID)
 		ctx.SetLogger(dLog)
-		return r.triggerDeletionFlow(ctx, dLog, client.ObjectKeyFromObject(etcd))
+		return r.triggerDeletionFlow(ctx, dLog, etcd)
 	}
 	return ctrlutils.ContinueReconcile()
 }

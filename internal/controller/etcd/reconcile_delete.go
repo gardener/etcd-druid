@@ -20,7 +20,7 @@ import (
 )
 
 // triggerDeletionFlow is the entry point for the deletion flow triggered for an etcd component which has a DeletionTimeStamp set on it.
-func (r *Reconciler) triggerDeletionFlow(ctx component.OperatorContext, logger logr.Logger, etcdObjectKey client.ObjectKey) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) triggerDeletionFlow(ctx component.OperatorContext, logger logr.Logger, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	deleteStepFns := []reconcileFn{
 		r.recordDeletionStartOperation,
 		r.deleteEtcdResources,
@@ -28,25 +28,21 @@ func (r *Reconciler) triggerDeletionFlow(ctx component.OperatorContext, logger l
 		r.removeFinalizer,
 	}
 	for _, fn := range deleteStepFns {
-		if stepResult := fn(ctx, etcdObjectKey); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
-			return r.recordIncompleteDeletionOperation(ctx, logger, etcdObjectKey, stepResult)
+		if stepResult := fn(ctx, etcd); ctrlutils.ShortCircuitReconcileFlow(stepResult) {
+			return r.recordIncompleteDeletionOperation(ctx, logger, etcd, stepResult)
 		}
 	}
 	return ctrlutils.DoNotRequeue()
 }
 
-func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	operators := r.operatorRegistry.AllOperators()
 	deleteTasks := make([]utils.OperatorTask, 0, len(operators))
 	for kind, operator := range operators {
 		deleteTasks = append(deleteTasks, utils.OperatorTask{
 			Name: fmt.Sprintf("triggerDeletionFlow-%s-component", kind),
 			Fn: func(ctx component.OperatorContext) error {
-				return operator.TriggerDelete(ctx, etcdPartialObjMeta.ObjectMeta)
+				return operator.TriggerDelete(ctx, etcd.ObjectMeta)
 			},
 		})
 	}
@@ -57,15 +53,11 @@ func (r *Reconciler) deleteEtcdResources(ctx component.OperatorContext, etcdObjK
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) verifyNoResourcesAwaitCleanUp(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) verifyNoResourcesAwaitCleanUp(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	operators := r.operatorRegistry.AllOperators()
 	resourceNamesAwaitingCleanup := make([]string, 0, len(operators))
 	for _, operator := range operators {
-		existingResourceNames, err := operator.GetExistingResourceNames(ctx, etcdPartialObjMeta.ObjectMeta)
+		existingResourceNames, err := operator.GetExistingResourceNames(ctx, etcd.ObjectMeta)
 		if err != nil {
 			return ctrlutils.ReconcileWithError(err)
 		}
@@ -79,36 +71,24 @@ func (r *Reconciler) verifyNoResourcesAwaitCleanUp(ctx component.OperatorContext
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) removeFinalizer(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdPartialObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdPartialObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
+func (r *Reconciler) removeFinalizer(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	ctx.Logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
-	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcdPartialObjMeta, common.FinalizerName); client.IgnoreNotFound(err) != nil {
+	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcd, common.FinalizerName); client.IgnoreNotFound(err) != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) recordDeletionStartOperation(ctx component.OperatorContext, etcdObjKey client.ObjectKey) ctrlutils.ReconcileStepResult {
-	etcdObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-	if err := r.lastOpErrRecorder.RecordStart(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete); err != nil {
+func (r *Reconciler) recordDeletionStartOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	if err := r.lastOpErrRecorder.RecordStart(ctx, etcd, druidv1alpha1.LastOperationTypeDelete); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd deletion start operation")
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) recordIncompleteDeletionOperation(ctx component.OperatorContext, logger logr.Logger, etcdObjKey client.ObjectKey, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
-	etcdObjMeta := ctrlutils.EmptyEtcdPartialObjectMetadata()
-	if result := ctrlutils.GetLatestEtcdPartialObjectMeta(ctx, r.client, etcdObjKey, etcdObjMeta); ctrlutils.ShortCircuitReconcileFlow(result) {
-		return result
-	}
-	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcdObjKey, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult); err != nil {
+func (r *Reconciler) recordIncompleteDeletionOperation(ctx component.OperatorContext, logger logr.Logger, etcd *druidv1alpha1.Etcd, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
+	if err := r.lastOpErrRecorder.RecordErrors(ctx, etcd, druidv1alpha1.LastOperationTypeDelete, exitReconcileStepResult); err != nil {
 		logger.Error(err, "failed to record last operation and last errors for etcd deletion")
 		return ctrlutils.ReconcileWithError(err)
 	}
