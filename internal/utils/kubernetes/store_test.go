@@ -32,31 +32,31 @@ func TestMountPathLocalStore(t *testing.T) {
 		},
 		{
 			name:           "should return empty string if provider is nil",
-			etcd:           newEtcdBuilder().WithProviderLocal().Build(),
+			etcd:           newEtcdBuilder().WithProviderLocal("").Build(),
 			expectedResult: "",
 		},
 		{
 			name:           "should return empty string if provider is not 'Local'",
-			etcd:           newEtcdBuilder().WithProviderS3().Build(),
+			etcd:           newEtcdBuilder().WithProviderS3("").Build(),
 			provider:       ptr.To("S3"),
 			expectedResult: "",
 		},
 		{
 			name:           "should return non-root homedir with path if container is set",
-			etcd:           newEtcdBuilder().WithProviderLocal().Build(),
+			etcd:           newEtcdBuilder().WithProviderLocal("").Build(),
 			provider:       ptr.To("Local"),
 			expectedResult: "/home/nonroot/default.bkp",
 		},
 		{
 			name:           "should return root homedir with path if container is set",
-			etcd:           newEtcdBuilder().WithProviderLocal().WithRunAsRoot(ptr.To(true)).Build(),
+			etcd:           newEtcdBuilder().WithProviderLocal("").WithRunAsRoot(ptr.To(true)).Build(),
 			provider:       ptr.To("Local"),
 			expectedResult: "/root/default.bkp",
 		},
 		{
 			name: "should return non-root homedir without path if container is nil",
 			etcd: func() *druidv1alpha1.Etcd {
-				etcd := newEtcdBuilder().WithProviderLocal().Build()
+				etcd := newEtcdBuilder().WithProviderLocal("").Build()
 				etcd.Spec.Backup.Store.Container = nil
 				return etcd
 			}(),
@@ -66,7 +66,7 @@ func TestMountPathLocalStore(t *testing.T) {
 		{
 			name: "should return root homedir without path if container is nil",
 			etcd: func() *druidv1alpha1.Etcd {
-				etcd := newEtcdBuilder().WithProviderLocal().WithRunAsRoot(ptr.To(true)).Build()
+				etcd := newEtcdBuilder().WithProviderLocal("").WithRunAsRoot(ptr.To(true)).Build()
 				etcd.Spec.Backup.Store.Container = nil
 				return etcd
 			}(),

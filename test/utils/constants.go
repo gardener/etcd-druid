@@ -20,6 +20,10 @@ const (
 	ETCDBRImageTag = "backup-restore-test-tag"
 	// InitContainerTag is the ImageSource tag for the init container image.
 	InitContainerTag = "init-container-test-tag"
+)
+
+// Secret names
+const (
 	// ClientTLSCASecretName is the name of the kubernetes Secret containing the client CA.
 	ClientTLSCASecretName = "client-url-ca-etcd" // #nosec G101 - this is not a credential itself but the name of the kubernetes secret resource.
 	// ClientTLSServerCertSecretName is the name of the kubernetes Secret containing the client's server certificate.

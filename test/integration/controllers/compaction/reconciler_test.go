@@ -48,7 +48,15 @@ var _ = Describe("Compaction Controller", func() {
 				j              *batchv1.Job
 			)
 
-			instance = testutils.EtcdBuilderWithDefaults(name, namespace).WithPeerTLS().WithClientTLS().WithStorageProvider(provider).Build()
+			builder := testutils.EtcdBuilderWithDefaults(name, namespace).
+				WithBackupRestoreContainerImage("dummy").
+				WithPeerTLS().
+				WithClientTLS().
+				WithStorageProvider(provider, name)
+			if provider == druidv1alpha1.StorageProvider("local") {
+				builder = builder.WithoutBackupSecretRef()
+			}
+			instance = builder.Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -103,7 +111,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo77", namespace).WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo77", namespace).
+				WithBackupRestoreContainerImage("dummy").
+				WithProviderLocal("foo77").
+				WithoutBackupSecretRef().
+				Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -164,7 +176,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo78", "default").
+				WithBackupRestoreContainerImage("dummy").
+				WithProviderLocal("foo78").
+				WithoutBackupSecretRef().
+				Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -216,7 +232,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo79", "default").
+				WithBackupRestoreContainerImage("dummy").
+				WithProviderLocal("foo79").
+				WithoutBackupSecretRef().
+				Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -257,7 +277,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("foo80", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo80", "default").
+				WithBackupRestoreContainerImage("dummy").
+				WithProviderLocal("foo80").
+				WithoutBackupSecretRef().
+				Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
@@ -310,7 +334,11 @@ var _ = Describe("Compaction Controller", func() {
 			ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 			defer cancel()
 
-			instance = testutils.EtcdBuilderWithDefaults("etcd-compaction-fullsnapshot-test", "default").WithProviderLocal().Build()
+			instance = testutils.EtcdBuilderWithDefaults("foo81", "default").
+				WithBackupRestoreContainerImage("dummy").
+				WithProviderLocal("foo81").
+				WithoutBackupSecretRef().
+				Build()
 			createEtcdAndWait(k8sClient, instance)
 
 			// manually create full and delta snapshot leases since etcd controller is not running
