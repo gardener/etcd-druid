@@ -17,7 +17,7 @@ func CreatePVC(sts *appsv1.StatefulSet, podName string, phase corev1.PersistentV
 	if sts == nil {
 		return nil
 	}
-	if sts.Spec.VolumeClaimTemplates == nil || len(sts.Spec.VolumeClaimTemplates) == 0 {
+	if len(sts.Spec.VolumeClaimTemplates) == 0 {
 		return nil
 	}
 

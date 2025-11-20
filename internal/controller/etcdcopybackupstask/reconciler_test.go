@@ -57,11 +57,12 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 			conditions := getConditions(jobConditions)
 			Expect(len(conditions)).To(Equal(len(jobConditions)))
 			for i, condition := range conditions {
-				if condition.Type == druidv1alpha1.EtcdCopyBackupsTaskSucceeded {
+				switch condition.Type {
+				case druidv1alpha1.EtcdCopyBackupsTaskSucceeded:
 					Expect(jobConditions[i].Type).To(Equal(batchv1.JobComplete))
-				} else if condition.Type == druidv1alpha1.EtcdCopyBackupsTaskFailed {
+				case druidv1alpha1.EtcdCopyBackupsTaskFailed:
 					Expect(jobConditions[i].Type).To(Equal(batchv1.JobFailed))
-				} else {
+				default:
 					Fail("got unexpected condition type")
 				}
 				Expect(condition.Status).To(Equal(druidv1alpha1.ConditionStatus(jobConditions[i].Status)))
@@ -645,19 +646,6 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 })
 
-func ensureEtcdCopyBackupsTaskCreation(ctx context.Context, name, namespace string, fakeClient client.WithWatch) *druidv1alpha1.EtcdCopyBackupsTask {
-	task := testutils.CreateEtcdCopyBackupsTask(name, namespace, "aws", false)
-	By("create task")
-	Expect(fakeClient.Create(ctx, task)).To(Succeed())
-
-	By("Ensure that copy backups task is created")
-	Eventually(func() error {
-		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
-	}).Should(Succeed())
-
-	return task
-}
-
 func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace string, fakeClient client.WithWatch) {
 	task := &druidv1alpha1.EtcdCopyBackupsTask{}
 	if err := fakeClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
@@ -678,12 +666,6 @@ func ensureEtcdCopyBackupsTaskRemoval(ctx context.Context, name, namespace strin
 	Eventually(func() error {
 		return fakeClient.Get(ctx, client.ObjectKeyFromObject(task), task)
 	}).Should(testutils.BeNotFoundError())
-}
-
-func addDeletionTimestampToTask(ctx context.Context, task *druidv1alpha1.EtcdCopyBackupsTask, deletionTime time.Time, fakeClient client.WithWatch) error {
-	patch := client.MergeFrom(task.DeepCopy())
-	task.DeletionTimestamp = &metav1.Time{Time: deletionTime}
-	return fakeClient.Patch(ctx, task, patch)
 }
 
 func checkEnvVars(envVars []corev1.EnvVar, storeProvider, container, envKeyPrefix, volumePrefix string) {

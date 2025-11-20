@@ -41,7 +41,7 @@ func (m mapMatcher[T]) Match(actual interface{}) (bool, error) {
 			m.diff = append(m.diff, fmt.Sprintf("expected key: %s to be present", k))
 		}
 		if v != actualVal {
-			m.diff = append(m.diff, fmt.Sprintf("expected val: %s for key; %v, found val:%v instead", v, k, actualVal))
+			m.diff = append(m.diff, fmt.Sprintf("expected val: %v for key; %s, found val:%v instead", v, k, actualVal))
 		}
 	}
 	return len(m.diff) == 0, nil
