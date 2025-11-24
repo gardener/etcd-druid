@@ -15,7 +15,7 @@ jobs:
       run-tests: ${{ github.event_name == 'push' }}
     secrets: inherit
     permissions:
-      contents: write
+      contents: read
       packages: write
       id-token: write
 
