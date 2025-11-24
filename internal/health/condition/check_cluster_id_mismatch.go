@@ -89,15 +89,15 @@ func (r *clusterIDMismatchCheck) Check(ctx context.Context, etcd druidv1alpha1.E
 		return &result{
 			conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 			status:  druidv1alpha1.ConditionFalse,
-			reason:  "NoPartitionDetected",
-			message: "No network partition detected among ETCD members",
+			reason:  "NoClusterIDMismatchDetected",
+			message: "No cluster ID mismatch detected among ETCD members",
 		}
 	default:
 		return &result{
 			conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 			status:  druidv1alpha1.ConditionTrue,
 			reason:  "MultipleClusterIDsDetected",
-			message: "Network partition detected among ETCD members",
+			message: "Multiple cluster IDs detected among ETCD members",
 		}
 	}
 }

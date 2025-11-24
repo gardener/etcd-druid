@@ -81,7 +81,7 @@ Status fields related to the etcd cluster itself, such as `Members`, `PeerUrlTLS
 - `Ready`: indicates overall readiness of the etcd cluster in serving traffic.
 - `BackupReady`: indicates health of the etcd backups, i.e., whether etcd backups are being taken regularly as per schedule. This condition is applicable only when backups are enabled for the etcd cluster.
 - `DataVolumesReady`: indicates health of the persistent volumes containing the etcd data.
-- `ClusterIDMismatch`: indicates whether the etcd cluster has multiple cluster IDs amont its members.
+- `ClusterIDMismatch`: indicates whether the etcd cluster has multiple cluster IDs amongst its members.
 
 ## Compaction Controller
 

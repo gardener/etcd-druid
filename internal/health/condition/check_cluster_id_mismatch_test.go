@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ReadyCheck", func() {
+var _ = Describe("ClusterIDMismatchCheck", func() {
 	Describe("#Check", func() {
 		const (
 			etcdName      = "etcd"
