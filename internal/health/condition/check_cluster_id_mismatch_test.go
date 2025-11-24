@@ -50,7 +50,7 @@ var _ = Describe("ReadyCheck", func() {
 		})
 
 		Context("when members in status", func() {
-			It("should return that the cluster has no network partition (all members ready)", func() {
+			It("should return that the cluster has no cluster ID mismatch (all members ready)", func() {
 				etcd := druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      etcdName,
@@ -70,15 +70,15 @@ var _ = Describe("ReadyCheck", func() {
 				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member3ID, clusterID, druidv1alpha1.EtcdRoleMember)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
-				check := NetworkPartitionedCheck(cl)
+				check := ClusterIDMismatchCheck(cl)
 
 				result := check.Check(ctx, etcd)
 
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeNetworkPartitioned))
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeClusterIDMismatch))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 			})
 
-			It("should return that the cluster has no network partition (members are partly unknown)", func() {
+			It("should return that the cluster has no cluster ID mismatch (members are partly unknown)", func() {
 				etcd := druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      etcdName,
@@ -98,15 +98,15 @@ var _ = Describe("ReadyCheck", func() {
 				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member3ID, clusterID, druidv1alpha1.EtcdRoleMember)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
-				check := NetworkPartitionedCheck(cl)
+				check := ClusterIDMismatchCheck(cl)
 
 				result := check.Check(ctx, etcd)
 
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeNetworkPartitioned))
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeClusterIDMismatch))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 			})
 
-			It("should return that the network partition status is unknown (with old lease format from backup-restore)", func() {
+			It("should return that the cluster ID mismatch status is unknown (with old lease format from backup-restore)", func() {
 				etcd := druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      etcdName,
@@ -127,16 +127,16 @@ var _ = Describe("ReadyCheck", func() {
 				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s", member3ID, druidv1alpha1.EtcdRoleMember)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
-				check := NetworkPartitionedCheck(cl)
+				check := ClusterIDMismatchCheck(cl)
 
 				result := check.Check(ctx, etcd)
 
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeNetworkPartitioned))
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeClusterIDMismatch))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
 				Expect(result.Reason()).To(Equal("NoClusterIDDetected"))
 			})
 
-			It("should return that the cluster has a network partition - all members ready, but with with more than one cluster ID", func() {
+			It("should return that the cluster has cluster ID mismatch - all members ready, but with with more than one cluster ID", func() {
 				etcd := druidv1alpha1.Etcd{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      etcdName,
@@ -156,11 +156,11 @@ var _ = Describe("ReadyCheck", func() {
 				member3Lease := createMemberLease(member3Name, etcdNamespace, ptr.To(fmt.Sprintf("%s:%s:%s", member3ID, newClusterID, druidv1alpha1.EtcdRoleLeader)))
 				existingObjects := mapToClientObjects([]*coordinationv1.Lease{member1Lease, member2Lease, member3Lease})
 				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, existingObjects)
-				check := NetworkPartitionedCheck(cl)
+				check := ClusterIDMismatchCheck(cl)
 
 				result := check.Check(ctx, etcd)
 
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeNetworkPartitioned))
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeClusterIDMismatch))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionTrue))
 				Expect(result.Reason()).To(Equal("MultipleClusterIDsDetected"))
 			})

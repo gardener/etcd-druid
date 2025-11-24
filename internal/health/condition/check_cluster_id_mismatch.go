@@ -16,13 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type networkPartitionedCheck struct {
+type clusterIDMismatchCheck struct {
 	client client.Client
 }
 
 const memberLeaseHolderIdentitySeparator = ":"
 
-func (r *networkPartitionedCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
+func (r *clusterIDMismatchCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	memberNames := make([]string, 0)
 	memberConditionStatuses := make(map[string]druidv1alpha1.EtcdMemberConditionStatus)
 	for _, member := range etcd.Status.Members {
@@ -40,7 +40,7 @@ func (r *networkPartitionedCheck) Check(ctx context.Context, etcd druidv1alpha1.
 				continue
 			} else {
 				return &result{
-					conType: druidv1alpha1.ConditionTypeNetworkPartitioned,
+					conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 					status:  druidv1alpha1.ConditionUnknown,
 					reason:  "UnableToFetchLease",
 					message: fmt.Sprintf("Unable to fetch Lease %s: %s", leaseName, err.Error()),
@@ -50,7 +50,7 @@ func (r *networkPartitionedCheck) Check(ctx context.Context, etcd druidv1alpha1.
 		clusterID, err := extractClusterId(lease.Spec.HolderIdentity)
 		if err != nil {
 			return &result{
-				conType: druidv1alpha1.ConditionTypeNetworkPartitioned,
+				conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 				status:  druidv1alpha1.ConditionUnknown,
 				reason:  "UnableToParseLeaseHolderIdentity",
 				message: fmt.Sprintf("Unable to parse Lease %s holder identity: %s", leaseName, err.Error()),
@@ -64,12 +64,12 @@ func (r *networkPartitionedCheck) Check(ctx context.Context, etcd druidv1alpha1.
 	uniqueClusterIDs := make([]string, 0)
 	for _, memberName := range memberNames {
 		if status, exists := memberConditionStatuses[memberName]; !exists || status == druidv1alpha1.EtcdMemberStatusUnknown {
-			// Skip network partition check for members with unknown status.
+			// Skip cluster ID mismatch check for members with unknown status.
 			continue
 		}
 		clusterID, clusterIDExists := memberClusterIDs[memberName]
 		if !clusterIDExists {
-			// Skip network partition check if cluster ID is not available for the member.
+			// Skip cluster ID mismatch check if cluster ID is not available for the member.
 			continue
 		}
 		if !slices.Contains(uniqueClusterIDs, clusterID) {
@@ -80,21 +80,21 @@ func (r *networkPartitionedCheck) Check(ctx context.Context, etcd druidv1alpha1.
 	switch len(uniqueClusterIDs) {
 	case 0:
 		return &result{
-			conType: druidv1alpha1.ConditionTypeNetworkPartitioned,
+			conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 			status:  druidv1alpha1.ConditionUnknown,
 			reason:  "NoClusterIDDetected",
 			message: "No cluster ID could be detected from known ETCD members",
 		}
 	case 1:
 		return &result{
-			conType: druidv1alpha1.ConditionTypeNetworkPartitioned,
+			conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 			status:  druidv1alpha1.ConditionFalse,
 			reason:  "NoPartitionDetected",
 			message: "No network partition detected among ETCD members",
 		}
 	default:
 		return &result{
-			conType: druidv1alpha1.ConditionTypeNetworkPartitioned,
+			conType: druidv1alpha1.ConditionTypeClusterIDMismatch,
 			status:  druidv1alpha1.ConditionTrue,
 			reason:  "MultipleClusterIDsDetected",
 			message: "Network partition detected among ETCD members",
@@ -102,9 +102,9 @@ func (r *networkPartitionedCheck) Check(ctx context.Context, etcd druidv1alpha1.
 	}
 }
 
-// NetworkPartitionedCheck returns a check for the "NetworkPartitioned" condition.
-func NetworkPartitionedCheck(client client.Client) Checker {
-	return &networkPartitionedCheck{
+// ClusterIDMismatchCheck returns a check for the "ClusterIDMismatch" condition.
+func ClusterIDMismatchCheck(client client.Client) Checker {
+	return &clusterIDMismatchCheck{
 		client: client,
 	}
 }
