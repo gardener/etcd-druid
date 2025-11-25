@@ -24,10 +24,10 @@ const memberLeaseHolderIdentitySeparator = ":"
 
 func (r *clusterIDMismatchCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	memberNames := make([]string, 0)
-	memberConditionStatuses := make(map[string]druidv1alpha1.EtcdMemberConditionStatus)
+	memberStatuses := make(map[string]druidv1alpha1.EtcdMemberConditionStatus)
 	for _, member := range etcd.Status.Members {
 		memberNames = append(memberNames, member.Name)
-		memberConditionStatuses[member.Name] = member.Status
+		memberStatuses[member.Name] = member.Status
 	}
 
 	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
@@ -63,7 +63,7 @@ func (r *clusterIDMismatchCheck) Check(ctx context.Context, etcd druidv1alpha1.E
 
 	uniqueClusterIDs := make([]string, 0)
 	for _, memberName := range memberNames {
-		if status, exists := memberConditionStatuses[memberName]; !exists || status == druidv1alpha1.EtcdMemberStatusUnknown {
+		if status, exists := memberStatuses[memberName]; !exists || status == druidv1alpha1.EtcdMemberStatusUnknown {
 			// Skip cluster ID mismatch check for members with unknown status.
 			continue
 		}
