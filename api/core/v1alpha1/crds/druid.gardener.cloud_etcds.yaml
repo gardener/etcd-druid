@@ -27,6 +27,9 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="BackupReady")].status
       name: Backup Ready
       type: string
+    - jsonPath: .status.conditions[?(@.type=="ClusterIDMismatch")].status
+      name: Cluster ID Mismatch
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date

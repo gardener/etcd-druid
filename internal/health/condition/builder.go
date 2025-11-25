@@ -20,6 +20,7 @@ var skipMergeConditions = map[druidv1alpha1.ConditionType]struct{}{
 	druidv1alpha1.ConditionTypeAllMembersUpdated: {},
 	druidv1alpha1.ConditionTypeBackupReady:       {},
 	druidv1alpha1.ConditionTypeDataVolumesReady:  {},
+	druidv1alpha1.ConditionTypeClusterIDMismatch: {},
 }
 
 // Builder is an interface for building conditions.

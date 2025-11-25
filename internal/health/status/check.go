@@ -39,6 +39,7 @@ var (
 		condition.AllMembersUpdatedCheck,
 		condition.BackupReadyCheck,
 		condition.DataVolumesReadyCheck,
+		condition.ClusterIDMismatchCheck,
 	}
 	// EtcdMemberChecks are the etcd member checks.
 	EtcdMemberChecks = []EtcdMemberCheckFn{
