@@ -30,7 +30,7 @@ func (r *clusterIDMismatchCheck) Check(ctx context.Context, etcd druidv1alpha1.E
 		memberStatuses[member.Name] = member.Status
 	}
 
-	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(&etcd)
 	memberClusterIDs := make(map[string]string)
 	for _, leaseName := range leaseNames {
 		lease := &coordinationv1.Lease{}
