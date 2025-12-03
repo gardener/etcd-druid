@@ -7,100 +7,23 @@ package ondemandsnapshot
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
-	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
+	taskhandler "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/test/utils"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
-
-func createEtcd(name, namespace string, backup bool, healthy bool, isTLSEnabled bool) *druidv1alpha1.Etcd {
-	etcdBuilder := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(1).WithReadyStatus()
-
-	if isTLSEnabled {
-		etcdBuilder = etcdBuilder.WithClientTLS()
-	}
-
-	etcd := etcdBuilder.Build()
-
-	if backup {
-		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-			Container: ptr.To("test-container"),
-			Prefix:    "test-prefix",
-			Provider:  ptr.To(druidv1alpha1.StorageProvider("S3")),
-		}
-	}
-	if !healthy {
-		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
-			Type:    druidv1alpha1.ConditionTypeReady,
-			Status:  druidv1alpha1.ConditionFalse,
-			Message: "etcd is not ready for testing purposes",
-		})
-	} else {
-		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
-			Type:    druidv1alpha1.ConditionTypeReady,
-			Status:  druidv1alpha1.ConditionTrue,
-			Message: "etcd is ready for testing purposes",
-		})
-	}
-	return etcd
-}
-
-func createEtcdWithBackupTLS(name, namespace string, backup bool, healthy bool) *druidv1alpha1.Etcd {
-	etcdBuilder := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(1).WithReadyStatus()
-
-	// Use backup TLS instead of client TLS
-	etcdBuilder = etcdBuilder.WithBackupRestoreTLS()
-
-	etcd := etcdBuilder.Build()
-
-	if backup {
-		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
-			Container: ptr.To("test-container"),
-			Prefix:    "test-prefix",
-			Provider:  ptr.To(druidv1alpha1.StorageProvider("S3")),
-		}
-	}
-	if !healthy {
-		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
-			Type:    druidv1alpha1.ConditionTypeReady,
-			Status:  druidv1alpha1.ConditionFalse,
-			Message: "etcd is not ready for testing purposes",
-		})
-	} else {
-		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
-			Type:    druidv1alpha1.ConditionTypeReady,
-			Status:  druidv1alpha1.ConditionTrue,
-			Message: "etcd is ready for testing purposes",
-		})
-	}
-	return etcd
-}
-
-func createEtcdOpsTask(config druidv1alpha1.OnDemandSnapshotConfig) *druidv1alpha1.EtcdOpsTask {
-	etcdName := "test-etcd"
-	return &druidv1alpha1.EtcdOpsTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-task",
-			Namespace: "test-namespace",
-		},
-		Spec: druidv1alpha1.EtcdOpsTaskSpec{
-			EtcdName: &etcdName,
-			Config: druidv1alpha1.EtcdOpsTaskConfig{
-				OnDemandSnapshot: &config,
-			},
-		},
-	}
-}
 
 // TestOnDemandSnapshotTaskAdmit tests the Admit method of the OnDemandSnapshotTask handler.
 func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
@@ -108,31 +31,31 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 	tests := []struct {
 		name           string
 		etcdObject     *druidv1alpha1.Etcd
-		expectedResult handler.Result
+		expectedResult taskhandler.Result
 		expectErr      bool
 	}{
 		{
-			name:       "Etcd not found",
+			name:       "Should return error without requeue when Etcd object is not found",
 			etcdObject: nil,
-			expectedResult: handler.Result{
-				Description: "Failed to get etcd object",
+			expectedResult: taskhandler.Result{
+				Description: "Etcd object not found",
 				Error: &druiderr.DruidError{
-					Code:      ErrGetEtcd,
-					Operation: string(druidv1alpha1.OperationPhaseAdmit),
-					Message:   "failed to get etcd object",
+					Code:      taskhandler.ErrGetEtcd,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd object not found",
 				},
 				Requeue: false,
 			},
 			expectErr: true,
 		},
 		{
-			name:       "Backup not enabled",
-			etcdObject: createEtcd("test-etcd", "test-namespace", false, true, false),
-			expectedResult: handler.Result{
+			name:       "Should return error without requeue when backup is not enabled",
+			etcdObject: createEtcd("test-etcd", "test-namespace", false, true, false, false),
+			expectedResult: taskhandler.Result{
 				Description: "Backup is not enabled for etcd",
 				Error: &druiderr.DruidError{
 					Code:      ErrBackupNotEnabled,
-					Operation: string(druidv1alpha1.OperationPhaseAdmit),
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
 					Message:   "backup is not enabled for etcd",
 				},
 				Requeue: false,
@@ -140,13 +63,13 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:       "Etcd not ready",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false),
-			expectedResult: handler.Result{
+			name:       "Should return error without requeue when Etcd is not ready",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false, false),
+			expectedResult: taskhandler.Result{
 				Description: "Etcd is not ready",
 				Error: &druiderr.DruidError{
 					Code:      ErrEtcdNotReady,
-					Operation: string(druidv1alpha1.OperationPhaseAdmit),
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
 					Message:   "etcd is not ready",
 				},
 				Requeue: false,
@@ -154,9 +77,9 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:       "Admit check passed",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false),
-			expectedResult: handler.Result{
+			name:       "Should pass admit check when conditions are met",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, false),
+			expectedResult: taskhandler.Result{
 				Description: "Admit check passed",
 				Requeue:     false,
 			},
@@ -172,16 +95,16 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 			}
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 
-			etcdOpsTask := createEtcdOpsTask(druidv1alpha1.OnDemandSnapshotConfig{
+			etcdOpsTask := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-namespace").WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 				TimeoutSecondsFull: ptr.To(int32(5)),
 				IsFinal:            ptr.To(false),
-			})
+			}).Build()
 
 			taskHandler, err := New(cl, etcdOpsTask, nil)
 			g.Expect(err).To(BeNil())
 
-			admitResult := taskHandler.Admit(context.TODO())
+			admitResult := taskHandler.Admit(context.Background())
 			g.Expect(admitResult.Requeue).To(Equal(tc.expectedResult.Requeue))
 			g.Expect(admitResult.Description).To(Equal(tc.expectedResult.Description))
 
@@ -204,74 +127,43 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 	}
 }
 
-// CreateFakeHandler creates a fake handler to inject a custom http client for testing purposes.
-func CreateFakeHandler(cl client.Client, etcdOpsTask *druidv1alpha1.EtcdOpsTask, httpClient http.Client) (handler.Handler, error) {
-	handler, err := New(cl, etcdOpsTask, &httpClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OnDemandSnapshotTask handler: %w", err)
-	}
-	onDemandSnapshotTask, ok := handler.(*Handler)
-	if !ok {
-		return nil, fmt.Errorf("handler is not of type OnDemandSnapshotTask: %T", handler)
-	}
-	onDemandSnapshotTask.httpClient = httpClient
-	return handler, nil
-}
-
-// TestOnDemandSnapshotTaskRun tests the Run method of the OnDemandSnapshotTask handler.
-func TestOnDemandSnapshotTaskRun(t *testing.T) {
+// TestOnDemandSnapshotTaskExecute tests the Execute method of the OnDemandSnapshotTask handler.
+func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 	g := NewGomegaWithT(t)
 	tests := []struct {
-		name           string
-		etcdObject     *druidv1alpha1.Etcd
-		FakeResponse   *utils.FakeResponse
-		expectedResult handler.Result
-		expectErr      bool
+		name                string
+		etcdObject          *druidv1alpha1.Etcd
+		isSnapshotTypeDelta bool
+		FakeResponse        *utils.FakeResponse
+		expectedResult      taskhandler.Result
+		expectErr           bool
 	}{
 		{
-			name:       "Etcd not found",
+			name:       "Should return error without requeue when Etcd object is not found",
 			etcdObject: nil,
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{},
 				Error:    fmt.Errorf("etcd object not found"),
 			},
-			expectedResult: handler.Result{
-				Description: "Failed to get etcd object - object not found",
+			expectedResult: taskhandler.Result{
+				Description: "Etcd object not found",
 				Error: &druiderr.DruidError{
-					Code:      ErrGetEtcd,
-					Operation: string(druidv1alpha1.OperationPhaseRunning),
-					Message:   "failed to get etcd object - object not found",
+					Code:      taskhandler.ErrGetEtcd,
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
+					Message:   "etcd object not found",
 				},
 				Requeue: false,
 			},
 			expectErr: true,
 		},
 		{
-			name:       "Etcd not ready",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false),
-			FakeResponse: &utils.FakeResponse{
-				Response: http.Response{},
-				Error:    fmt.Errorf("etcd is not ready"),
-			},
-			expectedResult: handler.Result{
-				Description: "Etcd is not ready",
-				Error: &druiderr.DruidError{
-					Code:      ErrEtcdNotReady,
-					Operation: string(druidv1alpha1.OperationPhaseRunning),
-					Message:   "etcd is not ready",
-				},
-				Requeue: false,
-			},
-			expectErr: true,
-		},
-		{
-			name:       "HTTP request execution fails",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false),
+			name:       "Should requeue with error when HTTP request execution fails",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, false),
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{},
 				Error:    fmt.Errorf("connection refused"),
 			},
-			expectedResult: handler.Result{
+			expectedResult: taskhandler.Result{
 				Description: "Failed to execute HTTP request",
 				Error:       fmt.Errorf("connection refused"),
 				Requeue:     true,
@@ -279,8 +171,8 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:       "Snapshot creation fails (non-200)",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false),
+			name:       "Should return error without requeue when snapshot creation fails with non-200 status",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, false),
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{
 					StatusCode: http.StatusInternalServerError,
@@ -288,11 +180,11 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				},
 				Error: nil,
 			},
-			expectedResult: handler.Result{
+			expectedResult: taskhandler.Result{
 				Description: "Failed to create snapshot",
 				Error: &druiderr.DruidError{
 					Code:      ErrCreateSnapshot,
-					Operation: string(druidv1alpha1.OperationPhaseRunning),
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
 					Message:   "failed to create snapshot",
 				},
 				Requeue: false,
@@ -300,26 +192,43 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:       "TLS enabled but CA secret not found",
-			etcdObject: createEtcdWithBackupTLS("test-etcd", "test-namespace", true, true),
+			name:       "Should return error without requeue when TLS is enabled but CA secret is not found",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, true),
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{},
 				Error:    nil,
 			},
-			expectedResult: handler.Result{
+			expectedResult: taskhandler.Result{
 				Description: "Failed to get etcdbr CA secret",
 				Error: &druiderr.DruidError{
-					Code:      ErrGetCASecret,
-					Operation: string(druidv1alpha1.OperationPhaseRunning),
+					Code:      taskhandler.ErrGetCASecret,
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
 					Message:   "failed to get etcdbr CA secret test-namespace/ca-etcdbr",
 				},
-				Requeue: true,
+				Requeue: false,
 			},
 			expectErr: true,
 		},
 		{
-			name:       "Snapshot created successfully with TLS disabled",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false),
+			name:                "Should log correct responnse in result description and return when delta snapshot is skipped by backup-restore server",
+			etcdObject:          createEtcd("test-etcd", "test-namespace", true, true, false, false),
+			isSnapshotTypeDelta: true,
+			FakeResponse: &utils.FakeResponse{
+				Response: http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Body:       io.NopCloser(strings.NewReader("null")),
+				},
+				Error: nil,
+			},
+			expectedResult: taskhandler.Result{
+				Description: "Delta snapshot was skipped by backup-restore server",
+				Requeue:     false,
+			},
+		},
+		{
+			name:       "Should succeed in creating snapshot when TLS is disabled",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, false),
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{
 					StatusCode: http.StatusOK,
@@ -327,7 +236,7 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 				},
 				Error: nil,
 			},
-			expectedResult: handler.Result{
+			expectedResult: taskhandler.Result{
 				Description: "Snapshot created successfully",
 				Requeue:     false,
 			},
@@ -344,11 +253,16 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			}
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 
-			etcdOpsTask := createEtcdOpsTask(druidv1alpha1.OnDemandSnapshotConfig{
+			ondemandSnapshotConfig := &druidv1alpha1.OnDemandSnapshotConfig{
 				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 				TimeoutSecondsFull: ptr.To(int32(5)),
 				IsFinal:            ptr.To(false),
-			})
+			}
+			if tc.isSnapshotTypeDelta {
+				ondemandSnapshotConfig.Type = druidv1alpha1.OnDemandSnapshotTypeDelta
+				ondemandSnapshotConfig.TimeoutSecondsDelta = ptr.To(int32(2))
+			}
+			etcdOpsTask := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-namespace").WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(ondemandSnapshotConfig).Build()
 
 			fakeHttpClient := http.Client{
 				Transport: &utils.MockRoundTripper{
@@ -356,10 +270,10 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 					Err:      tc.FakeResponse.Error,
 				},
 			}
-			taskHandler, err := CreateFakeHandler(cl, etcdOpsTask, fakeHttpClient)
+			taskHandler, err := New(cl, etcdOpsTask, &fakeHttpClient)
 			g.Expect(err).To(BeNil())
 
-			runResult := taskHandler.Run(context.TODO())
+			runResult := taskHandler.Execute(context.Background())
 			g.Expect(runResult).ToNot(BeNil())
 			g.Expect(runResult.Requeue).To(Equal(tc.expectedResult.Requeue))
 			g.Expect(runResult.Description).To(Equal(tc.expectedResult.Description))
@@ -378,4 +292,158 @@ func TestOnDemandSnapshotTaskRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOndemandSnapshotTaskCleanup(t *testing.T) {
+	g := NewGomegaWithT(t)
+	tests := []struct {
+		name      string
+		etcdObject *druidv1alpha1.Etcd
+		expectedResult taskhandler.Result
+
+	}{
+		{
+			name: "Cleanup is a no-op and should always succeed",
+			expectedResult: taskhandler.Result{
+				Description: "Cleanup completed",
+				Requeue:     false,
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			if tc.etcdObject != nil {
+				objs = append(objs, tc.etcdObject)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+
+			etcdOpsTask := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-namespace").WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(5)),
+				IsFinal:            ptr.To(false),
+			}).Build()
+
+			taskHandler, err := New(cl, etcdOpsTask, nil)
+			g.Expect(err).To(BeNil())
+
+			cleanupResult := taskHandler.Cleanup(context.Background())
+			g.Expect(cleanupResult.Requeue).To(Equal(tc.expectedResult.Requeue))
+			g.Expect(cleanupResult.Description).To(Equal(tc.expectedResult.Description))
+			g.Expect(cleanupResult.Error).To(BeNil())
+		})
+	}
+}
+// TestCheckPrerequisitesForSnapshot tests the validateEtcdForSnapshot method of the OnDemandSnapshotTask handler.
+func TestCheckPrerequisitesForSnapshot(t *testing.T) {
+	g := NewGomegaWithT(t)
+	tests := []struct {
+		name          string
+		etcdObject    *druidv1alpha1.Etcd
+		phase         druidapicommon.LastOperationType
+		expectedError *druiderr.DruidError
+		expectRequeue bool
+	}{
+		{
+			name:       "Should return error when backup is not enabled",
+			etcdObject: createEtcd("test-etcd", "test-namespace", false, true, false, false),
+			phase:      druidv1alpha1.LastOperationTypeAdmit,
+			expectedError: &druiderr.DruidError{
+				Code:      ErrBackupNotEnabled,
+				Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+				Message:   "backup is not enabled for etcd",
+			},
+			expectRequeue: false,
+		},
+		{
+			name:       "Should return error when etcd is not ready",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false, false),
+			phase:      druidv1alpha1.LastOperationTypeExecution,
+			expectedError: &druiderr.DruidError{
+				Code:      ErrEtcdNotReady,
+				Operation: string(druidv1alpha1.LastOperationTypeExecution),
+				Message:   "etcd is not ready",
+			},
+			expectRequeue: false,
+		},
+		{
+			name:          "Should successfully validate etcd when all conditions are met",
+			etcdObject:    createEtcd("test-etcd", "test-namespace", true, true, false, false),
+			phase:         druidv1alpha1.LastOperationTypeExecution,
+			expectedError: nil,
+			expectRequeue: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			if tc.etcdObject != nil {
+				objs = append(objs, tc.etcdObject)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+
+			etcdOpsTask := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-namespace").WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
+				Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+				TimeoutSecondsFull: ptr.To(int32(5)),
+				IsFinal:            ptr.To(false),
+			}).Build()
+
+			taskHandler, err := New(cl, etcdOpsTask, nil)
+			g.Expect(err).To(BeNil())
+
+			h := taskHandler.(*handler)
+			result := h.checkPrerequisitesForSnapshot(tc.etcdObject, tc.phase)
+			if tc.expectedError != nil {
+				g.Expect(result).ToNot(BeNil())
+				g.Expect(result.Error).To(BeAssignableToTypeOf(&druiderr.DruidError{}))
+
+				druidErr := result.Error.(*druiderr.DruidError)
+				g.Expect(druidErr.Code).To(Equal(tc.expectedError.Code))
+
+				g.Expect(result.Requeue).To(Equal(tc.expectRequeue))
+				return
+			}
+			g.Expect(result).To(BeNil())
+
+		})
+	}
+}
+
+func createEtcd(name, namespace string, backup bool, healthy bool, clientTLS bool, backupTLS bool) *druidv1alpha1.Etcd {
+	etcdBuilder := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(1).WithReadyStatus()
+
+	if clientTLS {
+		etcdBuilder = etcdBuilder.WithClientTLS()
+	}
+
+	if backupTLS {
+		etcdBuilder = etcdBuilder.WithBackupRestoreTLS()
+	}
+
+	etcd := etcdBuilder.Build()
+
+	if backup {
+		etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+			Container: ptr.To("test-container"),
+			Prefix:    "test-prefix",
+			Provider:  ptr.To(druidv1alpha1.StorageProvider("S3")),
+		}
+	}
+	if !healthy {
+		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
+			Type:    druidv1alpha1.ConditionTypeReady,
+			Status:  druidv1alpha1.ConditionFalse,
+			Message: "etcd is not ready for testing purposes",
+		})
+	} else {
+		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
+			Type:    druidv1alpha1.ConditionTypeReady,
+			Status:  druidv1alpha1.ConditionTrue,
+			Message: "etcd is ready for testing purposes",
+		})
+	}
+	return etcd
 }

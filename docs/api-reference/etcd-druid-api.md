@@ -2,6 +2,7 @@
 
 ## Packages
 - [config.druid.gardener.cloud/v1alpha1](#configdruidgardenercloudv1alpha1)
+- [druid.gardener.cloud/common](#druidgardenercloudcommon)
 - [druid.gardener.cloud/v1alpha1](#druidgardenercloudv1alpha1)
 
 
@@ -343,6 +344,91 @@ _Appears in:_
 
 
 
+## druid.gardener.cloud/common
+
+
+
+
+#### ErrorCode
+
+_Underlying type:_ _string_
+
+ErrorCode is a string alias representing an error code that identifies an error.
+
+
+
+_Appears in:_
+- [LastError](#lasterror)
+
+
+
+#### LastError
+
+
+
+LastError stores details of the most recent error encountered for a resource.
+
+
+
+_Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
+- [EtcdStatus](#etcdstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `code` _[ErrorCode](#errorcode)_ | Code is an error code that uniquely identifies an error. |  |  |
+| `description` _string_ | Description is a human-readable message indicating details of the error. |  |  |
+| `observedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | ObservedAt is the time the error was observed. |  |  |
+
+
+#### LastOperation
+
+
+
+LastOperation holds the information on the last operation done on the resource.
+
+
+
+_Appears in:_
+- [EtcdOpsTaskStatus](#etcdopstaskstatus)
+- [EtcdStatus](#etcdstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[LastOperationType](#lastoperationtype)_ | Type is the type of last operation. |  |  |
+| `state` _[LastOperationState](#lastoperationstate)_ | State is the state of the last operation. |  |  |
+| `description` _string_ | Description describes the last operation. |  |  |
+| `runID` _string_ | RunID correlates an operation with a reconciliation run.<br />Every time the resource is reconciled (barring status reconciliation which is periodic), a unique ID is<br />generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this<br />as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering<br />reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced. |  |  |
+| `lastUpdateTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastUpdateTime is the time at which the operation was last updated. |  |  |
+
+
+#### LastOperationState
+
+_Underlying type:_ _string_
+
+LastOperationState is a string alias representing the state of the last operation.
+
+
+
+_Appears in:_
+- [LastOperation](#lastoperation)
+
+
+
+#### LastOperationType
+
+_Underlying type:_ _string_
+
+LastOperationType is a string alias representing type of the last operation.
+
+
+
+_Appears in:_
+- [LastOperation](#lastoperation)
+
+
+
+
 ## druid.gardener.cloud/v1alpha1
 
 Package v1alpha1 contains API Schema definitions for the druid v1alpha1 API group
@@ -541,19 +627,6 @@ _Appears in:_
 | `kind` _string_ | Kind of the referent |  |  |
 | `name` _string_ | Name of the referent |  |  |
 | `apiVersion` _string_ | API version of the referent |  |  |
-
-
-#### ErrorCode
-
-_Underlying type:_ _string_
-
-ErrorCode is a string alias representing an error code that identifies an error.
-
-
-
-_Appears in:_
-- [LastError](#lasterror)
-
 
 
 #### Etcd
@@ -772,10 +845,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `state` _[TaskState](#taskstate)_ | State is the overall state of the task.<br />The controller initializes this field when processing the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br /> |
+| `state` _[TaskState](#taskstate)_ | State represents the current state of the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br /> |
 | `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the state transitioned from one value to another. |  |  |
 | `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | StartedAt is the time at which the task transitioned from Pending to InProgress. |  |  |
-| `phase` _[OperationPhase](#operationphase)_ | Phase represents the current phase of the task's lifecycle. |  | Enum: [Admit Running Cleanup] <br /> |
 | `lastErrors` _[LastError](#lasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br /> |
 | `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  |  |
 
@@ -867,83 +939,6 @@ _Appears in:_
 
 
 
-#### LastError
-
-
-
-LastError stores details of the most recent error encountered for a resource.
-
-
-
-_Appears in:_
-- [EtcdOpsTaskStatus](#etcdopstaskstatus)
-- [EtcdStatus](#etcdstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `code` _[ErrorCode](#errorcode)_ | Code is an error code that uniquely identifies an error. |  |  |
-| `description` _string_ | Description is a human-readable message indicating details of the error. |  |  |
-| `observedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | ObservedAt is the time the error was observed. |  |  |
-
-
-#### LastOperation
-
-
-
-LastOperation holds the information on the last operation done on the Etcd resource.
-
-
-
-_Appears in:_
-- [EtcdOpsTaskStatus](#etcdopstaskstatus)
-- [EtcdStatus](#etcdstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `type` _[LastOperationType](#lastoperationtype)_ | Type is the type of last operation. |  |  |
-| `state` _[LastOperationState](#lastoperationstate)_ | State is the state of the last operation. |  |  |
-| `description` _string_ | Description describes the last operation. |  |  |
-| `runID` _string_ | RunID correlates an operation with a reconciliation run.<br />Every time an Etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is<br />generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this<br />as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering<br />reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced. |  |  |
-| `lastUpdateTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastUpdateTime is the time at which the operation was last updated. |  |  |
-
-
-#### LastOperationState
-
-_Underlying type:_ _string_
-
-LastOperationState is a string alias representing the state of the last operation.
-
-
-
-_Appears in:_
-- [LastOperation](#lastoperation)
-
-| Field | Description |
-| --- | --- |
-| `Processing` | LastOperationStateProcessing indicates that an operation is in progress.<br /> |
-| `Succeeded` | LastOperationStateSucceeded indicates that an operation has completed successfully.<br /> |
-| `Error` | LastOperationStateError indicates that an operation is completed with errors and will be retried.<br /> |
-| `Requeue` | LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.<br /> |
-
-
-#### LastOperationType
-
-_Underlying type:_ _string_
-
-LastOperationType is a string alias representing type of the last operation.
-
-
-
-_Appears in:_
-- [LastOperation](#lastoperation)
-
-| Field | Description |
-| --- | --- |
-| `Create` | LastOperationTypeCreate indicates that the last operation was a creation of a new Etcd resource.<br /> |
-| `Reconcile` | LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.<br /> |
-| `Delete` | LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.<br /> |
-
-
 #### LeaderElectionSpec
 
 
@@ -1014,25 +1009,6 @@ _Appears in:_
 | --- | --- |
 | `full` | OnDemandSnapshotTypeFull indicates a full snapshot, capturing the entire etcd database state.<br /> |
 | `delta` | OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.<br /> |
-
-
-#### OperationPhase
-
-_Underlying type:_ _string_
-
-OperationPhase represents the current phase of the EtcdOpstask's lifecycle.
-
-_Validation:_
-- Enum: [Admit Running Cleanup]
-
-_Appears in:_
-- [EtcdOpsTaskStatus](#etcdopstaskstatus)
-
-| Field | Description |
-| --- | --- |
-| `Admit` | OperationPhaseAdmit indicates that the task is in the admission phase.<br /> |
-| `Running` | OperationPhaseRunning indicates that the task is currently being executed.<br /> |
-| `Cleanup` | OperationPhaseCleanup indicates that the task is in the cleanup phase.<br /> |
 
 
 #### SchedulingConstraints

@@ -12,8 +12,6 @@ import (
 	"github.com/gardener/etcd-druid/test/it/setup"
 	"github.com/gardener/etcd-druid/test/utils"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -41,24 +39,6 @@ func setupTestEnvironment(t *testing.T) (string, *WithT) {
 	return testNs, g
 }
 
-// Helper function to create a basic EtcdOpsTask
-func createBasicEtcdOpsTask(name, namespace string) *druidv1alpha1.EtcdOpsTask {
-	return &druidv1alpha1.EtcdOpsTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: druidv1alpha1.EtcdOpsTaskSpec{
-			Config: druidv1alpha1.EtcdOpsTaskConfig{
-				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
-					Type: druidv1alpha1.OnDemandSnapshotTypeFull,
-				},
-			},
-			EtcdName: ptr.To("test-etcd"),
-		},
-	}
-}
-
 // Helper function to validate EtcdOpsTask creation
 func validateEtcdOpsTaskCreation(g *WithT, task *druidv1alpha1.EtcdOpsTask, expectErr bool) {
 	cl := itTestEnv.GetClient()
@@ -73,7 +53,7 @@ func validateEtcdOpsTaskCreation(g *WithT, task *druidv1alpha1.EtcdOpsTask, expe
 }
 
 // Helper function to validate EtcdOpsTask update
-func validateEtcdOpsTaskUpdate(g *WithT, task *druidv1alpha1.EtcdOpsTask, expectErr bool, ctx context.Context, cl client.Client) {
+func validateEtcdOpsTaskUpdate(ctx context.Context, g *WithT, task *druidv1alpha1.EtcdOpsTask, expectErr bool, cl client.Client) {
 	err := cl.Update(ctx, task)
 	if expectErr {
 		g.Expect(err).To(HaveOccurred())

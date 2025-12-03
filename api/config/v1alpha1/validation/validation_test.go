@@ -502,15 +502,10 @@ func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
 		matcher           gomegatypes.GomegaMatcher
 	}{
 		{
-			name:              "should allow default etcdOpsTask controller configuration when it is enabled",
+			name:              "should allow default etcdOpsTask controller configuration",
 			config:            &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{},
 			numExpectedErrors: 0,
 			matcher:           nil,
-		},
-		{
-			name:              "should allow empty etcdOpsTask controller configuration when it is disabled",
-			config:            &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{},
-			numExpectedErrors: 0,
 		},
 		{
 			name: "should allow concurrent syncs greater than zero",

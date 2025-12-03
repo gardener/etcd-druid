@@ -72,8 +72,8 @@ func (r *Reconciler) verifyNoResourcesAwaitCleanUp(ctx component.OperatorContext
 }
 
 func (r *Reconciler) removeFinalizer(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	ctx.Logger.Info("Removing finalizer", "finalizerName", common.FinalizerName)
-	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcd, common.FinalizerName); client.IgnoreNotFound(err) != nil {
+	ctx.Logger.Info("Removing finalizer", "finalizerName", druidapicommon.EtcdFinalizerName)
+	if err := kubernetes.RemoveFinalizers(ctx, r.client, etcd, druidapicommon.EtcdFinalizerName); client.IgnoreNotFound(err) != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()

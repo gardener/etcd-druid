@@ -54,7 +54,7 @@ func addFlags(fs *flag.FlagSet) {
 
 func launchEnvTest(logger logr.Logger) (setup.DruidTestEnvCloser, error) {
 	logger.Info("Starting test environment")
-	druidEnv, druidEnvCloser, err := setup.NewDruidTestEnvironment("start-envtest", []string{})
+	druidEnv, druidEnvCloser, err := setup.NewDruidTestEnvironment("start-envtest", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create integration test environment: %w", err)
 	}

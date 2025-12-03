@@ -257,7 +257,7 @@ func assertETCDObservedGeneration(t *testing.T, cl client.Client, etcdObjectKey 
 	t.Logf("observedGeneration correctly set to %s", logPointerTypeToString[int64](expectedObservedGeneration))
 }
 
-func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedLastOperation *druidv1alpha1.LastOperation, expectedLastErrorCodes []string, timeout, pollInterval time.Duration) {
+func assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, expectedLastOperation *druidapicommon.LastOperation, expectedLastErrorCodes []string, timeout, pollInterval time.Duration) {
 	g := NewWithT(t)
 	checkFn := func() error {
 		etcdInstance := &druidv1alpha1.Etcd{}
@@ -432,7 +432,7 @@ func assertETCDStatusFieldsDerivedFromStatefulSet(ctx context.Context, t *testin
 	t.Logf("asserted that etcd status fields are correctly derived from statefulset: %s", stsObjectKey.Name)
 }
 
-func getErrorCodesFromLastErrors(lastErrors []druidv1alpha1.LastError) []string {
+func getErrorCodesFromLastErrors(lastErrors []druidapicommon.LastError) []string {
 	errorCodes := make([]string, 0, len(lastErrors))
 	for _, lastErr := range lastErrors {
 		errorCodes = append(errorCodes, string(lastErr.Code))

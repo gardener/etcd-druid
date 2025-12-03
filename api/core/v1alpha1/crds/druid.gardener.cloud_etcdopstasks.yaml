@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: etcdopstasks.druid.gardener.cloud
 spec:
   group: druid.gardener.cloud
@@ -26,7 +26,7 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    - jsonPath: .status.phase
+    - jsonPath: .status.lastOperation.type
       name: Phase
       priority: 1
       type: string
@@ -178,7 +178,7 @@ spec:
                   runID:
                     description: |-
                       RunID correlates an operation with a reconciliation run.
-                      Every time an Etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
+                      Every time the resource is reconciled (barring status reconciliation which is periodic), a unique ID is
                       generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
                       as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
                       reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced.
@@ -201,22 +201,13 @@ spec:
                   from one value to another.
                 format: date-time
                 type: string
-              phase:
-                description: Phase represents the current phase of the task's lifecycle.
-                enum:
-                - Admit
-                - Running
-                - Cleanup
-                type: string
               startedAt:
                 description: StartedAt is the time at which the task transitioned
                   from Pending to InProgress.
                 format: date-time
                 type: string
               state:
-                description: |-
-                  State is the overall state of the task.
-                  The controller initializes this field when processing the task.
+                description: State represents the current state of the task.
                 enum:
                 - Pending
                 - InProgress

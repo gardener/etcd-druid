@@ -151,55 +151,16 @@ func TestIsCompleted(t *testing.T) {
 	}
 }
 
-// TestIsMarkedForDeletion tests the IsMarkedForDeletion method of the EtcdOpsTask struct.
-func TestIsMarkedForDeletion(t *testing.T) {
-	g := NewWithT(t)
-	now := time.Now().UTC()
-
-	tests := []struct {
-		name            string
-		task            *EtcdOpsTask
-		markedForDelete bool
-	}{
-		{
-			name: "should return false when deletion timestamp is nil",
-			task: &EtcdOpsTask{
-				ObjectMeta: metav1.ObjectMeta{
-					DeletionTimestamp: nil,
-				},
-			},
-			markedForDelete: false,
-		},
-		{
-			name: "should return true when deletion timestamp is set",
-			task: &EtcdOpsTask{
-				ObjectMeta: metav1.ObjectMeta{
-					DeletionTimestamp: &metav1.Time{Time: now},
-				},
-			},
-			markedForDelete: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g.Expect(tc.task.IsMarkedForDeletion()).To(Equal(tc.markedForDelete))
-		})
-	}
-}
-
 // TestGetEtcdReference tests the GetEtcdReference method of the EtcdOpsTask struct.
 func TestGetEtcdReference(t *testing.T) {
 	g := NewWithT(t)
 
 	tests := []struct {
-		name          string
-		task          *EtcdOpsTask
-		expectedRef   string
-		expectedNS    string
-		expectError   bool
-		errorContains string
+		name        string
+		task        *EtcdOpsTask
+		expectedRef string
+		expectedNS  string
+		expectEmpty bool
 	}{
 		{
 			name: "should return valid reference when etcdName is set",
@@ -214,10 +175,10 @@ func TestGetEtcdReference(t *testing.T) {
 			},
 			expectedRef: "my-etcd",
 			expectedNS:  "test-namespace",
-			expectError: false,
+			expectEmpty: false,
 		},
 		{
-			name: "should return error when etcdName is nil",
+			name: "should return empty reference when etcdName is nil",
 			task: &EtcdOpsTask{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-task",
@@ -227,11 +188,10 @@ func TestGetEtcdReference(t *testing.T) {
 					EtcdName: nil,
 				},
 			},
-			expectError:   true,
-			errorContains: "etcdName is required but not specified",
+			expectEmpty: true,
 		},
 		{
-			name: "should return error when etcdName is empty string",
+			name: "should return empty reference when etcdName is empty string",
 			task: &EtcdOpsTask{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-task",
@@ -241,8 +201,7 @@ func TestGetEtcdReference(t *testing.T) {
 					EtcdName: ptr.To(""),
 				},
 			},
-			expectError:   true,
-			errorContains: "etcdName is required but not specified",
+			expectEmpty: true,
 		},
 		{
 			name: "should use task namespace for etcd reference namespace",
@@ -257,7 +216,7 @@ func TestGetEtcdReference(t *testing.T) {
 			},
 			expectedRef: "etcd-cluster",
 			expectedNS:  "different-namespace",
-			expectError: false,
+			expectEmpty: false,
 		},
 	}
 
@@ -265,13 +224,12 @@ func TestGetEtcdReference(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ref, err := tc.task.GetEtcdReference()
+			ref := tc.task.GetEtcdReference()
 
-			if tc.expectError {
-				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring(tc.errorContains))
+			if tc.expectEmpty {
+				g.Expect(ref.Name).To(BeEmpty())
+				g.Expect(ref.Namespace).To(BeEmpty())
 			} else {
-				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(ref.Name).To(Equal(tc.expectedRef))
 				g.Expect(ref.Namespace).To(Equal(tc.expectedNS))
 			}

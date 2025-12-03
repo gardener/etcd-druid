@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
@@ -19,105 +19,12 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/test/utils"
 
-	"github.com/go-logr/logr/testr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
-
-// newTestReconciler creates a new Reconciler instance for testing.
-func newTestReconciler(t *testing.T, cl client.Client) *Reconciler {
-	return &Reconciler{
-		logger: testr.New(t),
-		client: cl,
-		config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
-			RequeueInterval: &metav1.Duration{Duration: 60 * time.Second},
-		},
-	}
-}
-
-// newTestTask creates a new EtcdOpsTask for tests.
-func newTestTask(state *druidv1alpha1.TaskState) *druidv1alpha1.EtcdOpsTask {
-	now := metav1.Now()
-	ts := &druidv1alpha1.EtcdOpsTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-task",
-			Namespace: "test-ns",
-		},
-		Spec: druidv1alpha1.EtcdOpsTaskSpec{
-			Config:                  druidv1alpha1.EtcdOpsTaskConfig{},
-			TTLSecondsAfterFinished: ptr.To(int32(60)),
-			EtcdName:                ptr.To("test-etcd"),
-		},
-		Status: druidv1alpha1.EtcdOpsTaskStatus{
-			LastTransitionTime: &now,
-		},
-	}
-	if state != nil {
-		ts.Status.State = state
-	}
-	return ts
-}
-
-// setupFakeClient creates a fake client with the given task and status.
-func setupFakeClient(task *druidv1alpha1.EtcdOpsTask, status bool) client.Client {
-	if status {
-		return utils.NewTestClientBuilder().
-			WithScheme(kubernetes.Scheme).
-			WithStatusSubresource(task).
-			Build()
-	}
-	return utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-}
-
-// checksForNilTask checks the expected scenarios for cases where the task isn't present.
-func checksForNilTask(g *WithT, result ctrlutils.ReconcileStepResult) {
-	g.Expect(result.HasErrors()).To(BeTrue())
-	g.Expect(result.GetCombinedError()).To(HaveOccurred())
-	g.Expect(result.GetCombinedError().Error()).To(ContainSubstring("not found"))
-}
-
-// expectDruidErrors checks if the actual errors match the expected Druid errors.
-func expectDruidErrors(g Gomega, actual, expected []error) {
-	g.Expect(actual).To(HaveLen(len(expected)))
-	for i, err := range actual {
-		expectedErr := expected[i]
-		var druidErr *druiderr.DruidError
-		var expectedDruidErr *druiderr.DruidError
-		if errors.As(err, &druidErr) && errors.As(expectedErr, &expectedDruidErr) {
-			if expectedDruidErr, ok := expectedErr.(*druiderr.DruidError); ok {
-				g.Expect(druidErr.Code).To(Equal(expectedDruidErr.Code))
-				g.Expect(druidErr.Operation).To(Equal(expectedDruidErr.Operation))
-				g.Expect(druidErr.Message).To(Equal(expectedDruidErr.Message))
-			}
-		}
-	}
-}
-
-// checkLastErrors checks the LastErrors field in the task status with the expected values.
-func checkLastErrors(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedLastErrors *druidv1alpha1.LastError) {
-	if expectedLastErrors != nil {
-		index := len(updatedTask.Status.LastErrors) - 1
-		g.Expect(updatedTask.Status.LastErrors).ToNot(BeNil())
-		g.Expect(updatedTask.Status.LastErrors[index].Code).To(Equal(expectedLastErrors.Code))
-	} else {
-		g.Expect(updatedTask.Status.LastErrors).To(BeNil())
-	}
-}
-
-// checkLastOperation checks the LastOperation field in the task status with the expected values.
-func checkLastOperation(g *WithT, updatedTask *druidv1alpha1.EtcdOpsTask, expectedLastOperation *druidv1alpha1.LastOperation) {
-	if expectedLastOperation != nil {
-		g.Expect(updatedTask.Status.LastOperation).ToNot(BeNil())
-		g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(expectedLastOperation.Type))
-		g.Expect(updatedTask.Status.LastOperation.State).To(Equal(expectedLastOperation.State))
-		if expectedLastOperation.Description != "" {
-			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(expectedLastOperation.Description))
-		}
-	}
-}
 
 // TestGetTask tests the getTask function.
 func TestGetTask(t *testing.T) {
@@ -129,13 +36,13 @@ func TestGetTask(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "Valid task name and namespace",
+			name:        "Should successfully get task with valid name and namespace",
 			taskName:    "test-task",
 			taskNS:      "test-ns",
 			expectError: false,
 		},
 		{
-			name:        "Invalid task name",
+			name:        "Should return error when task name is invalid",
 			taskName:    "",
 			taskNS:      "test-ns",
 			expectError: true,
@@ -143,17 +50,21 @@ func TestGetTask(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cl := setupFakeClient(nil, false)
-			task := newTestTask(nil)
-			err := cl.Create(context.TODO(), task)
-			g.Expect(err).NotTo(HaveOccurred())
+			t.Parallel()
+			ctx := context.Background()
+
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+			task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build()
 			r := newTestReconciler(t, cl)
+
+			err := cl.Create(ctx, task)
+			g.Expect(err).NotTo(HaveOccurred())
 
 			taskKey := client.ObjectKey{
 				Name:      tc.taskName,
 				Namespace: tc.taskNS,
 			}
-			taskObj, err := r.getTask(context.TODO(), taskKey)
+			taskObj, err := r.getTask(ctx, taskKey)
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), fmt.Sprintf("Expected error for task %s in namespace %s", tc.taskName, tc.taskNS))
 			} else {
@@ -167,59 +78,82 @@ func TestGetTask(t *testing.T) {
 	}
 }
 
+func TestRejectTaskWithError(t *testing.T) {
+	g := NewGomegaWithT(t)
+	defaultTTL := int32(30)
+	tests := []struct {
+		name           string
+		task           *druidv1alpha1.EtcdOpsTask
+		description    string
+		wrappedErr     error
+		expectedResult ctrlutils.ReconcileStepResult
+	}{
+		{
+			name:           "Should reject task and update status successfully",
+			task:           utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithTTLSecondsAfterFinished(defaultTTL).Build(),
+			description:    "Rejection due to test error",
+			wrappedErr:     errors.New("test error"),
+			expectedResult: ctrlutils.ReconcileAfter(time.Duration(defaultTTL)*time.Second, "Task rejected, waiting for TTL to expire before deletion"),
+		},
+	}
+
+	for _, tc := range tests {
+		ctx := context.Background()
+
+		cl := utils.NewTestClientBuilder().
+			WithScheme(kubernetes.Scheme).
+			WithStatusSubresource(tc.task).
+			Build()
+		err := cl.Create(ctx, tc.task)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		r := newTestReconciler(t, cl)
+
+		result := r.rejectTaskWithError(ctx, tc.task, tc.description, tc.wrappedErr)
+		updatedTask := &druidv1alpha1.EtcdOpsTask{}
+		err = cl.Get(ctx, client.ObjectKeyFromObject(tc.task), updatedTask)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		g.Expect(result.GetResult().RequeueAfter).To(BeNumerically("~", tc.expectedResult.GetResult().RequeueAfter, time.Second))
+
+	}
+}
+
 // TestSetLastOperation tests the setLastOperation helper function
 func TestSetLastOperation(t *testing.T) {
+	g := NewGomegaWithT(t)
 	tests := []struct {
 		name                  string
 		existingLastOperation bool
-		lastOperation         *druidv1alpha1.LastOperation
-		expectedLastOperation *druidv1alpha1.LastOperation
+		expectedLastOperation *druidapicommon.LastOperation
 	}{
 		{
-			name:                  "new LastOperation when none exists",
+			name:                  "Should set new LastOperation when none exists",
 			existingLastOperation: false,
-			lastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateProcessing,
-				Description: "Starting reconciliation",
-				RunID:       "test-run-123",
-			},
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateProcessing,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:        druidv1alpha1.LastOperationTypeAdmit,
+				State:       druidv1alpha1.LastOperationStateInProgress,
 				Description: "Starting reconciliation",
 				RunID:       "test-run-123",
 			},
 		},
 		{
-			name:                  "sets even if already present",
+			name:                  "Should overwrite existing LastOperation",
 			existingLastOperation: true,
-			lastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeDelete,
-				State:       druidv1alpha1.LastOperationStateSucceeded,
-				Description: "Deletion completed",
-				RunID:       "new-run-456",
-			},
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeDelete,
-				State:       druidv1alpha1.LastOperationStateSucceeded,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:        druidv1alpha1.LastOperationTypeExecution,
+				State:       druidv1alpha1.LastOperationStateInProgress,
 				Description: "Deletion completed",
 				RunID:       "new-run-456",
 			},
 		},
 		{
-			name:                  "if description isn't set",
+			name:                  "Should generate default description when description is empty",
 			existingLastOperation: false,
-			lastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateError,
-				Description: "",
-				RunID:       "test-run-789",
-			},
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeReconcile,
-				State:       druidv1alpha1.LastOperationStateError,
-				Description: "Reconcile is in state Error for task test-task",
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:        druidv1alpha1.LastOperationTypeExecution,
+				State:       druidv1alpha1.LastOperationStateInProgress,
+				Description: "Running is in state Error for task test-task",
 				RunID:       "test-run-789",
 			},
 		},
@@ -227,13 +161,13 @@ func TestSetLastOperation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t) // Create test task using newTestTask(nil)
-			task := newTestTask(nil)
+			t.Parallel()
+			task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build()
 
 			if tc.existingLastOperation {
-				task.Status.LastOperation = &druidv1alpha1.LastOperation{
-					Type:           druidv1alpha1.LastOperationTypeReconcile,
-					State:          druidv1alpha1.LastOperationStateProcessing,
+				task.Status.LastOperation = &druidapicommon.LastOperation{
+					Type:           druidv1alpha1.LastOperationTypeExecution,
+					State:          druidv1alpha1.LastOperationStateCompleted,
 					Description:    "Old description",
 					RunID:          "old-run-id",
 					LastUpdateTime: metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
@@ -241,7 +175,7 @@ func TestSetLastOperation(t *testing.T) {
 			}
 			timeBefore := time.Now().UTC()
 
-			setLastOperation(task, tc.lastOperation.Type, tc.lastOperation.State, tc.lastOperation.Description, tc.lastOperation.RunID)
+			setLastOperation(task, tc.expectedLastOperation.Type, tc.expectedLastOperation.State, tc.expectedLastOperation.Description, tc.expectedLastOperation.RunID)
 
 			g.Expect(task.Status.LastOperation).ToNot(BeNil())
 			g.Expect(task.Status.LastOperation.Type).To(Equal(tc.expectedLastOperation.Type))
@@ -257,6 +191,7 @@ func TestSetLastOperation(t *testing.T) {
 
 // TestUpdateTaskState tests the updateTaskState helper function
 func TestSetTaskState(t *testing.T) {
+	g := NewGomegaWithT(t)
 	tests := []struct {
 		name           string
 		task           *druidv1alpha1.EtcdOpsTask
@@ -265,23 +200,23 @@ func TestSetTaskState(t *testing.T) {
 		expectStarted  bool
 	}{
 		{
-			name:           "initial state from nil",
-			task:           newTestTask(nil),
+			name:           "Should set initial task state when none exists",
+			task:           utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			newState:       druidv1alpha1.TaskStatePending,
 			expectedChange: true,
 			expectStarted:  false,
 		},
 		{
-			name:           "state change from Pending to InProgress",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
+			name:           "Should transition state from Pending to InProgress and set StartedAt",
+			task:           utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build(),
 			newState:       druidv1alpha1.TaskStateInProgress,
 			expectedChange: true,
 			expectStarted:  true,
 		},
 		{
-			name: "state change from InProgress to Succeeded",
+			name: "Should transition state from InProgress to Succeeded without modifying StartedAt",
 			task: func() *druidv1alpha1.EtcdOpsTask {
-				task := newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress))
+				task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build()
 				task.Status.StartedAt = &metav1.Time{Time: time.Now().Add(-5 * time.Minute)}
 				return task
 			}(),
@@ -290,16 +225,16 @@ func TestSetTaskState(t *testing.T) {
 			expectStarted:  false,
 		},
 		{
-			name:           "no change when state is same",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:           "Should not change state when new state is same as current",
+			task:           utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			newState:       druidv1alpha1.TaskStateInProgress,
 			expectedChange: false,
 			expectStarted:  false,
 		},
 		{
-			name: "transition to InProgress when StartedAt already exists",
+			name: "Should not modify existing StartedAt when transitioning to InProgress",
 			task: func() *druidv1alpha1.EtcdOpsTask {
-				task := newTestTask(ptr.To(druidv1alpha1.TaskStatePending))
+				task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build()
 				task.Status.StartedAt = &metav1.Time{Time: time.Now().Add(-10 * time.Minute)}
 				return task
 			}(),
@@ -311,13 +246,12 @@ func TestSetTaskState(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			g := NewGomegaWithT(t)
+			t.Parallel()
 
 			originalStartedAt := tc.task.Status.StartedAt
 
-			changed := setTaskState(tc.task, tc.newState)
+			setTaskState(tc.task, tc.newState)
 
-			g.Expect(changed).To(Equal(tc.expectedChange))
 			g.Expect(tc.task.Status.State).ToNot(BeNil())
 			g.Expect(*tc.task.Status.State).To(Equal(tc.newState))
 
@@ -339,6 +273,7 @@ func TestSetTaskState(t *testing.T) {
 
 // TestSetLastError tests the setLastError helper function
 func TestSetLastError(t *testing.T) {
+	g := NewGomegaWithT(t)
 	tests := []struct {
 		name                string
 		task                *druidv1alpha1.EtcdOpsTask
@@ -347,29 +282,29 @@ func TestSetLastError(t *testing.T) {
 		expectedErrorsCount int
 	}{
 		{
-			name:                "No initial last error",
-			task:                newTestTask(nil),
+			name:                "Should add first error when no initial errors exist",
+			task:                utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			initialErrorSize:    0,
 			error:               druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error"),
 			expectedErrorsCount: 1,
 		},
 		{
-			name:                "Initial error exists, but total size is less than 3",
-			task:                newTestTask(nil),
+			name:                "Should add error when total count is below maximum",
+			task:                utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			initialErrorSize:    1,
 			error:               druiderr.WrapError(fmt.Errorf("another test error"), "AnotherTestError", "TestOperation", "This is another test error"),
 			expectedErrorsCount: 2,
 		},
 		{
-			name:                "Initial error exists, total size equals max limit (3)",
-			task:                newTestTask(nil),
+			name:                "Should add error when reaching maximum limit",
+			task:                utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			initialErrorSize:    2,
 			error:               druiderr.WrapError(fmt.Errorf("yet another test error"), "YetAnotherTestError", "TestOperation", "This is yet another test error"),
 			expectedErrorsCount: 3,
 		},
 		{
-			name:                "Exceeds max limit, should remove oldest error",
-			task:                newTestTask(nil),
+			name:                "Should remove oldest error when exceeding maximum limit",
+			task:                utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			initialErrorSize:    3,
 			error:               druiderr.WrapError(fmt.Errorf("fourth test error"), "FourthTestError", "TestOperation", "This is the fourth test error"),
 			expectedErrorsCount: 3,
@@ -378,12 +313,12 @@ func TestSetLastError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			g := NewGomegaWithT(t)
+			t.Parallel()
 
 			if tc.initialErrorSize > 0 {
 				for i := 0; i < tc.initialErrorSize; i++ {
-					tc.task.Status.LastErrors = append(tc.task.Status.LastErrors, druidv1alpha1.LastError{
-						Code:        druidv1alpha1.ErrorCode(fmt.Sprintf("InitialError%d", i)),
+					tc.task.Status.LastErrors = append(tc.task.Status.LastErrors, druidapicommon.LastError{
+						Code:        druidapicommon.ErrorCode(fmt.Sprintf("InitialError%d", i)),
 						Description: fmt.Sprintf("initial error %d", i),
 						ObservedAt:  metav1.Time{Time: time.Now().Add(-time.Duration(i) * time.Minute)},
 					})
@@ -402,10 +337,10 @@ func TestSetLastError(t *testing.T) {
 			g.Expect(lastError.ObservedAt).ToNot(BeZero())
 
 			if druidErr, ok := tc.error.(*druiderr.DruidError); ok {
-				expectedLastErrors := &druidv1alpha1.LastError{
-					Code: druidv1alpha1.ErrorCode(druidErr.Code),
+				expectedLastErrors := &druidapicommon.LastError{
+					Code: druidapicommon.ErrorCode(druidErr.Code),
 				}
-				checkLastErrors(g, tc.task, expectedLastErrors)
+				utils.CheckLastErrors(g, tc.task.Status.LastErrors, expectedLastErrors)
 			} else {
 				g.Expect(lastError.Description).To(Equal(tc.error.Error()))
 			}
@@ -420,21 +355,22 @@ func TestSetLastError(t *testing.T) {
 
 // TestUpdateTaskStatus tests the updateTaskStatus method
 func TestUpdateTaskStatus(t *testing.T) {
+	g := NewGomegaWithT(t)
 	tests := []struct {
 		name                string
 		initialTask         *druidv1alpha1.EtcdOpsTask
 		update              taskStatusUpdate
 		expectError         bool
-		expectedOpType      *druidv1alpha1.LastOperationType
-		expectedOpState     *druidv1alpha1.LastOperationState
+		expectedOpType      *druidapicommon.LastOperationType
+		expectedOpState     *druidapicommon.LastOperationState
 		expectedTaskState   *druidv1alpha1.TaskState
 		expectedErrorsCount int
 	}{
 		{
-			name:        "update operation only",
-			initialTask: newTestTask(nil),
+			name:        "Should update last operation only when operation is provided",
+			initialTask: utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			update: taskStatusUpdate{
-				Operation: &druidv1alpha1.LastOperation{
+				Operation: &druidapicommon.LastOperation{
 					Type:        druidv1alpha1.LastOperationTypeReconcile,
 					State:       druidv1alpha1.LastOperationStateRequeue,
 					Description: "Starting admission",
@@ -446,8 +382,8 @@ func TestUpdateTaskStatus(t *testing.T) {
 			expectedTaskState: nil,
 		},
 		{
-			name:        "update state only",
-			initialTask: newTestTask(nil),
+			name:        "Should update task state only when state is provided",
+			initialTask: utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			update: taskStatusUpdate{
 				State: ptr.To(druidv1alpha1.TaskStateInProgress),
 			},
@@ -457,8 +393,8 @@ func TestUpdateTaskStatus(t *testing.T) {
 			expectedTaskState: ptr.To(druidv1alpha1.TaskStateInProgress),
 		},
 		{
-			name:        "update error only",
-			initialTask: newTestTask(nil),
+			name:        "Should update error only when error is provided",
+			initialTask: utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			update: taskStatusUpdate{
 				Error: druiderr.WrapError(errors.New("test error"), "TEST_ERROR", "TestOp", "Test error"),
 			},
@@ -469,10 +405,10 @@ func TestUpdateTaskStatus(t *testing.T) {
 			expectedErrorsCount: 1,
 		},
 		{
-			name:        "update all fields",
-			initialTask: newTestTask(nil),
+			name:        "Should update all fields when all are provided",
+			initialTask: utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			update: taskStatusUpdate{
-				Operation: &druidv1alpha1.LastOperation{
+				Operation: &druidapicommon.LastOperation{
 					Type:        druidv1alpha1.LastOperationTypeReconcile,
 					State:       druidv1alpha1.LastOperationStateError,
 					Description: "Task failed",
@@ -490,10 +426,14 @@ func TestUpdateTaskStatus(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			g := NewGomegaWithT(t)
+			t.Parallel()
+			ctx := context.Background()
 
-			cl := setupFakeClient(tc.initialTask, true)
-			err := cl.Create(context.TODO(), tc.initialTask)
+			cl := utils.NewTestClientBuilder().
+				WithScheme(kubernetes.Scheme).
+				WithStatusSubresource(tc.initialTask).
+				Build()
+			err := cl.Create(ctx, tc.initialTask)
 			g.Expect(err).NotTo(HaveOccurred())
 
 			r := newTestReconciler(t, cl)
@@ -502,7 +442,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 				Namespace: tc.initialTask.Namespace,
 			}
 
-			err = r.updateTaskStatus(context.TODO(), tc.initialTask, tc.update)
+			err = r.updateTaskStatus(ctx, tc.initialTask, tc.update)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred())
@@ -512,7 +452,7 @@ func TestUpdateTaskStatus(t *testing.T) {
 			g.Expect(err).NotTo(HaveOccurred())
 
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err = cl.Get(context.TODO(), taskKey, updatedTask)
+			err = cl.Get(ctx, taskKey, updatedTask)
 			g.Expect(err).NotTo(HaveOccurred())
 
 			if tc.expectedOpType != nil {
@@ -541,31 +481,31 @@ func TestHandleTaskResult(t *testing.T) {
 	tests := []struct {
 		name     string
 		result   handler.Result
-		phase    druidv1alpha1.OperationPhase
+		phase    druidapicommon.LastOperationType
 		expected string
 	}{
 		{
-			name:     "requeue with error",
+			name:     "Should requeue when handler returns requeue with error",
 			result:   handler.Result{Requeue: true, Error: fmt.Errorf("test error"), Description: "test description"},
-			phase:    druidv1alpha1.OperationPhaseRunning,
+			phase:    druidv1alpha1.LastOperationTypeExecution,
 			expected: "requeue",
 		},
 		{
-			name:     "requeue without error",
+			name:     "Should requeue when handler returns requeue without error",
 			result:   handler.Result{Requeue: true, Description: "test description"},
-			phase:    druidv1alpha1.OperationPhaseAdmit,
+			phase:    druidv1alpha1.LastOperationTypeAdmit,
 			expected: "requeue",
 		},
 		{
-			name:     "error without requeue",
+			name:     "Should handle error when handler returns error without requeue",
 			result:   handler.Result{Error: fmt.Errorf("test error"), Description: "test description"},
-			phase:    druidv1alpha1.OperationPhaseRunning,
+			phase:    druidv1alpha1.LastOperationTypeExecution,
 			expected: "error",
 		},
 		{
-			name:     "success",
+			name:     "Should handle success when handler completes without error or requeue",
 			result:   handler.Result{Description: "test description"},
-			phase:    druidv1alpha1.OperationPhaseAdmit,
+			phase:    druidv1alpha1.LastOperationTypeAdmit,
 			expected: "success",
 		},
 	}
@@ -575,7 +515,7 @@ func TestHandleTaskResult(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
-			task := newTestTask(nil)
+			task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build()
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithStatusSubresource(task).Build()
 			err := cl.Create(ctx, task)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -594,13 +534,13 @@ func TestHandleTaskResult(t *testing.T) {
 				}
 			case "error":
 				g.Expect(result.NeedsRequeue()).To(BeTrue())
-				if tc.phase == druidv1alpha1.OperationPhaseCleanup {
+				if tc.phase == druidv1alpha1.LastOperationTypeCleanup {
 					g.Expect(result.HasErrors()).To(BeTrue())
 				} else {
 					g.Expect(result.HasErrors()).To(BeFalse())
 				}
 			case "success":
-				if tc.phase == druidv1alpha1.OperationPhaseRunning {
+				if tc.phase == druidv1alpha1.LastOperationTypeExecution {
 					g.Expect(result.NeedsRequeue()).To(BeTrue())
 					g.Expect(result.HasErrors()).To(BeFalse())
 				} else {
@@ -616,47 +556,58 @@ func TestHandleRequeue(t *testing.T) {
 	tests := []struct {
 		name               string
 		result             handler.Result
-		phase              druidv1alpha1.OperationPhase
-		expectedOpType     druidv1alpha1.LastOperationType
+		expectedOperation  druidapicommon.LastOperation
 		expectedMessage    string
 		expectError        bool
 		expectRequeueAfter bool
 	}{
 		{
-			name:               "requeue with error - reconcile phase",
-			result:             handler.Result{Requeue: true, Error: fmt.Errorf("test error"), Description: "test description"},
-			phase:              druidv1alpha1.OperationPhaseRunning,
-			expectedOpType:     druidv1alpha1.LastOperationTypeReconcile,
-			expectedMessage:    "Task running in progress",
-			expectError:        true,
-			expectRequeueAfter: false,
-		},
-		{
-			name:               "requeue without error - reconcile phase",
+			name:               "Should requeue for admit phase result with no error",
 			result:             handler.Result{Requeue: true, Description: "test description"},
-			phase:              druidv1alpha1.OperationPhaseAdmit,
-			expectedOpType:     druidv1alpha1.LastOperationTypeReconcile,
+			expectedOperation:  druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeAdmit, State: druidv1alpha1.LastOperationStateInProgress, Description: "test description"},
 			expectedMessage:    "Task admit in progress",
 			expectError:        false,
 			expectRequeueAfter: true,
 		},
 		{
-			name:               "requeue with error - cleanup phase",
-			result:             handler.Result{Requeue: true, Error: fmt.Errorf("cleanup error"), Description: "cleanup description"},
-			phase:              druidv1alpha1.OperationPhaseCleanup,
-			expectedOpType:     druidv1alpha1.LastOperationTypeDelete,
-			expectedMessage:    "Task cleanup in progress",
+			name:               "Should requeue with error for admit phase result with error",
+			result:             handler.Result{Requeue: true, Error: fmt.Errorf("test error"), Description: "test description"},
+			expectedOperation:  druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeAdmit, State: druidv1alpha1.LastOperationStateInProgress, Description: "test description"},
+			expectedMessage:    "Task admit in progress",
 			expectError:        true,
 			expectRequeueAfter: false,
 		},
 		{
-			name:               "requeue without error - cleanup phase",
+			name:               "Should requeue for execution phase result with no error",
+			result:             handler.Result{Requeue: true, Description: "test description"},
+			expectedOperation:  druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeExecution, State: druidv1alpha1.LastOperationStateInProgress, Description: "test description"},
+			expectedMessage:    "Task running in progress",
+			expectError:        false,
+			expectRequeueAfter: true,
+		},
+		{
+			name:               "Should requeue with error for execution phase result with error",
+			result:             handler.Result{Requeue: true, Error: fmt.Errorf("test error"), Description: "test description"},
+			expectedOperation:  druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeExecution, State: druidv1alpha1.LastOperationStateInProgress, Description: "test description"},
+			expectedMessage:    "Task running in progress",
+			expectError:        true,
+			expectRequeueAfter: false,
+		},
+		{
+			name:               "Should requeue for cleanup phase result with no error",
 			result:             handler.Result{Requeue: true, Description: "cleanup description"},
-			phase:              druidv1alpha1.OperationPhaseCleanup,
-			expectedOpType:     druidv1alpha1.LastOperationTypeDelete,
+			expectedOperation:  druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeCleanup, State: druidv1alpha1.LastOperationStateInProgress, Description: "cleanup description"},
 			expectedMessage:    "Task cleanup in progress",
 			expectError:        false,
 			expectRequeueAfter: true,
+		},
+		{
+			name:               "Should requeue with error for cleanup phase result with error",
+			result:             handler.Result{Requeue: true, Error: fmt.Errorf("cleanup error"), Description: "cleanup description"},
+			expectedOperation:  druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeCleanup, State: druidv1alpha1.LastOperationStateInProgress, Description: "cleanup description"},
+			expectedMessage:    "Task cleanup in progress",
+			expectError:        true,
+			expectRequeueAfter: false,
 		},
 	}
 
@@ -665,7 +616,7 @@ func TestHandleRequeue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
-			task := newTestTask(nil)
+			task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build()
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithStatusSubresource(task).Build()
 			err := cl.Create(ctx, task)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -673,14 +624,13 @@ func TestHandleRequeue(t *testing.T) {
 			reconciler := newTestReconciler(t, cl)
 			taskObjKey := client.ObjectKeyFromObject(task)
 
-			result := reconciler.handleRequeue(ctx, reconciler.logger, task, tc.result, tc.phase)
+			result := reconciler.handleRequeue(ctx, reconciler.logger, task, tc.result, tc.expectedOperation.Type)
 
+			g.Expect(result.NeedsRequeue()).To(BeTrue())
 			if tc.expectError {
-				g.Expect(result.NeedsRequeue()).To(BeTrue())
 				g.Expect(result.HasErrors()).To(BeTrue())
 				g.Expect(result.GetCombinedError().Error()).To(Equal(tc.result.Error.Error()))
 			} else if tc.expectRequeueAfter {
-				g.Expect(result.NeedsRequeue()).To(BeTrue())
 				g.Expect(result.GetResult().RequeueAfter).To(Equal(reconciler.config.RequeueInterval.Duration))
 			}
 
@@ -689,9 +639,9 @@ func TestHandleRequeue(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			g.Expect(updatedTask.Status.LastOperation).ToNot(BeNil())
-			g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(tc.expectedOpType))
-			g.Expect(updatedTask.Status.LastOperation.State).To(Equal(druidv1alpha1.LastOperationStateRequeue))
-			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(tc.result.Description))
+			g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(tc.expectedOperation.Type))
+			g.Expect(updatedTask.Status.LastOperation.State).To(Equal(tc.expectedOperation.State))
+			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(tc.expectedOperation.Description))
 
 			if tc.result.Error != nil {
 				g.Expect(updatedTask.Status.LastErrors).To(HaveLen(1))
@@ -705,32 +655,28 @@ func TestHandleError(t *testing.T) {
 	tests := []struct {
 		name              string
 		result            handler.Result
-		phase             druidv1alpha1.OperationPhase
-		expectedOpType    druidv1alpha1.LastOperationType
+		expectedOperation druidapicommon.LastOperation
 		expectedTaskState *druidv1alpha1.TaskState
 		expectedErrorMsg  string
 	}{
 		{
-			name:              "error in admit phase",
+			name:              "Should mark task as rejected task when error occurs in admit phase",
 			result:            handler.Result{Error: fmt.Errorf("admit error"), Description: "admit failed"},
-			phase:             druidv1alpha1.OperationPhaseAdmit,
-			expectedOpType:    druidv1alpha1.LastOperationTypeReconcile,
+			expectedOperation: druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeAdmit, State: druidv1alpha1.LastOperationStateFailed, Description: "admit failed"},
 			expectedTaskState: ptr.To(druidv1alpha1.TaskStateRejected),
 			expectedErrorMsg:  "task rejected, handing to deletion flow",
 		},
 		{
-			name:              "error in running phase",
+			name:              "Should mark task as failed when error occurs in execution phase",
 			result:            handler.Result{Error: fmt.Errorf("run error"), Description: "run failed"},
-			phase:             druidv1alpha1.OperationPhaseRunning,
-			expectedOpType:    druidv1alpha1.LastOperationTypeReconcile,
+			expectedOperation: druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeExecution, State: druidv1alpha1.LastOperationStateFailed, Description: "run failed"},
 			expectedTaskState: ptr.To(druidv1alpha1.TaskStateFailed),
 			expectedErrorMsg:  "task completed",
 		},
 		{
-			name:              "error in cleanup phase",
+			name:              "Should return error when error occurs in cleanup phase",
 			result:            handler.Result{Error: fmt.Errorf("cleanup error"), Description: "cleanup failed"},
-			phase:             druidv1alpha1.OperationPhaseCleanup,
-			expectedOpType:    druidv1alpha1.LastOperationTypeDelete,
+			expectedOperation: druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeCleanup, State: druidv1alpha1.LastOperationStateFailed, Description: "cleanup failed"},
 			expectedTaskState: nil,
 			expectedErrorMsg:  "cleanup failed",
 		},
@@ -741,7 +687,7 @@ func TestHandleError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
-			task := newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress))
+			task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build()
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithStatusSubresource(task).Build()
 			err := cl.Create(ctx, task)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -749,11 +695,11 @@ func TestHandleError(t *testing.T) {
 			reconciler := newTestReconciler(t, cl)
 			taskObjKey := client.ObjectKeyFromObject(task)
 
-			result := reconciler.handleError(ctx, reconciler.logger, task, tc.result, tc.phase)
+			result := reconciler.handleError(ctx, reconciler.logger, task, tc.result, tc.expectedOperation.Type)
 
 			g.Expect(result.NeedsRequeue()).To(BeTrue())
 
-			if tc.phase == druidv1alpha1.OperationPhaseCleanup {
+			if tc.expectedOperation.Type == druidv1alpha1.LastOperationTypeCleanup {
 				g.Expect(result.HasErrors()).To(BeTrue())
 				g.Expect(result.GetCombinedError().Error()).To(Equal(tc.expectedErrorMsg))
 			} else {
@@ -766,9 +712,9 @@ func TestHandleError(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			g.Expect(updatedTask.Status.LastOperation).ToNot(BeNil())
-			g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(tc.expectedOpType))
-			g.Expect(updatedTask.Status.LastOperation.State).To(Equal(druidv1alpha1.LastOperationStateError))
-			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(tc.result.Description))
+			g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(tc.expectedOperation.Type))
+			g.Expect(updatedTask.Status.LastOperation.State).To(Equal(tc.expectedOperation.State))
+			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(tc.expectedOperation.Description))
 
 			if tc.expectedTaskState != nil {
 				g.Expect(updatedTask.Status.State).ToNot(BeNil())
@@ -785,39 +731,31 @@ func TestHandleSuccess(t *testing.T) {
 	tests := []struct {
 		name                string
 		result              handler.Result
-		phase               druidv1alpha1.OperationPhase
-		expectedOpType      druidv1alpha1.LastOperationType
-		expectedOpState     druidv1alpha1.LastOperationState
+		expectedOperation   druidapicommon.LastOperation
 		expectedTaskState   *druidv1alpha1.TaskState
 		expectContinue      bool
 		expectTaskCompleted bool
 	}{
 		{
-			name:                "success in admit phase",
+			name:                "Should continue reconciliation when admit phase succeeds",
 			result:              handler.Result{Description: "admit successful"},
-			phase:               druidv1alpha1.OperationPhaseAdmit,
-			expectedOpType:      druidv1alpha1.LastOperationTypeReconcile,
-			expectedOpState:     druidv1alpha1.LastOperationStateProcessing,
+			expectedOperation:   druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeAdmit, State: druidv1alpha1.LastOperationStateCompleted, Description: "admit successful"},
 			expectedTaskState:   nil, // No state change for admit success
 			expectContinue:      true,
 			expectTaskCompleted: false,
 		},
 		{
-			name:                "success in running phase",
+			name:                "Should mark task as succeeded when execution phase completes",
 			result:              handler.Result{Description: "run successful"},
-			phase:               druidv1alpha1.OperationPhaseRunning,
-			expectedOpType:      druidv1alpha1.LastOperationTypeReconcile,
-			expectedOpState:     druidv1alpha1.LastOperationStateSucceeded,
+			expectedOperation:   druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeExecution, State: druidv1alpha1.LastOperationStateCompleted, Description: "run successful"},
 			expectedTaskState:   ptr.To(druidv1alpha1.TaskStateSucceeded),
 			expectContinue:      false,
 			expectTaskCompleted: true,
 		},
 		{
-			name:                "success in cleanup phase",
+			name:                "Should continue reconciliation when cleanup phase succeeds",
 			result:              handler.Result{Description: "cleanup successful"},
-			phase:               druidv1alpha1.OperationPhaseCleanup,
-			expectedOpType:      druidv1alpha1.LastOperationTypeDelete,
-			expectedOpState:     druidv1alpha1.LastOperationStateProcessing,
+			expectedOperation:   druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeCleanup, State: druidv1alpha1.LastOperationStateInProgress, Description: "cleanup successful"},
 			expectedTaskState:   nil,
 			expectContinue:      true,
 			expectTaskCompleted: false,
@@ -829,7 +767,7 @@ func TestHandleSuccess(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
-			task := newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress))
+			task := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build()
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithStatusSubresource(task).Build()
 			err := cl.Create(ctx, task)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -837,13 +775,13 @@ func TestHandleSuccess(t *testing.T) {
 			reconciler := newTestReconciler(t, cl)
 			taskObjKey := client.ObjectKeyFromObject(task)
 
-			result := reconciler.handleSuccess(ctx, reconciler.logger, task, tc.result, tc.phase)
+			result := reconciler.handleSuccess(ctx, reconciler.logger, task, tc.result, tc.expectedOperation.Type)
 
 			if tc.expectContinue {
 				g.Expect(result.NeedsRequeue()).To(BeFalse())
 			} else if tc.expectTaskCompleted {
 				g.Expect(result.NeedsRequeue()).To(BeTrue())
-				if tc.phase == druidv1alpha1.OperationPhaseRunning {
+				if tc.expectedOperation.Type == druidv1alpha1.LastOperationTypeExecution {
 					g.Expect(result.HasErrors()).To(BeFalse())
 					g.Expect(result.GetResult().RequeueAfter).To(BeNumerically(">", 0))
 				} else {
@@ -857,9 +795,9 @@ func TestHandleSuccess(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			g.Expect(updatedTask.Status.LastOperation).ToNot(BeNil())
-			g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(tc.expectedOpType))
-			g.Expect(updatedTask.Status.LastOperation.State).To(Equal(tc.expectedOpState))
-			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(tc.result.Description))
+			g.Expect(updatedTask.Status.LastOperation.Type).To(Equal(tc.expectedOperation.Type))
+			g.Expect(updatedTask.Status.LastOperation.State).To(Equal(tc.expectedOperation.State))
+			g.Expect(updatedTask.Status.LastOperation.Description).To(Equal(tc.expectedOperation.Description))
 
 			if tc.expectedTaskState != nil {
 				g.Expect(updatedTask.Status.State).ToNot(BeNil())

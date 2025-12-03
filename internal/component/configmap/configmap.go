@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -24,11 +25,11 @@ import (
 
 const (
 	// ErrGetConfigMap indicates an error in getting the configmap resource.
-	ErrGetConfigMap druidv1alpha1.ErrorCode = "ERR_GET_CONFIGMAP"
+	ErrGetConfigMap druidapicommon.ErrorCode = "ERR_GET_CONFIGMAP"
 	// ErrSyncConfigMap indicates an error in syncing the configmap resource.
-	ErrSyncConfigMap druidv1alpha1.ErrorCode = "ERR_SYNC_CONFIGMAP"
+	ErrSyncConfigMap druidapicommon.ErrorCode = "ERR_SYNC_CONFIGMAP"
 	// ErrDeleteConfigMap indicates an error in deleting the configmap resource.
-	ErrDeleteConfigMap druidv1alpha1.ErrorCode = "ERR_DELETE_CONFIGMAP"
+	ErrDeleteConfigMap druidapicommon.ErrorCode = "ERR_DELETE_CONFIGMAP"
 )
 
 type _resource struct {

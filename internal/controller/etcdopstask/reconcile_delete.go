@@ -12,10 +12,10 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	druiderr "github.com/gardener/etcd-druid/internal/errors"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-	"k8s.io/utils/ptr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -23,12 +23,11 @@ import (
 // triggerDeletionFlow handles the deletion flow for EtcdOpsTask resources.
 func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger, taskHandler handler.Handler, task *druidv1alpha1.EtcdOpsTask) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("op", "triggerDeletionFlow")
-	logger.Info("Triggering deletion flow", "completed", task.IsCompleted(), "markedForDeletion", task.IsMarkedForDeletion())
+	logger.Info("Triggering deletion flow", "completed", task.IsCompleted(), "markedForDeletion", druidv1alpha1.IsResourceMarkedForDeletion(task.ObjectMeta))
 
-	// If task is completed but not marked for deletion, wait for TTL expiry
 	if task.IsCompleted() {
 		if !task.HasTTLExpired() {
-			logger.Info("Task completed but TTL not expired yet, will requeue after TTL", "ttlSeconds", task.Spec.TTLSecondsAfterFinished)
+			logger.Info("Task completed but TTL not expired yet, will requeue after TTL", "ttlSeconds", task.GetTimeToExpiry().Seconds())
 			return ctrlutils.ReconcileAfter(task.GetTimeToExpiry(), "Task completed, waiting for TTL to expire")
 		}
 		logger.Info("Task TTL expired, proceeding with deletion")
@@ -52,10 +51,19 @@ func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger
 // cleanupTaskResources calls the Cleanup method of the task handler.
 func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "cleanupTaskResources")
-	logger.Info("Executing step: cleanupTaskResources")
 
 	task, err := r.getTask(ctx, taskObjKey)
 	if err != nil {
+		return ctrlutils.ReconcileWithError(err)
+	}
+
+	if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+		Operation: &druidapicommon.LastOperation{
+			Type:        druidv1alpha1.LastOperationTypeCleanup,
+			State:       druidv1alpha1.LastOperationStateInProgress,
+			Description: "Task Cleanup phase is in Progress",
+		},
+	}); err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
 
@@ -66,39 +74,24 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 		// 1. Task is not supported by the controller
 		// 2. Task admit failed
 		// In these cases, we don't want to call the cleanup method of the task handler. Since there is no cleanup to be done, we can skip this step.
-		if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeDelete,
-				State:       druidv1alpha1.LastOperationStateProcessing,
+		if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+			Operation: &druidapicommon.LastOperation{
+				Type:        druidv1alpha1.LastOperationTypeCleanup,
+				State:       druidv1alpha1.LastOperationStateCompleted,
 				Description: "Cleanup skipped for rejected task",
 			},
-			Phase: ptr.To(druidv1alpha1.OperationPhaseCleanup),
 		}); err != nil {
 			return ctrlutils.ReconcileWithError(err)
 		}
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
-		Operation: &druidv1alpha1.LastOperation{
-			Type:        druidv1alpha1.LastOperationTypeDelete,
-			State:       druidv1alpha1.LastOperationStateProcessing,
-			Description: "Task Cleanup phase is in Progress",
-		},
-		Phase: ptr.To(druidv1alpha1.OperationPhaseCleanup),
-	}); err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
-
 	result := taskHandler.Cleanup(ctx)
-	return r.handleTaskResult(ctx, logger, task, result, druidv1alpha1.OperationPhaseCleanup)
+	return r.handleTaskResult(ctx, logger, task, result, druidv1alpha1.LastOperationTypeCleanup)
 }
 
 // removeTaskFinalizer removes the finalizer from the EtcdOpsTask resource.
-func (r *Reconciler) removeTaskFinalizer(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
-	logger = logger.WithValues("step", "removeTaskFinalizer")
-	logger.Info("Executing step: removeTaskFinalizer")
-
+func (r *Reconciler) removeTaskFinalizer(ctx context.Context, _ logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	task, err := r.getTask(ctx, taskObjKey)
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
@@ -106,16 +99,7 @@ func (r *Reconciler) removeTaskFinalizer(ctx context.Context, logger logr.Logger
 	if controllerutil.ContainsFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName) {
 		patch := client.MergeFrom(task.DeepCopy())
 		controllerutil.RemoveFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName)
-		if err := r.client.Patch(ctx, task, patch); err != nil {
-			if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
-				Operation: &druidv1alpha1.LastOperation{
-					Type:        druidv1alpha1.LastOperationTypeDelete,
-					State:       druidv1alpha1.LastOperationStateRequeue,
-					Description: fmt.Sprintf("removeTaskFinalizer failed to remove finalizer: %v", err),
-				},
-			}); updateErr != nil {
-				return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
-			}
+		if err = r.client.Patch(ctx, task, patch); err != nil {
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
@@ -125,21 +109,31 @@ func (r *Reconciler) removeTaskFinalizer(ctx context.Context, logger logr.Logger
 // removeTask deletes the EtcdOpsTask resource from the cluster.
 func (r *Reconciler) removeTask(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "removeTask")
-	logger.Info("Executing step: removeTask")
 
-	if task, err := r.getTask(ctx, taskObjKey); err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	} else if err := r.client.Delete(ctx, task); err != nil {
-		if updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
-			Operation: &druidv1alpha1.LastOperation{
-				Type:        druidv1alpha1.LastOperationTypeDelete,
-				State:       druidv1alpha1.LastOperationStateError,
-				Description: fmt.Sprintf("removeTask failed to delete task: %v", err),
-			},
-		}); updateErr != nil {
-			return ctrlutils.ReconcileWithError(errors.Wrapf(err, "failed to update status after error: %v", updateErr))
+	task, err := r.getTask(ctx, taskObjKey)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Info("EtcdOpsTask resource already deleted")
+			return ctrlutils.DoNotRequeue()
 		}
-		return ctrlutils.ReconcileWithError(client.IgnoreNotFound(err))
+		return ctrlutils.ReconcileWithError(err)
+	} else if err = r.client.Delete(ctx, task); err != nil {
+		if !apierrors.IsNotFound(err) {
+			updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
+				Operation: &druidapicommon.LastOperation{
+					Type:        druidv1alpha1.LastOperationTypeCleanup,
+					State:       druidv1alpha1.LastOperationStateInProgress,
+					Description: "Task Cleanup phase is in progress",
+				},
+				Error: druiderr.WrapError(err, handler.ErrDeleteEtcdOpsTask, string(druidv1alpha1.LastOperationTypeCleanup), "failed to delete EtcdOpsTask resource"),
+			})
+			if updateErr != nil {
+				return ctrlutils.ReconcileWithError(fmt.Errorf("%w: failed to delete task and update last opertion: %w", err, updateErr))
+			}
+			return ctrlutils.ReconcileWithError(err)
+		}
 	}
+
+	logger.Info("EtcdOpsTask resource deleted successfully")
 	return ctrlutils.DoNotRequeue()
 }

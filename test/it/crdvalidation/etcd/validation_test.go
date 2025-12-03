@@ -12,6 +12,8 @@ import (
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 func TestMain(m *testing.M) {
@@ -31,8 +33,13 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-validation", []string{assets.GetEtcdCrdPath(k8sVersionAbove129)})
+	etcdCrd, err := assets.GetEtcdCrd(k8sVersion)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to get Etcd CRD: %v\n", err)
+		os.Exit(1)
+	}
 
+	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-validation", []*apiextensionsv1.CustomResourceDefinition{etcdCrd})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)

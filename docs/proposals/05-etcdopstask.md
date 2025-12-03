@@ -126,9 +126,6 @@ type EtcdOpsTaskStatus struct {
 	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
   // Time at which the task has moved from "pending" state to any other state.
   StartedAt *metav1.Time `json:"startedAt"`
-  // Phase represents the current phase of the task's lifecycle.
-	// +optional
-	Phase *OperationPhase `json:"phase,omitempty"`
   // LastError represents the errors when processing the task.
   // +optional
   LastErrors []LastError `json:"lastErrors,omitempty"`
@@ -171,36 +168,27 @@ const (
   TaskStateInProgress TaskState = "InProgress"
 )
 
-// LastOperationState represents the state of last operation.
-type LastOperationState string
-
+// LastOperationState represents the state of the last operation.
 const (
-    // LastOperationStateProcessing indicates that an operation is in progress.
-	  LastOperationStateProcessing LastOperationState = "Processing"
-    // LastOperationStateError indicates that an operation is completed with errors and will be retried.
-	  LastOperationStateError LastOperationState = "Error"
-	  // LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.
-	  LastOperationStateRequeue LastOperationState = "Requeue"
+	// LastOperationStateInProgress indicates that the operation is currently in progress.
+	LastOperationStateInProgress druidapicommon.LastOperationState = "InProgress"
+	// LastOperationStateCompleted indicates that the operation has completed.
+	LastOperationStateCompleted druidapicommon.LastOperationState = "Completed"
+	// LastOperationStateFailed indicates that the operation has failed.
+	LastOperationStateFailed druidapicommon.LastOperationState = "Failed"
 )
 
-// LastOperationType is a string alias representing type of the last operation.
-type LastOperationType string
-
+// LastOperationType represents the type of the last operation.
 const (
-    // LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.
-	  LastOperationTypeReconcile LastOperationType = "Reconcile"
-	  // LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.
-	  LastOperationTypeDelete LastOperationType = "Delete"
+	// LastOperationTypeAdmit indicates that the task is in the admission phase.
+	LastOperationTypeAdmit druidapicommon.LastOperationType = "Admit"
+	// LastOperationTypeExecution indicates that the task has successfully passed admission criteria and is currently being executed.
+	LastOperationTypeExecution druidapicommon.LastOperationType = "Execution"
+	// LastOperationTypeCleanup indicates that the cleanup of the task resources has begun.
+	// This will happen when the task has completed and its TTL has expired.
+	LastOperationTypeCleanup druidapicommon.LastOperationType = "Cleanup"
 )
 
-// OperationPhase represents the current phase of the task's lifecycle.
-type OperationPhase string
-
-const (
-	OperationPhaseAdmit OperationPhase = "Admit"
-	OperationPhaseRunning OperationPhase = "Running"
-	OperationPhaseCleanup OperationPhase = "Cleanup"
-)
 ```
 
 ### Custom Resource YAML API
@@ -221,14 +209,13 @@ status:
     state: <last known current state of the out-of-band task>
     lastTransitionTime: <Time at which the task status changed from one state to another>
     startedAt: <time at which task move to any other state from "pending" state>
-    phase: <current phase of the task's lifecycle i.e whether it is in Admit or Running or Cleanup phase>
     lastErrors:
     - code: <error-code>
       description: <description of the error>
       observedAt: <time the error was observed>
     lastOperation:
-      type: <The current type of the task i.e whether it is in Reconcile or Delete operation>
-      state: <task state as seen at the completion of last operation ie either Requeue or Error or Processing>
+      type: <The current type of the task i.e whether it is Admit or Execution or Cleanup>
+      state: <task state as seen at the completion of last operation ie either InProgress or Completed or Failed>
       lastUpdateTime: <time of transition to this state>
       description: <reason/message if any>
 ```

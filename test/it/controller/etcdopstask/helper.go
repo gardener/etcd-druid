@@ -28,26 +28,21 @@ import (
 
 // ReconcilerTestEnv encapsulates the test environment required to test the EtcdOpsTask reconciler.
 type ReconcilerTestEnv struct {
-	itTestEnv  setup.DruidTestEnvironment
-	reconciler *etcdopstask.Reconciler
+	ItTestEnv  setup.DruidTestEnvironment
+	Reconciler *etcdopstask.Reconciler
 }
 
 // InjectHTTPClient injects an HTTP client into the reconciler's task handler registry for testing.
 func (env *ReconcilerTestEnv) InjectHTTPClient(httpClient *http.Client) {
-	registry := env.reconciler.GetTaskHandlerRegistry()
+	registry := env.Reconciler.GetTaskHandlerRegistry()
 	registry.Register("OnDemandSnapshot", func(k8sclient client.Client, task *druidv1alpha1.EtcdOpsTask, _ *http.Client) (handler.Handler, error) {
 		return ondemandsnapshot.New(k8sclient, task, httpClient)
 	})
 }
 
 // initializeEtcdOpsTaskReconcilerTestEnv sets up the test environment
-func initializeEtcdOpsTaskReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvironment, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
-	var g *WithT
-	if t != nil {
-		g = NewWithT(t)
-	} else {
-		g = NewWithT(&testing.T{})
-	}
+func InitializeEtcdOpsTaskReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvironment, clientBuilder *testutils.TestClientBuilder) ReconcilerTestEnv {
+	g := NewWithT(&testing.T{})
 	var (
 		reconciler *etcdopstask.Reconciler
 	)
@@ -68,43 +63,16 @@ func initializeEtcdOpsTaskReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidT
 	}
 
 	return ReconcilerTestEnv{
-		itTestEnv:  itTestEnv,
-		reconciler: reconciler,
+		ItTestEnv:  itTestEnv,
+		Reconciler: reconciler,
 	}
 }
 
-// newTestTask creates a new EtcdOpsTask instance.
-func newTestTask(namespace string, state *druidv1alpha1.TaskState) *druidv1alpha1.EtcdOpsTask {
-	ts := &druidv1alpha1.EtcdOpsTask{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-task",
-			Namespace: namespace,
-		},
-		Spec: druidv1alpha1.EtcdOpsTaskSpec{
-			Config: druidv1alpha1.EtcdOpsTaskConfig{
-				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
-					Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
-					TimeoutSecondsFull: ptr.To(int32(150)),
-					IsFinal:            ptr.To(false),
-				},
-			},
-			TTLSecondsAfterFinished: ptr.To(int32(20)),
-			EtcdName:                ptr.To("test-etcd"),
-		},
-		Status: druidv1alpha1.EtcdOpsTaskStatus{},
-	}
-	if state != nil {
-		ts.Status.State = state
-	}
-	return ts
-}
-
-// setupReadyEtcdInstance creates an etcd instance and sets it to ready status
-func setupReadyEtcdInstance(ctx context.Context, g *WithT, t *testing.T, cl client.Client, namespace string) *druidv1alpha1.Etcd {
+// deployReadyEtcd creates an etcd instance and sets it to ready status
+func DeployReadyEtcd(ctx context.Context, g *WithT, t *testing.T, cl client.Client, namespace string) *druidv1alpha1.Etcd {
 	etcdInstance := testutils.EtcdBuilderWithDefaults("test-etcd", namespace).Build()
 
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
-	// Set etcd as ready
 	etcdInstance.Status.Conditions = []druidv1alpha1.Condition{
 		{
 			Type:               druidv1alpha1.ConditionTypeReady,
@@ -117,12 +85,11 @@ func setupReadyEtcdInstance(ctx context.Context, g *WithT, t *testing.T, cl clie
 	g.Expect(cl.Status().Update(ctx, etcdInstance)).To(Succeed())
 	t.Logf("updated etcd instance status to ready")
 
-	// Verify etcd readiness
 	g.Eventually(func() bool {
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance); err != nil {
 			return false
 		}
-		return etcdInstance.IsReady() == nil
+		return etcdInstance.IsReady()
 	}, 5*time.Second, 100*time.Millisecond).Should(BeTrue())
 
 	t.Logf("etcd instance is now ready")

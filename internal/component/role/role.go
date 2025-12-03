@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -23,11 +24,11 @@ import (
 
 const (
 	// ErrGetRole indicates an error in getting the role resource.
-	ErrGetRole druidv1alpha1.ErrorCode = "ERR_GET_ROLE"
+	ErrGetRole druidapicommon.ErrorCode = "ERR_GET_ROLE"
 	// ErrSyncRole indicates an error in syncing the role resource.
-	ErrSyncRole druidv1alpha1.ErrorCode = "ERR_SYNC_ROLE"
+	ErrSyncRole druidapicommon.ErrorCode = "ERR_SYNC_ROLE"
 	// ErrDeleteRole indicates an error in deleting the role resource.
-	ErrDeleteRole druidv1alpha1.ErrorCode = "ERR_DELETE_ROLE"
+	ErrDeleteRole druidapicommon.ErrorCode = "ERR_DELETE_ROLE"
 )
 
 type _resource struct {

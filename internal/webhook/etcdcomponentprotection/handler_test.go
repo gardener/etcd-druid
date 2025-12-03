@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -344,7 +345,7 @@ func TestHandleUpdate(t *testing.T) {
 		isRuntimeComponent           bool
 		// ----- etcd configuration -----
 		etcdAnnotations         map[string]string
-		etcdStatusLastOperation *druidv1alpha1.LastOperation
+		etcdStatusLastOperation *druidapicommon.LastOperation
 		etcdGetErr              *apierrors.StatusError
 		// ----- handler configuration -----
 		reconcilerServiceAccountInfo druidconfigv1alpha1.ServiceAccountInfo
@@ -375,7 +376,7 @@ func TestHandleUpdate(t *testing.T) {
 			name:                         "operator makes a request when Etcd is being reconciled by druid",
 			userName:                     testUserName,
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			expectedAllowed:              false,
 			expectedMessage:              fmt.Sprintf("changes from service account %s are disallowed at the moment", testUserName),
@@ -385,7 +386,7 @@ func TestHandleUpdate(t *testing.T) {
 			name:                         "druid makes a request during its reconciliation run",
 			userName:                     testServiceAccountFQDN,
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			expectedAllowed:              true,
 			expectedMessage:              "update of managed resources by etcd-druid is allowed",
@@ -415,7 +416,7 @@ func TestHandleUpdate(t *testing.T) {
 			name:                         "Etcd is currently being reconciled by druid, and request is from an exempt service account",
 			userName:                     exemptServiceAccounts[0],
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			exemptServiceAccounts:        exemptServiceAccounts,
 			expectedAllowed:              false,
@@ -427,7 +428,7 @@ func TestHandleUpdate(t *testing.T) {
 			userName:                     exemptServiceAccounts[0],
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
 			isObjectDeletionTimestampSet: true,
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			exemptServiceAccounts:        exemptServiceAccounts,
 			expectedAllowed:              true,
@@ -625,7 +626,7 @@ func TestHandleDelete(t *testing.T) {
 		objectRaw    []byte
 		// ----- etcd configuration -----
 		etcdAnnotations         map[string]string
-		etcdStatusLastOperation *druidv1alpha1.LastOperation
+		etcdStatusLastOperation *druidapicommon.LastOperation
 		etcdGetErr              *apierrors.StatusError
 		// ----- handler configuration -----
 		reconcilerServiceAccountInfo druidconfigv1alpha1.ServiceAccountInfo
@@ -648,7 +649,7 @@ func TestHandleDelete(t *testing.T) {
 			name:                         "Etcd is currently being reconciled by druid, and request is from non-exempt service account",
 			userName:                     testUserName,
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			expectedAllowed:              false,
 			expectedReason:               "Forbidden",
@@ -659,7 +660,7 @@ func TestHandleDelete(t *testing.T) {
 			name:                         "Etcd is currently being reconciled by druid, and request is from druid",
 			userName:                     testServiceAccountFQDN,
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			expectedAllowed:              true,
 			expectedMessage:              "update of managed resources by etcd-druid is allowed",
@@ -669,7 +670,7 @@ func TestHandleDelete(t *testing.T) {
 			name:                         "Etcd is currently being reconciled by druid, and request is from exempt service account",
 			userName:                     exemptServiceAccounts[0],
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeReconcile, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			exemptServiceAccounts:        exemptServiceAccounts,
 			expectedAllowed:              false,
@@ -702,7 +703,7 @@ func TestHandleDelete(t *testing.T) {
 			name:                         "Etcd is currently being deleted by druid, and request is from non-exempt service account",
 			userName:                     testUserName,
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			expectedAllowed:              false,
 			expectedReason:               "Forbidden",
@@ -713,7 +714,7 @@ func TestHandleDelete(t *testing.T) {
 			name:                         "Etcd is currently being deleted by druid, and request is from druid",
 			userName:                     testServiceAccountFQDN,
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			expectedAllowed:              true,
 			expectedMessage:              fmt.Sprintf("deletion of resource by etcd-druid is allowed during deletion of Etcd %s", testEtcdName),
@@ -723,7 +724,7 @@ func TestHandleDelete(t *testing.T) {
 			name:                         "Etcd is not currently being deleted by druid, and request is from exempt service account",
 			userName:                     exemptServiceAccounts[0],
 			objectLabels:                 map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			etcdStatusLastOperation:      &druidv1alpha1.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
+			etcdStatusLastOperation:      &druidapicommon.LastOperation{Type: druidv1alpha1.LastOperationTypeDelete, State: druidv1alpha1.LastOperationStateProcessing},
 			reconcilerServiceAccountInfo: reconcilerServiceAccountInfo,
 			exemptServiceAccounts:        exemptServiceAccounts,
 			expectedAllowed:              true,

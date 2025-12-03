@@ -5,8 +5,9 @@
 package v1alpha1
 
 import (
-	"fmt"
 	"time"
+
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,17 +36,23 @@ const (
 	TaskStateRejected TaskState = "Rejected"
 )
 
-// OperationPhase represents the current phase of the EtcdOpstask's lifecycle.
-// +kubebuilder:validation:Enum=Admit;Running;Cleanup
-type OperationPhase string
+const (
+	// LastOperationTypeAdmit indicates that the task is in the admission phase.
+	LastOperationTypeAdmit druidapicommon.LastOperationType = "Admit"
+	// LastOperationTypeExecution indicates that the task has successfully passed admission criteria and is currently being executed.
+	LastOperationTypeExecution druidapicommon.LastOperationType = "Execution"
+	// LastOperationTypeCleanup indicates that the cleanup of the task resources has begun.
+	// This will happen when the task has completed and its TTL has expired.
+	LastOperationTypeCleanup druidapicommon.LastOperationType = "Cleanup"
+)
 
 const (
-	// OperationPhaseAdmit indicates that the task is in the admission phase.
-	OperationPhaseAdmit OperationPhase = "Admit"
-	// OperationPhaseRunning indicates that the task is currently being executed.
-	OperationPhaseRunning OperationPhase = "Running"
-	// OperationPhaseCleanup indicates that the task is in the cleanup phase.
-	OperationPhaseCleanup OperationPhase = "Cleanup"
+	// LastOperationStateInProgress indicates that the operation is currently in progress.
+	LastOperationStateInProgress druidapicommon.LastOperationState = "InProgress"
+	// LastOperationStateCompleted indicates that the operation has completed.
+	LastOperationStateCompleted druidapicommon.LastOperationState = "Completed"
+	// LastOperationStateFailed indicates that the operation has failed.
+	LastOperationStateFailed druidapicommon.LastOperationState = "Failed"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +67,7 @@ const (
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 // +kubebuilder:printcolumn:name="Etcd",type=string,JSONPath=`.spec.etcdName`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`,priority=1
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.lastOperation.type`,priority=1
 // +kubebuilder:printcolumn:name="TTL",type=integer,JSONPath=`.spec.ttlSecondsAfterFinished`,priority=1
 
 // EtcdOpsTask represents a task to perform operations on an Etcd cluster.
@@ -129,8 +136,7 @@ type EtcdOpsTaskConfig struct {
 
 // EtcdOpsTaskStatus defines the observed state of an EtcdOpsTask.
 type EtcdOpsTaskStatus struct {
-	// State is the overall state of the task.
-	// The controller initializes this field when processing the task.
+	// State represents the current state of the task.
 	// +optional
 	State *TaskState `json:"state,omitempty"`
 
@@ -142,34 +148,31 @@ type EtcdOpsTaskStatus struct {
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 
-	// Phase represents the current phase of the task's lifecycle.
-	// +optional
-	Phase *OperationPhase `json:"phase,omitempty"`
-
 	// LastErrors is a list of the most recent errors observed during the task's execution.
 	// A maximum of 10 latest errors will be recorded.
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
-	LastErrors []LastError `json:"lastErrors,omitempty"`
+	LastErrors []druidapicommon.LastError `json:"lastErrors,omitempty"`
 
 	// LastOperation tracks the fine-grained progress of the task's execution.
 	// The controller initializes this field when processing the task.
 	// +optional
-	LastOperation *LastOperation `json:"lastOperation,omitempty"`
+	LastOperation *druidapicommon.LastOperation `json:"lastOperation,omitempty"`
 }
 
 // GetEtcdReference returns the NamespacedName of the etcd object referenced by the task.
-func (t *EtcdOpsTask) GetEtcdReference() (types.NamespacedName, error) {
+func (t *EtcdOpsTask) GetEtcdReference() types.NamespacedName {
 	if t.Spec.EtcdName == nil || *t.Spec.EtcdName == "" {
-		return types.NamespacedName{}, fmt.Errorf("etcdName is required but not specified")
+		return types.NamespacedName{}
 	}
 	return types.NamespacedName{
 		Name:      *t.Spec.EtcdName,
 		Namespace: t.Namespace,
-	}, nil
+	}
 }
 
 // IsCompleted returns true if the task is completed.
+// The etcdopsatask is considered as completed if the task has one of these states: Succeeded, Failed, or Rejected.
 func (t *EtcdOpsTask) IsCompleted() bool {
 	if t.Status.State == nil {
 		return false
@@ -177,30 +180,19 @@ func (t *EtcdOpsTask) IsCompleted() bool {
 	return *t.Status.State == TaskStateSucceeded || *t.Status.State == TaskStateFailed || *t.Status.State == TaskStateRejected
 }
 
-// IsMarkedForDeletion returns true if the deletion timestamp is set.
-func (t *EtcdOpsTask) IsMarkedForDeletion() bool {
-	return t.ObjectMeta.DeletionTimestamp != nil
-}
-
-// HasTTLExpired returns true if the TTL after finished has expired.
+// HasTTLExpired returns true if the TTL after completion has expired.
 func (t *EtcdOpsTask) HasTTLExpired() bool {
 	return t.GetTimeToExpiry() == 0
 }
 
-// GetTTL returns the TTL duration for the task as set in the spec.
-func (t *EtcdOpsTask) GetTTL() time.Duration {
-	return time.Duration(*t.Spec.TTLSecondsAfterFinished) * time.Second
-}
-
 // GetTimeToExpiry returns the remaining duration until the task's TTL expires.
-// If the task's TTL hasn't expired yet, it returns zero.
+// If the task's TTL has already expired, it returns zero.
 func (t *EtcdOpsTask) GetTimeToExpiry() time.Duration {
 	now := time.Now().UTC()
-	baseTime := t.Status.LastTransitionTime
-	expiry := baseTime.Add(t.GetTTL())
-	remaining := expiry.Sub(now)
-	if remaining < 0 {
-		return 0
+	ttl := time.Duration(*t.Spec.TTLSecondsAfterFinished) * time.Second
+	expiry := t.Status.LastTransitionTime.Add(ttl)
+	if now.Before(expiry) {
+		return expiry.Sub(now)
 	}
-	return remaining
+	return 0
 }

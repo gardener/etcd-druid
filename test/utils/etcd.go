@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
@@ -177,8 +178,8 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},
 		},
-		LastErrors: []druidv1alpha1.LastError{},
-		LastOperation: &druidv1alpha1.LastOperation{
+		LastErrors: []druidapicommon.LastError{},
+		LastOperation: &druidapicommon.LastOperation{
 			Type:           druidv1alpha1.LastOperationTypeReconcile,
 			State:          druidv1alpha1.LastOperationStateSucceeded,
 			Description:    "Reconciliation succeeded",
@@ -218,6 +219,14 @@ func (eb *EtcdBuilder) WithConditionAllMembersUpdated(updated bool) *EtcdBuilder
 	return eb
 }
 
+func (eb *EtcdBuilder) WithStatusConditions(conditions []druidv1alpha1.Condition) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Status.Conditions = conditions
+	return eb
+}
+
 func getConditionAllMembersUpdated(updated bool) (status druidv1alpha1.ConditionStatus, reason, message string) {
 	if updated {
 		return druidv1alpha1.ConditionTrue, "AllMembersUpdated", "All members reflect latest desired spec"
@@ -226,7 +235,7 @@ func getConditionAllMembersUpdated(updated bool) (status druidv1alpha1.Condition
 
 }
 
-func (eb *EtcdBuilder) WithLastOperation(operation *druidv1alpha1.LastOperation) *EtcdBuilder {
+func (eb *EtcdBuilder) WithLastOperation(operation *druidapicommon.LastOperation) *EtcdBuilder {
 	eb.etcd.Status.LastOperation = operation
 	return eb
 }

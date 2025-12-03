@@ -6,11 +6,15 @@ package assets
 
 import (
 	"errors"
+	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/internal/images"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"sigs.k8s.io/yaml"
 
 	. "github.com/onsi/gomega"
 )
@@ -25,25 +29,33 @@ func GetK8sVersionFromEnv() (string, error) {
 	}
 }
 
-// Duplicating some code here that can be replaced with a call to the API module of etcd-druid.
-// This will be removed once Kubernetes 1.29 becomes the minimum supported version.
-
-// GetEtcdCrdPath returns the path to the Etcd CRD for k8s versions >= 1.29 or the path to the Etcd CRD without CEL expressions (For versions < 1.29)
-func GetEtcdCrdPath(k8sVersionAbove129 bool) string {
-	if k8sVersionAbove129 {
-		return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcds.yaml")
+// getCRD is a helper function that retrieves and unmarshals a CRD by its resource name.
+func getCRD(k8sVersion, resourceName string) (*apiextensionsv1.CustomResourceDefinition, error) {
+	allCRDs, err := crds.GetAll(k8sVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get CRDs for k8s version %s: %w", k8sVersion, err)
 	}
-	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcds_without_cel.yaml")
+
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal([]byte(allCRDs[resourceName]), crd); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CRD %s: %w", resourceName, err)
+	}
+	return crd, nil
 }
 
-// GetEtcdCopyBackupsTaskCrdPath returns the path to the EtcdCopyBackupsTask CRD.
-func GetEtcdCopyBackupsTaskCrdPath() string {
-	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcdcopybackupstasks.yaml")
+// GetEtcdCrd returns the Etcd CRD object for k8s versions >= 1.29 or the Etcd CRD without CEL expressions (For versions < 1.29)
+func GetEtcdCrd(k8sVersion string) (*apiextensionsv1.CustomResourceDefinition, error) {
+	return getCRD(k8sVersion, crds.ResourceNameEtcd)
 }
 
-// GetEtcdOpsTaskCrdPath returns the path to the EtcdOpsTask CRD.
-func GetEtcdOpsTaskCrdPath() string {
-	return filepath.Join("..", "..", "..", "..", "api", "core", "v1alpha1", "crds", "druid.gardener.cloud_etcdopstasks.yaml")
+// GetEtcdCopyBackupsTaskCrd returns the EtcdCopyBackupsTask CRD object.
+func GetEtcdCopyBackupsTaskCrd(k8sVersion string) (*apiextensionsv1.CustomResourceDefinition, error) {
+	return getCRD(k8sVersion, crds.ResourceNameEtcdCopyBackupsTask)
+}
+
+// GetEtcdOpsTaskCrd returns the EtcdOpsTask CRD object.
+func GetEtcdOpsTaskCrd(k8sVersion string) (*apiextensionsv1.CustomResourceDefinition, error) {
+	return getCRD(k8sVersion, crds.ResourceNameEtcdOpsTask)
 }
 
 // CreateImageVector creates an image vector.

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -24,7 +24,7 @@ const ErrRequeueAfter = "ERR_REQUEUE_AFTER"
 // as operation during which an error occurred and any custom message.
 type DruidError struct {
 	// Code indicates the category of error adding contextual information to the underline error.
-	Code druidv1alpha1.ErrorCode
+	Code druidapicommon.ErrorCode
 	// Cause is the underline error.
 	Cause error
 	// Operation is the semantic operation during which this error is created/wrapped.
@@ -52,7 +52,7 @@ func (e *DruidError) WithCause(err error) error {
 }
 
 // New creates a new DruidError with the given error code, operation and message.
-func New(code druidv1alpha1.ErrorCode, operation string, message string) error {
+func New(code druidapicommon.ErrorCode, operation string, message string) error {
 	return &DruidError{
 		Code:       code,
 		Operation:  operation,
@@ -63,7 +63,7 @@ func New(code druidv1alpha1.ErrorCode, operation string, message string) error {
 
 // WrapError wraps an error and contextual information like code, operation and message to create a DruidError
 // Consumers can use errors.As or errors.Is to check if the error is of type DruidError and get its constituent fields.
-func WrapError(err error, code druidv1alpha1.ErrorCode, operation string, message string) error {
+func WrapError(err error, code druidapicommon.ErrorCode, operation string, message string) error {
 	if err == nil {
 		return nil
 	}
@@ -78,8 +78,8 @@ func WrapError(err error, code druidv1alpha1.ErrorCode, operation string, messag
 
 // MapToLastErrors maps a slice of DruidError's and maps these to druidv1alpha1.LastError slice which
 // will be set in the status of an etcd resource.
-func MapToLastErrors(errs []error) []druidv1alpha1.LastError {
-	lastErrs := make([]druidv1alpha1.LastError, 0, len(errs))
+func MapToLastErrors(errs []error) []druidapicommon.LastError {
+	lastErrs := make([]druidapicommon.LastError, 0, len(errs))
 	for _, err := range errs {
 		druidErr := &DruidError{}
 		if errors.As(err, &druidErr) {
@@ -87,7 +87,7 @@ func MapToLastErrors(errs []error) []druidv1alpha1.LastError {
 			if druidErr.Cause != nil {
 				desc += fmt.Sprintf(", cause: %s", druidErr.Cause.Error())
 			}
-			lastErr := druidv1alpha1.LastError{
+			lastErr := druidapicommon.LastError{
 				Code:        druidErr.Code,
 				Description: desc,
 				ObservedAt:  metav1.NewTime(druidErr.ObservedAt),

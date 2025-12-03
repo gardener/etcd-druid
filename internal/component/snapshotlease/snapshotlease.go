@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -24,11 +25,11 @@ import (
 
 const (
 	// ErrGetSnapshotLease indicates an error in getting the snapshot lease resources.
-	ErrGetSnapshotLease druidv1alpha1.ErrorCode = "ERR_GET_SNAPSHOT_LEASE"
+	ErrGetSnapshotLease druidapicommon.ErrorCode = "ERR_GET_SNAPSHOT_LEASE"
 	// ErrSyncSnapshotLease indicates an error in syncing the snapshot lease resources.
-	ErrSyncSnapshotLease druidv1alpha1.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
+	ErrSyncSnapshotLease druidapicommon.ErrorCode = "ERR_SYNC_SNAPSHOT_LEASE"
 	// ErrDeleteSnapshotLease indicates an error in deleting the snapshot lease resources.
-	ErrDeleteSnapshotLease druidv1alpha1.ErrorCode = "ERR_DELETE_SNAPSHOT_LEASE"
+	ErrDeleteSnapshotLease druidapicommon.ErrorCode = "ERR_DELETE_SNAPSHOT_LEASE"
 )
 
 type _resource struct {

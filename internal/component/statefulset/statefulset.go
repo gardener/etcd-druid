@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -27,11 +28,11 @@ import (
 
 const (
 	// ErrGetStatefulSet indicates an error in getting the statefulset resource.
-	ErrGetStatefulSet druidv1alpha1.ErrorCode = "ERR_GET_STATEFULSET"
+	ErrGetStatefulSet druidapicommon.ErrorCode = "ERR_GET_STATEFULSET"
 	// ErrSyncStatefulSet indicates an error in syncing the statefulset resource.
-	ErrSyncStatefulSet druidv1alpha1.ErrorCode = "ERR_SYNC_STATEFULSET"
+	ErrSyncStatefulSet druidapicommon.ErrorCode = "ERR_SYNC_STATEFULSET"
 	// ErrDeleteStatefulSet indicates an error in deleting the statefulset resource.
-	ErrDeleteStatefulSet druidv1alpha1.ErrorCode = "ERR_DELETE_STATEFULSET"
+	ErrDeleteStatefulSet druidapicommon.ErrorCode = "ERR_DELETE_STATEFULSET"
 )
 
 type _resource struct {

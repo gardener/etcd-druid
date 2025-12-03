@@ -6,6 +6,7 @@ package etcdopstask
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
-	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
+	taskhandler "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -34,35 +35,29 @@ func TestEnsureFinalizer(t *testing.T) {
 		name              string
 		task              *druidv1alpha1.EtcdOpsTask
 		ContainsFinalizer bool
-		patchFails        bool
-		expectError       bool
-		errSubstring      string
+		patchErr          error
 		expectedResult    ctrlutils.ReconcileStepResult
 	}{
 		{
-			name:              "Finalizer already exists",
-			task:              newTestTask(nil),
+			name:              "Should skip adding finalizer when it already exists",
+			task:              testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			ContainsFinalizer: true,
 			expectedResult:    ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:              "Finalizer does not exist, add finalizer",
-			task:              newTestTask(nil),
+			name:              "Should add finalizer when it does not exist",
+			task:              testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			ContainsFinalizer: false,
 			expectedResult:    ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:         "Task not found",
-			task:         nil,
-			expectError:  true,
-			errSubstring: "not found",
+			name: "Should return error when task does not exist",
+			task: nil,
 		},
 		{
-			name:         "Patch fails",
-			task:         newTestTask(nil),
-			patchFails:   true,
-			errSubstring: "patch failed",
-			expectError:  true,
+			name:     "Should return error when patch fails",
+			task:     testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
+			patchErr: apierrors.NewInternalError(fmt.Errorf("patch failed")),
 		},
 	}
 
@@ -72,26 +67,26 @@ func TestEnsureFinalizer(t *testing.T) {
 				cl  client.Client
 				err error
 			)
+			ctx := context.Background()
 			if tc.task != nil {
-				if tc.patchFails {
-					patchErr := apierrors.NewInternalError(fmt.Errorf("patch failed"))
+				if tc.patchErr != nil {
 					cl = testutils.NewTestClientBuilder().
 						WithScheme(kubernetes.Scheme).
 						WithObjects(tc.task).
-						RecordErrorForObjects(testutils.ClientMethodPatch, patchErr, client.ObjectKeyFromObject(tc.task)).
+						RecordErrorForObjects(testutils.ClientMethodPatch, tc.patchErr.(*apierrors.StatusError), client.ObjectKeyFromObject(tc.task)).
 						Build()
 				} else {
-					cl = setupFakeClient(tc.task, false)
-					err = cl.Create(context.TODO(), tc.task)
+					cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+					err = cl.Create(ctx, tc.task)
 					g.Expect(err).ToNot(HaveOccurred(), "Failed to create task")
 					if tc.ContainsFinalizer {
 						controllerutil.AddFinalizer(tc.task, druidapicommon.EtcdOpsTaskFinalizerName)
-						err = cl.Update(context.TODO(), tc.task)
+						err = cl.Update(ctx, tc.task)
 						g.Expect(err).ToNot(HaveOccurred(), "Failed to update task with finalizer")
 					}
 				}
 			} else {
-				cl = setupFakeClient(nil, false)
+				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
 			}
 
 			r := newTestReconciler(t, cl)
@@ -100,18 +95,23 @@ func TestEnsureFinalizer(t *testing.T) {
 			if tc.task != nil {
 				taskKey = client.ObjectKeyFromObject(tc.task)
 			}
-			result := r.ensureTaskFinalizer(context.TODO(), r.logger, taskKey, nil)
+			result := r.ensureTaskFinalizer(ctx, r.logger, taskKey, nil)
 
-			if tc.expectError {
+			if tc.patchErr != nil {
+				g.Expect(result.HasErrors()).To(BeTrue())
+				g.Expect(errors.Is(result.GetCombinedError(), tc.patchErr)).To(BeTrue())
+				return
+			}
+
+			if tc.task == nil {
 				g.Expect(result.HasErrors()).To(BeTrue())
 				g.Expect(result.GetCombinedError()).To(HaveOccurred())
-				g.Expect(result.GetCombinedError().Error()).To(ContainSubstring(tc.errSubstring))
 				return
 			}
 
 			g.Expect(result).To(Equal(tc.expectedResult))
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err = cl.Get(context.TODO(), taskKey, updatedTask)
+			err = cl.Get(ctx, taskKey, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(controllerutil.ContainsFinalizer(updatedTask, druidapicommon.EtcdOpsTaskFinalizerName)).To(BeTrue())
 		})
@@ -127,13 +127,13 @@ func TestTransitionToPendingState(t *testing.T) {
 		expectedResult ctrlutils.ReconcileStepResult
 	}{
 		{
-			name:           "Task state is not nil, i.e either Pending or InProgress. Skip the step.",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
+			name:           "Should skip task state update when current task state is not nil",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build(),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:           "Task state is nil, should transition to Pending",
-			task:           newTestTask(nil),
+			name:           "Should transition task state to InProgress when current task state is Pending",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 	}
@@ -141,14 +141,18 @@ func TestTransitionToPendingState(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cl := setupFakeClient(tc.task, true)
+			ctx := context.Background()
+			cl := testutils.NewTestClientBuilder().
+				WithScheme(kubernetes.Scheme).
+				WithStatusSubresource(tc.task).
+				Build()
 			r := newTestReconciler(t, cl)
-			err := cl.Create(context.TODO(), tc.task)
+			err := cl.Create(ctx, tc.task)
 			g.Expect(err).To(BeNil())
 
-			result := r.transitionToPendingState(context.TODO(), r.logger, client.ObjectKeyFromObject(tc.task), nil)
+			result := r.transitionToPendingState(ctx, r.logger, client.ObjectKeyFromObject(tc.task), nil)
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err = cl.Get(context.TODO(), client.ObjectKeyFromObject(tc.task), updatedTask)
+			err = cl.Get(ctx, client.ObjectKeyFromObject(tc.task), updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			g.Expect(result).To(Equal(tc.expectedResult))
@@ -167,6 +171,7 @@ func TestTransitionToPendingState(t *testing.T) {
 // TestAdmitTask tests the admitTask step function.
 func TestAdmitTask(t *testing.T) {
 	g := NewGomegaWithT(t)
+	testErr := fmt.Errorf("test error")
 
 	tests := []struct {
 		name                  string
@@ -175,76 +180,68 @@ func TestAdmitTask(t *testing.T) {
 		admitFailed           bool
 		resultRequeue         bool
 		expectedResult        ctrlutils.ReconcileStepResult
-		expectedLastErrors    *druidv1alpha1.LastError
-		expectedLastOperation *druidv1alpha1.LastOperation
-		expectedPhase         *druidv1alpha1.OperationPhase
+		expectedLastErrors    *druidapicommon.LastError
+		expectedLastOperation *druidapicommon.LastOperation
 	}{
 		{
-			name:        "Task does not exist",
+			name:        "Should return error when task does not exist",
 			task:        nil,
 			admitFailed: false,
 		},
 		{
-			name:                  "Duplicate task present",
+			name:                  "Should reject task when another task is already in progress",
 			additionalTaskPresent: true,
-			task:                  newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
-			expectedLastErrors: &druidv1alpha1.LastError{
-				Code:        ErrDuplicateTask,
-				Description: "Operation: AdmitOperation, Code: ErrDuplicateTask message: duplicate EtcdOpsTask for the same etcd is already in progress, cause: duplicate EtcdOpsTask for etcd  is already in progress (task: test-task-1)",
+			task:                  testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithEtcdName("test-etcd").WithState(druidv1alpha1.TaskStatePending).Build(),
+			expectedLastErrors: &druidapicommon.LastError{
+				Code: taskhandler.ErrDuplicateTask,
 			},
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.LastOperationTypeReconcile,
-				State: druidv1alpha1.LastOperationStateError,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeAdmit,
+				State: druidv1alpha1.LastOperationStateFailed,
 			},
-			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseAdmit),
 			expectedResult: ctrlutils.ReconcileAfter(3600*time.Second, "Task rejected, waiting for TTL to expire before deletion"),
 		},
 		{
-			name:           "Task state is not Pending",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:           "Should skip task admit when current task state is InProgress",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:          "result.error is not nil, result.requeue is true (temporary error)",
-			task:          newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
+			name:          "Should requeue admit when admit fails with temporary error",
+			task:          testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build(),
 			admitFailed:   true,
 			resultRequeue: true,
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.LastOperationTypeReconcile,
-				State: druidv1alpha1.LastOperationStateRequeue,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeAdmit,
+				State: druidv1alpha1.LastOperationStateInProgress,
 			},
-			expectedLastErrors: &druidv1alpha1.LastError{
-				Code:        druidv1alpha1.ErrorCode("TestError"),
-				Description: "This is a Test Error",
+			expectedLastErrors: &druidapicommon.LastError{
+				Code: druidapicommon.ErrorCode("TestError"),
 			},
-			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseAdmit),
-			expectedResult: ctrlutils.ReconcileWithError(fmt.Errorf("[Operation: TestOperation, Code: TestError] test error")),
+			expectedResult: ctrlutils.ReconcileWithError(druiderr.WrapError(testErr, "TestError", "TestOperation", "This is a test error")),
 		},
 		{
-			name:          "result.requeue is false, result.Error is nil",
-			task:          newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
+			name:          "Should mark LastOperation state as completed when admit succeeds",
+			task:          testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build(),
 			resultRequeue: false,
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.LastOperationTypeReconcile,
-				State: druidv1alpha1.LastOperationStateProcessing,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeAdmit,
+				State: druidv1alpha1.LastOperationStateCompleted,
 			},
-			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseAdmit),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:          "result.requeue is false, result.Error is not nil (permanent failure)",
-			task:          newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
+			name:          "Should mark task as rejected when admit fails with non-temporary error",
+			task:          testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build(),
 			admitFailed:   true,
 			resultRequeue: false,
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.LastOperationTypeReconcile,
-				State: druidv1alpha1.LastOperationStateError,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeAdmit,
+				State: druidv1alpha1.LastOperationStateFailed,
 			},
-			expectedLastErrors: &druidv1alpha1.LastError{
-				Code:        druidv1alpha1.ErrorCode("TestError"),
-				Description: "This is a Test Error",
+			expectedLastErrors: &druidapicommon.LastError{
+				Code: druidapicommon.ErrorCode("TestError"),
 			},
-			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseAdmit),
 			expectedResult: ctrlutils.ReconcileAfter(3600*time.Second, "Task rejected, waiting for TTL to expire"),
 		},
 	}
@@ -252,59 +249,56 @@ func TestAdmitTask(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := context.Background()
 			var cl client.Client
-			var objects []client.Object
+			var existingTasks []client.Object
 			if tc.additionalTaskPresent {
-				existingTask := newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress))
-				existingTask.Name = "test-task-1"
-				objects = append(objects, existingTask)
+				existingTask := testutils.EtcdOpsTaskBuilderWithDefaults("test-task-1", "test-ns").WithEtcdName("test-etcd").WithState(druidv1alpha1.TaskStateInProgress).Build()
+				existingTasks = append(existingTasks, existingTask)
 			}
 
 			if tc.task != nil {
-				objects = append(objects, tc.task)
+				existingTasks = append(existingTasks, tc.task)
 			}
-			if len(objects) > 0 {
-				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objects...).WithStatusSubresource(tc.task).Build()
+			if len(existingTasks) > 0 {
+				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(existingTasks...).WithStatusSubresource(tc.task).Build()
 			} else {
-				cl = setupFakeClient(nil, false)
+				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
 			}
 
 			reconciler := newTestReconciler(t, cl)
 			fakeHandler := testutils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
 
 			if tc.admitFailed {
-				fakeHandler.WithAdmit(handler.Result{
+				fakeHandler.WithAdmit(taskhandler.Result{
 					Requeue: tc.resultRequeue,
-					Error:   druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error"),
+					Error:   druiderr.WrapError(testErr, "TestError", "TestOperation", "This is a test error"),
 				})
 			} else {
-				fakeHandler.WithAdmit(handler.Result{
+				fakeHandler.WithAdmit(taskhandler.Result{
 					Requeue: tc.resultRequeue,
 				})
 			}
 
-			result := reconciler.admitTask(context.TODO(), reconciler.logger, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
+			result := reconciler.admitTask(ctx, reconciler.logger, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
 
 			if tc.task == nil {
-				checksForNilTask(g, result)
+				g.Expect(result.HasErrors()).To(BeTrue())
+				g.Expect(result.GetCombinedError()).To(HaveOccurred())
+				g.Expect(apierrors.IsNotFound(result.GetCombinedError())).To(BeTrue())
 				return
 			}
 
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err := cl.Get(context.TODO(), client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
+			err := cl.Get(ctx, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 			if tc.expectedResult.HasErrors() {
-				expectDruidErrors(g, result.GetErrors(), tc.expectedResult.GetErrors())
+				testutils.CheckDruidErrorList(g, result.GetErrors(), tc.expectedResult.GetErrors())
 			} else {
 				g.Expect(result.GetErrors()).To(HaveLen(0))
 			}
-			checkLastOperation(g, updatedTask, tc.expectedLastOperation)
-			checkLastErrors(g, updatedTask, tc.expectedLastErrors)
-
-			if tc.expectedPhase != nil {
-				g.Expect(updatedTask.Status.Phase).ToNot(BeNil())
-				g.Expect(*updatedTask.Status.Phase).To(Equal(*tc.expectedPhase))
-			}
+			testutils.CheckLastOperation(g, updatedTask.Status.LastOperation, tc.expectedLastOperation)
+			testutils.CheckLastErrors(g, updatedTask.Status.LastErrors, tc.expectedLastErrors)
 		})
 	}
 }
@@ -318,18 +312,18 @@ func TestTransitionToInProgressState(t *testing.T) {
 		expectedResult ctrlutils.ReconcileStepResult
 	}{
 		{
-			name:           "Task state is not 'Pending', skipping state updation",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:           "Should skip task state update when current task state is InProgress",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:           "Task state is nil, skipping state updation",
-			task:           newTestTask(nil),
+			name:           "Should skip task state update when current task state is not Pending",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 		{
-			name:           "Task state is 'Pending'. Update to 'InProgress'",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStatePending)),
+			name:           "Should transition task state to InProgress when current task state is Pending",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStatePending).Build(),
 			expectedResult: ctrlutils.ContinueReconcile(),
 		},
 	}
@@ -337,15 +331,19 @@ func TestTransitionToInProgressState(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cl := setupFakeClient(tc.task, true)
+			ctx := context.Background()
+			cl := testutils.NewTestClientBuilder().
+				WithScheme(kubernetes.Scheme).
+				WithStatusSubresource(tc.task).
+				Build()
 			r := newTestReconciler(t, cl)
-			err := cl.Create(context.TODO(), tc.task)
+			err := cl.Create(ctx, tc.task)
 			g.Expect(err).To(BeNil())
 
 			handler := testutils.NewFakeEtcdOpsTaskHandler("test-handler", client.ObjectKeyFromObject(tc.task), r.logger)
-			result := r.transitionToInProgressState(context.TODO(), r.logger, client.ObjectKeyFromObject(tc.task), handler)
+			result := r.transitionToInProgressState(ctx, r.logger, client.ObjectKeyFromObject(tc.task), handler)
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err = cl.Get(context.TODO(), client.ObjectKeyFromObject(tc.task), updatedTask)
+			err = cl.Get(ctx, client.ObjectKeyFromObject(tc.task), updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			g.Expect(result).To(Equal(tc.expectedResult))
@@ -362,9 +360,10 @@ func TestTransitionToInProgressState(t *testing.T) {
 	}
 }
 
-// TestRunTask tests the runTask step function.
-func TestRunTask(t *testing.T) {
+// TestExecuteTask tests the runTask step function.
+func TestExecuteTask(t *testing.T) {
 	g := NewGomegaWithT(t)
+	testErr := fmt.Errorf("test error")
 	tests := []struct {
 		name                  string
 		task                  *druidv1alpha1.EtcdOpsTask
@@ -372,70 +371,64 @@ func TestRunTask(t *testing.T) {
 		runFailed             bool
 		isTTLExpired          bool
 		expectedResult        ctrlutils.ReconcileStepResult
-		expectedLastErrors    *druidv1alpha1.LastError
-		expectedLastOperation *druidv1alpha1.LastOperation
+		expectedLastErrors    *druidapicommon.LastError
+		expectedLastOperation *druidapicommon.LastOperation
 		expectedTaskState     *druidv1alpha1.TaskState
-		expectedPhase         *druidv1alpha1.OperationPhase
 	}{
 		{
-			name:      "Task does not exist",
+			name:      "Should return error when task does not exist",
 			task:      nil,
 			runFailed: false,
 		},
 		{
-			name:           "Result requeue is false, result error is not nil (permanent failure)",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:           "Should update task state as Failed when run fails with non-temporary error",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			resultRequeued: false,
 			runFailed:      true,
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.LastOperationTypeReconcile,
-				State: druidv1alpha1.LastOperationStateError,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeExecution,
+				State: druidv1alpha1.LastOperationStateFailed,
 			},
-			expectedLastErrors: &druidv1alpha1.LastError{
-				Code:        druidv1alpha1.ErrorCode("TestError"),
-				Description: "This is a Test Error",
+			expectedLastErrors: &druidapicommon.LastError{
+				Code: druidapicommon.ErrorCode("TestError"),
 			},
 			expectedTaskState: ptr.To(druidv1alpha1.TaskStateFailed),
-			expectedPhase:     ptr.To(druidv1alpha1.OperationPhaseRunning),
 			expectedResult:    ctrlutils.ReconcileAfter(3600*time.Second, "Task failed, waiting for TTL to expire"),
 		},
 		{
-			name:           "Result requeue is false, result error is nil (success)",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:           "Should mark task state as Succeeded when run completes successfully",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			resultRequeued: false,
-			expectedLastOperation: &druidv1alpha1.LastOperation{
-				Type:  druidv1alpha1.LastOperationTypeReconcile,
-				State: druidv1alpha1.LastOperationStateSucceeded,
+			expectedLastOperation: &druidapicommon.LastOperation{
+				Type:  druidv1alpha1.LastOperationTypeExecution,
+				State: druidv1alpha1.LastOperationStateCompleted,
 			},
 			expectedTaskState: ptr.To(druidv1alpha1.TaskStateSucceeded),
-			expectedPhase:     ptr.To(druidv1alpha1.OperationPhaseRunning),
 			expectedResult:    ctrlutils.ReconcileAfter(3600*time.Second, "Task succeeded, waiting for TTL to expire"),
 		},
 		{
-			name:           "Result requeue is true, result error is not nil (temporary failure)",
-			task:           newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:           "Should requeue with error when run fails with temporary error",
+			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			resultRequeued: true,
 			runFailed:      true,
-			expectedLastErrors: &druidv1alpha1.LastError{
-				Code:        druidv1alpha1.ErrorCode("TestError"),
-				Description: "This is a Test Error",
+			expectedLastErrors: &druidapicommon.LastError{
+				Code: druidapicommon.ErrorCode("TestError"),
 			},
-			expectedPhase:  ptr.To(druidv1alpha1.OperationPhaseRunning),
-			expectedResult: ctrlutils.ReconcileWithError(fmt.Errorf("[Operation: TestOperation, Code: TestError] test error")),
+			expectedResult: ctrlutils.ReconcileWithError(druiderr.WrapError(testErr, "TestError", "TestOperation", "This is a test error")),
 		},
 		{
-			name:              "Result requeue is true, result error is nil (temporary, still in progress)",
-			task:              newTestTask(ptr.To(druidv1alpha1.TaskStateInProgress)),
+			name:              "Should continue requeueing when task is still in progress",
+			task:              testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
 			resultRequeued:    true,
 			expectedTaskState: ptr.To(druidv1alpha1.TaskStateInProgress),
-			expectedPhase:     ptr.To(druidv1alpha1.OperationPhaseRunning),
-			expectedResult:    ctrlutils.ReconcileAfter(60*time.Second, "Task running in progress"),
+			expectedResult:    ctrlutils.ReconcileAfter(60*time.Second, "Task execution in progress"),
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := context.Background()
 			var cl client.Client
 
 			if tc.task != nil && tc.isTTLExpired {
@@ -443,37 +436,42 @@ func TestRunTask(t *testing.T) {
 			}
 
 			if tc.task != nil {
-				cl = setupFakeClient(tc.task, true)
-				err := cl.Create(context.TODO(), tc.task)
+				cl = testutils.NewTestClientBuilder().
+					WithScheme(kubernetes.Scheme).
+					WithStatusSubresource(tc.task).
+					Build()
+				err := cl.Create(ctx, tc.task)
 				g.Expect(err).ToNot(HaveOccurred())
 			} else {
-				cl = setupFakeClient(nil, false)
+				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
 			}
 
 			reconciler := newTestReconciler(t, cl)
 			fakeHandler := testutils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
 
 			if tc.runFailed {
-				fakeHandler.WithRun(handler.Result{
+				fakeHandler.WithExecute(taskhandler.Result{
 					Requeue: tc.resultRequeued,
-					Error:   druiderr.WrapError(fmt.Errorf("test error"), "TestError", "TestOperation", "This is a test error"),
+					Error:   druiderr.WrapError(testErr, "TestError", "TestOperation", "This is a test error"),
 				})
 			} else {
-				fakeHandler.WithRun(handler.Result{
+				fakeHandler.WithExecute(taskhandler.Result{
 					Requeue: tc.resultRequeued,
 				})
 			}
 
-			result := reconciler.runTask(context.TODO(), reconciler.logger, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
+			result := reconciler.executeTask(ctx, reconciler.logger, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
 			if tc.task == nil {
-				checksForNilTask(g, result)
+				g.Expect(result.HasErrors()).To(BeTrue())
+				g.Expect(result.GetCombinedError()).To(HaveOccurred())
+				g.Expect(apierrors.IsNotFound(result.GetCombinedError())).To(BeTrue())
 				return
 			}
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err := cl.Get(context.TODO(), client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
+			err := cl.Get(ctx, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 			if tc.expectedResult.HasErrors() {
-				expectDruidErrors(g, result.GetErrors(), tc.expectedResult.GetErrors())
+				testutils.CheckDruidErrorList(g, result.GetErrors(), tc.expectedResult.GetErrors())
 			} else {
 				g.Expect(result.GetErrors()).To(HaveLen(0))
 			}
@@ -484,13 +482,8 @@ func TestRunTask(t *testing.T) {
 				g.Expect(updatedTask.Status.State).ToNot(BeNil())
 				g.Expect(*updatedTask.Status.State).To(Equal(*tc.expectedTaskState))
 			}
-			checkLastOperation(g, updatedTask, tc.expectedLastOperation)
-			checkLastErrors(g, updatedTask, tc.expectedLastErrors)
-
-			if tc.expectedPhase != nil {
-				g.Expect(updatedTask.Status.Phase).ToNot(BeNil())
-				g.Expect(*updatedTask.Status.Phase).To(Equal(*tc.expectedPhase))
-			}
+			testutils.CheckLastOperation(g, updatedTask.Status.LastOperation, tc.expectedLastOperation)
+			testutils.CheckLastErrors(g, updatedTask.Status.LastErrors, tc.expectedLastErrors)
 		})
 	}
 }

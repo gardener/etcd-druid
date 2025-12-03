@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 
 	. "github.com/onsi/gomega"
 )
@@ -34,7 +34,7 @@ func TestAsDruidError(t *testing.T) {
 		{
 			name: "error is of type DruidError",
 			err: &DruidError{
-				Code:      druidv1alpha1.ErrorCode("ERR_TEST"),
+				Code:      druidapicommon.ErrorCode("ERR_TEST"),
 				Cause:     fmt.Errorf("testError"),
 				Operation: "testOp",
 				Message:   "testMsg",
@@ -66,14 +66,14 @@ func TestAsDruidError(t *testing.T) {
 func TestMapToLastErrors(t *testing.T) {
 	errs := []error{
 		&DruidError{
-			Code:       druidv1alpha1.ErrorCode("ERR_TEST1"),
+			Code:       druidapicommon.ErrorCode("ERR_TEST1"),
 			Cause:      fmt.Errorf("testError1"),
 			Operation:  "testOp",
 			Message:    "testMsg",
 			ObservedAt: time.Now().UTC(),
 		},
 		&DruidError{
-			Code:       druidv1alpha1.ErrorCode("ERR_TEST2"),
+			Code:       druidapicommon.ErrorCode("ERR_TEST2"),
 			Cause:      nil,
 			Operation:  "testOp",
 			Message:    "testMsg",

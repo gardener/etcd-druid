@@ -36,8 +36,13 @@ type Reconciler struct {
 
 // NewReconciler returns a new Reconciler for EtcdOpsTask resources.
 func NewReconciler(mgr manager.Manager, cfg *druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration) *Reconciler {
+	taskHandlerRegistry := DefaultTaskHandlerRegistry()
+	return NewReconcilerWithTaskHandlerRegistry(mgr, cfg, taskHandlerRegistry)
+}
+
+// NewReconcilerWithTaskHandlerRegistry returns a new Reconciler with a custom task handler registry.
+func NewReconcilerWithTaskHandlerRegistry(mgr manager.Manager, cfg *druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration, taskHandlerRegistry handler.TaskHandlerRegistry) *Reconciler {
 	logger := log.Log.WithName(controllerName)
-	taskHandlerRegistry := createAndInitializeTaskHandlerRegistry()
 	return &Reconciler{
 		client:              mgr.GetClient(),
 		logger:              logger,
@@ -95,11 +100,11 @@ func (r *Reconciler) getTaskHandler(task *druidv1alpha1.EtcdOpsTask) (handler.Ha
 }
 
 func (r *Reconciler) shouldDeleteTask(task *druidv1alpha1.EtcdOpsTask) bool {
-	return task.IsCompleted() || task.IsMarkedForDeletion()
+	return task.IsCompleted() || druidv1alpha1.IsResourceMarkedForDeletion(task.ObjectMeta)
 }
 
-// createAndInitializeTaskHandlerRegistry creates and initializes the task handler registry with default handlers.
-func createAndInitializeTaskHandlerRegistry() handler.TaskHandlerRegistry {
+// DefaultTaskHandlerRegistry creates and initializes the task handler registry with default handlers.
+func DefaultTaskHandlerRegistry() handler.TaskHandlerRegistry {
 	registry := handler.NewTaskHandlerRegistry()
 
 	// Register OnDemandSnapshot handler

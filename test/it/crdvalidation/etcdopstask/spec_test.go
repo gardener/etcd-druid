@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,7 +48,7 @@ func TestValidateEtcdOpsTaskSpecConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithDefaults(test.taskName, testNs).WithEtcdName("test-etcd").Build()
 			task.Spec.Config = *test.config
 			validateEtcdOpsTaskCreation(g, task, test.expectErr)
 		})
@@ -93,7 +94,7 @@ func TestValidateEtcdOpsTaskSpecTTLSecondsAfterFinished(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithoutDefaults(test.taskName, testNs).WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull}).Build()
 			task.Spec.TTLSecondsAfterFinished = test.ttl
 			validateEtcdOpsTaskCreation(g, task, test.expectErr)
 		})
@@ -243,7 +244,7 @@ func TestValidateEtcdOpsTaskSpecOndemandSnapshotConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithoutDefaults(test.taskName, testNs).WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull}).Build()
 			task.Spec.Config.OnDemandSnapshot = test.config
 			validateEtcdOpsTaskCreation(g, task, test.expectErr)
 		})
@@ -274,7 +275,7 @@ func TestValidateEtcdOpsTaskSpecDefaults(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithoutDefaults(test.taskName, testNs).WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull}).Build()
 			validateEtcdOpsTaskCreation(g, task, false)
 
 			fetchedTask := &druidv1alpha1.EtcdOpsTask{}

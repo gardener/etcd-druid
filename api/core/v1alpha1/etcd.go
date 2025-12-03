@@ -5,8 +5,7 @@
 package v1alpha1
 
 import (
-	"fmt"
-
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -437,10 +436,10 @@ type EtcdStatus struct {
 	Conditions []Condition `json:"conditions,omitempty"`
 	// LastErrors captures errors that occurred during the last operation.
 	// +optional
-	LastErrors []LastError `json:"lastErrors,omitempty"`
+	LastErrors []druidapicommon.LastError `json:"lastErrors,omitempty"`
 	// LastOperation indicates the last operation performed on this resource.
 	// +optional
-	LastOperation *LastOperation `json:"lastOperation,omitempty"`
+	LastOperation *druidapicommon.LastOperation `json:"lastOperation,omitempty"`
 	// CurrentReplicas is the current replica count for the etcd cluster.
 	// +optional
 	CurrentReplicas int32 `json:"currentReplicas,omitempty"`
@@ -470,62 +469,25 @@ type EtcdStatus struct {
 	Selector *string `json:"selector,omitempty"`
 }
 
-// LastOperationType is a string alias representing type of the last operation.
-type LastOperationType string
-
 const (
 	// LastOperationTypeCreate indicates that the last operation was a creation of a new Etcd resource.
-	LastOperationTypeCreate LastOperationType = "Create"
+	LastOperationTypeCreate druidapicommon.LastOperationType = "Create"
 	// LastOperationTypeReconcile indicates that the last operation was a reconciliation of the spec of an Etcd resource.
-	LastOperationTypeReconcile LastOperationType = "Reconcile"
+	LastOperationTypeReconcile druidapicommon.LastOperationType = "Reconcile"
 	// LastOperationTypeDelete indicates that the last operation was a deletion of an existing Etcd resource.
-	LastOperationTypeDelete LastOperationType = "Delete"
+	LastOperationTypeDelete druidapicommon.LastOperationType = "Delete"
 )
-
-// LastOperationState is a string alias representing the state of the last operation.
-type LastOperationState string
 
 const (
 	// LastOperationStateProcessing indicates that an operation is in progress.
-	LastOperationStateProcessing LastOperationState = "Processing"
+	LastOperationStateProcessing druidapicommon.LastOperationState = "Processing"
 	// LastOperationStateSucceeded indicates that an operation has completed successfully.
-	LastOperationStateSucceeded LastOperationState = "Succeeded"
+	LastOperationStateSucceeded druidapicommon.LastOperationState = "Succeeded"
 	// LastOperationStateError indicates that an operation is completed with errors and will be retried.
-	LastOperationStateError LastOperationState = "Error"
+	LastOperationStateError druidapicommon.LastOperationState = "Error"
 	// LastOperationStateRequeue indicates that an operation is not completed and either due to an error or unfulfilled conditions will be retried.
-	LastOperationStateRequeue LastOperationState = "Requeue"
+	LastOperationStateRequeue druidapicommon.LastOperationState = "Requeue"
 )
-
-// LastOperation holds the information on the last operation done on the Etcd resource.
-type LastOperation struct {
-	// Type is the type of last operation.
-	Type LastOperationType `json:"type"`
-	// State is the state of the last operation.
-	State LastOperationState `json:"state"`
-	// Description describes the last operation.
-	Description string `json:"description"`
-	// RunID correlates an operation with a reconciliation run.
-	// Every time an Etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
-	// generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
-	// as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
-	// reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced.
-	RunID string `json:"runID"`
-	// LastUpdateTime is the time at which the operation was last updated.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
-}
-
-// ErrorCode is a string alias representing an error code that identifies an error.
-type ErrorCode string
-
-// LastError stores details of the most recent error encountered for a resource.
-type LastError struct {
-	// Code is an error code that uniquely identifies an error.
-	Code ErrorCode `json:"code"`
-	// Description is a human-readable message indicating details of the error.
-	Description string `json:"description"`
-	// ObservedAt is the time the error was observed.
-	ObservedAt metav1.Time `json:"observedAt"`
-}
 
 // IsBackupStoreEnabled returns true if backup store has been enabled for the Etcd resource, else returns false.
 func (e *Etcd) IsBackupStoreEnabled() bool {
@@ -551,14 +513,11 @@ func (e *Etcd) IsDeletionInProgress() bool {
 }
 
 // IsReady checks if the etcd object is ready by examining its conditions.
-func (e *Etcd) IsReady() error {
+func (e *Etcd) IsReady() bool {
 	for _, condition := range e.Status.Conditions {
-		if condition.Type == ConditionTypeReady {
-			if condition.Status == ConditionTrue {
-				return nil
-			}
-			return fmt.Errorf("etcd is not ready, condition: %s", condition.Message)
+		if condition.Type == ConditionTypeReady && condition.Status == ConditionTrue {
+			return true
 		}
 	}
-	return fmt.Errorf("etcd is not ready")
+	return false
 }

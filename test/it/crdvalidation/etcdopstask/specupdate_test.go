@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"k8s.io/utils/ptr"
 
@@ -61,7 +62,7 @@ func TestValidateUpdateSpecConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithoutDefaults(test.taskName, testNs).WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull}).Build()
 			task.Spec.Config.OnDemandSnapshot.Type = test.initialType
 
 			cl := itTestEnv.GetClient()
@@ -69,7 +70,7 @@ func TestValidateUpdateSpecConfig(t *testing.T) {
 			g.Expect(cl.Create(ctx, task)).To(Succeed())
 
 			task.Spec.Config.OnDemandSnapshot.Type = test.updatedType
-			validateEtcdOpsTaskUpdate(g, task, test.expectErr, ctx, cl)
+			validateEtcdOpsTaskUpdate(ctx, g, task, test.expectErr, cl)
 		})
 	}
 }
@@ -126,7 +127,7 @@ func TestValidateUpdateSpecTTLSecondsAfterFinished(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithoutDefaults(test.taskName, testNs).WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull}).Build()
 			task.Spec.TTLSecondsAfterFinished = test.initialTTL
 
 			cl := itTestEnv.GetClient()
@@ -135,7 +136,7 @@ func TestValidateUpdateSpecTTLSecondsAfterFinished(t *testing.T) {
 
 			// Try to update TTL
 			task.Spec.TTLSecondsAfterFinished = test.updatedTTL
-			validateEtcdOpsTaskUpdate(g, task, test.expectErr, ctx, cl)
+			validateEtcdOpsTaskUpdate(ctx, g, task, test.expectErr, cl)
 		})
 	}
 }
@@ -171,7 +172,7 @@ func TestValidateUpdateSpecEtcdRef(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			task := createBasicEtcdOpsTask(test.taskName, testNs)
+			task := testutils.EtcdOpsTaskBuilderWithoutDefaults(test.taskName, testNs).WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull}).Build()
 			task.Spec.EtcdName = ptr.To(test.initialEtcdName)
 
 			cl := itTestEnv.GetClient()
@@ -179,7 +180,7 @@ func TestValidateUpdateSpecEtcdRef(t *testing.T) {
 			g.Expect(cl.Create(ctx, task)).To(Succeed())
 
 			task.Spec.EtcdName = ptr.To(test.updatedEtcdName)
-			validateEtcdOpsTaskUpdate(g, task, test.expectErr, ctx, cl)
+			validateEtcdOpsTaskUpdate(ctx, g, task, test.expectErr, cl)
 		})
 	}
 }

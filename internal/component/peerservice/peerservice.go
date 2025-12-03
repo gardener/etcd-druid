@@ -7,6 +7,7 @@ package peerservice
 import (
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -24,11 +25,11 @@ import (
 
 const (
 	// ErrGetPeerService indicates an error in getting the peer service resource.
-	ErrGetPeerService druidv1alpha1.ErrorCode = "ERR_GET_PEER_SERVICE"
+	ErrGetPeerService druidapicommon.ErrorCode = "ERR_GET_PEER_SERVICE"
 	// ErrSyncPeerService indicates an error in syncing the peer service resource.
-	ErrSyncPeerService druidv1alpha1.ErrorCode = "ERR_SYNC_PEER_SERVICE"
+	ErrSyncPeerService druidapicommon.ErrorCode = "ERR_SYNC_PEER_SERVICE"
 	// ErrDeletePeerService indicates an error in deleting the peer service resource.
-	ErrDeletePeerService druidv1alpha1.ErrorCode = "ERR_DELETE_PEER_SERVICE"
+	ErrDeletePeerService druidapicommon.ErrorCode = "ERR_DELETE_PEER_SERVICE"
 )
 
 type _resource struct {

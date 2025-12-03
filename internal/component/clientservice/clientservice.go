@@ -7,6 +7,7 @@ package clientservice
 import (
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -24,11 +25,11 @@ import (
 
 const (
 	// ErrGetClientService indicates an error in getting the client service resource.
-	ErrGetClientService druidv1alpha1.ErrorCode = "ERR_GET_CLIENT_SERVICE"
+	ErrGetClientService druidapicommon.ErrorCode = "ERR_GET_CLIENT_SERVICE"
 	// ErrSyncClientService indicates an error in syncing the client service resource.
-	ErrSyncClientService druidv1alpha1.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
+	ErrSyncClientService druidapicommon.ErrorCode = "ERR_SYNC_CLIENT_SERVICE"
 	// ErrDeleteClientService indicates an error in deleting the client service resource.
-	ErrDeleteClientService druidv1alpha1.ErrorCode = "ERR_DELETE_CLIENT_SERVICE"
+	ErrDeleteClientService druidapicommon.ErrorCode = "ERR_DELETE_CLIENT_SERVICE"
 )
 
 type _resource struct {

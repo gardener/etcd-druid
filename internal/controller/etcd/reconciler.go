@@ -163,7 +163,7 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 }
 
 func (r *Reconciler) reconcileEtcdDeletion(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	if druidv1alpha1.IsEtcdMarkedForDeletion(etcd.ObjectMeta) {
+	if druidv1alpha1.IsResourceMarkedForDeletion(etcd.ObjectMeta) {
 		dLog := r.logger.WithValues("etcd", etcd.ObjectMeta, "operation", "delete").WithValues("runId", ctx.RunID)
 		ctx.SetLogger(dLog)
 		return r.triggerDeletionFlow(ctx, dLog, etcd)

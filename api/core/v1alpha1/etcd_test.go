@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,51 +55,51 @@ func TestIsBackupStoreEnabled(t *testing.T) {
 func TestIsReconciliationInProgress(t *testing.T) {
 	tests := []struct {
 		name     string
-		lastOp   *LastOperation
+		lastOp   *druidapicommon.LastOperation
 		expected bool
 	}{
 		{
-			name: "when etcd status has lastOperation set and its state is Processing",
-			lastOp: &LastOperation{
+			name: "when etcd status has druidapicommon.lastOperation set and its state is Processing",
+			lastOp: &druidapicommon.LastOperation{
 				Type:  LastOperationTypeReconcile,
 				State: LastOperationStateProcessing,
 			},
 			expected: true,
 		},
 		{
-			name: "when etcd status has lastOperation set and its state is Error",
-			lastOp: &LastOperation{
+			name: "when etcd status has druidapicommon.lastOperation set and its state is Error",
+			lastOp: &druidapicommon.LastOperation{
 				Type:  LastOperationTypeReconcile,
 				State: LastOperationStateError,
 			},
 			expected: true,
 		},
 		{
-			name: "when etcd status has lastOperation set and its state is Succeeded",
-			lastOp: &LastOperation{
+			name: "when etcd status has druidapicommon.lastOperation set and its state is Succeeded",
+			lastOp: &druidapicommon.LastOperation{
 				Type:  LastOperationTypeReconcile,
 				State: LastOperationStateSucceeded,
 			},
 			expected: false,
 		},
 		{
-			name: "when etcd status has lastOperation set and its type is delete",
-			lastOp: &LastOperation{
+			name: "when etcd status has druidapicommon.lastOperation set and its type is delete",
+			lastOp: &druidapicommon.LastOperation{
 				Type:  LastOperationTypeDelete,
 				State: LastOperationStateError,
 			},
 			expected: false,
 		},
 		{
-			name: "when etcd status has lastOperation set and its type is create",
-			lastOp: &LastOperation{
+			name: "when etcd status has druidapicommon.lastOperation set and its type is create",
+			lastOp: &druidapicommon.LastOperation{
 				Type:  LastOperationTypeCreate,
 				State: LastOperationStateProcessing,
 			},
 			expected: false,
 		},
 		{
-			name:     "when etcd status does not have lastOperation set",
+			name:     "when etcd status does not have druidapicommon.lastOperation set",
 			lastOp:   nil,
 			expected: false,
 		},
