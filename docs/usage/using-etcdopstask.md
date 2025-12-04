@@ -7,7 +7,8 @@
 `EtcdOpsTask` allows operators to execute one-time operational tasks on an Etcd cluster. This includes operations like triggering on-demand snapshots (full or delta). The controller manages the task lifecycle, executing the operation and updating the task status to reflect success or failure.
 
 ## How Operators Can Use EtcdOpsTask
->NOTE: As of now, `EtcdOpsTask` primarily supports on-demand snapshot operations. Future versions may introduce additional task types.
+> [!NOTE] 
+> As of v0.34.0, `EtcdOpsTask` primarily supports on-demand snapshot operations. Future versions may introduce additional task types.
 
 ### Creating an EtcdOpsTask
 
@@ -20,7 +21,7 @@ metadata:
   name: on-demand-snapshot
   namespace: default
 spec:
-  etcdRef: etcd-main
+  etcdName: etcd-main
   config:
     onDemandSnapshot:
       type: full  # or delta
@@ -30,9 +31,9 @@ spec:
    ttlSecondsAfterFinished: 360   
   
 ```
-* The above example creates an `EtcdOpsTask` named `on-demand-snapshot` that triggers an on-demand snapshot for the Etcd cluster referenced by `etcd-main` in the namespace where the etcdopstask is created. Some tasks might not require an etcd reference and hence this field is optional.
-* The task will be automatically deleted 360 seconds after completion as defined by `ttlSecondsAfterFinished`. If not specified, the default TTL is 3600 seconds (1 hour).
-* The spec field is immutable and is enforced via `CEL` expressions.
+* The above example creates an `EtcdOpsTask` named `on-demand-snapshot` that triggers an on-demand snapshot for the Etcd cluster referenced by `spec.etcdName` in the `metadata.namespace` namespace where the etcdopstask is created. Some tasks might not require an etcd reference and hence the field `spec.etcdName` is optional.
+* The task will be automatically deleted after a Time-To-Live duration (TTL) completion as defined by `spec.ttlSecondsAfterFinished`. If not specified, the default TTL is 3600 seconds (1 hour).
+* The spec field is immutable and is enforced via [`CEL`](https://kubernetes.io/docs/reference/using-api/cel/) expressions.
 
 ### Task Lifecycle
 
@@ -49,9 +50,9 @@ Once a task reaches a terminal state (Succeeded, Failed, or Rejected), it will b
 #### Task Phases
 
 The etcdopstask controller follows a handler-driven flow with three phases:
-- **Admit**: Validates preconditions (RBAC, duplicates, config). Sets `lastOperation.type=Admit`; task moves `Pending → InProgress` on success, or `Rejected` on failure.
-- **Execute**: Performs the requested operation (e.g., on-demand snapshot). Sets `lastOperation.type=Execution`; task transitions to `Succeeded` or `Failed`.
-- **Cleanup**: Handles cleanup of the task and any deployed resources. Sets `lastOperation.type=Cleanup`; EtcdopsTask resource is deleted after TTL expiry.
+- **Admit**: Validates preconditions (RBAC, duplicates, config). Task moves `Pending → InProgress` on success, or `Rejected` on failure.
+- **Execute**: Performs the requested operation (e.g., on-demand snapshot). Task transitions to `Succeeded` or `Failed`.
+- **Cleanup**: Handles cleanup of the task and any deployed resources. EtcdopsTask resource is deleted after TTL expiry.
 ### Monitoring Task Status
 
 Check the task status to monitor progress:
