@@ -116,4 +116,3 @@ Currently supported task types:
 
 1. **Unique Names**: Use descriptive, unique names for tasks to avoid conflicts
 2. **Monitor Status**: Check task status before creating duplicate operations. This will help avoid duplicate tasks.
-3. **RBAC**: Ensure proper permissions are configured for the Etcd Druid service account.

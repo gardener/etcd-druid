@@ -14,10 +14,14 @@ EtcdOpsTask is designed to be extensible, allowing developers to implement new t
 
 2. **Implement the Task Handler**:
     - In `internal/controller/etcdopstask/handler/`, create a new package for your task (e.g., `mynewtask`).
-    - Every etcdpstask handler must implement the `Handler` interface as defined in `internal/controller/etcdopstask/handler/types.go`. The interface has three methods which is expected to be implemented:
-      - `Admit(ctx context.Context) error`: Validates preconditions for the task.
-      - `Execute(ctx context.Context) error`: Contains the core logic to perform the task.
-      - `Cleanup(ctx context.Context) error`: Cleans up any resources created during task execution.
+    - Every etcdopstask handler must implement the `Handler` interface as defined in `internal/controller/etcdopstask/handler/types.go`. The interface has three methods which is expected to be implemented:
+      - `Admit(ctx context.Context) Result`: Validates preconditions for the task.
+      - `Execute(ctx context.Context) Result`: Contains the core logic to perform the task.
+      - `Cleanup(ctx context.Context) Result`: Cleans up any resources created during task execution.
+    - Each of these methods should return a `Result` struct which has the fields:
+      - `Requeue` (bool): Indicates if the task should be requeued.
+      - `Error` (error): Any error encountered during processing.
+      - `Description` (string): A human-readable description of the current state or error.
     >NOTE: 
     > 1) The `Admit` method is run when the task is created to validate preconditions. If it fails, the task is marked as `Rejected`. If it succeeds, the task moves to `InProgress` state and this method is not called again.
     > 2) The `Execute` method is called repeatedly in case of timeouts/transient errors until the task execution is successful or a non-retryable error occurs. Once this is done the task moves to `Succeeded` or `Failed` state respectively.  

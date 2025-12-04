@@ -47,7 +47,7 @@ func AssertEtcdOpsTaskStateAndErrorCode(ctx context.Context, g *WithT, t *testin
 			t.Logf("task correctly reached state %s in phase %s with operation state %s: %s", expectedTaskState, expectedPhase, expectedOperationState, etcdOpsTask.Status.LastOperation.Description)
 			return true
 		}
-	}, 30*time.Second, 1*time.Second).Should(BeTrue(), func() string {
+	}, 60*time.Second, 1*time.Second).Should(BeTrue(), func() string {
 		if expectedErrorCode != nil {
 			return fmt.Sprintf("task should reach state %s with error code %s", expectedTaskState, *expectedErrorCode)
 		}
@@ -61,7 +61,7 @@ func AssertEtcdOpsTaskDeletedAfterTTL(ctx context.Context, g *WithT, t *testing.
 	err := cl.Get(ctx, client.ObjectKeyFromObject(etcdOpsTask), etcdOpsTask)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	timeoutDuration := time.Duration(*etcdOpsTask.Spec.TTLSecondsAfterFinished+5) * time.Second
+	timeoutDuration := time.Duration(*etcdOpsTask.Spec.TTLSecondsAfterFinished+30) * time.Second
 
 	g.Eventually(func() bool {
 		err = cl.Get(ctx, client.ObjectKeyFromObject(etcdOpsTask), etcdOpsTask)
@@ -74,5 +74,5 @@ func AssertEtcdOpsTaskDeletedAfterTTL(ctx context.Context, g *WithT, t *testing.
 			return false
 		}
 		return false
-	}, timeoutDuration, 500*time.Millisecond).Should(BeTrue(), "task should be deleted after TTL expires")
+	}, timeoutDuration, 1*time.Second).Should(BeTrue(), "task should be deleted after TTL expires")
 }

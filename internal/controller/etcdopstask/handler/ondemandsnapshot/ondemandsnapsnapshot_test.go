@@ -157,6 +157,34 @@ func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 			expectErr: true,
 		},
 		{
+			name:       "Should return error without requeue when backup is not enabled",
+			etcdObject: createEtcd("test-etcd", "test-namespace", false, true, false, false),
+			expectedResult: taskhandler.Result{
+				Description: "Backup is not enabled for etcd",
+				Error: &druiderr.DruidError{
+					Code:      ErrBackupNotEnabled,
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
+					Message:   "backup is not enabled for etcd",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name:       "Should return error without requeue when Etcd is not ready",
+			etcdObject: createEtcd("test-etcd", "test-namespace", true, false, false, false),
+			expectedResult: taskhandler.Result{
+				Description: "Etcd is not ready",
+				Error: &druiderr.DruidError{
+					Code:      ErrEtcdNotReady,
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
+					Message:   "etcd is not ready",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
 			name:       "Should requeue with error when HTTP request execution fails",
 			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, false),
 			FakeResponse: &utils.FakeResponse{
@@ -264,11 +292,14 @@ func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 			}
 			etcdOpsTask := utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-namespace").WithEtcdName("test-etcd").WithOnDemandSnapshotConfig(ondemandSnapshotConfig).Build()
 
-			fakeHttpClient := http.Client{
-				Transport: &utils.MockRoundTripper{
-					Response: &tc.FakeResponse.Response,
-					Err:      tc.FakeResponse.Error,
-				},
+			fakeHttpClient := http.Client{}
+			if tc.FakeResponse != nil {
+				fakeHttpClient = http.Client{
+					Transport: &utils.MockRoundTripper{
+						Response: &tc.FakeResponse.Response,
+						Err:      tc.FakeResponse.Error,
+					},
+				}
 			}
 			taskHandler, err := New(cl, etcdOpsTask, &fakeHttpClient)
 			g.Expect(err).To(BeNil())
@@ -297,10 +328,9 @@ func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 func TestOndemandSnapshotTaskCleanup(t *testing.T) {
 	g := NewGomegaWithT(t)
 	tests := []struct {
-		name      string
-		etcdObject *druidv1alpha1.Etcd
+		name           string
+		etcdObject     *druidv1alpha1.Etcd
 		expectedResult taskhandler.Result
-
 	}{
 		{
 			name: "Cleanup is a no-op and should always succeed",
@@ -335,6 +365,7 @@ func TestOndemandSnapshotTaskCleanup(t *testing.T) {
 		})
 	}
 }
+
 // TestCheckPrerequisitesForSnapshot tests the validateEtcdForSnapshot method of the OnDemandSnapshotTask handler.
 func TestCheckPrerequisitesForSnapshot(t *testing.T) {
 	g := NewGomegaWithT(t)

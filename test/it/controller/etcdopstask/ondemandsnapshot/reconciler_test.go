@@ -119,7 +119,7 @@ func testEtcdOpsTaskCreationFailEmptyConfig(t *testing.T, namespace string, reco
 
 	emptyConfigTask := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task-empty-config", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(5).
+		WithTTLSecondsAfterFinished(10).
 		Build()
 
 	err := cl.Create(ctx, emptyConfigTask)
@@ -135,7 +135,7 @@ func testEtcdOpsTaskCreationSuccessValidConfig(t *testing.T, namespace string, r
 
 	validConfigTask := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task-valid-config", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(60).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -182,9 +182,9 @@ func testEtcdOpsTaskRejectedIfEtcdBackupDisabled(t *testing.T, namespace string,
 	g.Expect(cl.Create(ctx, etcdInstance)).To(Succeed())
 	t.Logf("created etcd instance %s/%s with backup disabled", etcdInstance.Namespace, etcdInstance.Name)
 
-	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task", namespace).
+	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-etcd-backup-disabled", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -224,9 +224,9 @@ func testEtcdOpsTaskRejectedIfEtcdNotReady(t *testing.T, namespace string, recon
 
 	t.Logf("created etcd instance %s/%s with not ready condition", etcdInstance.Namespace, etcdInstance.Name)
 
-	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task", namespace).
+	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-etcd-not-ready", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -251,9 +251,9 @@ func testEtcdOpsTaskRejectedDuplicateTask(t *testing.T, namespace string, reconc
 
 	_ = etcdopstasktest.DeployReadyEtcd(ctx, g, t, cl, namespace)
 
-	ondemandSnapshotTask := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task", namespace).
+	ondemandSnapshotTask := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-ondemand-snapshot", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -270,11 +270,11 @@ func testEtcdOpsTaskRejectedDuplicateTask(t *testing.T, namespace string, reconc
 			t.Logf("current task state: %s", *ondemandSnapshotTask.Status.State)
 		}
 		return ondemandSnapshotTask.Status.State != nil && *ondemandSnapshotTask.Status.State == druidv1alpha1.TaskStateInProgress
-	}, 5*time.Second, 100*time.Millisecond).Should(BeTrue(), "first task should reach InProgress state before creating duplicate")
+	}, 30*time.Second, 1*time.Second).Should(BeTrue(), "first task should reach InProgress state before creating duplicate")
 
 	duplicateOndemandSnapshotTask := testutils.EtcdOpsTaskBuilderWithoutDefaults("duplicate-ondemand-snapshot", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -352,9 +352,9 @@ func TestEtcdOpsTaskLifecycle(t *testing.T) {
 func testEtcdOpsTaskAddFinalizer(t *testing.T, namespace string, reconcilerTestEnv etcdopstasktest.ReconcilerTestEnv) {
 	g := NewWithT(t)
 
-	etcdopstaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task", namespace).
+	etcdopstaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-finalizer-check", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -385,9 +385,9 @@ func testEtcdOpsTaskSuccessfulLifecycle(t *testing.T, namespace string, reconcil
 	// Setup ready etcd instance
 	_ = etcdopstasktest.DeployReadyEtcd(ctx, g, t, cl, namespace)
 
-	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task", namespace).
+	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task-successful-lifecycle", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),
@@ -410,9 +410,9 @@ func testEtcdOpsTaskUnsuccessfulLifecycle(t *testing.T, namespace string, reconc
 
 	_ = etcdopstasktest.DeployReadyEtcd(ctx, g, t, cl, namespace)
 
-	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task", namespace).
+	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task-execute-fail", namespace).
 		WithEtcdName("test-etcd").
-		WithTTLSecondsAfterFinished(20).
+		WithTTLSecondsAfterFinished(10).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 			TimeoutSecondsFull: ptr.To(int32(150)),

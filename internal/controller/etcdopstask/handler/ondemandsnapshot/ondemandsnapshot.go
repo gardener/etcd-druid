@@ -89,6 +89,11 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 		return *errResult
 	}
 
+	errResult = h.checkPrerequisitesForSnapshot(etcd, druidv1alpha1.LastOperationTypeExecution)
+	if errResult != nil {
+		return *errResult
+	}
+	
 	httpClient, httpScheme, errResult := utils.ConfigureHTTPClientForEtcdBR(ctx, h.k8sClient, etcd, h.httpClient, druidv1alpha1.LastOperationTypeExecution)
 	if errResult != nil {
 		return *errResult

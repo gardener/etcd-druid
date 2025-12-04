@@ -52,7 +52,7 @@ func InitializeEtcdOpsTaskReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidT
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
 		reconciler = etcdopstask.NewReconciler(mgr, &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
 			ConcurrentSyncs: ptr.To(3),
-			RequeueInterval: &metav1.Duration{Duration: 15 * time.Second},
+			RequeueInterval: &metav1.Duration{Duration: 5 * time.Second},
 		})
 		g.Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	})
