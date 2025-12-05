@@ -113,10 +113,10 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 			if test.enabled {
 				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName)
 			}
-			actualErr := validateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}
@@ -154,8 +154,8 @@ func TestUpdateClientConnectionConfiguration(t *testing.T) {
 			if test.overrideBurst != nil {
 				clientConnConfig.Burst = *test.overrideBurst
 			}
-			actualErr := validateClientConnectionConfiguration(*clientConnConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateClientConnectionConfiguration(*clientConnConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 		})
 	}
 }
@@ -221,10 +221,10 @@ func TestValidateLogConfiguration(t *testing.T) {
 			if test.logFormat != nil {
 				logConfig.LogFormat = *test.logFormat
 			}
-			actualErr := validateLogConfiguration(*logConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateLogConfiguration(*logConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}
@@ -302,10 +302,10 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 			if test.unknownThreshold != nil {
 				etcdConfig.EtcdMember.UnknownThreshold = *test.unknownThreshold
 			}
-			actualErr := validateEtcdControllerConfiguration(*etcdConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateEtcdControllerConfiguration(*etcdConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}
@@ -423,10 +423,10 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 			if test.metricsScrapeWaitDuration != nil {
 				controllerConfig.MetricsScrapeWaitDuration = *test.metricsScrapeWaitDuration
 			}
-			actualErr := validateCompactionControllerConfiguration(*controllerConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateCompactionControllerConfiguration(*controllerConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}
@@ -485,10 +485,98 @@ func TestValidateEtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
 			}
-			actualErr := validateEtcdCopyBackupsTaskControllerConfiguration(*controllerConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateEtcdCopyBackupsTaskControllerConfiguration(*controllerConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
+			}
+		})
+	}
+}
+
+func TestValidateEtcdOpsTaskControllerConfiguration(t *testing.T) {
+	tests := []struct {
+		name              string
+		config            *druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration
+		numExpectedErrors int
+		matcher           gomegatypes.GomegaMatcher
+	}{
+		{
+			name:              "should allow default etcdOpsTask controller configuration",
+			config:            &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{},
+			numExpectedErrors: 0,
+			matcher:           nil,
+		},
+		{
+			name: "should allow concurrent syncs greater than zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(1),
+			},
+			numExpectedErrors: 0,
+		},
+		{
+			name: "should forbid concurrent syncs equal to zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(0),
+			},
+			numExpectedErrors: 1,
+			matcher:           ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.concurrentSyncs")}))),
+		},
+		{
+			name: "should forbid concurrent syncs less than zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(-1),
+			},
+			numExpectedErrors: 1,
+			matcher:           ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.concurrentSyncs")}))),
+		},
+		{
+			name: "should allow requeue interval greater than zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				RequeueInterval: &metav1.Duration{Duration: 2 * time.Second},
+			},
+			numExpectedErrors: 0,
+		},
+		{
+			name: "should forbid requeue interval equal to zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				RequeueInterval: &metav1.Duration{Duration: 0},
+			},
+			numExpectedErrors: 1,
+			matcher:           ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.requeueInterval")}))),
+		},
+		{
+			name: "should forbid requeue interval less than zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				RequeueInterval: &metav1.Duration{Duration: -time.Second},
+			},
+			numExpectedErrors: 1,
+			matcher:           ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.requeueInterval")}))),
+		},
+		{
+			name: "should forbid both concurrent syncs and requeue interval equal to zero",
+			config: &druidconfigv1alpha1.EtcdOpsTaskControllerConfiguration{
+				ConcurrentSyncs: ptr.To(0),
+				RequeueInterval: &metav1.Duration{Duration: 0},
+			},
+			numExpectedErrors: 2,
+			matcher: ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.concurrentSyncs")})),
+				PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdOpsTask.requeueInterval")})),
+			),
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			druidconfigv1alpha1.SetDefaults_EtcdOpsTaskControllerConfiguration(test.config)
+			actualErrList := validateEtcdOpsTaskControllerConfiguration(*test.config, field.NewPath("controllers.etcdOpsTask"))
+			g.Expect(len(actualErrList)).To(Equal(test.numExpectedErrors))
+			if test.matcher != nil {
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}
@@ -536,10 +624,10 @@ func TestValidateSecretControllerConfiguration(t *testing.T) {
 			if test.concurrentSync != nil {
 				controllerConfig.ConcurrentSyncs = test.concurrentSync
 			}
-			actualErr := validateSecretControllerConfiguration(*controllerConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateSecretControllerConfiguration(*controllerConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}
@@ -629,10 +717,10 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 			}
 			webhookConfig.ReconcilerServiceAccountFQDN = test.overrideReconcilerServiceAccountFQDN
 			webhookConfig.ServiceAccountInfo = test.serviceAccountInfo
-			actualErr := validateEtcdComponentProtectionWebhookConfiguration(*webhookConfig, fldPath)
-			g.Expect(len(actualErr)).To(Equal(test.expectedErrors))
+			actualErrList := validateEtcdComponentProtectionWebhookConfiguration(*webhookConfig, fldPath)
+			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
-				g.Expect(actualErr).To(test.matcher)
+				g.Expect(actualErrList).To(test.matcher)
 			}
 		})
 	}

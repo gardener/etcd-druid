@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -21,11 +22,11 @@ import (
 // LastOperationAndLastErrorsRecorder records etcd.Status.LastOperation and etcd.Status.LastErrors.
 type LastOperationAndLastErrorsRecorder interface {
 	// RecordStart records the start of an operation in the Etcd status.
-	RecordStart(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType) error
+	RecordStart(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType) error
 	// RecordSuccess records the success of an operation in the Etcd status.
-	RecordSuccess(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType) error
+	RecordSuccess(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType) error
 	// RecordErrors records errors encountered in the last operation in the Etcd status.
-	RecordErrors(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType, operationResult ReconcileStepResult) error
+	RecordErrors(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType, operationResult ReconcileStepResult) error
 }
 
 // NewLastOperationAndLastErrorsRecorder returns a new LastOperationAndLastErrorsRecorder.
@@ -41,7 +42,7 @@ type lastOpErrRecorder struct {
 	logger logr.Logger
 }
 
-func (l *lastOpErrRecorder) RecordStart(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType) error {
+func (l *lastOpErrRecorder) RecordStart(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType) error {
 	const (
 		etcdReconcileStarted string = "Etcd cluster reconciliation is in progress"
 		etcdDeletionStarted  string = "Etcd cluster deletion is in progress"
@@ -56,7 +57,7 @@ func (l *lastOpErrRecorder) RecordStart(ctx component.OperatorContext, etcd *dru
 	return l.recordLastOperationAndErrors(ctx, etcd, operationType, druidv1alpha1.LastOperationStateProcessing, description)
 }
 
-func (l *lastOpErrRecorder) RecordSuccess(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType) error {
+func (l *lastOpErrRecorder) RecordSuccess(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType) error {
 	const (
 		etcdReconciledSuccessfully string = "Etcd cluster has been successfully reconciled"
 		etcdDeletedSuccessfully    string = "Etcd cluster has been successfully deleted"
@@ -72,16 +73,16 @@ func (l *lastOpErrRecorder) RecordSuccess(ctx component.OperatorContext, etcd *d
 	return l.recordLastOperationAndErrors(ctx, etcd, operationType, druidv1alpha1.LastOperationStateSucceeded, description)
 }
 
-func (l *lastOpErrRecorder) RecordErrors(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType, operationResult ReconcileStepResult) error {
+func (l *lastOpErrRecorder) RecordErrors(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType, operationResult ReconcileStepResult) error {
 	description := fmt.Sprintf("%s Operation will be retried.", operationResult.description)
 	lastErrors := druiderr.MapToLastErrors(operationResult.GetErrors())
 	lastOpState := utils.IfConditionOr(operationResult.HasErrors(), druidv1alpha1.LastOperationStateError, druidv1alpha1.LastOperationStateRequeue)
 	return l.recordLastOperationAndErrors(ctx, etcd, operationType, lastOpState, description, lastErrors...)
 }
 
-func (l *lastOpErrRecorder) recordLastOperationAndErrors(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidv1alpha1.LastOperationType, operationState druidv1alpha1.LastOperationState, description string, lastErrors ...druidv1alpha1.LastError) error {
+func (l *lastOpErrRecorder) recordLastOperationAndErrors(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, operationType druidapicommon.LastOperationType, operationState druidapicommon.LastOperationState, description string, lastErrors ...druidapicommon.LastError) error {
 	originalEtcd := etcd.DeepCopy()
-	etcd.Status.LastOperation = &druidv1alpha1.LastOperation{
+	etcd.Status.LastOperation = &druidapicommon.LastOperation{
 		RunID:          ctx.RunID,
 		Type:           operationType,
 		State:          operationState,

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -22,6 +23,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	testclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
@@ -54,7 +56,13 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	sharedITTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath(k8sVersionAbove129)})
+	etcdCrd, err := assets.GetEtcdCrd(k8sVersion)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to get Etcd CRD: %v\n", err)
+		os.Exit(1)
+	}
+
+	sharedITTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcd-reconciler", []*apiextensionsv1.CustomResourceDefinition{etcdCrd})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)
@@ -136,7 +144,7 @@ func testAllManagedResourcesAreCreated(t *testing.T, testNs string, reconcilerTe
 	// It is sufficient to test that the resources are created as part of the sync. The configuration of each
 	// resource is now extensively covered in the unit tests for the respective component operator.
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, timeout, pollingInterval)
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
 	}
@@ -186,7 +194,7 @@ func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeCompo
 		component.PeerServiceKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
 	}
@@ -252,7 +260,7 @@ func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentC
 	}
 	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindPresent, timeout, pollingInterval)
 	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 0, 30*time.Second, 2*time.Second)
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
 	}
@@ -299,7 +307,7 @@ func testFailureToCreateAllResources(t *testing.T, testNs string, reconcilerTest
 		component.StatefulSetKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateError,
 	}
@@ -395,7 +403,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 30*time.Minute, 2*time.Second)
 	_ = updateAndGetStsRevision(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), etcdInstance)
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
 	}
@@ -475,7 +483,11 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	g := NewWithT(t)
 
 	// A different IT test environment is required due to a different clientBuilder which is used to create the manager.
-	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-reconciler", []string{assets.GetEtcdCrdPath(k8sVersionAbove129)})
+	k8sVersion, err := assets.GetK8sVersionFromEnv()
+	g.Expect(err).ToNot(HaveOccurred())
+	etcdCrd, err := assets.GetEtcdCrd(k8sVersion)
+	g.Expect(err).ToNot(HaveOccurred())
+	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-reconciler", []*apiextensionsv1.CustomResourceDefinition{etcdCrd})
 	g.Expect(err).ToNot(HaveOccurred())
 	defer itTestEnvCloser()
 	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-deletion-flow-failure", itTestEnv, false, testClientBuilder)
@@ -513,7 +525,7 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 
 	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, []component.Kind{component.ClientServiceKind, component.SnapshotLeaseKind}, 2*time.Minute, 2*time.Second)
 	// assert that the last operation and last errors are updated correctly.
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeDelete,
 		State: druidv1alpha1.LastOperationStateError,
 	}

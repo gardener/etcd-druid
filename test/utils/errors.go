@@ -30,3 +30,16 @@ func CheckDruidError(g *WithT, expectedError *druiderr.DruidError, actualError e
 	g.Expect(errors.Is(druidErr.Cause, expectedError.Cause)).To(BeTrue())
 	g.Expect(druidErr.Operation).To(Equal(expectedError.Operation))
 }
+
+// CheckDruidErrorList checks if the actual errors match the expected Druid errors by invoking CheckDruidError for each error.
+func CheckDruidErrorList(g *WithT, actual, expected []error) {
+	g.Expect(actual).To(HaveLen(len(expected)))
+	for i, err := range actual {
+		expectedErr := expected[i]
+		var druidErr *druiderr.DruidError
+		var expectedDruidErr *druiderr.DruidError
+		if errors.As(err, &druidErr) && errors.As(expectedErr, &expectedDruidErr) {
+			CheckDruidError(g, expectedDruidErr, err)
+		}
+	}
+}

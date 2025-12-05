@@ -7,6 +7,7 @@ package poddistruptionbudget
 import (
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -24,11 +25,11 @@ import (
 
 const (
 	// ErrGetPodDisruptionBudget indicates an error in getting the pod disruption budget resource.
-	ErrGetPodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_GET_POD_DISRUPTION_BUDGET"
+	ErrGetPodDisruptionBudget druidapicommon.ErrorCode = "ERR_GET_POD_DISRUPTION_BUDGET"
 	// ErrSyncPodDisruptionBudget indicates an error in syncing the pod disruption budget resource.
-	ErrSyncPodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
+	ErrSyncPodDisruptionBudget druidapicommon.ErrorCode = "ERR_SYNC_POD_DISRUPTION_BUDGET"
 	// ErrDeletePodDisruptionBudget indicates an error in deleting the pod disruption budget resource.
-	ErrDeletePodDisruptionBudget druidv1alpha1.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
+	ErrDeletePodDisruptionBudget druidapicommon.ErrorCode = "ERR_DELETE_POD_DISRUPTION_BUDGET"
 )
 
 const (

@@ -29,7 +29,7 @@ webhookPKI:
 # This configuration property is a short-lived property. It will be used to toggle between the now deprecated
 # CLI flags and the new OperatorConfiguration (which is the recommended way to configure etcd-druid operator).
 # To preserve backward compatibility the default value for this property is set to false.
-enabledOperatorConfig: true
+enabledOperatorConfig: false
 
 # Operator configuration
 # All configurable fields have been specified. Many of which are commented out with their default values.
@@ -75,6 +75,9 @@ operatorConfig:
       concurrentSyncs: 3
     secret:
       concurrentSyncs: 10
+    etcdOpsTask:
+      concurrentSyncs: 3
+      requeueInterval: 15s
   webhooks:
     etcdComponentProtection:
       enabled: false
@@ -121,6 +124,9 @@ controllers:
     workers: 3
   secret:
     workers: 10
+  etcdOpsTask:
+    workers: 3
+    requeueInterval: 15s
 
 # deprecated, use operatorConfig.server.webhooks instead
 webhooks:

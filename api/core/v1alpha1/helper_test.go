@@ -197,7 +197,7 @@ func TestGetAsOwnerReference(t *testing.T) {
 	}))
 }
 
-func TestIsEtcdMarkedForDeletion(t *testing.T) {
+func TestIsResourceMarkedForDeletion(t *testing.T) {
 	tests := []struct {
 		name                        string
 		markedForDeletion           bool
@@ -219,8 +219,8 @@ func TestIsEtcdMarkedForDeletion(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, test.markedForDeletion)
-			isMarkedForDeletion := IsEtcdMarkedForDeletion(etcdObjMeta)
+			objMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, test.markedForDeletion)
+			isMarkedForDeletion := IsResourceMarkedForDeletion(objMeta)
 			g.Expect(isMarkedForDeletion).To(Equal(test.expectedIsMarkedForDeletion))
 		})
 	}

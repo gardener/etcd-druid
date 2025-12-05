@@ -7,9 +7,9 @@ package secret
 import (
 	"context"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
@@ -101,21 +101,21 @@ func isFinalizerNeeded(secretName string, etcdList *druidv1alpha1.EtcdList) (boo
 }
 
 func hasFinalizer(secret *corev1.Secret) bool {
-	return sets.NewString(secret.Finalizers...).Has(common.FinalizerName)
+	return sets.NewString(secret.Finalizers...).Has(druidapicommon.EtcdFinalizerName)
 }
 
 func addFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Client, secret *corev1.Secret) error {
-	if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(common.FinalizerName) {
+	if finalizers := sets.NewString(secret.Finalizers...); finalizers.Has(druidapicommon.EtcdFinalizerName) {
 		return nil
 	}
-	logger.Info("Adding finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", common.FinalizerName)
-	return client.IgnoreNotFound(kubernetes.AddFinalizers(ctx, k8sClient, secret, common.FinalizerName))
+	logger.Info("Adding finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", druidapicommon.EtcdFinalizerName)
+	return client.IgnoreNotFound(kubernetes.AddFinalizers(ctx, k8sClient, secret, druidapicommon.EtcdFinalizerName))
 }
 
 func removeFinalizer(ctx context.Context, logger logr.Logger, k8sClient client.Client, secret *corev1.Secret) error {
-	if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(common.FinalizerName) {
+	if finalizers := sets.NewString(secret.Finalizers...); !finalizers.Has(druidapicommon.EtcdFinalizerName) {
 		return nil
 	}
-	logger.Info("Removing finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", common.FinalizerName)
-	return client.IgnoreNotFound(kubernetes.RemoveFinalizers(ctx, k8sClient, secret, common.FinalizerName))
+	logger.Info("Removing finalizer", "namespace", secret.Namespace, "name", secret.Name, "finalizerName", druidapicommon.EtcdFinalizerName)
+	return client.IgnoreNotFound(kubernetes.RemoveFinalizers(ctx, k8sClient, secret, druidapicommon.EtcdFinalizerName))
 }

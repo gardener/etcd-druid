@@ -7,6 +7,7 @@ package etcd
 import (
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
@@ -24,7 +25,7 @@ type predicateTestCase struct {
 	etcdSpecChanged      bool
 	etcdStatusChanged    bool
 	previouslyReconciled bool
-	lastOperationState   *druidv1alpha1.LastOperationState
+	lastOperationState   *druidapicommon.LastOperationState
 	// expected behavior for different event types
 	shouldAllowCreateEvent  bool
 	shouldAllowDeleteEvent  bool
@@ -384,7 +385,7 @@ func createEtcd() *druidv1alpha1.Etcd {
 	return etcd
 }
 
-func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged bool, previouslyReconciled bool, lastOpState *druidv1alpha1.LastOperationState, reconcileAnnotPresent bool) *druidv1alpha1.Etcd {
+func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged bool, previouslyReconciled bool, lastOpState *druidapicommon.LastOperationState, reconcileAnnotPresent bool) *druidv1alpha1.Etcd {
 	newEtcd := originalEtcd.DeepCopy()
 	annotations := make(map[string]string)
 	if reconcileAnnotPresent {
@@ -405,7 +406,7 @@ func updateEtcd(originalEtcd *druidv1alpha1.Etcd, specChanged, statusChanged boo
 		newEtcd.Status.ObservedGeneration = ptr.To[int64](1)
 	}
 	if lastOpState != nil {
-		newEtcd.Status.LastOperation = &druidv1alpha1.LastOperation{
+		newEtcd.Status.LastOperation = &druidapicommon.LastOperation{
 			Type:  druidv1alpha1.LastOperationTypeReconcile,
 			State: *lastOpState,
 		}
