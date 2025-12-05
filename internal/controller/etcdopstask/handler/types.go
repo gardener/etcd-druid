@@ -20,7 +20,7 @@ const (
 	// ErrDuplicateTask represents the error in case of a duplicate task for the same etcd.
 	ErrDuplicateTask druidapicommon.ErrorCode = "ERR_DUPLICATE_TASK"
 	// ErrGetCASecret represents the error in case of failure in fetching the CA secret
-	ErrGetCASecret druidapicommon.ErrorCode = "ERR_GET_CA_SECRET"
+	ErrGetCASecret druidapicommon.ErrorCode = "ERR_GET_CA_SECRET" // #nosec G101
 	// ErrCADataKeyNotFound represents the error when CA cert data key is not found in secret
 	ErrCADataKeyNotFound druidapicommon.ErrorCode = "ERR_CA_DATA_KEY_NOT_FOUND"
 	// ErrAppendCACerts represents the error when failed to append CA certs from secret
