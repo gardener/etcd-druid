@@ -15,8 +15,6 @@ const (
 	ErrInsufficientPermissions druidapicommon.ErrorCode = "ERR_INSUFFICIENT_PERMISSIONS"
 	// ErrGetEtcd represents the error in case of fetching etcd object.
 	ErrGetEtcd druidapicommon.ErrorCode = "ERR_GET_ETCD"
-	// ErrGetEtcdOpsTask represents the error in case of fetching EtcdOpsTask object.
-	ErrGetEtcdOpsTask druidapicommon.ErrorCode = "ERR_GET_ETCD_OPS_TASK"
 	// ErrDuplicateTask represents the error in case of a duplicate task for the same etcd.
 	ErrDuplicateTask druidapicommon.ErrorCode = "ERR_DUPLICATE_TASK"
 	// ErrGetCASecret represents the error in case of failure in fetching the CA secret

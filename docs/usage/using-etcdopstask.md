@@ -1,6 +1,6 @@
 # Using EtcdOpsTask
 
-`EtcdOpsTask` is a custom resource provided by the Etcd Druid project to facilitate various out-of-band tasks on Etcd clusters managed by the Druid operator. It was initially proposed in [this design document](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcdopstask.md).
+`EtcdOpsTask` is a custom resource provided by the etcd-druid to facilitate various out-of-band tasks on Etcd clusters managed by the etcd-druid operator. It was initially proposed in [this design document](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcdopstask.md).
 
 ## Overview
 
@@ -31,13 +31,13 @@ spec:
    ttlSecondsAfterFinished: 360   
   
 ```
-* The above example creates an `EtcdOpsTask` named `on-demand-snapshot` that triggers an on-demand snapshot for the Etcd cluster referenced by `spec.etcdName` in the `metadata.namespace` namespace where the etcdopstask is created. Some tasks might not require an etcd reference and hence the field `spec.etcdName` is optional.
+* The above example creates an `EtcdOpsTask` named `on-demand-snapshot` that triggers an on-demand snapshot for the Etcd cluster referenced by `spec.etcdName` in the `metadata.namespace` namespace where the `EtcdOpstask` is created. Some tasks might not require an etcd reference and hence the field `spec.etcdName` is optional.
 * The task will be automatically deleted after a Time-To-Live duration (TTL) completion as defined by `spec.ttlSecondsAfterFinished`. If not specified, the default TTL is 3600 seconds (1 hour).
 * The spec field is immutable and is enforced via [`CEL`](https://kubernetes.io/docs/reference/using-api/cel/) expressions.
 
 ### Task Lifecycle
 
-Once created, the EtcdOpsTask progresses through the following states:
+Once created, the `EtcdOpsTask` progresses through the following states:
 
 1. **Pending**: Task is accepted but not yet acted upon
 2. **InProgress**: Task is currently being executed
@@ -49,10 +49,11 @@ Once a task reaches a terminal state (Succeeded, Failed, or Rejected), it will b
 
 #### Task Phases
 
-The etcdopstask controller follows a handler-driven flow with three phases:
+The `Etcdopstask` controller follows a handler-driven flow with three phases:
 - **Admit**: Validates preconditions (RBAC, duplicates, config). Task moves `Pending → InProgress` on success, or `Rejected` on failure.
 - **Execute**: Performs the requested operation (e.g., on-demand snapshot). Task transitions to `Succeeded` or `Failed`.
-- **Cleanup**: Handles cleanup of the task and any deployed resources. EtcdopsTask resource is deleted after TTL expiry.
+- **Cleanup**: Handles cleanup of the task and any deployed resources. `EtcdopsTask` resource is deleted after TTL expiry.
+
 ### Monitoring Task Status
 
 Check the task status to monitor progress:
@@ -102,15 +103,31 @@ status:
 
 ### Task Cleanup
 
-EtcdOpsTask resources along with any dependent resources (Eg: Jobs, Pods etc.) are automatically cleaned up after a configurable TTL once they reach a terminal state (Succeeded, Failed, or Rejected).
+`EtcdOpsTask` resources along with any dependent resources (Eg: Jobs, Pods etc.) are automatically cleaned up after a configurable TTL once they reach a terminal state (Succeeded, Failed, or Rejected).
 
 ### Supported Task Types
 
 Currently supported task types:
 
-- **OnDemandSnapshot**: Triggers an on-demand backup snapshot
-  - `Full`: Creates a complete snapshot
-  - `Delta`: Creates an incremental snapshot
+#### OnDemandSnapshot
+
+Triggers an on-demand snapshot outside the regular snapshot schedule.
+
+**Snapshot Types:**
+- **Full**: Creates a complete snapshot of the entire Etcd data store.
+- **Delta**: Creates an incremental snapshot containing only the changes since the last snapshot.
+
+**Prerequisites:**
+- Backup must be enabled for the target Etcd cluster (`spec.backup.store` must be configured in the Etcd resource)
+- The Etcd cluster must be in a ready state (all members healthy and running)
+- No other `EtcdOpsTask` should be in progress for the same Etcd cluster.
+
+**Configuration Options:**
+- `type`: Specifies the snapshot type (`full` or `delta`)
+- `isFinal`: Optional boolean flag to mark the snapshot as final (default: `false`). This field is applicable only for full snapshots.
+- `timeoutSecondsFull`: Timeout in seconds for full snapshot operations (default: 480)
+- `timeoutSecondsDelta`: Timeout in seconds for delta snapshot operations (default: 60)
+
 
 ### Best Practices
 

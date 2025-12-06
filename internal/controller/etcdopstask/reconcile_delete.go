@@ -21,17 +21,17 @@ import (
 )
 
 // triggerDeletionFlow handles the deletion flow for EtcdOpsTask resources.
-func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger, taskHandler handler.Handler, task *druidv1alpha1.EtcdOpsTask) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("op", "triggerDeletionFlow")
 	logger.Info("Triggering deletion flow", "completed", task.IsCompleted(), "markedForDeletion", druidv1alpha1.IsResourceMarkedForDeletion(task.ObjectMeta))
 
-	if task.IsCompleted() {
-		if !task.HasTTLExpired() {
-			logger.Info("Task completed but TTL not expired yet, will requeue after TTL", "ttlSeconds", task.GetTimeToExpiry().Seconds())
-			return ctrlutils.ReconcileAfter(task.GetTimeToExpiry(), "Task completed, waiting for TTL to expire")
-		}
-		logger.Info("Task TTL expired, proceeding with deletion")
+	if task.IsCompleted() && !task.HasTTLExpired() {
+		timeToExpiry := task.GetTimeToExpiry()
+		logger.Info("Task completed but TTL not expired yet, will requeue after TTL", "ttlSeconds", timeToExpiry.Seconds())
+		return ctrlutils.ReconcileAfter(timeToExpiry, "Task completed, waiting for TTL to expire")
 	}
+
+	logger.Info("Task TTL expired, proceeding with deletion")
 
 	deletionStepFns := []reconcileFn{
 		r.cleanupTaskResources,
@@ -40,7 +40,7 @@ func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger
 	}
 
 	for _, fn := range deletionStepFns {
-		if result := fn(ctx, logger, client.ObjectKeyFromObject(task), taskHandler); ctrlutils.ShortCircuitReconcileFlow(result) {
+		if result := fn(ctx, logger, task, taskHandler); ctrlutils.ShortCircuitReconcileFlow(result) {
 			return result
 		}
 	}
@@ -49,15 +49,10 @@ func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger
 }
 
 // cleanupTaskResources calls the Cleanup method of the task handler.
-func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "cleanupTaskResources")
 
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
-
-	if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		Operation: &druidapicommon.LastOperation{
 			Type:        druidv1alpha1.LastOperationTypeCleanup,
 			State:       druidv1alpha1.LastOperationStateInProgress,
@@ -74,7 +69,7 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 		// 1. Task is not supported by the controller
 		// 2. Task admit failed
 		// In these cases, we don't want to call the cleanup method of the task handler. Since there is no cleanup to be done, we can skip this step.
-		if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+		if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 			Operation: &druidapicommon.LastOperation{
 				Type:        druidv1alpha1.LastOperationTypeCleanup,
 				State:       druidv1alpha1.LastOperationStateCompleted,
@@ -91,15 +86,11 @@ func (r *Reconciler) cleanupTaskResources(ctx context.Context, logger logr.Logge
 }
 
 // removeTaskFinalizer removes the finalizer from the EtcdOpsTask resource.
-func (r *Reconciler) removeTaskFinalizer(ctx context.Context, _ logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
+func (r *Reconciler) removeTaskFinalizer(ctx context.Context, _ logr.Logger, task *druidv1alpha1.EtcdOpsTask, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	if controllerutil.ContainsFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName) {
 		patch := client.MergeFrom(task.DeepCopy())
 		controllerutil.RemoveFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName)
-		if err = r.client.Patch(ctx, task, patch); err != nil {
+		if err := r.client.Patch(ctx, task, patch); err != nil {
 			return ctrlutils.ReconcileWithError(err)
 		}
 	}
@@ -107,17 +98,10 @@ func (r *Reconciler) removeTaskFinalizer(ctx context.Context, _ logr.Logger, tas
 }
 
 // removeTask deletes the EtcdOpsTask resource from the cluster.
-func (r *Reconciler) removeTask(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) removeTask(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "removeTask")
 
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			logger.Info("EtcdOpsTask resource already deleted")
-			return ctrlutils.DoNotRequeue()
-		}
-		return ctrlutils.ReconcileWithError(err)
-	} else if err = r.client.Delete(ctx, task); err != nil {
+	if err := r.client.Delete(ctx, task); err != nil {
 		if !apierrors.IsNotFound(err) {
 			updateErr := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 				Operation: &druidapicommon.LastOperation{

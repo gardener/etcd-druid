@@ -124,32 +124,24 @@ func setLastError(task *druidv1alpha1.EtcdOpsTask, err error) {
 // updateTaskStatus updates operation, state, and errors in a single call.
 func (r *Reconciler) updateTaskStatus(ctx context.Context, task *druidv1alpha1.EtcdOpsTask, update taskStatusUpdate) error {
 	runID := string(controller.ReconcileIDFromContext(ctx))
-	taskObjKey := client.ObjectKeyFromObject(task)
-
-	fetchedTask, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return err
-	}
-
-	originalStatus := fetchedTask.Status.DeepCopy()
+	originalStatus := task.Status.DeepCopy()
 
 	if update.Operation != nil {
-		setLastOperation(fetchedTask, update.Operation.Type, update.Operation.State, update.Operation.Description, runID)
+		setLastOperation(task, update.Operation.Type, update.Operation.State, update.Operation.Description, runID)
 	}
 
 	if update.State != nil {
-		setTaskState(fetchedTask, *update.State)
+		setTaskState(task, *update.State)
 	}
 
 	if update.Error != nil {
-		setLastError(fetchedTask, update.Error)
+		setLastError(task, update.Error)
 	}
 
-	if !reflect.DeepEqual(originalStatus, &fetchedTask.Status) {
-		if err = r.client.Status().Update(ctx, fetchedTask); err != nil {
+	if !reflect.DeepEqual(originalStatus, &task.Status) {
+		if err := r.client.Status().Update(ctx, task); err != nil {
 			return err
 		}
-		*task = *fetchedTask
 	}
 
 	return nil

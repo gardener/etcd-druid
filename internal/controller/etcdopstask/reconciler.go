@@ -24,7 +24,7 @@ import (
 )
 
 // reconcileFn defines a function signature for a reconciliation step.
-type reconcileFn func(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult
+type reconcileFn func(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, taskHandler handler.Handler) ctrlutils.ReconcileStepResult
 
 // Reconciler reconciles EtcdOpsTask resources.
 type Reconciler struct {
@@ -79,10 +79,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	if r.shouldDeleteTask(task) {
-		return r.triggerDeletionFlow(ctx, logger, taskHandlerInstance, task).ReconcileResult()
+		return r.triggerDeletionFlow(ctx, logger, task, taskHandlerInstance).ReconcileResult()
 	}
 
-	result := r.reconcileTask(ctx, logger, client.ObjectKeyFromObject(task), taskHandlerInstance)
+	result := r.reconcileTask(ctx, logger, task, taskHandlerInstance)
 	return result.ReconcileResult()
 
 }

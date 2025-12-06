@@ -40,11 +40,6 @@ func TestCleanupTaskResources(t *testing.T) {
 		expectedLastErrors    *druidapicommon.LastError
 	}{
 		{
-			name:          "Should return error when task does not exist",
-			task:          nil,
-			cleanupFailed: false,
-		},
-		{
 			name:           "Should skip cleanup phase for rejected task",
 			task:           utils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateRejected).Build(),
 			cleanupFailed:  false,
@@ -104,17 +99,12 @@ func TestCleanupTaskResources(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
-			var cl client.Client
-			if tc.task != nil {
-				cl = utils.NewTestClientBuilder().
-					WithScheme(kubernetes.Scheme).
-					WithStatusSubresource(tc.task).
-					Build()
-				err := cl.Create(ctx, tc.task)
-				g.Expect(err).ToNot(HaveOccurred())
-			} else {
-				cl = utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-			}
+			cl := utils.NewTestClientBuilder().
+				WithScheme(kubernetes.Scheme).
+				WithStatusSubresource(tc.task).
+				Build()
+			err := cl.Create(ctx, tc.task)
+			g.Expect(err).ToNot(HaveOccurred())
 			reconciler := newTestReconciler(t, cl)
 			fakeHandler := utils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
 			if tc.cleanupFailed {
@@ -128,16 +118,10 @@ func TestCleanupTaskResources(t *testing.T) {
 				})
 			}
 
-			result := reconciler.cleanupTaskResources(ctx, reconciler.logger, types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
-			if tc.task == nil {
-				g.Expect(result.HasErrors()).To(BeTrue())
-				g.Expect(result.GetCombinedError()).To(HaveOccurred())
-				g.Expect(apierrors.IsNotFound(result.GetCombinedError())).To(BeTrue())
-				return
-			}
+			result := reconciler.cleanupTaskResources(ctx, reconciler.logger, tc.task, fakeHandler)
 			utils.CheckDruidErrorList(g, result.GetErrors(), tc.expectedResult.GetErrors())
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err := cl.Get(ctx, types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, updatedTask)
+			err = cl.Get(ctx, types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 			utils.CheckLastOperation(g, updatedTask.Status.LastOperation, tc.expectedLastOperation)
 			utils.CheckLastErrors(g, updatedTask.Status.LastErrors, tc.expectedLastErrors)
@@ -154,10 +138,6 @@ func TestRemoveTaskFinalizer(t *testing.T) {
 		task           *druidv1alpha1.EtcdOpsTask
 		expectedResult ctrlutils.ReconcileStepResult
 	}{
-		{
-			name: "Should return error when task does not exist",
-			task: nil,
-		},
 		{
 			name: "Should successfully remove finalizer when task has finalizer",
 			task: &druidv1alpha1.EtcdOpsTask{
@@ -186,21 +166,13 @@ func TestRemoveTaskFinalizer(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-			if tc.task != nil {
-				err := cl.Create(ctx, tc.task)
-				g.Expect(err).ToNot(HaveOccurred())
-			}
+			err := cl.Create(ctx, tc.task)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			reconciler := newTestReconciler(t, cl)
 			fakeHandler := utils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
 
-			result := reconciler.removeTaskFinalizer(ctx, reconciler.logger, types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
-			if tc.task == nil {
-				g.Expect(result.HasErrors()).To(BeTrue())
-				g.Expect(result.GetCombinedError()).To(HaveOccurred())
-				g.Expect(result.GetCombinedError().Error()).To(ContainSubstring("not found"))
-				return
-			}
+			result := reconciler.removeTaskFinalizer(ctx, reconciler.logger, tc.task, fakeHandler)
 			g.Expect(result).To(Equal(tc.expectedResult))
 		})
 	}
@@ -215,12 +187,6 @@ func TestRemoveTask(t *testing.T) {
 		deleteError    bool
 		expectedResult ctrlutils.ReconcileStepResult
 	}{
-		{
-			name:           "Should return DoNotRequeue when task does not exist",
-			deleteError:    false,
-			task:           nil,
-			expectedResult: ctrlutils.DoNotRequeue(),
-		},
 		{
 			name: "Should successfully delete task",
 			task: &druidv1alpha1.EtcdOpsTask{
@@ -264,7 +230,7 @@ func TestRemoveTask(t *testing.T) {
 			fakeHandler := utils.NewFakeEtcdOpsTaskHandler("test-task", types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, reconciler.logger)
 			fakeHandler.WithCleanup(handler.Result{Requeue: true})
 
-			result := reconciler.removeTask(ctx, reconciler.logger, types.NamespacedName{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
+			result := reconciler.removeTask(ctx, reconciler.logger, tc.task, fakeHandler)
 			if tc.deleteError {
 				g.Expect(result.HasErrors()).To(BeTrue())
 				g.Expect(result.GetCombinedError()).To(HaveOccurred())

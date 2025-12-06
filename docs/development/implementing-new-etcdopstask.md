@@ -1,8 +1,8 @@
 # Implementing a New EtcdOpsTask
-EtcdOpsTask is designed to be extensible, allowing developers to implement new task types as needed. This guide outlines the steps to create and integrate a new EtcdOpsTask type into the Etcd Druid operator.
+`EtcdOpsTask` is designed to be extensible, allowing developers to implement new task types as needed. This guide outlines the steps to create and integrate a new `EtcdOpsTask` type into the Etcd Druid operator.
 
 ## Controller Architecture Overview
-- A single reconciler (as defined in `internal/controller/etcdopstask`) drives all EtcdOpsTask types.
+- A single reconciler (as defined in `internal/controller/etcdopstask`) reconciles all `EtcdOpsTask` types.
 - The reconciler selects the concrete handler based on `spec.config` (one-of union) via the task handler registry.
 - This keeps lifecycle logic unified while allowing task-specific behavior to live in dedicated handlers.
 
@@ -14,7 +14,7 @@ EtcdOpsTask is designed to be extensible, allowing developers to implement new t
 
 2. **Implement the Task Handler**:
     - In `internal/controller/etcdopstask/handler/`, create a new package for your task (e.g., `mynewtask`).
-    - Every etcdopstask handler must implement the `Handler` interface as defined in `internal/controller/etcdopstask/handler/types.go`. The interface has three methods which is expected to be implemented:
+    - Every `Etcdopstask` handler must implement the `Handler` interface as defined in `internal/controller/etcdopstask/handler/types.go`. The interface has three methods which is expected to be implemented:
       - `Admit(ctx context.Context) Result`: Validates preconditions for the task.
       - `Execute(ctx context.Context) Result`: Contains the core logic to perform the task.
       - `Cleanup(ctx context.Context) Result`: Cleans up any resources created during task execution.
@@ -32,5 +32,9 @@ EtcdOpsTask is designed to be extensible, allowing developers to implement new t
     - Once the `requeue` field is set to false, the task will move to the next phase or terminal state as applicable.
     - Add a constructor function in the new handler package that returns an instance of the handler. The constructor should accept necessary dependencies like clients, loggers, etc., similar to existing handlers. This will then be used in the next step to register the handler with the registry. Refer the [on-demand-snapshot handler constructor](https://github.com/gardener/etcd-druid/tree/master/internal/controller/etcdopstask/handler/ondemandsnapshot/ondemandsnapshot.go#L56-L65) for reference.
 3. **Register the Handler**:
-  - The EtcdOpsTask reconciler maintains a task handler registry. Extend `DefaultTaskHandlerRegistry()` in `internal/controller/etcdopstask/reconciler.go` to register your new handler, e.g. `registry.Register("MyNewTask", mynewtask.New)`.
+  - The `EtcdOpsTask` reconciler maintains a task handler registry. Extend `DefaultTaskHandlerRegistry()` in `internal/controller/etcdopstask/reconciler.go` to register your new handler, e.g. `registry.Register("MyNewTask", mynewtask.New)`.
   - Update `getTaskHandler(...)` in the same file to select the new handler based on the corresponding `spec.config` field (one-of union), similar to the `OnDemandSnapshot` case.
+
+4. **Update the Usage Documentation**:
+  - Add documentation for the new task type in `docs/usage/using-etcdopstask.md` under the "Supported Task Types" section.
+  - Include details about the task type, its configuration options, prerequisites, and expected behavior.

@@ -24,7 +24,7 @@ import (
 
 // reconcileTask manages the lifecycle of an EtcdOpsTask resource.
 // It executes a series of step functions to ensure the task is processed correctly.
-func (r *Reconciler) reconcileTask(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) reconcileTask(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("op", "reconcileTask")
 	logger.Info("Triggering task execution flow")
 
@@ -37,7 +37,7 @@ func (r *Reconciler) reconcileTask(ctx context.Context, logger logr.Logger, task
 	}
 
 	for _, fn := range reconcileStepFns {
-		if result := fn(ctx, logger, taskObjKey, taskHandler); ctrlutils.ShortCircuitReconcileFlow(result) {
+		if result := fn(ctx, logger, task, taskHandler); ctrlutils.ShortCircuitReconcileFlow(result) {
 			return result
 		}
 	}
@@ -47,36 +47,26 @@ func (r *Reconciler) reconcileTask(ctx context.Context, logger logr.Logger, task
 
 // ensureTaskFinalizer checks if the EtcdOpsTask has the finalizer.
 // If not, it adds the finalizer and updates the task status.
-func (r *Reconciler) ensureTaskFinalizer(ctx context.Context, _ logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
-
+func (r *Reconciler) ensureTaskFinalizer(ctx context.Context, _ logr.Logger, task *druidv1alpha1.EtcdOpsTask, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	if controllerutil.ContainsFinalizer(task, druidapicommon.EtcdOpsTaskFinalizerName) {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if err = kubernetes.AddFinalizers(ctx, r.client, task, druidapicommon.EtcdOpsTaskFinalizerName); err != nil {
+	if err := kubernetes.AddFinalizers(ctx, r.client, task, druidapicommon.EtcdOpsTaskFinalizerName); err != nil {
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
 // transitionToPendingState sets the task.status.state to Pending if not already set.
-func (r *Reconciler) transitionToPendingState(ctx context.Context, _ logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
-
+func (r *Reconciler) transitionToPendingState(ctx context.Context, _ logr.Logger, task *druidv1alpha1.EtcdOpsTask, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	if task.Status.State != nil {
 		return ctrlutils.ContinueReconcile()
 	}
 	// Set the task state to Pending
 	// and update the LastTransitionTime.
 	pendingState := druidv1alpha1.TaskStatePending
-	if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		State: &pendingState,
 	}); err != nil {
 		return ctrlutils.ReconcileWithError(err)
@@ -90,19 +80,15 @@ func (r *Reconciler) transitionToPendingState(ctx context.Context, _ logr.Logger
 // If the admit operation fails, it updates the task state to Rejected.
 // If the admit operation succeeds, it updates the task.status.state to InProgress.
 // If the task is not in its Pending state, it skips the step.
-func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "admitTask")
 
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
 	// If the task is not in Pending state, skip the admit step.
 	if task.Status.State != nil && *task.Status.State != druidv1alpha1.TaskStatePending {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		Operation: &druidapicommon.LastOperation{
 			Type:        druidv1alpha1.LastOperationTypeAdmit,
 			State:       druidv1alpha1.LastOperationStateInProgress,
@@ -113,7 +99,7 @@ func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjK
 	}
 
 	var etcdOpsTaskList druidv1alpha1.EtcdOpsTaskList
-	if err = r.client.List(ctx, &etcdOpsTaskList, client.InNamespace(task.Namespace)); err != nil {
+	if err := r.client.List(ctx, &etcdOpsTaskList, client.InNamespace(task.Namespace)); err != nil {
 		if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
 			wrappedErr := druiderr.WrapError(err, handler.ErrInsufficientPermissions, string(druidv1alpha1.LastOperationTypeAdmit), "insufficient permissions to list EtcdOpsTasks")
 			return r.rejectTaskWithError(ctx, task, "Insufficient permissions to list EtcdOpsTasks", wrappedErr)
@@ -135,17 +121,12 @@ func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, taskObjK
 }
 
 // transitionToInProgressState sets the task.status.state to InProgress if not already set.
-func (r *Reconciler) transitionToInProgressState(ctx context.Context, _ logr.Logger, taskObjKey client.ObjectKey, _ handler.Handler) ctrlutils.ReconcileStepResult {
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
-
+func (r *Reconciler) transitionToInProgressState(ctx context.Context, _ logr.Logger, task *druidv1alpha1.EtcdOpsTask, _ handler.Handler) ctrlutils.ReconcileStepResult {
 	if task.Status.State == nil || *task.Status.State != druidv1alpha1.TaskStatePending {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		State: ptr.To(druidv1alpha1.TaskStateInProgress),
 	}); err != nil {
 		return ctrlutils.ReconcileWithError(err)
@@ -159,15 +140,10 @@ func (r *Reconciler) transitionToInProgressState(ctx context.Context, _ logr.Log
 // If the task is still in progress, it requeues the task for further processing.
 // If the task fails, it updates the task state to failed and sets the LastOperation to error.
 // If the task succeeds, it updates the task state to succeeded and sets the LastOperation to succeeded.
-func (r *Reconciler) executeTask(ctx context.Context, logger logr.Logger, taskObjKey client.ObjectKey, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) executeTask(ctx context.Context, logger logr.Logger, task *druidv1alpha1.EtcdOpsTask, taskHandler handler.Handler) ctrlutils.ReconcileStepResult {
 	logger = logger.WithValues("step", "runTask")
 
-	task, err := r.getTask(ctx, taskObjKey)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
-	}
-
-	if err = r.updateTaskStatus(ctx, task, taskStatusUpdate{
+	if err := r.updateTaskStatus(ctx, task, taskStatusUpdate{
 		Operation: &druidapicommon.LastOperation{
 			Type:        druidv1alpha1.LastOperationTypeExecution,
 			State:       druidv1alpha1.LastOperationStateInProgress,

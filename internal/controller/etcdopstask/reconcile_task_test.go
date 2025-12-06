@@ -51,10 +51,6 @@ func TestEnsureFinalizer(t *testing.T) {
 			expectedResult:    ctrlutils.ContinueReconcile(),
 		},
 		{
-			name: "Should return error when task does not exist",
-			task: nil,
-		},
-		{
 			name:     "Should return error when patch fails",
 			task:     testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").Build(),
 			patchErr: apierrors.NewInternalError(fmt.Errorf("patch failed")),
@@ -67,35 +63,29 @@ func TestEnsureFinalizer(t *testing.T) {
 				cl  client.Client
 				err error
 			)
-			ctx := context.Background()
-			if tc.task != nil {
-				if tc.patchErr != nil {
-					cl = testutils.NewTestClientBuilder().
-						WithScheme(kubernetes.Scheme).
-						WithObjects(tc.task).
-						RecordErrorForObjects(testutils.ClientMethodPatch, tc.patchErr.(*apierrors.StatusError), client.ObjectKeyFromObject(tc.task)).
-						Build()
-				} else {
-					cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-					err = cl.Create(ctx, tc.task)
-					g.Expect(err).ToNot(HaveOccurred(), "Failed to create task")
-					if tc.ContainsFinalizer {
-						controllerutil.AddFinalizer(tc.task, druidapicommon.EtcdOpsTaskFinalizerName)
-						err = cl.Update(ctx, tc.task)
-						g.Expect(err).ToNot(HaveOccurred(), "Failed to update task with finalizer")
-					}
-				}
-			} else {
-				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		ctx := context.Background()
+		if tc.patchErr != nil {
+			cl = testutils.NewTestClientBuilder().
+				WithScheme(kubernetes.Scheme).
+				WithObjects(tc.task).
+				RecordErrorForObjects(testutils.ClientMethodPatch, tc.patchErr.(*apierrors.StatusError), client.ObjectKeyFromObject(tc.task)).
+				Build()
+		} else {
+			cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+			err = cl.Create(ctx, tc.task)
+			g.Expect(err).ToNot(HaveOccurred(), "Failed to create task")
+			if tc.ContainsFinalizer {
+				controllerutil.AddFinalizer(tc.task, druidapicommon.EtcdOpsTaskFinalizerName)
+				err = cl.Update(ctx, tc.task)
+				g.Expect(err).ToNot(HaveOccurred(), "Failed to update task with finalizer")
 			}
+		}
 
-			r := newTestReconciler(t, cl)
-
-			taskKey := client.ObjectKey{Name: "test-task", Namespace: "test-ns"}
-			if tc.task != nil {
-				taskKey = client.ObjectKeyFromObject(tc.task)
-			}
-			result := r.ensureTaskFinalizer(ctx, r.logger, taskKey, nil)
+		r := newTestReconciler(t, cl)			// taskKey := client.ObjectKey{Name: "test-task", Namespace: "test-ns"}
+			// if tc.task != nil {
+			// 	taskKey = client.ObjectKeyFromObject(tc.task)
+			// }
+			result := r.ensureTaskFinalizer(ctx, r.logger, tc.task, nil)
 
 			if tc.patchErr != nil {
 				g.Expect(result.HasErrors()).To(BeTrue())
@@ -103,15 +93,9 @@ func TestEnsureFinalizer(t *testing.T) {
 				return
 			}
 
-			if tc.task == nil {
-				g.Expect(result.HasErrors()).To(BeTrue())
-				g.Expect(result.GetCombinedError()).To(HaveOccurred())
-				return
-			}
-
 			g.Expect(result).To(Equal(tc.expectedResult))
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
-			err = cl.Get(ctx, taskKey, updatedTask)
+			err = cl.Get(ctx, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(controllerutil.ContainsFinalizer(updatedTask, druidapicommon.EtcdOpsTaskFinalizerName)).To(BeTrue())
 		})
@@ -150,7 +134,7 @@ func TestTransitionToPendingState(t *testing.T) {
 			err := cl.Create(ctx, tc.task)
 			g.Expect(err).To(BeNil())
 
-			result := r.transitionToPendingState(ctx, r.logger, client.ObjectKeyFromObject(tc.task), nil)
+			result := r.transitionToPendingState(ctx, r.logger, tc.task, nil)
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
 			err = cl.Get(ctx, client.ObjectKeyFromObject(tc.task), updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -183,11 +167,6 @@ func TestAdmitTask(t *testing.T) {
 		expectedLastErrors    *druidapicommon.LastError
 		expectedLastOperation *druidapicommon.LastOperation
 	}{
-		{
-			name:        "Should return error when task does not exist",
-			task:        nil,
-			admitFailed: false,
-		},
 		{
 			name:                  "Should reject task when another task is already in progress",
 			additionalTaskPresent: true,
@@ -280,14 +259,7 @@ func TestAdmitTask(t *testing.T) {
 				})
 			}
 
-			result := reconciler.admitTask(ctx, reconciler.logger, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
-
-			if tc.task == nil {
-				g.Expect(result.HasErrors()).To(BeTrue())
-				g.Expect(result.GetCombinedError()).To(HaveOccurred())
-				g.Expect(apierrors.IsNotFound(result.GetCombinedError())).To(BeTrue())
-				return
-			}
+			result := reconciler.admitTask(ctx, reconciler.logger, tc.task, fakeHandler)
 
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
 			err := cl.Get(ctx, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
@@ -341,7 +313,7 @@ func TestTransitionToInProgressState(t *testing.T) {
 			g.Expect(err).To(BeNil())
 
 			handler := testutils.NewFakeEtcdOpsTaskHandler("test-handler", client.ObjectKeyFromObject(tc.task), r.logger)
-			result := r.transitionToInProgressState(ctx, r.logger, client.ObjectKeyFromObject(tc.task), handler)
+			result := r.transitionToInProgressState(ctx, r.logger, tc.task, handler)
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
 			err = cl.Get(ctx, client.ObjectKeyFromObject(tc.task), updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -375,11 +347,6 @@ func TestExecuteTask(t *testing.T) {
 		expectedLastOperation *druidapicommon.LastOperation
 		expectedTaskState     *druidv1alpha1.TaskState
 	}{
-		{
-			name:      "Should return error when task does not exist",
-			task:      nil,
-			runFailed: false,
-		},
 		{
 			name:           "Should update task state as Failed when run fails with non-temporary error",
 			task:           testutils.EtcdOpsTaskBuilderWithDefaults("test-task", "test-ns").WithState(druidv1alpha1.TaskStateInProgress).Build(),
@@ -460,13 +427,7 @@ func TestExecuteTask(t *testing.T) {
 				})
 			}
 
-			result := reconciler.executeTask(ctx, reconciler.logger, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, fakeHandler)
-			if tc.task == nil {
-				g.Expect(result.HasErrors()).To(BeTrue())
-				g.Expect(result.GetCombinedError()).To(HaveOccurred())
-				g.Expect(apierrors.IsNotFound(result.GetCombinedError())).To(BeTrue())
-				return
-			}
+			result := reconciler.executeTask(ctx, reconciler.logger, tc.task, fakeHandler)
 			updatedTask := &druidv1alpha1.EtcdOpsTask{}
 			err := cl.Get(ctx, client.ObjectKey{Name: "test-task", Namespace: "test-ns"}, updatedTask)
 			g.Expect(err).ToNot(HaveOccurred())

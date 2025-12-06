@@ -82,13 +82,13 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 	}
 }
 
-// Run executes the on-demand snapshot task.
+// Execute performs the on-demand snapshot task.
 func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	etcd, errResult := utils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
 	if errResult != nil {
 		return *errResult
 	}
-
+	// Re-check prerequisites upon requeues to account for backup spec or etcd readiness changes since Admit() is run only once.
 	errResult = h.checkPrerequisitesForSnapshot(etcd, druidv1alpha1.LastOperationTypeExecution)
 	if errResult != nil {
 		return *errResult
