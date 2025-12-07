@@ -110,7 +110,7 @@ func (r *Reconciler) admitTask(ctx context.Context, logger logr.Logger, task *dr
 	for _, existingTask := range etcdOpsTaskList.Items {
 		if existingTask.Spec.EtcdName != nil && task.Spec.EtcdName != nil && *existingTask.Spec.EtcdName == *task.Spec.EtcdName {
 			if !existingTask.IsCompleted() && existingTask.Name != task.Name {
-				wrappedErr := druiderr.WrapError(fmt.Errorf("an EtcdOpsTask for etcd %s/%s is already in progress (task: %s)", task.Namespace, *task.Spec.EtcdName, existingTask.Name), handler.ErrDuplicateTask, string(druidv1alpha1.LastOperationTypeAdmit), "duplicate task found")
+				wrappedErr := druiderr.WrapError(fmt.Errorf("an EtcdOpsTask for etcd %s/%s is already present (task: %s)", task.Namespace, *task.Spec.EtcdName, existingTask.Name), handler.ErrDuplicateTask, string(druidv1alpha1.LastOperationTypeAdmit), "duplicate task found")
 				return r.rejectTaskWithError(ctx, task, "EtcdOpsTask for the same etcd is already in progress", wrappedErr)
 			}
 		}
