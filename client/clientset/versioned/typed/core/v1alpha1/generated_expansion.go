@@ -8,3 +8,5 @@ package v1alpha1
 type EtcdExpansion interface{}
 
 type EtcdCopyBackupsTaskExpansion interface{}
+
+type EtcdOpsTaskExpansion interface{}

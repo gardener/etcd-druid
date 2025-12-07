@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
@@ -153,7 +154,7 @@ func createAndAssertEtcdReconciliation(ctx context.Context, t *testing.T, reconc
 
 	// assert etcd status reconciliation
 	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](1), 5*time.Second, 1*time.Second)
-	expectedLastOperation := &druidv1alpha1.LastOperation{
+	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
 	}

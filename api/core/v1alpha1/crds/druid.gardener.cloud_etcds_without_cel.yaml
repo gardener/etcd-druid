@@ -1889,7 +1889,7 @@ spec:
                     runID:
                       description: |-
                         RunID correlates an operation with a reconciliation run.
-                        Every time an Etcd resource is reconciled (barring status reconciliation which is periodic), a unique ID is
+                        Every time the resource is reconciled (barring status reconciliation which is periodic), a unique ID is
                         generated which can be used to correlate all actions done as part of a single reconcile run. Capturing this
                         as part of LastOperation aids in establishing this correlation. This further helps in also easily filtering
                         reconcile logs as all structured logs in a reconciliation run should have the `runID` referenced.

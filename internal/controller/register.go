@@ -12,6 +12,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
+	"github.com/gardener/etcd-druid/internal/controller/etcdopstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,6 +32,12 @@ func Register(mgr ctrl.Manager, controllerConfig druidconfigv1alpha1.ControllerC
 		return err
 	}
 	if err = etcdReconciler.RegisterWithManager(mgr, etcd.ControllerName); err != nil {
+		return err
+	}
+
+	// Add etcd-ops-task reconciler to the manager
+	etcdOpsTaskReconciler := etcdopstask.NewReconciler(mgr, &controllerConfig.EtcdOpsTask)
+	if err = etcdOpsTaskReconciler.RegisterWithManager(mgr); err != nil {
 		return err
 	}
 

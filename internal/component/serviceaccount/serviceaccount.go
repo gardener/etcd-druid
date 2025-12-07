@@ -7,6 +7,7 @@ package serviceaccount
 import (
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -23,11 +24,11 @@ import (
 
 const (
 	// ErrGetServiceAccount indicates an error in getting the service account resource.
-	ErrGetServiceAccount druidv1alpha1.ErrorCode = "ERR_GET_SERVICE_ACCOUNT"
+	ErrGetServiceAccount druidapicommon.ErrorCode = "ERR_GET_SERVICE_ACCOUNT"
 	// ErrSyncServiceAccount indicates an error in syncing the service account resource.
-	ErrSyncServiceAccount druidv1alpha1.ErrorCode = "ERR_SYNC_SERVICE_ACCOUNT"
+	ErrSyncServiceAccount druidapicommon.ErrorCode = "ERR_SYNC_SERVICE_ACCOUNT"
 	// ErrDeleteServiceAccount indicates an error in deleting the service account resource.
-	ErrDeleteServiceAccount druidv1alpha1.ErrorCode = "ERR_DELETE_SERVICE_ACCOUNT"
+	ErrDeleteServiceAccount druidapicommon.ErrorCode = "ERR_DELETE_SERVICE_ACCOUNT"
 )
 
 type _resource struct {

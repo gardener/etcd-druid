@@ -98,6 +98,7 @@ test-unit: $(GINKGO)
 	# run the golang native unit tests.
 	@TEST_COVER=$(TEST_COVER) "$(HACK_DIR)/test-go.sh" \
 	./internal/controller/etcd/... \
+	./internal/controller/etcdopstask/... \
 	./internal/controller/secret/... \
 	./internal/controller/compaction/... \
 	./internal/component/... \

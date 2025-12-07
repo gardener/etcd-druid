@@ -11,6 +11,8 @@ import (
 
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 func TestMain(m *testing.M) {
@@ -18,8 +20,20 @@ func TestMain(m *testing.M) {
 		itTestEnvCloser setup.DruidTestEnvCloser
 		err             error
 	)
-	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcdcopybackuptask-validation", []string{assets.GetEtcdCopyBackupsTaskCrdPath()})
 
+	k8sVersion, err := assets.GetK8sVersionFromEnv()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to get the kubernetes version: %v\n", err)
+		os.Exit(1)
+	}
+
+	etcdCopyBackupsTaskCrd, err := assets.GetEtcdCopyBackupsTaskCrd(k8sVersion)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to get EtcdCopyBackupsTask CRD: %v\n", err)
+		os.Exit(1)
+	}
+
+	itTestEnv, itTestEnvCloser, err = setup.NewDruidTestEnvironment("etcdcopybackuptask-validation", []*apiextensionsv1.CustomResourceDefinition{etcdCopyBackupsTaskCrd})
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "failed to create integration test environment: %v\n", err)
 		os.Exit(1)

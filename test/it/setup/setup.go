@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -60,7 +61,7 @@ type itTestEnv struct {
 
 type DruidTestEnvCloser func()
 
-func NewDruidTestEnvironment(loggerName string, crdDirectoryPaths []string) (DruidTestEnvironment, DruidTestEnvCloser, error) {
+func NewDruidTestEnvironment(loggerName string, crds []*apiextensionsv1.CustomResourceDefinition) (DruidTestEnvironment, DruidTestEnvCloser, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	logger := ctrl.Log.WithName(loggerName)
 	itEnv := &itTestEnv{
@@ -71,7 +72,7 @@ func NewDruidTestEnvironment(loggerName string, crdDirectoryPaths []string) (Dru
 	if err := itEnv.prepareScheme(); err != nil {
 		return nil, nil, err
 	}
-	if err := itEnv.startTestEnvironment(crdDirectoryPaths); err != nil {
+	if err := itEnv.startTestEnvironment(crds); err != nil {
 		return nil, nil, err
 	}
 	return itEnv, func() {
@@ -161,11 +162,10 @@ func (t *itTestEnv) prepareScheme() error {
 	return nil
 }
 
-func (t *itTestEnv) startTestEnvironment(crdDirectoryPaths []string) error {
+func (t *itTestEnv) startTestEnvironment(crds []*apiextensionsv1.CustomResourceDefinition) error {
 	testEnv := &envtest.Environment{
-		Scheme:                t.scheme,
-		ErrorIfCRDPathMissing: true,
-		CRDDirectoryPaths:     crdDirectoryPaths,
+		Scheme: t.scheme,
+		CRDs:   crds,
 	}
 	if useExistingK8SCluster() {
 		testEnv.UseExistingCluster = ptr.To(true)

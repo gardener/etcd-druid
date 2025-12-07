@@ -137,9 +137,9 @@ func GetAsOwnerReference(etcdObjMeta metav1.ObjectMeta) metav1.OwnerReference {
 	}
 }
 
-// IsEtcdMarkedForDeletion returns true if the Etcd object is marked for deletion and false otherwise.
-func IsEtcdMarkedForDeletion(etcdObjMeta metav1.ObjectMeta) bool {
-	return etcdObjMeta.DeletionTimestamp != nil
+// IsResourceMarkedForDeletion returns true if the Etcd object is marked for deletion and false otherwise.
+func IsResourceMarkedForDeletion(objMeta metav1.ObjectMeta) bool {
+	return objMeta.DeletionTimestamp != nil
 }
 
 // GetReconcileOperationAnnotationKey returns the reconcile operation annotation key set on an Etcd resource.

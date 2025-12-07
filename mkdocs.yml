@@ -102,7 +102,7 @@ nav:
       - Snapshot Compaction: proposals/02-snapshot-compaction.md
       - Scaling Etcd Clusters: proposals/03-scaling-up-an-etcd-cluster.md
       - Etcd Member: proposals/04-etcd-member-custom-resource.md
-      - Etcd Operator Tasks: proposals/05-etcd-operator-tasks.md
+      - Etcd Operator Tasks: proposals/05-etcdopstasks.md
 extra:
   social:
     - icon: fontawesome/brands/github

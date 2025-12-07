@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -48,9 +48,9 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcd *druidv1a
 }
 
 func (r *Reconciler) ensureFinalizer(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	if !controllerutil.ContainsFinalizer(etcd, common.FinalizerName) {
-		ctx.Logger.Info("Adding finalizer", "finalizerName", common.FinalizerName)
-		if err := kubernetes.AddFinalizers(ctx, r.client, etcd, common.FinalizerName); err != nil {
+	if !controllerutil.ContainsFinalizer(etcd, druidapicommon.EtcdFinalizerName) {
+		ctx.Logger.Info("Adding finalizer", "finalizerName", druidapicommon.EtcdFinalizerName)
+		if err := kubernetes.AddFinalizers(ctx, r.client, etcd, druidapicommon.EtcdFinalizerName); err != nil {
 			ctx.Logger.Error(err, "failed to add finalizer")
 			return ctrlutils.ReconcileWithError(err)
 		}

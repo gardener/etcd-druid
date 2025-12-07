@@ -7,6 +7,7 @@ package memberlease
 import (
 	"fmt"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -22,11 +23,11 @@ import (
 
 const (
 	// ErrListMemberLease indicates an error in listing the member lease resources.
-	ErrListMemberLease druidv1alpha1.ErrorCode = "ERR_LIST_MEMBER_LEASE"
+	ErrListMemberLease druidapicommon.ErrorCode = "ERR_LIST_MEMBER_LEASE"
 	// ErrSyncMemberLease indicates an error in syncing the member lease resources.
-	ErrSyncMemberLease druidv1alpha1.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
+	ErrSyncMemberLease druidapicommon.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
 	// ErrDeleteMemberLease indicates an error in deleting the member lease resources.
-	ErrDeleteMemberLease druidv1alpha1.ErrorCode = "ERR_DELETE_MEMBER_LEASE"
+	ErrDeleteMemberLease druidapicommon.ErrorCode = "ERR_DELETE_MEMBER_LEASE"
 )
 
 type _resource struct {
