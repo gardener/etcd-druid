@@ -28,7 +28,6 @@ webhookPKI:
 
 # This configuration property is a short-lived property. It will be used to toggle between the now deprecated
 # CLI flags and the new OperatorConfiguration (which is the recommended way to configure etcd-druid operator).
-# To preserve backward compatibility the default value for this property is set to false.
 enabledOperatorConfig: true
 
 # Operator configuration
