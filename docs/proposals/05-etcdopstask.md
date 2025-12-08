@@ -231,7 +231,7 @@ Task(s) can be created by creating an instance of the `EtcdOpsTask` custom resou
 #### Execution
 
 * Authors propose to introduce a new controller which watches for `EtcdOpsTask` custom resource.
-* Each `out-of-band` task may have some task specific configuration defined in [.spec.config.<taskConfig>](#spec).
+* Each `out-of-band` task may have some task specific configuration defined in [.spec.config.`<taskConfig>`](#spec).
 * The controller needs to process this task specific config, which comes as a structured object of type `EtcdOpsTaskConfig`, according to the schema defined for each task.
 * For every `out-of-band` task, a set of `pre-conditions` can be defined. These pre-conditions are evaluated against the current state of the target etcd cluster. Based on the evaluation result (boolean), the task is permitted or denied execution.
 * If multiple tasks are invoked simultaneously or in `pending` state, then they will be executed in a First-In-First-Out (FIFO) manner.
