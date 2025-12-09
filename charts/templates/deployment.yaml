@@ -80,6 +80,14 @@ spec:
         {{- if (((.Values.controllers).secret).workers) }}
             - --secret-workers={{ .Values.controllers.secret.workers }}
         {{- end }}
+        {{- if ((.Values.controllers).etcdOpsTask) }}
+        {{- if (((.Values.controllers).etcdOpsTask).workers) }}
+            - --etcd-ops-task-workers={{ .Values.controllers.etcdOpsTask.workers }}
+        {{- end }}
+        {{- if (((.Values.controllers).etcdOpsTask).requeueInterval) }}
+            - --etcd-ops-task-requeue-interval={{ .Values.controllers.etcdOpsTask.requeueInterval }}
+        {{- end }}
+        {{- end }}
         {{- if eq $etcdComponentProtectionWebhookEnabled "true" }}
             - --enable-etcd-components-webhook=true
             - --reconciler-service-account={{ include "webhook.etcdcomponentprotection.reconcilerServiceAccountFQDN" . }}

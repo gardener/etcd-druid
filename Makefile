@@ -40,7 +40,7 @@ clean-mod-cache:
 
 .PHONY: update-dependencies
 update-dependencies:
-	@env GO111MODULE=on go get -u
+	@env GO111MODULE=on go get -u ./...
 	@make tidy
 
 .PHONY: add-license-headers

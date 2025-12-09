@@ -32,6 +32,7 @@ func TestCompleteWithDeprecatedFlags(t *testing.T) {
 		"--etcd-workers=5",
 		"--etcd-status-sync-period=15s",
 		"--enable-backup-compaction=true",
+		"--etcd-ops-task-workers=3",
 		"--compaction-workers=3",
 		"--metrics-scrape-wait-duration=0s",
 		"--secret-workers=15",
