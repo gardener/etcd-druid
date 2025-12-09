@@ -32,7 +32,7 @@ jobs:
     with:
       release-commit-target: branch
       github-tag-template: '${version}'
-      github-additional-tag-templates: |
+      github-additional-tag-templates: |-
         api/${version}
         client/${version}
       next-version: ${{ inputs.next-version }}
