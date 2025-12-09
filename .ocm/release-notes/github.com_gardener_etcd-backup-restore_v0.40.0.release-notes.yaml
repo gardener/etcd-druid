@@ -1,3 +1,4 @@
+reference_version: v0.34.0
 ocm:
   component_name: github.com/gardener/etcd-backup-restore
   component_version: v0.40.0
