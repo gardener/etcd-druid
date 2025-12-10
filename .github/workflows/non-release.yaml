@@ -12,7 +12,7 @@ jobs:
     uses: ./.github/workflows/base.yaml
     with:
       mode: snapshot
-      run-tests: ${{ github.event_name == 'push' }}
+      run-tests: true
     secrets: inherit
     permissions:
       contents: read
