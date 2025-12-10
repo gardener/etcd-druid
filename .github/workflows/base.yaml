@@ -10,10 +10,6 @@ on:
         description: |
           the mode to use. either `snapshot` or `release`. Will affect effective version, as well
           as target-oci-registry.
-      run-tests:
-        required: true
-        type: boolean
-
 
 jobs:
   prepare:
@@ -99,6 +95,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
+      - name: tidy
+        run: make tidy
       - name: check
         run: make check
       - name: check-license-headers
@@ -120,12 +118,13 @@ jobs:
         run: make check-git-status
   tests:
     runs-on: ubuntu-latest
-    if: ${{ inputs.run-tests }}
     permissions:
       contents: read
     strategy:
       matrix:
         args:
+          - name: api-test-unit
+            run: make --directory=api test-unit
           - name: test-unit
             run: make test-unit
           - name: test-integration
