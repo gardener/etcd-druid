@@ -99,6 +99,8 @@ jobs:
         run: make check
       - name: check-license-headers
         run: make check-license-headers
+      - name: tidy
+        run: make tidy
       - name: api-tidy
         run: make --directory=api tidy
       - name: api-check
