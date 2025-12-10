@@ -95,12 +95,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
+      - name: tidy
+        run: make tidy
       - name: check
         run: make check
       - name: check-license-headers
         run: make check-license-headers
-      - name: tidy
-        run: make tidy
       - name: api-tidy
         run: make --directory=api tidy
       - name: api-check
@@ -123,6 +123,8 @@ jobs:
     strategy:
       matrix:
         args:
+          - name: api-test-unit
+            run: make --directory=api test-unit
           - name: test-unit
             run: make test-unit
           - name: test-integration
