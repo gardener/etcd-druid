@@ -10,10 +10,6 @@ on:
         description: |
           the mode to use. either `snapshot` or `release`. Will affect effective version, as well
           as target-oci-registry.
-      run-tests:
-        required: true
-        type: boolean
-
 
 jobs:
   prepare:
@@ -120,7 +116,6 @@ jobs:
         run: make check-git-status
   tests:
     runs-on: ubuntu-latest
-    if: ${{ inputs.run-tests }}
     permissions:
       contents: read
     strategy:

@@ -12,7 +12,6 @@ jobs:
     uses: ./.github/workflows/base.yaml
     with:
       mode: snapshot
-      run-tests: true
     secrets: inherit
     permissions:
       contents: read
