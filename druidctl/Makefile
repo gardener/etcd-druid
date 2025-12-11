@@ -75,6 +75,11 @@ format: $(GOIMPORTS_REVISER)
 check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 	@$(REPO_ROOT)/hack/check.sh --golangci-lint-config=../.golangci.yaml ./...
 
+.PHONY: sast
+sast: $(GOSEC)
+	@echo "> Running gosec for druidctl module"
+	@$(GOSEC) -exclude-generated ./...
+
 .PHONY: clean clean-all
 clean:
 	rm -rf $(BIN_DIR) coverage.out
