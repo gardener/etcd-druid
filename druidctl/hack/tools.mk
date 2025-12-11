@@ -6,11 +6,13 @@ TOOLS_BIN_DIR				:= $(DRUIDCTL_MODULE_TOOLS_DIR)/bin
 GOLANGCI_LINT				:= $(TOOLS_BIN_DIR)/golangci-lint
 GOIMPORTS					:= $(TOOLS_BIN_DIR)/goimports
 GOIMPORTS_REVISER			:= $(TOOLS_BIN_DIR)/goimports-reviser
+GOSEC						:= $(TOOLS_BIN_DIR)/gosec
 
 # Tool versions
 GOLANGCI_LINT_VERSION ?= v1.64.8
 GOIMPORTS_REVISER_VERSION ?= v3.9.1
 GOIMPORTS_VERSION ?= latest
+GOSEC_VERSION ?= v2.22.2
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -19,7 +21,7 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 clean-tools-bin:
 	rm -rf $(TOOLS_BIN_DIR)/*
 
-tools: $(GOLANGCI_LINT) $(GOIMPORTS) $(GOIMPORTS_REVISER)
+tools: $(GOLANGCI_LINT) $(GOIMPORTS) $(GOIMPORTS_REVISER) $(GOSEC)
 
 $(GOLANGCI_LINT):
 	@# CGO_ENABLED has to be set to 1 in order for golangci-lint to be able to load plugins
@@ -32,3 +34,6 @@ $(GOIMPORTS):
 
 $(GOIMPORTS_REVISER):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/incu6us/goimports-reviser/v3@$(GOIMPORTS_REVISER_VERSION)
+
+$(GOSEC):
+	@GOSEC_VERSION=$(GOSEC_VERSION) $(REPO_ROOT)/hack/tools/install-gosec.sh
