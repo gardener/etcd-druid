@@ -5,7 +5,9 @@
 package v1alpha1
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,6 +24,22 @@ func GetPeerServiceName(etcdObjMeta metav1.ObjectMeta) string {
 // GetClientServiceName returns the client service name for the Etcd cluster reachable by external clients.
 func GetClientServiceName(etcdObjMeta metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s-client", etcdObjMeta.Name)
+}
+
+// GetClientHostname returns the hostname of the client endpoint for the Etcd cluster. This is the client service hostname when the Etcd members
+// are managed by etcd-druid, else it is a random member address from the externally managed member addresses.
+func GetClientHostname(etcd *Etcd) string {
+	if IsPodManagementEnabled(etcd) {
+		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.ObjectMeta.Namespace)
+	} else {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
+		if err != nil {
+			// Fallback to first member address in case of an error
+			return etcd.Spec.ExternallyManagedMemberAddresses[0]
+		}
+		randomIndex := int(n.Int64())
+		return etcd.Spec.ExternallyManagedMemberAddresses[randomIndex]
+	}
 }
 
 // GetServiceAccountName returns the service account name for the Etcd.
