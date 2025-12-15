@@ -116,6 +116,7 @@ jobs:
           K8S_VERSION: 1.34
       - name: check-git-status
         run: make check-git-status
+        shell: bash
   tests:
     runs-on: ubuntu-latest
     permissions:
