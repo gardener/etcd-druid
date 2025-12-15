@@ -100,7 +100,7 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	}
 	h.httpClient = httpClient
 
-	url := fmt.Sprintf("%s://%s.%s:%d/snapshot/%s", httpScheme, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), etcd.Namespace, ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore), h.config.Type)
+	url := fmt.Sprintf("%s://%s:%d/snapshot/%s", httpScheme, druidv1alpha1.GetClientHostname(etcd), ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore), h.config.Type)
 	if ptr.Deref(h.config.IsFinal, false) {
 		url += "?final=true"
 	}
