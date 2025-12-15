@@ -43,6 +43,37 @@ func TestGetClientServiceName(t *testing.T) {
 	g.Expect(clientServiceName).To(Equal("etcd-test-client"))
 }
 
+func TestGetClientHostnameWithDruidManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+		},
+	}
+	clientHostname := GetClientHostname(etcd)
+	g.Expect(clientHostname).To(Equal("etcd-test-client.etcd-test-namespace.svc"))
+}
+
+func TestGetClientHostnameWithExternallyManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+			ExternallyManagedMemberAddresses: []string{
+				"1.1.1.1",
+				"1.1.1.2",
+				"1.1.1.3",
+			},
+		},
+	}
+	clientHostname := GetClientHostname(etcd)
+	g.Expect(clientHostname).Should(BeElementOf([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}))
+}
+
 func TestGetServiceAccountName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
