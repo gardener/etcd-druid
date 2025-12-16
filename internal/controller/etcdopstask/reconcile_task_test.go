@@ -81,10 +81,7 @@ func TestEnsureFinalizer(t *testing.T) {
 				}
 			}
 
-			r := newTestReconciler(t, cl) // taskKey := client.ObjectKey{Name: "test-task", Namespace: "test-ns"}
-			// if tc.task != nil {
-			// 	taskKey = client.ObjectKeyFromObject(tc.task)
-			// }
+			r := newTestReconciler(t, cl)
 			result := r.ensureTaskFinalizer(ctx, r.logger, tc.task, nil)
 
 			if tc.patchErr != nil {
