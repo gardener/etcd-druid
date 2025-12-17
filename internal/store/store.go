@@ -139,9 +139,11 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 		if store.SecretRef == nil {
 			return nil, fmt.Errorf("no secretRef could be configured for backup store of ECS")
 		}
-		envVars = append(envVars, utils.GetEnvVarFromSecret(common.EnvECSEndpoint, store.SecretRef.Name, "endpoint", false))
-		envVars = append(envVars, utils.GetEnvVarFromSecret(common.EnvECSAccessKeyID, store.SecretRef.Name, "accessKeyID", false))
-		envVars = append(envVars, utils.GetEnvVarFromSecret(common.EnvECSSecretAccessKey, store.SecretRef.Name, "secretAccessKey", false))
+		envVars = append(envVars,
+			utils.GetEnvVarFromSecret(common.EnvECSEndpoint, store.SecretRef.Name, "endpoint", false),
+			utils.GetEnvVarFromSecret(common.EnvECSAccessKeyID, store.SecretRef.Name, "accessKeyID", false),
+			utils.GetEnvVarFromSecret(common.EnvECSSecretAccessKey, store.SecretRef.Name, "secretAccessKey", false),
+		)
 
 	case OCS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(common.EnvOpenshiftApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))

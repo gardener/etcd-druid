@@ -4,7 +4,7 @@ This guide will provide with detailed instructions on installing all dependencie
 
 ## [macOS only] Installing Homebrew
 
-Hombrew is a popular package manager for macOS. You can install it by executing the following command in a terminal:
+Homebrew is a popular package manager for macOS. You can install it by executing the following command in a terminal:
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
@@ -21,7 +21,7 @@ Alternatively you can also follow the [Go installation documentation](https://go
 
 ## Installing Git
 
-We use `git` as VCS which you need to install. 
+We use `git` as VCS which you need to install.
 On macOS run:
 
 ```bash

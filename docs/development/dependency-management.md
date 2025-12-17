@@ -14,5 +14,5 @@ The `Makefile` contains a rule called `tidy` which performs [go mod tidy](https:
 make tidy
 ```
 
-!!! warning
-    Make sure that you test the code after you have updated the dependencies!
+> [!WARNING]
+> Make sure that you test the code after you have updated the dependencies!

@@ -6,7 +6,8 @@ This document is a step-by-step guide on how to configure, deploy and cleanup [L
 
 Ensure that you have setup the development environment as per the [documentation](../../development/prepare-dev-environment.md).
 
-> **Note:** It is assumed that you have already created kind cluster and the `KUBECONFIG` is pointing to this Kubernetes cluster.
+> [!NOTE]
+> It is assumed that you have already created kind cluster and the `KUBECONFIG` is pointing to this Kubernetes cluster.
 
 ### Installing AWS CLI
 
@@ -58,11 +59,12 @@ Connection details for an Azure S3 Object Store are put into a Kubernetes [Secre
 kubectl apply -f examples/objstore-emulator/etcd-secret-localstack.yaml
 ```
 
-> **Note:** The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.
+> [!NOTE]
+> The secret created should be referred to in the `Etcd` CR in `spec.backup.store.secretRef`.
 
 ## 04-Cleanup
 
-To clean the setup,, unset the environment variable set in step-03 above and delete the LocalStack deployment:
+To clean the setup, unset the environment variable set in step-03 above and delete the LocalStack deployment:
 
 ```bash
 unset AWS_ENDPOINT_URL_S3 AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION

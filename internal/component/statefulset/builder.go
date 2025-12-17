@@ -137,12 +137,12 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
 	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
-	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
-	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if err != nil {
 		return err
 	}
+	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
+	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
+	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
 	if !b.skipSetOrUpdateForbiddenFields {
 		b.sts.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),

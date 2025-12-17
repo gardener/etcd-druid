@@ -42,7 +42,7 @@ func GetEnvVarFromSecret(name, secretName, secretKey string, optional bool) core
 					Name: secretName,
 				},
 				Key:      secretKey,
-				Optional: ptr.To(optional),
+				Optional: &optional,
 			},
 		},
 	}
