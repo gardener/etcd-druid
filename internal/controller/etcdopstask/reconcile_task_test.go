@@ -63,28 +63,25 @@ func TestEnsureFinalizer(t *testing.T) {
 				cl  client.Client
 				err error
 			)
-		ctx := context.Background()
-		if tc.patchErr != nil {
-			cl = testutils.NewTestClientBuilder().
-				WithScheme(kubernetes.Scheme).
-				WithObjects(tc.task).
-				RecordErrorForObjects(testutils.ClientMethodPatch, tc.patchErr.(*apierrors.StatusError), client.ObjectKeyFromObject(tc.task)).
-				Build()
-		} else {
-			cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-			err = cl.Create(ctx, tc.task)
-			g.Expect(err).ToNot(HaveOccurred(), "Failed to create task")
-			if tc.ContainsFinalizer {
-				controllerutil.AddFinalizer(tc.task, druidapicommon.EtcdOpsTaskFinalizerName)
-				err = cl.Update(ctx, tc.task)
-				g.Expect(err).ToNot(HaveOccurred(), "Failed to update task with finalizer")
+			ctx := context.Background()
+			if tc.patchErr != nil {
+				cl = testutils.NewTestClientBuilder().
+					WithScheme(kubernetes.Scheme).
+					WithObjects(tc.task).
+					RecordErrorForObjects(testutils.ClientMethodPatch, tc.patchErr.(*apierrors.StatusError), client.ObjectKeyFromObject(tc.task)).
+					Build()
+			} else {
+				cl = testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+				err = cl.Create(ctx, tc.task)
+				g.Expect(err).ToNot(HaveOccurred(), "Failed to create task")
+				if tc.ContainsFinalizer {
+					controllerutil.AddFinalizer(tc.task, druidapicommon.EtcdOpsTaskFinalizerName)
+					err = cl.Update(ctx, tc.task)
+					g.Expect(err).ToNot(HaveOccurred(), "Failed to update task with finalizer")
+				}
 			}
-		}
 
-		r := newTestReconciler(t, cl)			// taskKey := client.ObjectKey{Name: "test-task", Namespace: "test-ns"}
-			// if tc.task != nil {
-			// 	taskKey = client.ObjectKeyFromObject(tc.task)
-			// }
+			r := newTestReconciler(t, cl)
 			result := r.ensureTaskFinalizer(ctx, r.logger, tc.task, nil)
 
 			if tc.patchErr != nil {

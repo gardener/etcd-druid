@@ -21,3 +21,4 @@
 !VERSION
 !hack/get-version.sh
 !hack/tools.mk
+!hack/ld-flags.sh
