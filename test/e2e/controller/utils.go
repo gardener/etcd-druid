@@ -111,7 +111,7 @@ func createBackupSecret(g *WithT, testEnv *testenv.TestEnvironment, logger logr.
 	logger.Info("successfully created backup secret")
 }
 
-func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, labels map[string]string) {
+func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, additionalLabels map[string]string) {
 	etcd.Spec.Etcd.ClientUrlTLS = nil
 	if clientTLSEnabled {
 		etcd.Spec.Etcd.ClientUrlTLS = testutils.GetClientTLSConfig()
@@ -127,7 +127,7 @@ func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnable
 		etcd.Spec.Backup.TLS = testutils.GetBackupRestoreTLSConfig()
 	}
 
-	etcd.Spec.Labels = testutils.MergeMaps(etcd.Spec.Labels, labels)
+	etcd.Spec.Labels = testutils.MergeMaps(etcd.Spec.Labels, additionalLabels)
 }
 
 func cleanupTestArtifactsIfNecessary(testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string, etcd *v1alpha1.Etcd, timeout time.Duration) {

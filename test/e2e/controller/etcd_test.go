@@ -273,7 +273,7 @@ func TestScaleOut(t *testing.T) {
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
-				updateEtcdTLSAndLabels(etcd, false, tc.peerTLSEnabledAfterScaleOut, false, etcd.Spec.Labels)
+				updateEtcdTLSAndLabels(etcd, false, tc.peerTLSEnabledAfterScaleOut, false, tc.labelsAfterScaleOut)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation*2)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
 
@@ -301,15 +301,15 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 		clientTLSEnabledAfterUpdate         bool
 		peerTLSEnabledAfterUpdate           bool
 		backupRestoreTLSEnabledAfterUpdate  bool
-		labelsAfterUpdate                   map[string]string
+		additionalLabelsAfterUpdate         map[string]string
 	}{
 		{
 			name:                      "enable-peer",
 			peerTLSEnabledAfterUpdate: true,
 		},
 		{
-			name:              "label-change",
-			labelsAfterUpdate: map[string]string{"foo": "bar"},
+			name:                        "label-change",
+			additionalLabelsAfterUpdate: map[string]string{"foo": "bar"},
 		},
 		{
 			name:                               "enable-c-p-br-tls",
@@ -320,7 +320,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 		{
 			name:                      "enable-ptls-label-change",
 			peerTLSEnabledAfterUpdate: true,
-			labelsAfterUpdate: map[string]string{
+			additionalLabelsAfterUpdate: map[string]string{
 				"foo": "bar",
 			},
 		},
@@ -329,7 +329,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 			clientTLSEnabledAfterUpdate:        true,
 			peerTLSEnabledAfterUpdate:          true,
 			backupRestoreTLSEnabledAfterUpdate: true,
-			labelsAfterUpdate: map[string]string{
+			additionalLabelsAfterUpdate: map[string]string{
 				"foo": "bar",
 			},
 		},
@@ -352,7 +352,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 		//{
 		//	name:                       "disable-ptls-label-change",
 		//	peerTLSEnabledBeforeUpdate: true,
-		//	labelsAfterUpdate: map[string]string{
+		//	additionalLabelsAfterUpdate: map[string]string{
 		//		"foo": "bar",
 		//	},
 		//},
@@ -396,7 +396,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 				logger.Info("successfully created Etcd")
 
 				logger.Info("updating Etcd")
-				updateEtcdTLSAndLabels(etcd, tc.clientTLSEnabledAfterUpdate, tc.peerTLSEnabledAfterUpdate, tc.backupRestoreTLSEnabledAfterUpdate, tc.labelsAfterUpdate)
+				updateEtcdTLSAndLabels(etcd, tc.clientTLSEnabledAfterUpdate, tc.peerTLSEnabledAfterUpdate, tc.backupRestoreTLSEnabledAfterUpdate, tc.additionalLabelsAfterUpdate)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation*2)
 				logger.Info("successfully updated Etcd")
 
