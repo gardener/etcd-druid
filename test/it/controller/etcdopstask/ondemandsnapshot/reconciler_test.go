@@ -103,7 +103,7 @@ func TestEtcdOpsTaskConfigValidation(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			t.Logf("successfully created namespace: %s to run test => '%s'", testNs, t.Name())
 			g.Expect(sharedReconcilerTestEnv.ItTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			tc.fn(t, testNs, sharedReconcilerTestEnv)
@@ -161,7 +161,7 @@ func TestEtcdOpsTaskAdmitConditions(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			t.Logf("successfully created namespace: %s to run test => '%s'", testNs, t.Name())
 			g.Expect(sharedReconcilerTestEnv.ItTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			tc.fn(t, testNs, sharedReconcilerTestEnv)
@@ -336,7 +336,7 @@ func TestEtcdOpsTaskLifecycle(t *testing.T) {
 	g := NewWithT(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			t.Logf("successfully created namespace: %s to run test => '%s'", testNs, t.Name())
 			g.Expect(sharedReconcilerTestEnv.ItTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 
