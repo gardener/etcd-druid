@@ -11,8 +11,8 @@ import (
 	"slices"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	"github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/test/e2e/testenv"
 	e2etestutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -93,10 +93,10 @@ func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretNam
 		return err
 	}
 
-	if expectFinalizer == slices.Contains(secret.ObjectMeta.Finalizers, common.FinalizerName) {
+	if expectFinalizer == slices.Contains(secret.ObjectMeta.Finalizers, druidapicommon.EtcdFinalizerName) {
 		return nil
 	}
-	return fmt.Errorf("expected finalizer %v on secret %s in namespace %s, but was not satisfied", common.FinalizerName, secretName, namespace)
+	return fmt.Errorf("expected finalizer %v on secret %s in namespace %s, but was not satisfied", druidapicommon.EtcdFinalizerName, secretName, namespace)
 }
 
 // TODO: complete me: for peer CA rotation test
