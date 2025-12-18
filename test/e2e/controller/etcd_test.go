@@ -596,7 +596,7 @@ func TestClusterUpdate(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 				if tc.updateSpec {
 					logger.Info("updating Etcd spec")
-					etcd.Spec.Etcd.Metrics = ptr.To[druidv1alpha1.MetricsLevel](druidv1alpha1.Extensive)
+					etcd.Spec.Etcd.Metrics = ptr.To(druidv1alpha1.Extensive)
 					testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation*2)
 					logger.Info("successfully updated and reconciled Etcd spec")
 				}
