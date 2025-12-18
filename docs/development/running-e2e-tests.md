@@ -80,6 +80,57 @@ This is the recommended way to validate changes in a clean, reproducible environ
 - `RETAIN_KIND_CLUSTER`: Set to `true` to retain the KinD cluster after tests finish (default: false, only applicable for `make ci-e2e-kind`).
 - `GO_TEST_ARGS`: Additional arguments to pass to `go test` (e.g. `-run`, `-v`, `-timeout`).
 
+## e2e test with local storage emulators [AWS, GCP, AZURE]
+
+The e2e test suite supports running tests with local storage emulators for AWS, GCP, and Azure. To use these emulators, set the `PROVIDERS` environment variable when running `make test-e2e`:
+
+```sh
+make \
+  [RETAIN_TEST_ARTIFACTS=true|false \]
+  [PROVIDERS="aws,gcp,azure" \]
+  [GO_TEST_ARGS="..." \]
+  test-e2e
+```
+
+> [!NOTE]
+> ci-e2e-kind target does not currently support emulators, and can only be run against local provider and/or no provider.
+
+### Setting up emulators
+
+While etcd-backup-restore generally expects a storage bucket from a real infrastructure provider, there are tools such as [localstack](https://docs.localstack.cloud/user-guide/aws/s3/), [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) and [azurite](https://github.com/Azure/Azurite) that enable developers to run e2e tests locally with emulators for AWS S3, Google GCS and Azure ABS respectively. These emulators can be run either as standalone services or as workload in the same KinD cluster used for e2e tests.
+
+Port mappings for the services deployed for these emulators are defined in the [KinD cluster configuration file](../../hack/kind-up.sh), which allows developers to use the storage providers' respective CLIs to access and inspect the storage buckets created when deploying these emulators.
+
+#### Localstack setup (AWS)
+
+The [docker image](https://hub.docker.com/r/localstack/localstack/tags?name=s3) for [localstack](https://www.localstack.cloud/localstack-for-aws) is deployed as a pod inside the KIND cluster through `hack/e2e-test/infrastructure/localstack/localstack.yaml` via the following make target:
+
+```sh
+make deploy-localstack-kind
+```
+
+Once deployed, the localstack S3 endpoint can be accessed at `http://localstack-service.default.svc.cluster.local:4566` and may be used for running e2e tests.
+
+#### Fake GCS Server setup (GCP)
+
+The [docker image](https://hub.docker.com/r/fsouza/fake-gcs-server) for [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) is deployed as a pod inside the KIND cluster through `hack/e2e-test/infrastructure/fake-gcs-server/fake-gcs-server.yaml` via the following make target:
+
+```sh
+make deploy-fake-gcs-server-kind
+```
+
+Once deployed, the fake-gcs-server endpoint can be accessed at `http://fake-gcs-server.default.svc.cluster.local:4443` and may be used for running e2e tests.
+
+#### Azurite setup (Azure)
+
+The [docker image](https://mcr.microsoft.com/en-us/artifact/mar/azure-storage/azurite/tags) for [azurite](https://github.com/Azure/Azurite) is deployed as a pod inside the KIND cluster through `hack/e2e-test/infrastructure/azurite/azurite.yaml` via the following make target:
+
+```sh
+make deploy-azurite-kind
+```
+
+Once deployed, the azurite blob service endpoint can be accessed at `http://azurite-service.default.svc.cluster.local:10000/devstoreaccount1` and may be used for running e2e tests.
+
 ## Cleaning up e2e test resources
 
 To manually clean up any test namespaces or resources left behind (if `RETAIN_TEST_ARTIFACTS=true` was set), you can run:
@@ -88,10 +139,9 @@ To manually clean up any test namespaces or resources left behind (if `RETAIN_TE
 make clean-e2e-test-resources
 ```
 
-This will delete all namespaces created by the e2e tests, denoted by the `etcd-e2e-` prefix.
+This will delete all namespaces created by the e2e tests, denoted by the `etcd-e2e-` prefix. Additionally, all PKI artifacts created for the tests will also be removed.
 
 ## Notes
-- No provider-specific configuration (AWS, Azure, GCP, etc.) is required or supported.
-- No need to set up or emulate cloud buckets for backup/restore tests.
+- Provider-specific setup and configuration (AWS, Azure, GCP, etc.) is not mandatory for running e2e tests, but can be enabled and used as mentioned [here](#e2e-test-with-local-storage-emulators-aws-gcp-azure).
 - All test orchestration is handled natively in Go.
 - For more details, see the source code in `test/e2e` and the `Makefile` targets for e2e testing.
