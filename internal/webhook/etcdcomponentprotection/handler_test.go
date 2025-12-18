@@ -25,6 +25,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -62,6 +63,7 @@ var (
 	statefulSetGVR      = metav1.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 	scaleSubresourceGVK = metav1.GroupVersionKind{Group: "autoscaling", Version: "v1", Kind: "Scale"}
 	leaseGVK            = metav1.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"}
+	pdbGVK              = metav1.GroupVersionKind{Group: "policy", Version: "v1", Kind: "PodDisruptionBudget"}
 )
 
 func TestNewHandler(t *testing.T) {
@@ -338,11 +340,12 @@ func TestHandleUpdate(t *testing.T) {
 	testCases := []struct {
 		name string
 		// ----- request -----
-		userName                     string
-		objectLabels                 map[string]string
-		isObjectDeletionTimestampSet bool
-		objectRaw                    []byte
-		isRuntimeComponent           bool
+		userName                           string
+		objectLabels                       map[string]string
+		isObjectDeletionTimestampSet       bool
+		objectRaw                          []byte
+		isComponentInvolvedInPodManagement bool
+		hasExternallyManagedMembers        bool
 		// ----- etcd configuration -----
 		etcdAnnotations         map[string]string
 		etcdStatusLastOperation *druidapicommon.LastOperation
@@ -364,13 +367,13 @@ func TestHandleUpdate(t *testing.T) {
 			expectedCode:    http.StatusOK,
 		},
 		{
-			name:               "disable runtime component creation annotation set",
-			objectLabels:       map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
-			isRuntimeComponent: true,
-			etcdAnnotations:    map[string]string{druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: ""},
-			expectedAllowed:    true,
-			expectedMessage:    fmt.Sprintf("Etcd %s has runtime component creation disabled, skipping validations for resource %v", testEtcdName, client.ObjectKey{Name: testObjectName, Namespace: testNamespace}),
-			expectedCode:       http.StatusOK,
+			name:                               "externally managed member addresses are set",
+			objectLabels:                       map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue, druidv1alpha1.LabelPartOfKey: testEtcdName},
+			isComponentInvolvedInPodManagement: true,
+			hasExternallyManagedMembers:        true,
+			expectedAllowed:                    true,
+			expectedMessage:                    fmt.Sprintf("Etcd %s has pod management disabled, skipping validations for resource %v", testEtcdName, client.ObjectKey{Name: testObjectName, Namespace: testNamespace}),
+			expectedCode:                       http.StatusOK,
 		},
 		{
 			name:                         "operator makes a request when Etcd is being reconciled by druid",
@@ -441,10 +444,15 @@ func TestHandleUpdate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
+
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testEtcdName, testNamespace).
 				WithAnnotations(tc.etcdAnnotations).
-				WithLastOperation(tc.etcdStatusLastOperation).
-				Build()
+				WithLastOperation(tc.etcdStatusLastOperation)
+			if tc.hasExternallyManagedMembers {
+				etcdBuilder = etcdBuilder.WithExternallyManagedMembers([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+			}
+
+			etcd := etcdBuilder.Build()
 
 			cl := testutils.CreateTestFakeClientWithSchemeForObjects(kubernetes.Scheme, tc.etcdGetErr, nil, nil, nil, []client.Object{etcd}, client.ObjectKey{Name: testEtcdName, Namespace: testNamespace})
 			handler := createHandler(g, cl, druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration{
@@ -455,9 +463,9 @@ func TestHandleUpdate(t *testing.T) {
 
 			obj := buildObjRawExtension(g, &appsv1.StatefulSet{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
 			kind := statefulSetGVK
-			if tc.isRuntimeComponent {
-				obj = buildObjRawExtension(g, &coordinationv1.Lease{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
-				kind = leaseGVK
+			if tc.isComponentInvolvedInPodManagement {
+				obj = buildObjRawExtension(g, &policyv1.PodDisruptionBudget{}, tc.objectRaw, testObjectName, testNamespace, tc.objectLabels, tc.isObjectDeletionTimestampSet)
+				kind = pdbGVK
 			}
 
 			response := handler.Handle(context.Background(), admission.Request{
