@@ -46,15 +46,14 @@ func GetKubernetesClient(kubeconfigPath string) (client.Client, error) {
 
 // ParseBackupProviders parses a comma-separated string of backup providers
 func ParseBackupProviders(providers string) []druidv1alpha1.StorageProvider {
-	if providers == "" {
-		return []druidv1alpha1.StorageProvider{"none"}
-	}
+	var providerList []druidv1alpha1.StorageProvider
 
-	providerList := make([]druidv1alpha1.StorageProvider, 0)
-	for _, p := range strings.Split(providers, ",") {
-		provider := druidv1alpha1.StorageProvider(p)
-		if slices.Contains(knownBackupProviders, provider) && !slices.Contains(providerList, provider) {
-			providerList = append(providerList, provider)
+	if providers != "" {
+		for _, p := range strings.Split(providers, ",") {
+			provider := druidv1alpha1.StorageProvider(strings.TrimSpace(p))
+			if slices.Contains(knownBackupProviders, provider) && !slices.Contains(providerList, provider) {
+				providerList = append(providerList, provider)
+			}
 		}
 	}
 
