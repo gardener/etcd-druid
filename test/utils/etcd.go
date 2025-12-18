@@ -54,22 +54,26 @@ var (
 	}
 )
 
+// EtcdBuilder is a builder for Etcd resources.
 type EtcdBuilder struct {
 	etcd *druidv1alpha1.Etcd
 }
 
+// EtcdBuilderWithDefaults creates a new EtcdBuilder with default values set.
 func EtcdBuilderWithDefaults(name, namespace string) *EtcdBuilder {
 	builder := EtcdBuilder{}
 	builder.etcd = getDefaultEtcd(name, namespace)
 	return &builder
 }
 
+// EtcdBuilderWithoutDefaults creates a new EtcdBuilder without any default values set.
 func EtcdBuilderWithoutDefaults(name, namespace string) *EtcdBuilder {
 	builder := EtcdBuilder{}
 	builder.etcd = getEtcdWithoutDefaults(name, namespace)
 	return &builder
 }
 
+// WithReplicas sets the replicas field on the Etcd resource.
 func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -78,22 +82,25 @@ func (eb *EtcdBuilder) WithReplicas(replicas int32) *EtcdBuilder {
 	return eb
 }
 
+// WithEtcdContainerImage sets the etcd container image on the Etcd resource.
 func (eb *EtcdBuilder) WithEtcdContainerImage(image string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
-	eb.etcd.Spec.Etcd.Image = ptr.To[string](image)
+	eb.etcd.Spec.Etcd.Image = ptr.To(image)
 	return eb
 }
 
+// WithBackupRestoreContainerImage sets the backup-restore container image on the Etcd resource.
 func (eb *EtcdBuilder) WithBackupRestoreContainerImage(image string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
-	eb.etcd.Spec.Backup.Image = ptr.To[string](image)
+	eb.etcd.Spec.Backup.Image = ptr.To(image)
 	return eb
 }
 
+// GetClientTLSConfig returns a default TLSConfig for client communication.
 func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
 	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
@@ -111,6 +118,7 @@ func GetClientTLSConfig() *druidv1alpha1.TLSConfig {
 	}
 }
 
+// WithClientTLS adds client TLS configuration to the Etcd resource.
 func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -119,6 +127,7 @@ func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	return eb
 }
 
+// GetPeerTLSConfig returns a default TLSConfig for peer communication.
 func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
 	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
@@ -133,6 +142,7 @@ func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
 	}
 }
 
+// WithPeerTLS adds peer TLS configuration to the Etcd resource.
 func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -141,6 +151,7 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 	return eb
 }
 
+// GetBackupRestoreTLSConfig returns a default TLSConfig for backup-restore communication.
 func GetBackupRestoreTLSConfig() *druidv1alpha1.TLSConfig {
 	return &druidv1alpha1.TLSConfig{
 		TLSCASecretRef: druidv1alpha1.SecretReference{
@@ -158,6 +169,7 @@ func GetBackupRestoreTLSConfig() *druidv1alpha1.TLSConfig {
 	}
 }
 
+// WithBackupRestoreTLS adds backup-restore TLS configuration to the Etcd resource.
 func (eb *EtcdBuilder) WithBackupRestoreTLS() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -166,6 +178,7 @@ func (eb *EtcdBuilder) WithBackupRestoreTLS() *EtcdBuilder {
 	return eb
 }
 
+// WithDeltaSnapshotPeriod sets the delta snapshot period on the Etcd resource.
 func (eb *EtcdBuilder) WithDeltaSnapshotPeriod(deltaSnapshotPeriod time.Duration) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -174,6 +187,7 @@ func (eb *EtcdBuilder) WithDeltaSnapshotPeriod(deltaSnapshotPeriod time.Duration
 	return eb
 }
 
+// WithRunAsRoot sets the RunAsRoot field on the Etcd resource.
 func (eb *EtcdBuilder) WithRunAsRoot(runAsRoot *bool) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -182,6 +196,7 @@ func (eb *EtcdBuilder) WithRunAsRoot(runAsRoot *bool) *EtcdBuilder {
 	return eb
 }
 
+// WithReadyStatus sets the status of the Etcd resource to ready.
 func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -213,6 +228,7 @@ func (eb *EtcdBuilder) WithReadyStatus() *EtcdBuilder {
 	return eb
 }
 
+// WithConditionAllMembersUpdated sets the ConditionTypeAllMembersUpdated condition on the Etcd resource.
 func (eb *EtcdBuilder) WithConditionAllMembersUpdated(updated bool) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -241,6 +257,7 @@ func (eb *EtcdBuilder) WithConditionAllMembersUpdated(updated bool) *EtcdBuilder
 	return eb
 }
 
+// WithStatusConditions sets the status conditions on the Etcd resource.
 func (eb *EtcdBuilder) WithStatusConditions(conditions []druidv1alpha1.Condition) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -249,6 +266,7 @@ func (eb *EtcdBuilder) WithStatusConditions(conditions []druidv1alpha1.Condition
 	return eb
 }
 
+// getConditionAllMembersUpdated returns the condition status, reason and message for the ConditionTypeAllMembersUpdated condition.
 func getConditionAllMembersUpdated(updated bool) (status druidv1alpha1.ConditionStatus, reason, message string) {
 	if updated {
 		return druidv1alpha1.ConditionTrue, "AllMembersUpdated", "All members reflect latest desired spec"
@@ -257,11 +275,13 @@ func getConditionAllMembersUpdated(updated bool) (status druidv1alpha1.Condition
 
 }
 
+// WithLastOperation sets the last operation on the Etcd resource.
 func (eb *EtcdBuilder) WithLastOperation(operation *druidapicommon.LastOperation) *EtcdBuilder {
 	eb.etcd.Status.LastOperation = operation
 	return eb
 }
 
+// WithStorageProvider sets the storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvider, prefix string) *EtcdBuilder {
 	// TODO: there is no default case right now which is not very right, returning an error in a default case makes it difficult to chain
 	// This should be improved later
@@ -285,6 +305,7 @@ func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvide
 	}
 }
 
+// WithProviderS3 sets the S3 storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithProviderS3(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -296,6 +317,7 @@ func (eb *EtcdBuilder) WithProviderS3(prefix string) *EtcdBuilder {
 	return eb
 }
 
+// WithProviderABS sets the ABS storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithProviderABS(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -307,6 +329,7 @@ func (eb *EtcdBuilder) WithProviderABS(prefix string) *EtcdBuilder {
 	return eb
 }
 
+// WithProviderGCS sets the GCS storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithProviderGCS(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -318,6 +341,7 @@ func (eb *EtcdBuilder) WithProviderGCS(prefix string) *EtcdBuilder {
 	return eb
 }
 
+// WithProviderSwift sets the Swift storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithProviderSwift(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -329,6 +353,7 @@ func (eb *EtcdBuilder) WithProviderSwift(prefix string) *EtcdBuilder {
 	return eb
 }
 
+// WithProviderOSS sets the OSS storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithProviderOSS(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -340,6 +365,7 @@ func (eb *EtcdBuilder) WithProviderOSS(prefix string) *EtcdBuilder {
 	return eb
 }
 
+// WithProviderLocal sets the Local storage provider on the Etcd resource.
 func (eb *EtcdBuilder) WithProviderLocal(prefix string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -351,6 +377,7 @@ func (eb *EtcdBuilder) WithProviderLocal(prefix string) *EtcdBuilder {
 	return eb
 }
 
+// WithoutBackupSecretRef removes the secretRef from the backup store of the Etcd resource.
 func (eb *EtcdBuilder) WithoutBackupSecretRef() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -361,6 +388,7 @@ func (eb *EtcdBuilder) WithoutBackupSecretRef() *EtcdBuilder {
 	return eb
 }
 
+// WithoutProvider removes the backup store from the Etcd resource.
 func (eb *EtcdBuilder) WithoutProvider() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -369,6 +397,7 @@ func (eb *EtcdBuilder) WithoutProvider() *EtcdBuilder {
 	return eb
 }
 
+// WithEtcdClientPort sets the client port on the Etcd resource.
 func (eb *EtcdBuilder) WithEtcdClientPort(clientPort *int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -377,6 +406,7 @@ func (eb *EtcdBuilder) WithEtcdClientPort(clientPort *int32) *EtcdBuilder {
 	return eb
 }
 
+// WithEtcdWrapperPort sets the wrapper port on the Etcd resource.
 func (eb *EtcdBuilder) WithEtcdWrapperPort(wrapperPort *int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -385,6 +415,7 @@ func (eb *EtcdBuilder) WithEtcdWrapperPort(wrapperPort *int32) *EtcdBuilder {
 	return eb
 }
 
+// WithEtcdClientServiceLabels sets the labels on the Etcd client service.
 func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -398,6 +429,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceLabels(labels map[string]string) *Et
 	return eb
 }
 
+// WithEtcdClientServiceAnnotations sets the annotations on the Etcd client service.
 func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -411,6 +443,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceAnnotations(annotations map[string]s
 	return eb
 }
 
+// WithEtcdClientServiceTrafficDistribution sets the traffic distribution on the Etcd client service.
 func (eb *EtcdBuilder) WithEtcdClientServiceTrafficDistribution(trafficDistribution *string) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -424,6 +457,7 @@ func (eb *EtcdBuilder) WithEtcdClientServiceTrafficDistribution(trafficDistribut
 	return eb
 }
 
+// WithEtcdServerPort sets the server port on the Etcd resource.
 func (eb *EtcdBuilder) WithEtcdServerPort(serverPort *int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -432,6 +466,7 @@ func (eb *EtcdBuilder) WithEtcdServerPort(serverPort *int32) *EtcdBuilder {
 	return eb
 }
 
+// WithBackupPort sets the backup port on the Etcd resource.
 func (eb *EtcdBuilder) WithBackupPort(port *int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -466,6 +501,7 @@ func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	return eb
 }
 
+// WithDefragmentation sets the defragmentation schedule and timeout on the Etcd resource.
 func (eb *EtcdBuilder) WithDefragmentation(schedule string, timeout time.Duration) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -475,6 +511,7 @@ func (eb *EtcdBuilder) WithDefragmentation(schedule string, timeout time.Duratio
 	return eb
 }
 
+// WithGarbageCollection sets the garbage collection period, policy and max backups limit based GC on the Etcd resource.
 func (eb *EtcdBuilder) WithGarbageCollection(period time.Duration, policy druidv1alpha1.GarbageCollectionPolicy, maxBackups *int32) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
@@ -487,10 +524,12 @@ func (eb *EtcdBuilder) WithGarbageCollection(period time.Duration, policy druidv
 	return eb
 }
 
+// Build returns the built Etcd resource.
 func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
 	return eb.etcd
 }
 
+// getEtcdWithoutDefaults returns an Etcd resource without any default values set.
 func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
 	return &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
@@ -511,6 +550,7 @@ func getEtcdWithoutDefaults(name, namespace string) *druidv1alpha1.Etcd {
 	}
 }
 
+// getDefaultEtcd returns an Etcd resource with default values set.
 func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 	return &druidv1alpha1.Etcd{
 		ObjectMeta: metav1.ObjectMeta{
@@ -564,6 +604,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 	}
 }
 
+// getBackupSpec returns a BackupSpec with default values set.
 func getBackupSpec() druidv1alpha1.BackupSpec {
 	return druidv1alpha1.BackupSpec{
 		Port:                     ptr.To(common.DefaultPortEtcdBackupRestore),
@@ -595,6 +636,7 @@ func getBackupSpec() druidv1alpha1.BackupSpec {
 	}
 }
 
+// getBackupStore returns a StoreSpec for the given provider and prefix.
 func getBackupStore(provider druidv1alpha1.StorageProvider, prefix string) *druidv1alpha1.StoreSpec {
 	return &druidv1alpha1.StoreSpec{
 		Container: &container,
