@@ -1111,6 +1111,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `container` _string_ | Container is the name of the container the backup is stored at. |  |  |
+| `endpoint` _string_ | Endpoint denotes the storage endpoint that will be used to override the provider's default. |  |  |
 | `prefix` _string_ | Prefix is the prefix used for the store. |  |  |
 | `provider` _[StorageProvider](#storageprovider)_ | Provider is the name of the backup provider. |  |  |
 | `secretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ | SecretRef is the reference to the secret which used to connect to the backup store. |  |  |
