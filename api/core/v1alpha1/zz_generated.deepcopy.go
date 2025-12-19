@@ -982,6 +982,11 @@ func (in *StoreSpec) DeepCopyInto(out *StoreSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.Endpoint != nil {
+		in, out := &in.Endpoint, &out.Endpoint
+		*out = new(string)
+		**out = **in
+	}
 	if in.Provider != nil {
 		in, out := &in.Provider, &out.Provider
 		*out = new(StorageProvider)

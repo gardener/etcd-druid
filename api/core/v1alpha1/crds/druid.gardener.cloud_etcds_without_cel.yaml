@@ -293,6 +293,9 @@ spec:
                         container:
                           description: Container is the name of the container the backup is stored at.
                           type: string
+                        endpoint:
+                          description: Endpoint denotes the storage endpoint that will be used to override the provider's default.
+                          type: string
                         prefix:
                           description: Prefix is the prefix used for the store.
                           type: string
