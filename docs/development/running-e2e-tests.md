@@ -6,7 +6,7 @@ title: Local e2e Tests
 
 The Etcd-Druid project now features a comprehensive, Go-native e2e test suite (see [PR #1060](https://github.com/gardener/etcd-druid/pull/1060)) that comprehensively covers various aspects of Etcd-Druid's management of Etcd clusters. The suite is designed for reliability, speed, and ease of use, and does not require skaffold or any provider-specific setup.
 
-## Running e2e tests against an existing cluster and etcd-druid
+## Running e2e tests against an existing cluster and etcd-druid installation
 
 The main entrypoint for running the e2e tests against an existing Kubernetes cluster which already has a running installation of etcd-druid, is as follows:
 
@@ -19,6 +19,10 @@ make \
 ```
 
 This command runs all e2e tests in the `test/e2e` package against the cluster and Etcd-Druid installation pointed to by your `KUBECONFIG`.
+
+> [!NOTE]
+> Please ensure that etcd-druid is installed via `DRUID_E2E_TEST=true make deploy` or equivalent, so that it is configured to support the expectations of the e2e tests.
+> Check the [etcd-druid deployment documentation](../deployment/getting-started-locally/getting-started-locally.md#02-setting-up-etcd-druid) for more details.
 
 ### Available Tests
 - `TestBasic` tests creation, hibernation, unhibernation and deletion of Etcd clusters of varying replicas and TLS configurations.
@@ -66,10 +70,10 @@ make \
 ```
 
 This will:
-1. Spin up a local KinD cluster, whose `KUBECONFIG` is made available at `hack/kind/kubeconfig`
-2. Install Etcd-Druid into the cluster
-3. Run the full e2e test suite (see [make test-e2e](#running-e2e-tests-against-an-existing-cluster-and-etcd-druid) above)
-4. Cleanup resources, based on the `RETAIN_TEST_ARTIFACTS` flag.
+1. Spin up a local KinD cluster, whose `KUBECONFIG` is made available at `hack/kind/kubeconfig`.
+2. Install Etcd-Druid into the cluster, configured for e2e testing.
+3. Run the full e2e test suite (see [make test-e2e](#running-e2e-tests-against-an-existing-cluster-and-etcd-druid-installation) above).
+4. Cleanup e2e test resources, based on the `RETAIN_TEST_ARTIFACTS` flag.
 5. Tear down the KinD cluster, based on the `RETAIN_KIND_CLUSTER` flag.
 
 This is the recommended way to validate changes in a clean, reproducible environment.
