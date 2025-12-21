@@ -70,7 +70,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		Metrics:                 ptr.Deref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
 		SnapshotCount:           getSnapshotCount(etcd),
 		EnableV2:                false,
-		EnableGRPCGateway:       true,
+		EnableGRPCGateway:       ptr.Deref(etcd.Spec.Etcd.EnableGRPCGateway, false),
 		QuotaBackendBytes:       getDBQuotaBytes(etcd),
 		InitialClusterToken:     defaultInitialClusterToken,
 		InitialClusterState:     defaultInitialClusterState,
