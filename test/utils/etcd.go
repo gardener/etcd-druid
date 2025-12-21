@@ -495,6 +495,15 @@ func (eb *EtcdBuilder) WithSpecLabels(labels map[string]string) *EtcdBuilder {
 	return eb
 }
 
+// WithGRPCGatewayEnabled enables the gRPC gateway on the Etcd resource.
+func (eb *EtcdBuilder) WithGRPCGatewayEnabled() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.EnableGRPCGateway = ptr.To(true)
+	return eb
+}
+
 // WithDefaultBackup creates a default backup spec and initializes etcd with it.
 func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	eb.etcd.Spec.Backup = getBackupSpec()

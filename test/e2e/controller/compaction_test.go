@@ -90,6 +90,7 @@ func TestSnapshotCompaction(t *testing.T) {
 				WithEtcdClientPort(ptr.To[int32](2379)).
 				WithClientTLS().
 				WithPeerTLS().
+				WithGRPCGatewayEnabled().
 				WithDefaultBackup().
 				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName)).
 				WithDeltaSnapshotPeriod(300*time.Hour).                                                                   // TODO: set to 0 (disable scheduled delta snapshots) after fixing bug in etcd-backup-restore not being able to take on-demand delta snapshot when scheduled delta snapshots are disabled

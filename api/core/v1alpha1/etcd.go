@@ -223,6 +223,9 @@ type EtcdConfig struct {
 	// More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
 	// +optional
 	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
+	// EnableGRPCGateway enables the gRPC-Gateway proxy for etcd.
+	// +optional
+	EnableGRPCGateway *bool `json:"enableGRPCGateway,omitempty"`
 	// DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd.
 	// +optional
 	// +kubebuilder:validation:Pattern="^(\\*|[1-5]?[0-9]|[1-5]?[0-9]-[1-5]?[0-9]|(?:[1-9]|[1-4][0-9]|5[0-9])\\/(?:[1-9]|[1-4][0-9]|5[0-9]|60)|\\*\\/(?:[1-9]|[1-4][0-9]|5[0-9]|60))\\s+(\\*|[0-9]|1[0-9]|2[0-3]|[0-9]-(?:[0-9]|1[0-9]|2[0-3])|1[0-9]-(?:1[0-9]|2[0-3])|2[0-3]-2[0-3]|(?:[1-9]|1[0-9]|2[0-3])\\/(?:[1-9]|1[0-9]|2[0-4])|\\*\\/(?:[1-9]|1[0-9]|2[0-4]))\\s+(\\*|[1-9]|[12][0-9]|3[01]|[1-9]-(?:[1-9]|[12][0-9]|3[01])|[12][0-9]-(?:[12][0-9]|3[01])|3[01]-3[01]|(?:[1-9]|[12][0-9]|30)\\/(?:[1-9]|[12][0-9]|3[01])|\\*\\/(?:[1-9]|[12][0-9]|3[01]))\\s+(\\*|[1-9]|1[0-2]|[1-9]-(?:[1-9]|1[0-2])|1[0-2]-1[0-2]|(?:[1-9]|1[0-2])\\/(?:[1-9]|1[0-2])|\\*\\/(?:[1-9]|1[0-2]))\\s+(\\*|[1-7]|[1-6]-[1-7]|[1-6]\\/[1-7]|\\*\\/[1-7])$"
