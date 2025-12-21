@@ -486,6 +486,7 @@ func TestRecovery(t *testing.T) {
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
+					WithGRPCGatewayEnabled().
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
 					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName)).
@@ -579,6 +580,7 @@ func TestClusterUpdate(t *testing.T) {
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
+					WithGRPCGatewayEnabled().
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
 					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
@@ -654,7 +656,8 @@ func TestClusterUpdate(t *testing.T) {
 //
 //				logger.Info("running tests")
 //				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
-//					WithReplicas(tc.replicas)
+//					WithReplicas(tc.replicas).
+//					WithGRPCGatewayEnabled()
 //				etcd := etcdBuilder.Build()
 //
 //				logger.Info("creating Etcd")
