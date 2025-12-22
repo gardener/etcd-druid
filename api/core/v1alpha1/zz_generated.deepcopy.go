@@ -252,6 +252,11 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		*out = new(int64)
 		**out = **in
 	}
+	if in.EnableGRPCGateway != nil {
+		in, out := &in.EnableGRPCGateway, &out.EnableGRPCGateway
+		*out = new(bool)
+		**out = **in
+	}
 	if in.DefragmentationSchedule != nil {
 		in, out := &in.DefragmentationSchedule, &out.DefragmentationSchedule
 		*out = new(string)
