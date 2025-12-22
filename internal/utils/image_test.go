@@ -5,10 +5,13 @@
 package utils
 
 import (
+	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/images"
+	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
@@ -28,8 +31,23 @@ func TestGetEtcdImages(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 			g := NewWithT(t)
+
+			imageVector, err := images.CreateImageVector()
+			g.Expect(err).NotTo(HaveOccurred())
+			containerImages, err := imagevector.FindImages(imageVector, []string{
+				common.ImageKeyEtcdWrapper,
+				common.ImageKeyEtcdBackupRestore,
+			})
+			g.Expect(err).NotTo(HaveOccurred())
+			etcdImage := fmt.Sprintf("%s:%s", *containerImages[common.ImageKeyEtcdWrapper].Repository, *containerImages[common.ImageKeyEtcdWrapper].Tag)
+			backupRestoreImage := fmt.Sprintf("%s:%s", *containerImages[common.ImageKeyEtcdBackupRestore].Repository, *containerImages[common.ImageKeyEtcdBackupRestore].Tag)
+
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+				WithEtcdContainerImage(etcdImage).
+				WithBackupRestoreContainerImage(backupRestoreImage).
+				Build()
+
 			test.run(g, etcd)
 		})
 	}
