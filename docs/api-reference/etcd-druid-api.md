@@ -663,6 +663,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `quota` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | Quota defines the etcd DB quota. |  |  |
 | `snapshotCount` _integer_ | SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.<br />More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention |  |  |
+| `enableGRPCGateway` _boolean_ | EnableGRPCGateway enables the gRPC-Gateway proxy for etcd. |  |  |
 | `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `^(\*\|[1-5]?[0-9]\|[1-5]?[0-9]-[1-5]?[0-9]\|(?:[1-9]\|[1-4][0-9]\|5[0-9])\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60)\|\*\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60))\s+(\*\|[0-9]\|1[0-9]\|2[0-3]\|[0-9]-(?:[0-9]\|1[0-9]\|2[0-3])\|1[0-9]-(?:1[0-9]\|2[0-3])\|2[0-3]-2[0-3]\|(?:[1-9]\|1[0-9]\|2[0-3])\/(?:[1-9]\|1[0-9]\|2[0-4])\|\*\/(?:[1-9]\|1[0-9]\|2[0-4]))\s+(\*\|[1-9]\|[12][0-9]\|3[01]\|[1-9]-(?:[1-9]\|[12][0-9]\|3[01])\|[12][0-9]-(?:[12][0-9]\|3[01])\|3[01]-3[01]\|(?:[1-9]\|[12][0-9]\|30)\/(?:[1-9]\|[12][0-9]\|3[01])\|\*\/(?:[1-9]\|[12][0-9]\|3[01]))\s+(\*\|[1-9]\|1[0-2]\|[1-9]-(?:[1-9]\|1[0-2])\|1[0-2]-1[0-2]\|(?:[1-9]\|1[0-2])\/(?:[1-9]\|1[0-2])\|\*\/(?:[1-9]\|1[0-2]))\s+(\*\|[1-7]\|[1-6]-[1-7]\|[1-6]\/[1-7]\|\*\/[1-7])$` <br /> |
 | `serverPort` _integer_ |  |  |  |
 | `clientPort` _integer_ |  |  |  |
@@ -885,11 +886,11 @@ _Appears in:_
 | `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors<br />Deprecated: this field will be removed in the future. |  |  |
 | `labels` _object (keys:string, values:string)_ | Labels defines the labels to be applied to the etcd pods backing the etcd cluster. |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines the annotations to be applied to the etcd pods backing the etcd cluster. |  |  |
-| `etcd` _[EtcdConfig](#etcdconfig)_ | Etcd defines the configuration for the etcd cluster to be deployed. |  |  |
-| `backup` _[BackupSpec](#backupspec)_ | Backup defines the configuration for the backup-restore functionality for the etcd cluster. |  |  |
-| `sharedConfig` _[SharedConfig](#sharedconfig)_ | Common defines the shared configuration for etcd and backup-restore configurations. |  |  |
-| `schedulingConstraints` _[SchedulingConstraints](#schedulingconstraints)_ | SchedulingConstraints defines the different scheduling constraints that must be applied to the<br />pods backing the etcd cluster. |  |  |
-| `replicas` _integer_ | Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.<br />If set to 0, the etcd cluster will be hibernated, with the etcd cluster intact but not running.<br />It can be scaled back up to the previously set value to continue running the etcd cluster. |  |  |
+| `etcd` _[EtcdConfig](#etcdconfig)_ |  |  |  |
+| `backup` _[BackupSpec](#backupspec)_ |  |  |  |
+| `sharedConfig` _[SharedConfig](#sharedconfig)_ |  |  |  |
+| `schedulingConstraints` _[SchedulingConstraints](#schedulingconstraints)_ |  |  |  |
+| `replicas` _integer_ | Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.<br />If set to 0, the etcd cluster will be hibernated, i.e., it will cease to run.<br />It can be scaled back up to the previously set value to continue running the etcd cluster. |  |  |
 | `priorityClassName` _string_ | PriorityClassName is the name of a priority class that shall be used for the etcd pods. |  |  |
 | `storageClass` _string_ | StorageClass defines the name of the StorageClass required by the claim.<br />More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1 |  |  |
 | `storageCapacity` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | StorageCapacity defines the size of persistent volume. |  |  |
