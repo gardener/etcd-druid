@@ -5,7 +5,6 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -18,11 +17,9 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	. "github.com/onsi/gomega"
 )
 
 const (
@@ -134,47 +131,4 @@ func cleanupTestArtifactsIfNecessary(testEnv *testenv.TestEnvironment, logger lo
 	logger.Info(fmt.Sprintf("deleting namespace %s", ns))
 	g.Expect(testEnv.DeleteTestNamespace(ns)).To(Succeed())
 	logger.Info("successfully deleted namespace")
-}
-
-func startEtcdReconcileAnnotator(ctx context.Context, testEnv *testenv.TestEnvironment, logger logr.Logger) context.CancelFunc {
-	annotatorCtx, cancel := context.WithCancel(ctx)
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-annotatorCtx.Done():
-				return
-			case <-ticker.C:
-				etcdList, err := testEnv.ListEtcds("") // list Etcds across all namespaces
-				if err != nil {
-					logger.Error(err, "failed to list Etcd resources")
-					continue
-				}
-				now := time.Now()
-				for _, etcd := range etcdList.Items {
-					created := etcd.ObjectMeta.CreationTimestamp.Time
-					if now.Sub(created) < 30*time.Second {
-						continue
-					}
-					if etcd.Status.ObservedGeneration == nil {
-						logger.Info("Force-reconciling Etcd since it was not picked up for reconciliation by etcd controller", "name", etcd.Name, "namespace", etcd.Namespace)
-						original := etcd.DeepCopy()
-						if etcd.Annotations == nil {
-							etcd.Annotations = map[string]string{}
-						}
-						etcd.Annotations[v1alpha1.DruidOperationAnnotation] = v1alpha1.DruidOperationReconcile
-						patch := client.MergeFrom(original)
-						err = testEnv.GetClient().Patch(annotatorCtx, &etcd, patch)
-						if err != nil {
-							logger.Error(err, "failed to patch Etcd annotation", "name", etcd.Name, "namespace", etcd.Namespace)
-						} else {
-							logger.Info("Added operation-reconcile annotation to trigger reconciliation", "name", etcd.Name, "namespace", etcd.Namespace)
-						}
-					}
-				}
-			}
-		}
-	}()
-	return cancel
 }

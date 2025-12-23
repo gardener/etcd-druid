@@ -122,9 +122,7 @@ func (t *TestEnvironment) CreateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd,
 func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	etcd.Spec.Replicas = 0
 	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Eventually(func() error {
-		return t.cl.Update(t.ctx, etcd)
-	}, defaultTimeout, defaultRetryInterval).Should(Succeed())
+	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -132,9 +130,7 @@ func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Et
 func (t *TestEnvironment) UnhibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, replicas int32, timeout time.Duration) {
 	etcd.Spec.Replicas = replicas
 	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Eventually(func() error {
-		return t.cl.Update(t.ctx, etcd)
-	}, defaultTimeout, defaultRetryInterval).Should(Succeed())
+	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -650,17 +646,4 @@ func (t *TestEnvironment) getSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta)
 	}
 
 	return fullSnapshotRevision, deltaSnapshotRevision, nil
-}
-
-// ListEtcds lists all Etcd resources in the given namespace. If `namespace` is empty, lists across all namespaces.
-func (t *TestEnvironment) ListEtcds(namespace string) (*druidv1alpha1.EtcdList, error) {
-	list := &druidv1alpha1.EtcdList{}
-	var opts []client.ListOption
-	if namespace != "" {
-		opts = append(opts, client.InNamespace(namespace))
-	}
-	if err := t.cl.List(t.ctx, list, opts...); err != nil {
-		return nil, err
-	}
-	return list, nil
 }

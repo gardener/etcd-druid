@@ -11,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/test/e2e/testenv"
 	druide2etestutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -78,20 +76,7 @@ func TestMain(m *testing.M) {
 		providers = druide2etestutils.ParseBackupProviders(backupProviders)
 	}
 
-	// Start go-routine to annotate Etcd resources for reconciliation
-	// This is a temporary work-around for an issue in etcd controller not picking up
-	// Etcd resources for reconciliation sometimes.
-	// TODO: remove this once the etcd controller has been fixed
-	log, err := utils.NewLogger(true, druidconfigv1alpha1.LogLevelInfo, druidconfigv1alpha1.LogFormatText)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to create logger: %v\n", err)
-		os.Exit(1)
-	}
-	cancelAnnotator := startEtcdReconcileAnnotator(ctx, testEnv, log)
-
 	exitCode := m.Run()
-
-	cancelAnnotator()
 
 	testEnv.Close()
 	os.Exit(exitCode)
