@@ -80,28 +80,22 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AdvertisePeerUrls:       getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
 		AdvertiseClientUrls:     getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
 	}
-	// Append any user-provided additional advertise-client URLs per member.
+	// Override (not append) advertise-client URLs with additional URLs if provided
 	if len(etcd.Spec.Etcd.AdditionalAdvertiseClientURLs) > 0 {
-		if cfg.AdvertiseClientUrls == nil {
-			cfg.AdvertiseClientUrls = map[string][]string{}
-		}
 		for podName, urls := range etcd.Spec.Etcd.AdditionalAdvertiseClientURLs {
-			if len(urls) == 0 {
-				continue
+			if len(urls) > 0 {
+				// Override: replace the default URLs with additional URLs
+				cfg.AdvertiseClientUrls[podName] = urls
 			}
-			cfg.AdvertiseClientUrls[podName] = append(cfg.AdvertiseClientUrls[podName], urls...)
 		}
 	}
-	// Append any user-provided additional advertise-peer URLs per member.
+	// Override (not append) advertise-peer URLs with additional URLs if provided
 	if len(etcd.Spec.Etcd.AdditionalAdvertisePeerURLs) > 0 {
-		if cfg.AdvertisePeerUrls == nil {
-			cfg.AdvertisePeerUrls = map[string][]string{}
-		}
 		for podName, urls := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
-			if len(urls) == 0 {
-				continue
+			if len(urls) > 0 {
+				// Override: replace the default URLs with additional URLs
+				cfg.AdvertisePeerUrls[podName] = urls
 			}
-			cfg.AdvertisePeerUrls[podName] = append(cfg.AdvertisePeerUrls[podName], urls...)
 		}
 	}
 	cfg.PeerSecurity = peerSecurityConfig
