@@ -118,10 +118,27 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
+
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
+
+		// Start with internal service DNS URL
+		peerURLs := []string{fmt.Sprintf("%s://%s.%s:%s", peerScheme, podName, domainName, serverPort)}
+
+		// Find and append additional peer URLs if configured for this member
+		for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+			if memberURLs.MemberName == podName {
+				peerURLs = append(peerURLs, memberURLs.URLs...)
+				break
+			}
+		}
+
+		// Output member=url for EACH URL (not member=url1,url2)
+		for _, url := range peerURLs {
+			builder.WriteString(fmt.Sprintf("%s=%s,", podName, url))
+		}
 	}
+
 	return strings.Trim(builder.String(), ",")
 }
 
@@ -135,10 +152,26 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	default:
 		return nil
 	}
+
 	advUrlsMap := make(map[string][]string)
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
+
+		// Start with internal service DNS URL
+		urls := []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
+
+		// Append additional peer URLs only for peer advertise URLs
+		if advertiseURLType == advertiseURLTypePeer {
+			// Find matching entry in the list
+			for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+				if memberURLs.MemberName == podName {
+					urls = append(urls, memberURLs.URLs...)
+					break
+				}
+			}
+		}
+
+		advUrlsMap[podName] = urls
 	}
 	return advUrlsMap
 }

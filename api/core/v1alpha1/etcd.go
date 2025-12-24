@@ -215,6 +215,7 @@ type SnapshotCompactionSpec struct {
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || self.additionalAdvertisePeerUrls.all(m, has(self.peerUrlTls) ? m.urls.all(u, u.startsWith('https://')) : m.urls.all(u, u.startsWith('http://')))",message="if peerUrlTls is enabled, all additional advertise peer URLs must be https, otherwise they must be http"
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -248,6 +249,12 @@ type EtcdConfig struct {
 	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
+	// AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
+	// to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
+	// The member name should match the etcd member name of the cluster to take effect.
+	// Non-matching entries are silently ignored.
+	// +optional
+	AdditionalAdvertisePeerURLs []AdditionalPeerURL `json:"additionalAdvertisePeerUrls,omitempty"`
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster
 	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
 	// +optional
@@ -280,6 +287,25 @@ type ClientService struct {
 	// +optional
 	// +kubebuilder:validation:Enum=PreferClose
 	TrafficDistribution *string `json:"trafficDistribution,omitempty"`
+}
+
+// AdditionalPeerURL specifies additional peer URLs for a specific etcd member.
+type AdditionalPeerURL struct {
+	// MemberName is the etcd member name.
+	// Should match the etcd member name of the cluster (e.g., etcd-main-0) to take effect.
+	// Non-matching names are silently ignored.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	MemberName string `json:"memberName"`
+
+	// URLs is a list of additional peer URLs for this member.
+	// These will be appended to the default internal service URL.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:XValidation:rule="self.all(u, isURL(u) && url(u).getScheme() in ['http', 'https'] && url(u).getEscapedPath() == '' && url(u).getPort() != '')",message="all URLs must be valid absolute URLs with scheme (http/https), host, port and no path"
+	URLs []string `json:"urls"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

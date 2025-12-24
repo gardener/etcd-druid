@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.16.5
   name: etcds.druid.gardener.cloud
 spec:
   group: druid.gardener.cloud
@@ -400,6 +400,42 @@ spec:
                 description: EtcdConfig defines the configuration for the etcd cluster
                   to be deployed.
                 properties:
+                  additionalAdvertisePeerUrls:
+                    description: |-
+                      AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
+                      to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
+                      The member name should match the etcd pod name to take effect.
+                      Non-matching entries are silently ignored.
+                    items:
+                      description: AdditionalPeerURL specifies additional peer URLs
+                        for a specific etcd member.
+                      properties:
+                        name:
+                          description: |-
+                            Name is the etcd member name.
+                            Should match the pod name (e.g., etcd-main-0) to take effect.
+                            Non-matching names are silently ignored.
+                          maxLength: 63
+                          minLength: 1
+                          type: string
+                        urls:
+                          description: |-
+                            URLs is a list of additional peer URLs for this member.
+                            These will be appended to the default internal service URL.
+                          items:
+                            type: string
+                          maxItems: 5
+                          minItems: 1
+                          type: array
+                          x-kubernetes-validations:
+                          - message: all URLs must start with http:// or https://
+                            rule: self.all(u, u.startsWith('http://') || u.startsWith('https://'))
+                      required:
+                      - name
+                      - urls
+                      type: object
+                    maxItems: 10
+                    type: array
                   authSecretRef:
                     description: |-
                       SecretReference represents a Secret Reference. It has enough information to retrieve secret

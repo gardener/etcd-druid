@@ -147,6 +147,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 		peerTLSEnabled         bool
 		etcdReplicas           int32
 		etcdSpecServerPort     *int32
+		additionalPeerURLs     []druidv1alpha1.AdditionalPeerURL
 		expectedInitialCluster string
 	}{
 		{
@@ -169,6 +170,23 @@ func TestPrepareInitialCluster(t *testing.T) {
 			etcdSpecServerPort:     ptr.To[int32](2333),
 			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
 		},
+		{
+			name:               "should append additional peer URLs when provided",
+			etcdReplicas:       3,
+			peerTLSEnabled:     true,
+			etcdSpecServerPort: ptr.To[int32](2380),
+			additionalPeerURLs: []druidv1alpha1.AdditionalPeerURL{
+				{
+					MemberName: "etcd-test-0",
+					URLs:       []string{"https://10.0.0.1:2380"},
+				},
+				{
+					MemberName: "etcd-test-2",
+					URLs:       []string{"https://10.0.0.3:2380", "https://example.com:2380"},
+				},
+			},
+			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2380,etcd-test-0=https://10.0.0.1:2380,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2380,etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2380,etcd-test-2=https://10.0.0.3:2380,etcd-test-2=https://example.com:2380",
+		},
 	}
 	g := NewWithT(t)
 	t.Parallel()
@@ -177,6 +195,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalPeerURLs
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
 			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
 			g.Expect(actualInitialCluster).To(Equal(tc.expectedInitialCluster))
@@ -380,10 +399,23 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 	default:
 		return nil
 	}
+
 	advUrlsMap := make(map[string][]string)
 	for i := 0; i < int(etcd.Spec.Replicas); i++ {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+		urls := []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+
+		// Append additional peer URLs if this is for peer type
+		if advertiseURLType == advertiseURLTypePeer {
+			for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+				if memberURLs.MemberName == podName {
+					urls = append(urls, memberURLs.URLs...)
+					break
+				}
+			}
+		}
+
+		advUrlsMap[podName] = urls
 	}
 	return advUrlsMap
 }
