@@ -100,7 +100,7 @@ func TestSnapshotCompaction(t *testing.T) {
 				Build()
 
 			logger.Info("creating Etcd resource")
-			testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+			testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 			logger.Info("successfully created Etcd resource")
 
 			if tc.revisionsForFullSnapshot > 0 {

@@ -64,7 +64,7 @@ func TestSecretFinalizers(t *testing.T) {
 			}
 
 			logger.Info("creating Etcd")
-			testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+			testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 			logger.Info("successfully created Etcd")
 
 			logger.Info("checking finalizers exist on referenced secrets")
@@ -77,7 +77,7 @@ func TestSecretFinalizers(t *testing.T) {
 			logger.Info("deleting Etcd")
 			etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
 			g.Expect(err).ToNot(HaveOccurred())
-			testEnv.DeleteAndCheckEtcd(g, logger, etcd, timeoutEtcdReconciliation)
+			testEnv.DeleteAndCheckEtcd(g, logger, etcd, timeoutEtcdDeletion)
 			logger.Info("successfully deleted Etcd")
 
 			logger.Info("checking finalizers are removed from referenced secrets")
