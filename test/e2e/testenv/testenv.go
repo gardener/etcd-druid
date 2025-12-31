@@ -114,7 +114,7 @@ func (t *TestEnvironment) GetEtcd(name, namespace string) (*druidv1alpha1.Etcd, 
 
 // CreateAndCheckEtcd creates an etcd object and checks if it is ready.
 func (t *TestEnvironment) CreateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	g.Expect(t.cl.Create(t.ctx, etcd)).ShouldNot(HaveOccurred())
+	g.Expect(t.cl.Create(t.ctx, etcd)).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -137,7 +137,7 @@ func (t *TestEnvironment) UnhibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.
 // UpdateAndCheckEtcd updates the Etcd object and checks if the update took effect.
 func (t *TestEnvironment) UpdateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).ShouldNot(HaveOccurred())
+	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -206,7 +206,7 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 			}
 		}
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // DeleteAndCheckEtcd deletes the Etcd object and checks if it is fully deleted.
@@ -233,7 +233,7 @@ func (t *TestEnvironment) DeleteAndCheckEtcd(g *WithT, logger logr.Logger, etcd 
 		}
 
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // DisruptEtcd disrupts the etcd object by deleting its pods and/or deleting PVCs to simulate corruption.
@@ -251,13 +251,13 @@ func (t *TestEnvironment) DisruptEtcd(g *WithT, etcd *druidv1alpha1.Etcd, numPod
 
 	var deletedPVCUIDs []string
 	for i := 0; i < numPVCsToDelete; i++ {
-		g.Expect(t.cl.Delete(t.ctx, &pvcs[i], client.PropagationPolicy(metav1.DeletePropagationBackground))).ShouldNot(HaveOccurred())
+		g.Expect(t.cl.Delete(t.ctx, &pvcs[i], client.PropagationPolicy(metav1.DeletePropagationBackground))).To(Succeed())
 		deletedPVCUIDs = append(deletedPVCUIDs, string(pvcs[i].UID))
 	}
 
 	var deletedPodUIDs []string
 	for i := 0; i < numPodsToDelete; i++ {
-		g.Expect(t.cl.Delete(t.ctx, &pods[i])).ShouldNot(HaveOccurred())
+		g.Expect(t.cl.Delete(t.ctx, &pods[i])).To(Succeed())
 		deletedPodUIDs = append(deletedPodUIDs, string(pods[i].UID))
 	}
 
@@ -275,7 +275,7 @@ func (t *TestEnvironment) DisruptEtcd(g *WithT, etcd *druidv1alpha1.Etcd, numPod
 			}
 		}
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // getEtcdPods returns the pods of the etcd object.
@@ -299,7 +299,7 @@ func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) []corev1.Persist
 // DeployZeroDowntimeValidatorJob deploys the zero downtime validator job.
 func (t *TestEnvironment) DeployZeroDowntimeValidatorJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, timeout time.Duration) {
 	zdvJob := getZeroDowntimeValidatorJob(namespace, etcdClientServiceName, etcdClientServicePort, etcdClientTLS)
-	g.Expect(t.cl.Create(t.ctx, zdvJob)).ShouldNot(HaveOccurred())
+	g.Expect(t.cl.Create(t.ctx, zdvJob)).To(Succeed())
 
 	// Wait for the job to start
 	g.Eventually(func() error {
@@ -313,7 +313,7 @@ func (t *TestEnvironment) DeployZeroDowntimeValidatorJob(g *WithT, namespace, et
 			return fmt.Errorf("job %s is not ready", job.Name)
 		}
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // CheckForDowntime checks the downtime from the zero downtime validator job.
@@ -406,7 +406,7 @@ func getProbe(filePath string) *corev1.Probe {
 func (t *TestEnvironment) DeployEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, numKeys int64, timeout time.Duration) {
 	etcdLoaderJob, err := getEtcdLoaderJob(g, namespace, etcdClientServiceName, etcdClientServicePort, etcdClientTLS, numKeys)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(t.cl.Create(t.ctx, etcdLoaderJob)).ShouldNot(HaveOccurred())
+	g.Expect(t.cl.Create(t.ctx, etcdLoaderJob)).To(Succeed())
 
 	g.Eventually(func() error {
 		job := &batchv1.Job{}
@@ -424,7 +424,7 @@ func (t *TestEnvironment) DeployEtcdLoaderJob(g *WithT, namespace, etcdClientSer
 			return fmt.Errorf("job %s is not yet completed", job.Name)
 		}
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 func getEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, numKeys int64) (*batchv1.Job, error) {
@@ -508,7 +508,7 @@ func (t *TestEnvironment) TriggerDeltaSnapshot(g *WithT, etcd *druidv1alpha1.Etc
 // TriggerSnapshot triggers a snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
 func (t *TestEnvironment) TriggerSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string, timeout time.Duration) {
 	job := getTriggerSnapshotJob(g, etcd, snapshotType)
-	g.Expect(t.cl.Create(t.ctx, job)).ShouldNot(HaveOccurred())
+	g.Expect(t.cl.Create(t.ctx, job)).To(Succeed())
 
 	g.Eventually(func() error {
 		j := &batchv1.Job{}
@@ -526,7 +526,7 @@ func (t *TestEnvironment) TriggerSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, sn
 			return fmt.Errorf("job %s is not yet completed", j.Name)
 		}
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 func getTriggerSnapshotJob(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string) *batchv1.Job {
@@ -585,7 +585,7 @@ func (t *TestEnvironment) EnsureCompaction(g *WithT, etcdObjectMeta metav1.Objec
 		}
 
 		return nil
-	}, timeout, defaultPollingInterval).Should(BeNil())
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // EnsureNoCompaction checks if compaction has not been triggered by verifying the snapshot revisions.
