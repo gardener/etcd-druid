@@ -134,6 +134,7 @@ func TestBasic(t *testing.T) {
 
 				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -174,10 +175,6 @@ func TestBasic(t *testing.T) {
 				logger.Info("successfully deleted Etcd")
 
 				logger.Info("finished running tests")
-
-				if !retainTestArtifacts {
-					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-				}
 			})
 		}
 	}
@@ -233,6 +230,7 @@ func TestScaleOut(t *testing.T) {
 
 				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -263,10 +261,6 @@ func TestScaleOut(t *testing.T) {
 				logger.Info("successfully scaled out Etcd to 3 replicas")
 
 				logger.Info("finished running tests")
-
-				if !retainTestArtifacts {
-					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-				}
 			})
 		}
 	}
@@ -353,6 +347,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 
 				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -386,10 +381,6 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 				logger.Info("successfully updated Etcd")
 
 				logger.Info("finished running tests")
-
-				if !retainTestArtifacts {
-					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-				}
 			})
 		}
 	}
@@ -462,6 +453,7 @@ func TestRecovery(t *testing.T) {
 
 				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -505,10 +497,6 @@ func TestRecovery(t *testing.T) {
 				logger.Info("successfully checked if downtime occurred")
 
 				logger.Info("finished running tests")
-
-				if !retainTestArtifacts {
-					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-				}
 			})
 		}
 	}
@@ -556,6 +544,7 @@ func TestClusterUpdate(t *testing.T) {
 
 				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -593,10 +582,6 @@ func TestClusterUpdate(t *testing.T) {
 				logger.Info("successfully checked if downtime occurred")
 
 				logger.Info("finished running tests")
-
-				if !retainTestArtifacts {
-					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-				}
 			})
 		}
 	}
@@ -636,6 +621,7 @@ func TestClusterUpdate(t *testing.T) {
 //
 //				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 //				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+//              defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 //
 //              initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 //
@@ -661,10 +647,6 @@ func TestClusterUpdate(t *testing.T) {
 //				logger.Info("successfully checked if downtime occurred")
 //
 //				logger.Info("finished running tests")
-//
-//				if !retainTestArtifacts {
-//					cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
-//				}
 //			})
 //		}
 //	}

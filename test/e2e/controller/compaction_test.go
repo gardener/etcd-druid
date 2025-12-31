@@ -81,6 +81,7 @@ func TestSnapshotCompaction(t *testing.T) {
 
 			testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 			logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+			defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -134,10 +135,6 @@ func TestSnapshotCompaction(t *testing.T) {
 				logger.Info(fmt.Sprintf("waiting for duration %v to ensure that compaction is not triggered", timeoutCompaction.String()))
 				testEnv.EnsureNoCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutCompaction)
 				logger.Info("ensured that compaction was not triggered")
-			}
-
-			if !retainTestArtifacts {
-				cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeoutEtcdReconciliation)
 			}
 		})
 	}
