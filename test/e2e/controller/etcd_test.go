@@ -30,10 +30,14 @@ const (
 
 	// test parameters
 	timeoutTest                = 1 * time.Hour
-	timeoutEtcdReconciliation  = 5 * time.Minute
-	timeoutDeployJob           = 2 * time.Minute
+	timeoutEtcdCreation        = 5 * time.Minute
+	timeoutEtcdDeletion        = 2 * time.Minute
+	timeoutEtcdHibernation     = 2 * time.Minute
+	timeoutEtcdUnhibernation   = 5 * time.Minute
+	timeoutEtcdUpdation        = 10 * time.Minute
 	timeoutEtcdDisruptionStart = 30 * time.Second
 	timeoutEtcdRecovery        = 5 * time.Minute
+	timeoutDeployJob           = 2 * time.Minute
 
 	testNamespacePrefix = "etcd-e2e-"
 	defaultEtcdName     = "test"
@@ -152,26 +156,26 @@ func TestBasic(t *testing.T) {
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
-				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
 				if tc.replicas != 0 {
 					logger.Info("hibernating Etcd")
 					replicas := etcd.Spec.Replicas
-					testEnv.HibernateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+					testEnv.HibernateAndCheckEtcd(g, etcd, timeoutEtcdHibernation)
 					logger.Info("successfully hibernated Etcd")
 
 					logger.Info("unhibernating Etcd")
 					etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
 					g.Expect(err).ToNot(HaveOccurred())
-					testEnv.UnhibernateAndCheckEtcd(g, etcd, replicas, timeoutEtcdReconciliation)
+					testEnv.UnhibernateAndCheckEtcd(g, etcd, replicas, timeoutEtcdUnhibernation)
 					logger.Info("successfully unhibernated Etcd")
 				}
 
 				logger.Info("deleting Etcd")
 				etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
 				g.Expect(err).ToNot(HaveOccurred())
-				testEnv.DeleteAndCheckEtcd(g, logger, etcd, timeoutEtcdReconciliation)
+				testEnv.DeleteAndCheckEtcd(g, logger, etcd, timeoutEtcdDeletion)
 				logger.Info("successfully deleted Etcd")
 
 				logger.Info("finished running tests")
@@ -251,13 +255,13 @@ func TestScaleOut(t *testing.T) {
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
-				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
 				updateEtcdTLSAndLabels(etcd, false, tc.peerTLSEnabledAfterScaleOut, false, tc.labelsAfterScaleOut)
-				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation*2)
+				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
 
 				logger.Info("finished running tests")
@@ -372,12 +376,12 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
-				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
 				logger.Info("updating Etcd")
 				updateEtcdTLSAndLabels(etcd, tc.clientTLSEnabledAfterUpdate, tc.peerTLSEnabledAfterUpdate, tc.backupRestoreTLSEnabledAfterUpdate, tc.additionalLabelsAfterUpdate)
-				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation*2)
+				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully updated Etcd")
 
 				logger.Info("finished running tests")
@@ -473,7 +477,7 @@ func TestRecovery(t *testing.T) {
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
-				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
 				logger.Info("starting zero-downtime validator job")
@@ -561,7 +565,7 @@ func TestClusterUpdate(t *testing.T) {
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
-				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
 				logger.Info("starting zero-downtime validator job")
@@ -573,7 +577,7 @@ func TestClusterUpdate(t *testing.T) {
 				if tc.updateSpec {
 					logger.Info("updating Etcd spec")
 					etcd.Spec.Etcd.Metrics = ptr.To(druidv1alpha1.Extensive)
-					testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation*2)
+					testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 					logger.Info("successfully updated and reconciled Etcd spec")
 				}
 
@@ -632,7 +636,7 @@ func TestClusterUpdate(t *testing.T) {
 //				etcd := etcdBuilder.Build()
 //
 //				logger.Info("creating Etcd")
-//				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdReconciliation)
+//				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 //				logger.Info("successfully created Etcd")
 //
 //				logger.Info("starting zero-downtime validator job")
