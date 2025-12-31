@@ -6,6 +6,8 @@ on:
       - 'hotfix-**'
       - 'release-**'
   pull_request_target:
+    types:
+      - labeled
 
 jobs:
   build:
@@ -13,7 +15,9 @@ jobs:
     with:
       mode: snapshot
     secrets: inherit
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'reviewed/ok-to-test' }}
     permissions:
+      pull-requests: write
       contents: read
       packages: write
       id-token: write
@@ -23,6 +27,7 @@ jobs:
     needs:
       - build
     secrets: inherit
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'reviewed/ok-to-test' }}
     permissions:
       id-token: write
       contents: write
