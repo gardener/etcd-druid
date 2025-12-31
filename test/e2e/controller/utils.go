@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"time"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	"github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -127,7 +126,10 @@ func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnable
 	etcd.Spec.Labels = testutils.MergeMaps(etcd.Spec.Labels, additionalLabels)
 }
 
-func cleanupTestArtifactsIfNecessary(testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string, etcd *v1alpha1.Etcd, timeout time.Duration) {
+func cleanupTestArtifacts(shouldCleanup bool, testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string) {
+	if !shouldCleanup {
+		return
+	}
 	logger.Info(fmt.Sprintf("deleting namespace %s", ns))
 	g.Expect(testEnv.DeleteTestNamespace(ns)).To(Succeed())
 	logger.Info("successfully deleted namespace")

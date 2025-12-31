@@ -33,6 +33,7 @@ func TestSecretFinalizers(t *testing.T) {
 
 			testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
 			logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+			defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
 			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
@@ -87,10 +88,6 @@ func TestSecretFinalizers(t *testing.T) {
 			}
 
 			logger.Info("finished running tests")
-
-			if !retainTestArtifacts {
-				cleanupTestArtifactsIfNecessary(testEnv, logger, g, testNamespace, etcd, timeout)
-			}
 		})
 	}
 }
