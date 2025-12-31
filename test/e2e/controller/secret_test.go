@@ -71,7 +71,7 @@ func TestSecretFinalizers(t *testing.T) {
 			for _, secretName := range referencedSecrets {
 				g.Eventually(func() error {
 					return checkSecretFinalizer(testEnv, etcd.Namespace, secretName, true)
-				}, timeout, pollingInterval).Should(BeNil())
+				}, timeout, pollingInterval).Should(Succeed())
 			}
 
 			logger.Info("deleting Etcd")
@@ -84,7 +84,7 @@ func TestSecretFinalizers(t *testing.T) {
 			for _, secretName := range referencedSecrets {
 				g.Eventually(func() error {
 					return checkSecretFinalizer(testEnv, etcd.Namespace, secretName, false)
-				}, timeout, pollingInterval).Should(BeNil())
+				}, timeout, pollingInterval).Should(Succeed())
 			}
 
 			logger.Info("finished running tests")
