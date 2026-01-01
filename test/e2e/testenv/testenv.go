@@ -236,6 +236,16 @@ func (t *TestEnvironment) DeleteAndCheckEtcd(g *WithT, logger logr.Logger, etcd 
 	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
+// VerifyEtcdPodLabels verifies that the Etcd pods have the expected labels.
+func (t *TestEnvironment) VerifyEtcdPodLabels(g *WithT, etcd *druidv1alpha1.Etcd, expectedLabels map[string]string) {
+	g.Expect(testutils.CheckEtcdPodLabels(t.ctx, t.cl, etcd, expectedLabels)).To(Succeed())
+}
+
+// VerifyEtcdMemberPeerTLSEnabled verifies that the Etcd member has the expected peer TLS enablement status.
+func (t *TestEnvironment) VerifyEtcdMemberPeerTLSEnabled(g *WithT, etcd *druidv1alpha1.Etcd) {
+	g.Expect(testutils.VerifyPeerTLSEnabledOnAllMemberLeases(t.ctx, t.cl, etcd)).To(Succeed())
+}
+
 // DisruptEtcd disrupts the etcd object by deleting its pods and/or deleting PVCs to simulate corruption.
 func (t *TestEnvironment) DisruptEtcd(g *WithT, etcd *druidv1alpha1.Etcd, numPodsToDelete, numPVCsToDelete int, timeout time.Duration) {
 	if numPodsToDelete <= 0 && numPVCsToDelete <= 0 {

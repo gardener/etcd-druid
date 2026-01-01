@@ -384,6 +384,16 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully updated Etcd")
 
+				logger.Info("verifying labels on Etcd pods")
+				testEnv.VerifyEtcdPodLabels(g, etcd, etcd.Spec.Labels)
+				logger.Info("successfully verified labels on Etcd pods")
+
+				if tc.peerTLSEnabledAfterUpdate {
+					logger.Info("verifying peer TLS enablement for Etcd members")
+					testEnv.VerifyEtcdMemberPeerTLSEnabled(g, etcd)
+					logger.Info("successfully verified peer TLS enablement for Etcd members")
+				}
+
 				logger.Info("finished running tests")
 			})
 		}
