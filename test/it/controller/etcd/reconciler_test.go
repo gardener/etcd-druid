@@ -16,7 +16,6 @@ import (
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -228,9 +227,9 @@ func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentC
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance
@@ -384,9 +383,9 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance

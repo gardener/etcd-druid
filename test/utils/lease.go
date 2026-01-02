@@ -12,7 +12,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	k8sutils "github.com/gardener/etcd-druid/internal/utils/kubernetes"
+	"github.com/gardener/etcd-druid/internal/common"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -73,7 +73,7 @@ func verifyPeerTLSEnabledOnMemberLease(ctx context.Context, c client.Client, nam
 	if err != nil {
 		return fmt.Errorf("failed to get lease %s/%s: %w", namespace, name, err)
 	}
-	if val, ok := lease.GetAnnotations()[k8sutils.LeaseAnnotationKeyPeerURLTLSEnabled]; ok {
+	if val, ok := lease.GetAnnotations()[common.LeaseAnnotationKeyPeerURLTLSEnabled]; ok {
 		tlsEnabled, err := strconv.ParseBool(val)
 		if err != nil {
 			return fmt.Errorf("failed to parse TLS enabled annotation value %s on lease %s/%s: %w", val, namespace, name, err)
