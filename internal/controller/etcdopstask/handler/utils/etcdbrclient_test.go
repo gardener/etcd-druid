@@ -28,6 +28,10 @@ import (
 // TestConfigureHTTPClientForEtcdBR tests the ConfigureHTTPClientForEtcdBR function.
 func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 	g := NewGomegaWithT(t)
+
+	caCert, err := testutils.GenerateCACert("test")
+	g.Expect(err).ToNot(HaveOccurred())
+
 	tests := []struct {
 		name            string
 		etcd            *druidv1alpha1.Etcd
@@ -204,7 +208,7 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 						Namespace: "test-namespace",
 					},
 					Data: map[string][]byte{
-						"ca.crt": testutils.GenerateTestCA(),
+						"ca.crt": caCert,
 					},
 				},
 			},
