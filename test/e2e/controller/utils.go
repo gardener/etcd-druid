@@ -16,9 +16,10 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 
 func initializeTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace, etcdName string) {
 	createNamespace(g, testEnv, logger, testNamespace)
-	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir := generatePKIResources(g, logger, testNamespace, etcdName)
+	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir := generatePKIResourcesToDefaultDirectory(g, logger, testNamespace, etcdName)
 	createTLSSecrets(g, testEnv, logger, testNamespace, etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir)
 	createBackupSecret(g, testEnv, logger, testNamespace)
 }
@@ -39,21 +40,21 @@ func createNamespace(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Log
 	logger.Info("successfully created test namespace")
 }
 
-func generatePKIResources(g *WithT, logger logr.Logger, testNamespace, etcdName string) (string, string, string) {
+func generatePKIResourcesToDefaultDirectory(g *WithT, logger logr.Logger, testNamespace, etcdName string) (string, string, string) {
 	logger.Info("generating PKI resources")
 	certDir := fmt.Sprintf("%s/%s", pkiResourcesDir, testNamespace)
 	// certs for etcd server-client communication
 	etcdCertsDir := fmt.Sprintf("%s/etcd", certDir)
 	g.Expect(os.MkdirAll(etcdCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
-	g.Expect(e2etestutils.GeneratePKIResources(logger, etcdCertsDir, etcdName, testNamespace)).To(Succeed())
+	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdCertsDir, etcdName, testNamespace)).To(Succeed())
 	// certs for etcd peer communication
 	etcdPeerCertsDir := fmt.Sprintf("%s/etcd-peer", certDir)
 	g.Expect(os.MkdirAll(etcdPeerCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
-	g.Expect(e2etestutils.GeneratePKIResources(logger, etcdPeerCertsDir, etcdName, testNamespace)).To(Succeed())
+	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdPeerCertsDir, etcdName, testNamespace)).To(Succeed())
 	// certs for etcd-backup-restore TLS
 	etcdbrCertsDir := fmt.Sprintf("%s/etcd-backup-restore", certDir)
 	g.Expect(os.MkdirAll(etcdbrCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
-	g.Expect(e2etestutils.GeneratePKIResources(logger, etcdbrCertsDir, etcdName, testNamespace)).To(Succeed())
+	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdbrCertsDir, etcdName, testNamespace)).To(Succeed())
 	logger.Info("successfully generated PKI resources")
 	return etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir
 }

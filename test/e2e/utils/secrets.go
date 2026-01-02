@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,15 +41,15 @@ func createSecret(ctx context.Context, cl client.Client, name, namespace, certsD
 }
 
 func CreateCASecret(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
-	return createSecret(ctx, cl, name, namespace, certsDir, caCertFileName, caKeyFileName, "ca.crt", "ca.key")
+	return createSecret(ctx, cl, name, namespace, certsDir, testutils.CACertFileName, testutils.CAKeyFileName, "ca.crt", "ca.key")
 }
 
 func CreateServerTLSSecret(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
-	return createSecret(ctx, cl, name, namespace, certsDir, serverCertFileName, serverKeyFileName, "tls.crt", "tls.key")
+	return createSecret(ctx, cl, name, namespace, certsDir, testutils.ServerCertFileName, testutils.ServerKeyFileName, "tls.crt", "tls.key")
 }
 
 func CreateClientTLSSecret(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
-	return createSecret(ctx, cl, name, namespace, certsDir, clientCertFileName, clientKeyFileName, "tls.crt", "tls.key")
+	return createSecret(ctx, cl, name, namespace, certsDir, testutils.ClientCertFileName, testutils.ClientKeyFileName, "tls.crt", "tls.key")
 }
 
 // CreateAllSecrets creates all secrets (CA, server, and client) in the specified namespace from the given certificate directory.
