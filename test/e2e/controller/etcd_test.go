@@ -39,7 +39,7 @@ const (
 	timeoutEtcdRecovery        = 5 * time.Minute
 	timeoutDeployJob           = 2 * time.Minute
 
-	testNamespacePrefix = "etcd-e2e-"
+	testNamespacePrefix = "etcd-e2e"
 	defaultEtcdName     = "test"
 )
 
@@ -136,7 +136,7 @@ func TestBasic(t *testing.T) {
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
-				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
@@ -232,7 +232,7 @@ func TestScaleOut(t *testing.T) {
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
-				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
@@ -349,7 +349,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
-				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
@@ -465,7 +465,7 @@ func TestRecovery(t *testing.T) {
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
-				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
@@ -556,7 +556,7 @@ func TestClusterUpdate(t *testing.T) {
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
-				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
@@ -633,7 +633,7 @@ func TestClusterUpdate(t *testing.T) {
 //			t.Run(tcName, func(t *testing.T) {
 //				t.Parallel()
 //
-//				testNamespace := testutils.GenerateTestNamespaceName(t, fmt.Sprintf("%s%s", testNamespacePrefix, tcName), 4)
+//				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 //				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 //              defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 //
