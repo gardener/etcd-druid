@@ -94,8 +94,8 @@ func TestSnapshotCompaction(t *testing.T) {
 				WithGRPCGatewayEnabled().
 				WithDefaultBackup().
 				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName)).
-				WithDeltaSnapshotPeriod(300*time.Hour).                                                                   // TODO: set to 0 (disable scheduled delta snapshots) after fixing bug in etcd-backup-restore not being able to take on-demand delta snapshot when scheduled delta snapshots are disabled
-				WithGarbageCollection(600*time.Hour, druidv1alpha1.GarbageCollectionPolicyLimitBased, ptr.To[int32](10)). // TODO: remove this line once we set delta snapshot period to 0
+				WithDeltaSnapshotPeriod(300*time.Hour).                                                                   // TODO: set to 0 (disable scheduled delta snapshots) after https://github.com/gardener/etcd-backup-restore/issues/965 is resolved
+				WithGarbageCollection(600*time.Hour, druidv1alpha1.GarbageCollectionPolicyLimitBased, ptr.To[int32](10)). // TODO: remove this line once we set delta snapshot period to 0 after https://github.com/gardener/etcd-backup-restore/issues/965 is resolved
 				WithBackupRestoreTLS().
 				Build()
 
@@ -109,7 +109,7 @@ func TestSnapshotCompaction(t *testing.T) {
 				logger.Info("successfully put data for full snapshot")
 
 				logger.Info("triggering full snapshot")
-				testEnv.TriggerFullSnapshot(g, etcd, timeoutSnapshot)
+				testEnv.TakeFullSnapshot(g, etcd, timeoutSnapshot)
 				logger.Info("successfully triggered full snapshot")
 			}
 
@@ -121,13 +121,13 @@ func TestSnapshotCompaction(t *testing.T) {
 				logger.Info("successfully put data for delta snapshot")
 
 				logger.Info("triggering delta snapshot")
-				testEnv.TriggerDeltaSnapshot(g, etcd, timeoutSnapshot)
+				testEnv.TakeDeltaSnapshot(g, etcd, timeoutSnapshot)
 				logger.Info("successfully triggered delta snapshot")
 			}
 
 			if tc.expectCompaction {
-				g.Expect(tc.expectedFullSnapshotRevision).ToNot(BeNil())
-				g.Expect(tc.expectedDeltaSnapshotRevision).ToNot(BeNil())
+				g.Expect(tc.expectedFullSnapshotRevision).ToNot(BeZero())
+				g.Expect(tc.expectedDeltaSnapshotRevision).ToNot(BeZero())
 				logger.Info("waiting for compaction to be triggered")
 				testEnv.EnsureCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutCompaction)
 				logger.Info("compaction successfully triggered")

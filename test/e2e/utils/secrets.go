@@ -40,28 +40,17 @@ func createSecret(ctx context.Context, cl client.Client, name, namespace, certsD
 	return cl.Create(ctx, secret)
 }
 
+// CreateCASecret creates the secret containing the CA certificates.
 func CreateCASecret(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
 	return createSecret(ctx, cl, name, namespace, certsDir, testutils.CACertFileName, testutils.CAKeyFileName, "ca.crt", "ca.key")
 }
 
+// CreateServerTLSSecret creates the secret containing the server TLS certificates.
 func CreateServerTLSSecret(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
 	return createSecret(ctx, cl, name, namespace, certsDir, testutils.ServerCertFileName, testutils.ServerKeyFileName, "tls.crt", "tls.key")
 }
 
+// CreateClientTLSSecret creates the secret containing the client TLS certificates.
 func CreateClientTLSSecret(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
 	return createSecret(ctx, cl, name, namespace, certsDir, testutils.ClientCertFileName, testutils.ClientKeyFileName, "tls.crt", "tls.key")
-}
-
-// CreateAllSecrets creates all secrets (CA, server, and client) in the specified namespace from the given certificate directory.
-func CreateAllSecrets(ctx context.Context, cl client.Client, name, namespace, certsDir string) error {
-	if err := CreateCASecret(ctx, cl, name, namespace, certsDir); err != nil {
-		return err
-	}
-	if err := CreateServerTLSSecret(ctx, cl, name, namespace, certsDir); err != nil {
-		return err
-	}
-	if err := CreateClientTLSSecret(ctx, cl, name, namespace, certsDir); err != nil {
-		return err
-	}
-	return nil
 }

@@ -489,6 +489,16 @@ func (eb *EtcdBuilder) WithAnnotations(annotations map[string]string) *EtcdBuild
 	return eb
 }
 
+// WithComponentProtectionDisabled adds the annotation to disable etcd component protection on the Etcd resource.
+func (eb *EtcdBuilder) WithComponentProtectionDisabled() *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	return eb.WithAnnotations(map[string]string{
+		druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "",
+	})
+}
+
 // WithSpecLabels sets the spec.labels field on the Etcd resource.
 func (eb *EtcdBuilder) WithSpecLabels(labels map[string]string) *EtcdBuilder {
 	eb.etcd.Spec.Labels = labels
