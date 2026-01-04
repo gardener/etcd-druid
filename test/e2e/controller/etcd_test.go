@@ -94,36 +94,43 @@ func TestBasic(t *testing.T) {
 
 	testCases := []struct {
 		name       string
+		purpose    string
 		replicas   int32
 		tlsEnabled bool
 	}{
 		{
 			name:       "no-tls-0",
+			purpose:    "test Etcd with 0 replicas and TLS disabled",
 			tlsEnabled: false,
 			replicas:   0,
 		},
 		{
 			name:       "no-tls-1",
+			purpose:    "test Etcd with 1 replica and TLS disabled",
 			tlsEnabled: false,
 			replicas:   1,
 		},
 		{
 			name:       "no-tls-3",
+			purpose:    "test Etcd with 3 replicas and TLS disabled",
 			tlsEnabled: false,
 			replicas:   3,
 		},
 		{
 			name:       "tls-0",
+			purpose:    "test Etcd with 0 replicas and TLS enabled",
 			tlsEnabled: true,
 			replicas:   0,
 		},
 		{
 			name:       "tls-1",
+			purpose:    "test Etcd with 1 replica and TLS enabled",
 			tlsEnabled: true,
 			replicas:   1,
 		},
 		{
 			name:       "tls-3",
+			purpose:    "test Etcd with 3 replicas and TLS enabled",
 			tlsEnabled: true,
 			replicas:   3,
 		},
@@ -143,7 +150,7 @@ func TestBasic(t *testing.T) {
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
-				logger.Info("running tests")
+				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
 					WithDefaultBackup().
@@ -192,35 +199,42 @@ func TestScaleOut(t *testing.T) {
 
 	testCases := []struct {
 		name                         string
+		purpose                      string
 		peerTLSEnabledBeforeScaleOut bool
 		labelsBeforeScaleOut         map[string]string
 		peerTLSEnabledAfterScaleOut  bool
 		labelsAfterScaleOut          map[string]string
 	}{
 		{
-			name: "basic",
+			name:    "basic",
+			purpose: "test Etcd with TLS disabled before and after scale out, with no label changes",
 		},
 		{
 			name:                        "enable-peer-tls",
+			purpose:                     "test Etcd with peer TLS disabled before scale out and enabled after scale out, with no label changes",
 			peerTLSEnabledAfterScaleOut: true,
 		},
 		{
 			name:                         "with-peer-tls",
+			purpose:                      "test Etcd with peer TLS enabled before and after scale out, with no label changes",
 			peerTLSEnabledBeforeScaleOut: true,
 			peerTLSEnabledAfterScaleOut:  true,
 		},
 		{
 			name:                "with-label-change",
+			purpose:             "test Etcd with TLS disabled before and after scale out, with label changes",
 			labelsAfterScaleOut: map[string]string{"foo": "bar"},
 		},
 		{
 			name:                        "enable-ptls-label-change",
+			purpose:                     "test Etcd with peer TLS disabled before scale out and enabled after scale out, with label changes",
 			peerTLSEnabledAfterScaleOut: true,
 			labelsAfterScaleOut:         map[string]string{"foo": "bar"},
 		},
 		// TODO: enable this once disabling peer TLS is supported
 		//{
 		//	name:                         "disable-peer-tls",
+		//	purpose:                      "test Etcd with peer TLS enabled before scale out and disabled after scale out, with no label changes",
 		//	peerTLSEnabledBeforeScaleOut: true,
 		//},
 	}
@@ -239,7 +253,7 @@ func TestScaleOut(t *testing.T) {
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
-				logger.Info("running tests")
+				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(1).
 					WithClientTLS().
@@ -278,6 +292,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 
 	testCases := []struct {
 		name                                string
+		purpose                             string
 		clientTLSEnabledBeforeUpdate        bool
 		peerTLSEnabledBeforeUpdate          bool
 		backupRestoreTLSEnabledBeforeUpdate bool
@@ -289,20 +304,24 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 	}{
 		{
 			name:                      "enable-peer",
+			purpose:                   "test Etcd with peer TLS disabled before update and enabled after update, with no other TLS changes and no label changes",
 			peerTLSEnabledAfterUpdate: true,
 		},
 		{
 			name:                        "label-change",
+			purpose:                     "test Etcd with TLS disabled before and after update, with label changes",
 			additionalLabelsAfterUpdate: map[string]string{"foo": "bar"},
 		},
 		{
 			name:                               "enable-c-p-br-tls",
+			purpose:                            "test Etcd with all TLS disabled before update and enabled after update, with no label changes",
 			clientTLSEnabledAfterUpdate:        true,
 			peerTLSEnabledAfterUpdate:          true,
 			backupRestoreTLSEnabledAfterUpdate: true,
 		},
 		{
 			name:                      "enable-ptls-label-change",
+			purpose:                   "test Etcd with peer TLS disabled before update and enabled after update, with label changes",
 			peerTLSEnabledAfterUpdate: true,
 			additionalLabelsAfterUpdate: map[string]string{
 				"foo": "bar",
@@ -310,6 +329,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 		},
 		{
 			name:                               "enable-c-p-br-label-change",
+			purpose:                            "test Etcd with all TLS disabled before update and enabled after update, with label changes",
 			clientTLSEnabledAfterUpdate:        true,
 			peerTLSEnabledAfterUpdate:          true,
 			backupRestoreTLSEnabledAfterUpdate: true,
@@ -319,22 +339,26 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 		},
 		{
 			name:                                "disable-c-br-tls",
+			purpose:                             "test Etcd with client and backup-restore TLS enabled before update and disabled after update, with no peer TLS changes and no label changes",
 			clientTLSEnabledBeforeUpdate:        true,
 			backupRestoreTLSEnabledBeforeUpdate: true,
 		},
 		// TODO: enable these once disabling peer TLS is supported
 		//{
 		//	name:                       "disable-p-tls",
+		//  purpose:					"test Etcd with peer TLS enabled before update and disabled after update, with no other TLS changes and no label changes",
 		//	peerTLSEnabledBeforeUpdate: true,
 		//},
 		//{
 		//	name:                                "disable-c-p-br-tls",
+		//  purpose:					         "test Etcd with all TLS enabled before update and disabled after update, with no label changes",
 		//	clientTLSEnabledBeforeUpdate:        true,
 		//	peerTLSEnabledBeforeUpdate:          true,
 		//	backupRestoreTLSEnabledBeforeUpdate: true,
 		//},
 		//{
 		//	name:                       "disable-ptls-label-change",
+		//  purpose:					"test Etcd with peer TLS enabled before update and disabled after update, with label changes",
 		//	peerTLSEnabledBeforeUpdate: true,
 		//	additionalLabelsAfterUpdate: map[string]string{
 		//		"foo": "bar",
@@ -356,7 +380,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
-				logger.Info("running tests")
+				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(3).
 					WithDefaultBackup().
@@ -408,6 +432,7 @@ func TestRecovery(t *testing.T) {
 
 	testCases := []struct {
 		name                    string
+		purpose                 string
 		replicas                int32
 		numMembersToBeCorrupted int
 		numPodsToBeDeleted      int
@@ -415,42 +440,49 @@ func TestRecovery(t *testing.T) {
 	}{
 		{
 			name:               "1-del-1-pod",
+			purpose:            "test Etcd with 1 replica by deleting 1 pod",
 			replicas:           1,
 			numPodsToBeDeleted: 1,
 			expectDowntime:     true,
 		},
 		{
 			name:                    "1-corrupt-data",
+			purpose:                 "test Etcd with 1 replica by corrupting data of 1 member",
 			replicas:                1,
 			numMembersToBeCorrupted: 1,
 			expectDowntime:          true,
 		},
 		{
 			name:               "3-del-1-pod",
+			purpose:            "test Etcd with 3 replicas by deleting 1 pod",
 			replicas:           3,
 			numPodsToBeDeleted: 1,
 			expectDowntime:     false,
 		},
 		{
 			name:               "3-del-2-pods",
+			purpose:            "test Etcd with 3 replicas by deleting 2 pods",
 			replicas:           3,
 			numPodsToBeDeleted: 2,
 			expectDowntime:     true,
 		},
 		{
 			name:               "3-del-3-pods",
+			purpose:            "test Etcd with 3 replicas by deleting all 3 pods",
 			replicas:           3,
 			numPodsToBeDeleted: 3,
 			expectDowntime:     true,
 		},
 		{
 			name:                    "3-corrupt-1-mem",
+			purpose:                 "test Etcd with 3 replicas by corrupting data of 1 member",
 			replicas:                3,
 			numMembersToBeCorrupted: 1,
 			expectDowntime:          false,
 		},
 		{
 			name:                    "3-del-2-pods-corrupt-1-mem",
+			purpose:                 "test Etcd with 3 replicas by deleting 2 pods and corrupting data of 1 member",
 			replicas:                3,
 			numPodsToBeDeleted:      2,
 			numMembersToBeCorrupted: 1,
@@ -472,7 +504,7 @@ func TestRecovery(t *testing.T) {
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
-				logger.Info("running tests")
+				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
 					WithEtcdClientPort(ptr.To[int32](2379)).
@@ -519,26 +551,31 @@ func TestClusterUpdate(t *testing.T) {
 
 	testCases := []struct {
 		name           string
+		purpose        string
 		replicas       int32
 		updateSpec     bool
 		expectDowntime bool
 	}{
 		{
 			name:     "1-no-update",
+			purpose:  "test Etcd with 1 replica without any spec updates",
 			replicas: 1,
 		},
 		{
 			name:           "1-update",
+			purpose:        "test Etcd with 1 replica with spec updates",
 			replicas:       1,
 			updateSpec:     true,
 			expectDowntime: true,
 		},
 		{
 			name:     "3-no-update",
+			purpose:  "test Etcd with 3 replicas without any spec updates",
 			replicas: 3,
 		},
 		{
 			name:       "3-update",
+			purpose:    "test Etcd with 3 replicas with spec updates",
 			replicas:   3,
 			updateSpec: true,
 		},
@@ -558,7 +595,7 @@ func TestClusterUpdate(t *testing.T) {
 
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
-				logger.Info("running tests")
+				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
 					WithEtcdClientPort(ptr.To[int32](2379)).
@@ -607,16 +644,19 @@ func TestClusterUpdate(t *testing.T) {
 //
 //	testCases := []struct {
 //		name           string
+//		purpose        string
 //		replicas       int32
 //		expectDowntime bool
 //	}{
 //		{
 //			name:           "1-defrag",
+//			purpose:        "test Etcd with 1 replica with on-demand defragmentation",
 //			replicas:       1,
 //			expectDowntime: true,
 //		},
 //		{
 //			name:     "3-defrag",
+//			purpose:  "test Etcd with 3 replicas with on-demand defragmentation",
 //			replicas: 3,
 //		},
 //	}
@@ -635,7 +675,7 @@ func TestClusterUpdate(t *testing.T) {
 //
 //              initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 //
-//				logger.Info("running tests")
+//				logger.Info("running tests", "purpose", tc.purpose)
 //				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 //					WithReplicas(tc.replicas).
 //					WithGRPCGatewayEnabled()

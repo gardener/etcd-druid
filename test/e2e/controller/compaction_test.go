@@ -34,6 +34,7 @@ func TestSnapshotCompaction(t *testing.T) {
 
 	testCases := []struct {
 		name                          string
+		purpose                       string
 		revisionsForFullSnapshot      int64
 		revisionsForDeltaSnapshot     int64
 		expectCompaction              bool
@@ -42,12 +43,14 @@ func TestSnapshotCompaction(t *testing.T) {
 	}{
 		{
 			name:                          "no-snaps",
+			purpose:                       "test with no snapshots taken",
 			expectCompaction:              false,
 			expectedFullSnapshotRevision:  1, // default revision in etcd cluster
 			expectedDeltaSnapshotRevision: 0,
 		},
 		{
 			name:                          "full-no-delta",
+			purpose:                       "test with only full snapshot taken",
 			revisionsForFullSnapshot:      defaultRevisionsForFullSnapshot,
 			expectCompaction:              false,
 			expectedFullSnapshotRevision:  1 + defaultRevisionsForFullSnapshot,
@@ -55,6 +58,7 @@ func TestSnapshotCompaction(t *testing.T) {
 		},
 		{
 			name:                          "full-delta-no-comp",
+			purpose:                       "test with full and delta snapshot within event threshold",
 			revisionsForFullSnapshot:      defaultRevisionsForFullSnapshot,
 			revisionsForDeltaSnapshot:     configuredEventsThreshold - 1,
 			expectCompaction:              false,
@@ -63,6 +67,7 @@ func TestSnapshotCompaction(t *testing.T) {
 		},
 		{
 			name:                          "full-delta-comp",
+			purpose:                       "test with full and delta snapshot exceeding event threshold",
 			revisionsForFullSnapshot:      defaultRevisionsForFullSnapshot,
 			revisionsForDeltaSnapshot:     configuredEventsThreshold,
 			expectCompaction:              true,
@@ -85,7 +90,7 @@ func TestSnapshotCompaction(t *testing.T) {
 
 			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
 
-			logger.Info("running tests")
+			logger.Info("running tests", "purpose", tc.purpose)
 			etcd := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 				WithReplicas(1).
 				WithEtcdClientPort(ptr.To[int32](2379)).
