@@ -7,7 +7,6 @@ package controller
 import (
 	"fmt"
 	"os"
-	"slices"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	"github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -18,6 +17,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	. "github.com/onsi/gomega"
 )
@@ -97,7 +97,7 @@ func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretNam
 		return err
 	}
 
-	if expectFinalizer == slices.Contains(secret.ObjectMeta.Finalizers, druidapicommon.EtcdFinalizerName) {
+	if expectFinalizer == controllerutil.ContainsFinalizer(secret, druidapicommon.EtcdFinalizerName) {
 		return nil
 	}
 	return fmt.Errorf("expected finalizer %v on secret %s in namespace %s, but was not satisfied", druidapicommon.EtcdFinalizerName, secretName, namespace)
