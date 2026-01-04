@@ -36,7 +36,7 @@ const (
 	defaultTimeout               = 2 * time.Minute
 	jobNameZeroDowntimeValidator = "zero-downtime-validator"
 	jobNameEtcdLoader            = "etcd-loader"
-	jobNameTriggerSnapshot       = "trigger-snapshot"
+	jobNameSnapshotter           = "snapshotter"
 )
 
 type TestEnvironment struct {
@@ -159,7 +159,10 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
 		}
 
-		etcdPods := t.getEtcdPods(etcd)
+		etcdPods, err := t.getEtcdPods(etcd)
+		if err != nil {
+			return fmt.Errorf("failed to get etcd pods: %w", err)
+		}
 		if len(etcdPods) != int(etcd.Spec.Replicas) {
 			return fmt.Errorf("etcd %s has %d pods, expected %d", etcd.Name, len(etcdPods), etcd.Spec.Replicas)
 		}
@@ -190,6 +193,7 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 
 		for _, c := range etcd.Status.Conditions {
 			// TODO: re-add this check for when store is configured, once the BackupReady is split into two conditions and becomes deterministic
+			// Ref: https://github.com/gardener/etcd-druid/issues/867
 			if c.Type == druidv1alpha1.ConditionTypeBackupReady {
 				continue
 			}
@@ -246,39 +250,43 @@ func (t *TestEnvironment) VerifyEtcdMemberPeerTLSEnabled(g *WithT, etcd *druidv1
 	g.Expect(testutils.VerifyPeerTLSEnabledOnAllMemberLeases(t.ctx, t.cl, etcd)).To(Succeed())
 }
 
-// DisruptEtcd disrupts the etcd object by deleting its pods and/or deleting PVCs to simulate corruption.
+// DisruptEtcd disrupts the etcd object by deleting its pods and/or deleting PVCs to simulate transient failures.
 func (t *TestEnvironment) DisruptEtcd(g *WithT, etcd *druidv1alpha1.Etcd, numPodsToDelete, numPVCsToDelete int, timeout time.Duration) {
 	if numPodsToDelete <= 0 && numPVCsToDelete <= 0 {
 		return
 	}
 
-	pods := t.getEtcdPods(etcd)
+	pods, err := t.getEtcdPods(etcd)
+	g.Expect(err).ToNot(HaveOccurred(), "Failed to get etcd pods")
 	g.Expect(len(pods)).To(Equal(int(etcd.Spec.Replicas)), "Number of pods does not match the expected replicas")
 	g.Expect(len(pods)).To(BeNumerically(">=", numPodsToDelete), "Not enough pods to delete")
-	pvcs := t.getEtcdPVCs(etcd)
+	pvcs, err := t.getEtcdPVCs(etcd)
+	g.Expect(err).ToNot(HaveOccurred(), "Failed to get etcd PVCs")
 	g.Expect(len(pvcs)).To(Equal(int(etcd.Spec.Replicas)), "Number of PVCs does not match the expected replicas")
 	g.Expect(len(pvcs)).To(BeNumerically(">=", numPVCsToDelete), "Not enough PVCs to delete")
 
 	var deletedPVCUIDs []string
-	for i := 0; i < numPVCsToDelete; i++ {
-		g.Expect(t.cl.Delete(t.ctx, &pvcs[i], client.PropagationPolicy(metav1.DeletePropagationBackground))).To(Succeed())
+	for i, pvc := range pvcs[:numPVCsToDelete] {
+		g.Expect(t.cl.Delete(t.ctx, &pvc, client.PropagationPolicy(metav1.DeletePropagationBackground))).To(Succeed())
 		deletedPVCUIDs = append(deletedPVCUIDs, string(pvcs[i].UID))
 	}
 
 	var deletedPodUIDs []string
-	for i := 0; i < numPodsToDelete; i++ {
-		g.Expect(t.cl.Delete(t.ctx, &pods[i])).To(Succeed())
+	for i, pod := range pods[:numPodsToDelete] {
+		g.Expect(t.cl.Delete(t.ctx, &pod)).To(Succeed())
 		deletedPodUIDs = append(deletedPodUIDs, string(pods[i].UID))
 	}
 
 	g.Eventually(func() error {
-		pods := t.getEtcdPods(etcd)
+		pods, err := t.getEtcdPods(etcd)
+		g.Expect(err).ToNot(HaveOccurred(), "Failed to get etcd pods")
 		for _, pod := range pods {
 			if slices.Contains(deletedPodUIDs, string(pod.UID)) {
 				return fmt.Errorf("pod %s is not yet deleted", pod.Name)
 			}
 		}
-		pvcs := t.getEtcdPVCs(etcd)
+		pvcs, err := t.getEtcdPVCs(etcd)
+		g.Expect(err).ToNot(HaveOccurred(), "Failed to get etcd PVCs")
 		for _, pvc := range pvcs {
 			if slices.Contains(deletedPodUIDs, string(pvc.UID)) {
 				return fmt.Errorf("pvc %s is not yet deleted", pvc.Name)
@@ -289,21 +297,21 @@ func (t *TestEnvironment) DisruptEtcd(g *WithT, etcd *druidv1alpha1.Etcd, numPod
 }
 
 // getEtcdPods returns the pods of the etcd object.
-func (t *TestEnvironment) getEtcdPods(etcd *druidv1alpha1.Etcd) []corev1.Pod {
+func (t *TestEnvironment) getEtcdPods(etcd *druidv1alpha1.Etcd) ([]corev1.Pod, error) {
 	podList := &corev1.PodList{}
 	if err := t.cl.List(t.ctx, podList, client.InNamespace(etcd.Namespace), client.MatchingLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta))); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
-	return podList.Items
+	return podList.Items, nil
 }
 
 // getEtcdPVCs returns the PVCs associated with the Etcd pods.
-func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) []corev1.PersistentVolumeClaim {
+func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) ([]corev1.PersistentVolumeClaim, error) {
 	pvcList := &corev1.PersistentVolumeClaimList{}
 	if err := t.cl.List(t.ctx, pvcList, client.InNamespace(etcd.Namespace), client.MatchingLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta))); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to list PVCs: %w", err)
 	}
-	return pvcList.Items
+	return pvcList.Items, nil
 }
 
 // DeployZeroDowntimeValidatorJob deploys the zero downtime validator job.
@@ -354,9 +362,9 @@ func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdCl
 							Command:         []string{"/bin/sh", "-c"},
 							Args:            []string{getHealthCheckScript(etcdClientServiceName, etcdClientServicePort)},
 							VolumeMounts: []corev1.VolumeMount{
-								{MountPath: "/var/etcd/ssl/ca", Name: "client-url-ca-etcd"},
-								{MountPath: "/var/etcd/ssl/server", Name: "client-url-etcd-server-tls"},
-								{MountPath: "/var/etcd/ssl/client", Name: "client-url-etcd-client-tls", ReadOnly: true},
+								{MountPath: common.VolumeMountPathEtcdCA, Name: testutils.ClientTLSCASecretName},
+								{MountPath: common.VolumeMountPathEtcdServerTLS, Name: testutils.ClientTLSServerCertSecretName},
+								{MountPath: common.VolumeMountPathEtcdClientTLS, Name: testutils.ClientTLSClientCertSecretName, ReadOnly: true},
 							},
 							ReadinessProbe: getProbe("/tmp/healthy"),
 							LivenessProbe:  getProbe("/tmp/healthy"),
@@ -364,9 +372,9 @@ func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdCl
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
 					Volumes: []corev1.Volume{
-						getTLSVolume("client-url-ca-etcd", etcdClientTLS.TLSCASecretRef.Name),
-						getTLSVolume("client-url-etcd-server-tls", etcdClientTLS.ServerTLSSecretRef.Name),
-						getTLSVolume("client-url-etcd-client-tls", etcdClientTLS.ClientTLSSecretRef.Name),
+						getTLSVolume(testutils.ClientTLSCASecretName, etcdClientTLS.TLSCASecretRef.Name),
+						getTLSVolume(testutils.ClientTLSServerCertSecretName, etcdClientTLS.ServerTLSSecretRef.Name),
+						getTLSVolume(testutils.ClientTLSClientCertSecretName, etcdClientTLS.ClientTLSSecretRef.Name),
 					},
 				},
 			},
@@ -379,7 +387,7 @@ func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdCl
 func getHealthCheckScript(etcdClientServiceName string, etcdClientServicePort int32) string {
 	return fmt.Sprintf(`failed=0; threshold=2;
     while true; do
-        if ! curl --cacert /var/etcd/ssl/ca/ca.crt --cert /var/etcd/ssl/client/tls.crt --key /var/etcd/ssl/client/tls.key https://%s:%d/health -s -f -o /dev/null; then
+        if ! curl --cacert %s/ca.crt --cert %s/tls.crt --key %s/tls.key https://%s:%d/health -s -f -o /dev/null; then
             echo "etcd is unhealthy, retrying"
             failed=$((failed + 1))
             if [ "$failed" -ge "$threshold" ]; then
@@ -394,7 +402,7 @@ func getHealthCheckScript(etcdClientServiceName string, etcdClientServicePort in
             failed=0
             sleep 2
         fi
-    done`, etcdClientServiceName, etcdClientServicePort)
+    done`, common.VolumeMountPathEtcdCA, common.VolumeMountPathEtcdClientTLS, common.VolumeMountPathEtcdClientTLS, etcdClientServiceName, etcdClientServicePort)
 }
 
 // getProbe creates a probe with specified file path for readiness and liveness checks.
@@ -412,7 +420,7 @@ func getProbe(filePath string) *corev1.Probe {
 	}
 }
 
-// DeployEtcdLoaderJob deploys the etcd loader job.
+// DeployEtcdLoaderJob deploys the etcd loader job which loads keys into etcd.
 func (t *TestEnvironment) DeployEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, numKeys int64, timeout time.Duration) {
 	etcdLoaderJob, err := getEtcdLoaderJob(g, namespace, etcdClientServiceName, etcdClientServicePort, etcdClientTLS, numKeys)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -437,6 +445,7 @@ func (t *TestEnvironment) DeployEtcdLoaderJob(g *WithT, namespace, etcdClientSer
 	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
+// getEtcdLoaderJob returns the job object for loading keys into etcd.
 func getEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, numKeys int64) (*batchv1.Job, error) {
 	if numKeys <= 0 {
 		return nil, fmt.Errorf("number of keys must be greater than zero")
@@ -458,15 +467,15 @@ func getEtcdLoaderJob(g *WithT, namespace, etcdClientServiceName string, etcdCli
 							Command:         []string{"/bin/sh", "-c"},
 							Args:            []string{getEtcdLoaderScript(numKeys, etcdClientServiceName, etcdClientServicePort)},
 							VolumeMounts: []corev1.VolumeMount{
-								{MountPath: "/var/etcd/ssl/ca", Name: "client-url-ca-etcd"},
-								{MountPath: "/var/etcd/ssl/client", Name: "client-url-etcd-client-tls"},
+								{MountPath: common.VolumeMountPathEtcdCA, Name: testutils.ClientTLSCASecretName},
+								{MountPath: common.VolumeMountPathEtcdClientTLS, Name: testutils.ClientTLSClientCertSecretName},
 							},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
 					Volumes: []corev1.Volume{
-						getTLSVolume("client-url-ca-etcd", etcdClientTLS.TLSCASecretRef.Name),
-						getTLSVolume("client-url-etcd-client-tls", etcdClientTLS.ClientTLSSecretRef.Name),
+						getTLSVolume(testutils.ClientTLSCASecretName, etcdClientTLS.TLSCASecretRef.Name),
+						getTLSVolume(testutils.ClientTLSClientCertSecretName, etcdClientTLS.ClientTLSSecretRef.Name),
 					},
 				},
 			},
@@ -483,13 +492,13 @@ func getEtcdLoaderScript(numKeys int64, etcdClientServiceName string, etcdClient
 		value=$(echo -n "value-$i" | base64)
 		curl -s -X POST \
 		-H "Content-Type: application/json" \
-		--cacert /var/etcd/ssl/ca/ca.crt \
-		--cert /var/etcd/ssl/client/tls.crt \
-		--key /var/etcd/ssl/client/tls.key \
+		--cacert %s/ca.crt \
+		--cert %s/tls.crt \
+		--key %s/tls.key \
 		-d "{\"key\": \"$key\", \"value\": \"$value\"}" \
 		-L https://%s:%d/v3/kv/put;
 	done
-	`, numKeys, etcdClientServiceName, etcdClientServicePort)
+	`, numKeys, common.VolumeMountPathEtcdCA, common.VolumeMountPathEtcdClientTLS, common.VolumeMountPathEtcdClientTLS, etcdClientServiceName, etcdClientServicePort)
 }
 
 // getTLSVolume creates a volume for the TLS secret.
@@ -505,19 +514,19 @@ func getTLSVolume(name, secretName string) corev1.Volume {
 	}
 }
 
-// TriggerFullSnapshot triggers a full snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
-func (t *TestEnvironment) TriggerFullSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	t.TriggerSnapshot(g, etcd, "full", timeout)
+// TakeFullSnapshot takes an on-demand full snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
+func (t *TestEnvironment) TakeFullSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.TakeSnapshot(g, etcd, "full", timeout)
 }
 
-// TriggerDeltaSnapshot triggers a delta snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
-func (t *TestEnvironment) TriggerDeltaSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	t.TriggerSnapshot(g, etcd, "delta", timeout)
+// TakeDeltaSnapshot takes an on-demand delta snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
+func (t *TestEnvironment) TakeDeltaSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.TakeSnapshot(g, etcd, "delta", timeout)
 }
 
-// TriggerSnapshot triggers a snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
-func (t *TestEnvironment) TriggerSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string, timeout time.Duration) {
-	job := getTriggerSnapshotJob(g, etcd, snapshotType)
+// TakeSnapshot takes an on-demand snapshot of the etcd cluster using etcd-backup-restore server's HTTP API.
+func (t *TestEnvironment) TakeSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string, timeout time.Duration) {
+	job := getSnapshotterJob(g, etcd, snapshotType)
 	g.Expect(t.cl.Create(t.ctx, job)).To(Succeed())
 
 	g.Eventually(func() error {
@@ -539,10 +548,11 @@ func (t *TestEnvironment) TriggerSnapshot(g *WithT, etcd *druidv1alpha1.Etcd, sn
 	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
-func getTriggerSnapshotJob(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string) *batchv1.Job {
+// getSnapshotterJob returns the job object for taking an on-demand snapshot.
+func getSnapshotterJob(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string) *batchv1.Job {
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s-%s", jobNameTriggerSnapshot, snapshotType, testutils.GenerateRandomAlphanumericString(g, 4)),
+			Name:      fmt.Sprintf("%s-%s-%s", jobNameSnapshotter, snapshotType, testutils.GenerateRandomAlphanumericString(g, 4)),
 			Namespace: etcd.Namespace,
 		},
 		Spec: batchv1.JobSpec{
@@ -555,21 +565,24 @@ func getTriggerSnapshotJob(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType stri
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command:         []string{"/bin/sh", "-c"},
 							Args: []string{
-								fmt.Sprintf(`curl --cacert /var/etcdbr/ssl/ca/ca.crt --cert /var/etcdbr/ssl/client/tls.crt --key /var/etcdbr/ssl/client/tls.key https://%s:%d/snapshot/%s`,
+								fmt.Sprintf(`curl --cacert %s/ca.crt --cert %s/tls.crt --key %s/tls.key https://%s:%d/snapshot/%s`,
+									common.VolumeMountPathBackupRestoreCA,
+									common.VolumeMountPathBackupRestoreClientTLS,
+									common.VolumeMountPathBackupRestoreClientTLS,
 									druidv1alpha1.GetClientServiceName(etcd.ObjectMeta),
 									*etcd.Spec.Backup.Port,
 									snapshotType),
 							},
 							VolumeMounts: []corev1.VolumeMount{
-								{MountPath: "/var/etcdbr/ssl/ca", Name: "ca-etcdbr"},
-								{MountPath: "/var/etcdbr/ssl/client", Name: "etcdbr-client-tls"},
+								{MountPath: common.VolumeMountPathBackupRestoreCA, Name: testutils.BackupRestoreTLSCASecretName},
+								{MountPath: common.VolumeMountPathBackupRestoreClientTLS, Name: testutils.BackupRestoreTLSClientCertSecretName},
 							},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
 					Volumes: []corev1.Volume{
-						getTLSVolume("ca-etcdbr", etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
-						getTLSVolume("etcdbr-client-tls", etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
+						getTLSVolume(testutils.BackupRestoreTLSCASecretName, etcd.Spec.Backup.TLS.TLSCASecretRef.Name),
+						getTLSVolume(testutils.BackupRestoreTLSClientCertSecretName, etcd.Spec.Backup.TLS.ClientTLSSecretRef.Name),
 					},
 				},
 			},

@@ -22,6 +22,7 @@ var knownBackupProviders = []druidv1alpha1.StorageProvider{
 	"none",
 }
 
+// GetEnvOrError gets the environment variable by key and returns an error if it is not set.
 func GetEnvOrError(key string) (string, error) {
 	if value, ok := os.LookupEnv(key); ok {
 		return value, nil
@@ -30,6 +31,7 @@ func GetEnvOrError(key string) (string, error) {
 	return "", fmt.Errorf("environment variable not found: %s", key)
 }
 
+// getKubeconfig returns a Kubeconfig built from the config file in the specified path.
 func getKubeconfig(kubeconfigPath string) (*rest.Config, error) {
 	return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 }

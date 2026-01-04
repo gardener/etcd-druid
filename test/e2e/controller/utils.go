@@ -27,6 +27,8 @@ const (
 	defaultBackupStoreSecretName = "etcd-backup"
 )
 
+// initializeTestCase sets up the test environment by creating a namespace, generating PKI resources,
+// and creating the necessary TLS secrets and backup secret.
 func initializeTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace, etcdName string) {
 	createNamespace(g, testEnv, logger, testNamespace)
 	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir := generatePKIResourcesToDefaultDirectory(g, logger, testNamespace, etcdName)
@@ -34,12 +36,14 @@ func initializeTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.
 	createBackupSecret(g, testEnv, logger, testNamespace)
 }
 
+// createNamespace creates a new namespace for testing.
 func createNamespace(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace string) {
 	logger.Info("creating test namespace")
 	g.Expect(testEnv.CreateTestNamespace(testNamespace)).To(Succeed())
 	logger.Info("successfully created test namespace")
 }
 
+// generatePKIResourcesToDefaultDirectory generates PKI resources for etcd and returns the directories containing the generated certificates.
 func generatePKIResourcesToDefaultDirectory(g *WithT, logger logr.Logger, testNamespace, etcdName string) (string, string, string) {
 	logger.Info("generating PKI resources")
 	certDir := fmt.Sprintf("%s/%s", pkiResourcesDir, testNamespace)
@@ -59,6 +63,7 @@ func generatePKIResourcesToDefaultDirectory(g *WithT, logger logr.Logger, testNa
 	return etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir
 }
 
+// createTLSSecrets creates the necessary TLS secrets in the specified namespace using the provided certificate directories.
 func createTLSSecrets(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace string, etcdCertsDir string, etcdPeerCertsDir string, etcdbrCertsDir string) {
 	logger.Info("creating TLS secrets")
 	// TLS secrets for etcd server-client communication
@@ -75,6 +80,7 @@ func createTLSSecrets(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Lo
 	logger.Info("successfully created TLS secrets")
 }
 
+// getSecret retrieves a secret by name from the specified namespace.
 func getSecret(testEnv *testenv.TestEnvironment, namespace, secretName string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	err := testEnv.GetClient().Get(testEnv.GetContext(), types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
@@ -84,6 +90,7 @@ func getSecret(testEnv *testenv.TestEnvironment, namespace, secretName string) (
 	return secret, nil
 }
 
+// checkSecretFinalizer checks if the specified secret has or does not have the etcd finalizer based on expectFinalizer.
 func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretName string, expectFinalizer bool) error {
 	secret, err := getSecret(testEnv, namespace, secretName)
 	if err != nil {
@@ -96,18 +103,14 @@ func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretNam
 	return fmt.Errorf("expected finalizer %v on secret %s in namespace %s, but was not satisfied", druidapicommon.EtcdFinalizerName, secretName, namespace)
 }
 
-// TODO: complete me: for peer CA rotation test
-func generateCA(g *WithT, logger logr.Logger, testNamespace string) (string, error) {
-	logger.Info("generating new CA")
-	return "", nil
-}
-
+// createBackupSecret creates a backup secret in the specified namespace.
 func createBackupSecret(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, namespace string) {
 	logger.Info("creating backup secret")
 	g.Expect(testutils.CreateBackupProviderLocalSecret(testEnv.GetContext(), testEnv.GetClient(), defaultBackupStoreSecretName, namespace)).To(Succeed())
 	logger.Info("successfully created backup secret")
 }
 
+// updateEtcdTLSAndLabels updates the TLS configurations and labels of the given Etcd resource.
 func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, additionalLabels map[string]string) {
 	etcd.Spec.Etcd.ClientUrlTLS = nil
 	if clientTLSEnabled {
@@ -127,6 +130,7 @@ func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnable
 	etcd.Spec.Labels = testutils.MergeMaps(etcd.Spec.Labels, additionalLabels)
 }
 
+// cleanupTestArtifacts deletes the test namespace if shouldCleanup is true.
 func cleanupTestArtifacts(shouldCleanup bool, testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string) {
 	if !shouldCleanup {
 		return

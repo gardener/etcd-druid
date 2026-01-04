@@ -49,6 +49,7 @@ var (
 	providers           = []druidv1alpha1.StorageProvider{"none"}
 )
 
+// TestMain sets up the test environment.
 func TestMain(m *testing.M) {
 	kubeconfigPath, err := druide2etestutils.GetEnvOrError(envKubeconfigPath)
 	if err != nil {
@@ -400,7 +401,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 	}
 }
 
-// TestRecovery tests for recovery of an Etcd cluster upon simulated disasters.
+// TestRecovery tests for recovery of an Etcd cluster upon transient failures.
 func TestRecovery(t *testing.T) {
 	t.Parallel()
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
@@ -481,9 +482,7 @@ func TestRecovery(t *testing.T) {
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
 					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName)).
-					WithAnnotations(map[string]string{
-						"druid.gardener.cloud/disable-etcd-component-protection": "",
-					})
+					WithComponentProtectionDisabled()
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
@@ -495,10 +494,7 @@ func TestRecovery(t *testing.T) {
 				logger.Info("started running zero-downtime validator job")
 
 				logger.Info("disrupting Etcd")
-				numPodsToBeDeleted := tc.numPodsToBeDeleted
-				if tc.numMembersToBeCorrupted > tc.numPodsToBeDeleted {
-					numPodsToBeDeleted = tc.numMembersToBeCorrupted
-				}
+				numPodsToBeDeleted := max(tc.numPodsToBeDeleted, tc.numMembersToBeCorrupted)
 				testEnv.DisruptEtcd(g, etcd, numPodsToBeDeleted, tc.numMembersToBeCorrupted, timeoutEtcdDisruptionStart)
 				logger.Info("successfully disrupted Etcd")
 
