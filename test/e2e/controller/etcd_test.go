@@ -198,12 +198,11 @@ func TestScaleOut(t *testing.T) {
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
 
 	testCases := []struct {
-		name                         string
-		purpose                      string
-		peerTLSEnabledBeforeScaleOut bool
-		labelsBeforeScaleOut         map[string]string
-		peerTLSEnabledAfterScaleOut  bool
-		labelsAfterScaleOut          map[string]string
+		name                          string
+		purpose                       string
+		peerTLSEnabledBeforeScaleOut  bool
+		peerTLSEnabledAfterScaleOut   bool
+		additionalLabelsAfterScaleOut map[string]string
 	}{
 		{
 			name:    "basic",
@@ -221,15 +220,15 @@ func TestScaleOut(t *testing.T) {
 			peerTLSEnabledAfterScaleOut:  true,
 		},
 		{
-			name:                "with-label-change",
-			purpose:             "test Etcd with TLS disabled before and after scale out, with label changes",
-			labelsAfterScaleOut: map[string]string{"foo": "bar"},
+			name:                          "with-label-change",
+			purpose:                       "test Etcd with TLS disabled before and after scale out, with label changes",
+			additionalLabelsAfterScaleOut: map[string]string{"foo": "bar"},
 		},
 		{
-			name:                        "enable-ptls-label-change",
-			purpose:                     "test Etcd with peer TLS disabled before scale out and enabled after scale out, with label changes",
-			peerTLSEnabledAfterScaleOut: true,
-			labelsAfterScaleOut:         map[string]string{"foo": "bar"},
+			name:                          "enable-ptls-label-change",
+			purpose:                       "test Etcd with peer TLS disabled before scale out and enabled after scale out, with label changes",
+			peerTLSEnabledAfterScaleOut:   true,
+			additionalLabelsAfterScaleOut: map[string]string{"foo": "bar"},
 		},
 		// TODO: enable this once disabling peer TLS is supported
 		//{
@@ -264,9 +263,6 @@ func TestScaleOut(t *testing.T) {
 				if tc.peerTLSEnabledBeforeScaleOut {
 					etcdBuilder = etcdBuilder.WithPeerTLS()
 				}
-				if tc.labelsBeforeScaleOut != nil {
-					etcdBuilder = etcdBuilder.WithSpecLabels(tc.labelsBeforeScaleOut)
-				}
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")
@@ -275,7 +271,7 @@ func TestScaleOut(t *testing.T) {
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
-				updateEtcdTLSAndLabels(etcd, false, tc.peerTLSEnabledAfterScaleOut, false, tc.labelsAfterScaleOut)
+				updateEtcdTLSAndLabels(etcd, true, tc.peerTLSEnabledAfterScaleOut, true, tc.additionalLabelsAfterScaleOut)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
 
