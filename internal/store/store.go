@@ -128,6 +128,11 @@ func GetProviderEnvVars(store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error)
 
 	case GCS:
 		envVars = append(envVars, utils.GetEnvVarFromValue(common.EnvGoogleApplicationCredentials, fmt.Sprintf("%sserviceaccount.json", common.VolumeMountPathGCSBackupSecret)))
+		// `http` communication is disallowed by GCS APIs, so we assume an emulator is being used when "http://fake-gcs" is present in the endpoint.
+		// The GCS SDK requires EnvGoogleStorageEmulatorHost to be set to the emulator's endpoint.
+		if store.Endpoint != nil && strings.Contains(*store.Endpoint, "http://fake-gcs") {
+			envVars = append(envVars, utils.GetEnvVarFromValue(common.EnvGoogleStorageEmulatorHost, *store.Endpoint))
+		}
 
 	case Swift:
 		envVars = append(envVars, utils.GetEnvVarFromValue(common.EnvOpenstackApplicationCredentials, common.VolumeMountPathNonGCSProviderBackupSecret))
