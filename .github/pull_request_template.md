@@ -22,6 +22,16 @@ For Druid Enhancement Proposals (DEPs), please ensure that the proposal is writt
 **Which issue(s) this PR fixes**:
 Fixes #
 
+**Checklist**:
+- [ ] Update documentation in the `/docs` folder (if applicable)
+    - If new files added to docs, or docs structure modified:
+        - [ ] Update [mkdocs.yml](https://github.com/gardener/etcd-druid/blob/master/mkdocs.yml). Follow [Updating Documentation](https://github.com/gardener/etcd-druid/blob/master/docs/development/updating-documentation.md) guide to test the changes locally.
+        - [ ] Update [Table of Contents](https://github.com/gardener/etcd-druid/blob/master/docs/README.md) for the docs.
+- [ ] Add tests that cover your changes (if applicable)
+    - [ ] Unit tests
+    - [ ] Integration tests
+    - [ ] E2E tests
+
 **Special notes for your reviewer**:
 
 **Release note**:
