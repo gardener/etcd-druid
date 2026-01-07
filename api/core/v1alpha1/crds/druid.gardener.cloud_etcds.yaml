@@ -426,12 +426,7 @@ spec:
                           maxItems: 5
                           minItems: 1
                           type: array
-                          x-kubernetes-validations:
-                          - message: all URLs must start with http:// or https://
-                            rule: self.all(u, u.startsWith('http://') || u.startsWith('https://'))
-                          - message: all URLs must include a port number (e.g., :2380)
-                            rule: self.all(u, u.contains(':') && size(u.split(':'))
-                              >= 3)
+                          x-kubernetes-list-type: atomic
                       required:
                       - memberName
                       - urls

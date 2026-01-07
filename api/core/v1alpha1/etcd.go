@@ -307,8 +307,7 @@ type AdditionalPeerURL struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5
-	// +kubebuilder:validation:XValidation:rule="self.all(u, u.startsWith('http://') || u.startsWith('https://'))",message="all URLs must start with http:// or https://"
-	// +kubebuilder:validation:XValidation:rule="self.all(u, u.contains(':') && size(u.split(':')) >= 3)",message="all URLs must include a port number (e.g., :2380)"
+	// +listType=atomic
 	URLs []string `json:"urls"`
 }
 
