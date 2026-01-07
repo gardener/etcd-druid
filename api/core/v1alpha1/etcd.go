@@ -215,7 +215,8 @@ type SnapshotCompactionSpec struct {
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || self.additionalAdvertisePeerUrls.all(m, has(self.peerUrlTls) ? m.urls.all(u, u.startsWith('https://')) : m.urls.all(u, u.startsWith('http://')))",message="if peerUrlTls is enabled, all additional advertise peer URLs must be https, otherwise they must be http"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || !has(self.peerUrlTls) || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || has(self.peerUrlTls) || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -306,7 +307,8 @@ type AdditionalPeerURL struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5
-	// +kubebuilder:validation:XValidation:rule="self.all(u, isURL(u) && url(u).getScheme() in ['http', 'https'] && url(u).getEscapedPath() == '' && url(u).getPort() != '')",message="all URLs must be valid absolute URLs with scheme (http/https), host, port and no path"
+	// +kubebuilder:validation:XValidation:rule="self.all(u, u.startsWith('http://') || u.startsWith('https://'))",message="all URLs must start with http:// or https://"
+	// +kubebuilder:validation:XValidation:rule="self.all(u, u.contains(':') && size(u.split(':')) >= 3)",message="all URLs must include a port number (e.g., :2380)"
 	URLs []string `json:"urls"`
 }
 
