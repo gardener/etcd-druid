@@ -402,20 +402,19 @@ spec:
                 properties:
                   additionalAdvertisePeerUrls:
                     description: |-
-                      AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
+                      Additional AdvertisePeerURLs contains extra per-member peer URLs to append
                       to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
-                      The member name should match the etcd pod name to take effect.
+                      The member name should match the etcd member name of the cluster to take effect.
                       Non-matching entries are silently ignored.
                     items:
                       description: AdditionalPeerURL specifies additional peer URLs
                         for a specific etcd member.
                       properties:
-                        name:
+                        memberName:
                           description: |-
-                            Name is the etcd member name.
-                            Should match the pod name (e.g., etcd-main-0) to take effect.
+                            MemberName is the etcd member name.
+                            Should match the etcd member name of the cluster (e.g., etcd-main-0) to take effect.
                             Non-matching names are silently ignored.
-                          maxLength: 63
                           minLength: 1
                           type: string
                         urls:
@@ -428,10 +427,13 @@ spec:
                           minItems: 1
                           type: array
                           x-kubernetes-validations:
-                          - message: all URLs must start with http:// or https://
-                            rule: self.all(u, u.startsWith('http://') || u.startsWith('https://'))
+                          - message: all URLs must be valid absolute URLs with scheme
+                              (http/https), host, port and no path
+                            rule: self.all(u, isURL(u) && url(u).getScheme() in ['http',
+                              'https'] && url(u).getEscapedPath() == '' && url(u).getPort()
+                              != '')
                       required:
-                      - name
+                      - memberName
                       - urls
                       type: object
                     maxItems: 10
@@ -695,6 +697,12 @@ spec:
                     format: int32
                     type: integer
                 type: object
+                x-kubernetes-validations:
+                - message: if peerUrlTls is enabled, all additional advertise peer
+                    URLs must be https, otherwise they must be http
+                  rule: '!has(self.additionalAdvertisePeerUrls) || self.additionalAdvertisePeerUrls.all(m,
+                    has(self.peerUrlTls) ? m.urls.all(u, u.startsWith(''https://''))
+                    : m.urls.all(u, u.startsWith(''http://'')))'
               labels:
                 additionalProperties:
                   type: string

@@ -249,11 +249,12 @@ type EtcdConfig struct {
 	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
-	// AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
+	//Additional AdvertisePeerURLs contains extra per-member peer URLs to append
 	// to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
 	// The member name should match the etcd member name of the cluster to take effect.
 	// Non-matching entries are silently ignored.
 	// +optional
+	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []AdditionalPeerURL `json:"additionalAdvertisePeerUrls,omitempty"`
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster
 	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
@@ -304,6 +305,7 @@ type AdditionalPeerURL struct {
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=5
 	// +kubebuilder:validation:XValidation:rule="self.all(u, isURL(u) && url(u).getScheme() in ['http', 'https'] && url(u).getEscapedPath() == '' && url(u).getPort() != '')",message="all URLs must be valid absolute URLs with scheme (http/https), host, port and no path"
 	URLs []string `json:"urls"`
 }
