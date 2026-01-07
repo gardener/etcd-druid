@@ -250,10 +250,11 @@ type EtcdConfig struct {
 	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
-	//Additional AdvertisePeerURLs contains extra per-member peer URLs to append
+	// AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
 	// to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
 	// The member name should match the etcd member name of the cluster to take effect.
 	// Non-matching entries are silently ignored.
+	// A maximum of 10 members can have additional peer URLs configured.
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []AdditionalPeerURL `json:"additionalAdvertisePeerUrls,omitempty"`
@@ -303,6 +304,7 @@ type AdditionalPeerURL struct {
 
 	// URLs is a list of additional peer URLs for this member.
 	// These will be appended to the default internal service URL.
+	// A maximum of 5 URLs can be specified per member.
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1

@@ -454,7 +454,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `memberName` _string_ | MemberName is the etcd member name.<br />Should match the etcd member name of the cluster (e.g., etcd-main-0) to take effect.<br />Non-matching names are silently ignored. |  | MinLength: 1 <br />Required: \{\} <br /> |
-| `urls` _string array_ | URLs is a list of additional peer URLs for this member.<br />These will be appended to the default internal service URL. |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br /> |
+| `urls` _string array_ | URLs is a list of additional peer URLs for this member.<br />These will be appended to the default internal service URL.<br />A maximum of 5 URLs can be specified per member. |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br /> |
 
 
 #### BackupSpec
@@ -689,7 +689,7 @@ _Appears in:_
 | `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br /> |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  |  |
-| `additionalAdvertisePeerUrls` _[AdditionalPeerURL](#additionalpeerurl) array_ | Additional AdvertisePeerURLs contains extra per-member peer URLs to append<br />to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.<br />The member name should match the etcd member name of the cluster to take effect.<br />Non-matching entries are silently ignored. |  | MaxItems: 10 <br /> |
+| `additionalAdvertisePeerUrls` _[AdditionalPeerURL](#additionalpeerurl) array_ | AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append<br />to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.<br />The member name should match the etcd member name of the cluster to take effect.<br />Non-matching entries are silently ignored.<br />A maximum of 10 members can have additional peer URLs configured. |  | MaxItems: 10 <br /> |
 | `peerUrlTls` _[TLSConfig](#tlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster. |  |  |
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |

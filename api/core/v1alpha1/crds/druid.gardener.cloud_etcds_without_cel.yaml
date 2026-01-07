@@ -366,10 +366,11 @@ spec:
                   properties:
                     additionalAdvertisePeerUrls:
                       description: |-
-                        Additional AdvertisePeerURLs contains extra per-member peer URLs to append
+                        AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
                         to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
                         The member name should match the etcd member name of the cluster to take effect.
                         Non-matching entries are silently ignored.
+                        A maximum of 10 members can have additional peer URLs configured.
                       items:
                         description: AdditionalPeerURL specifies additional peer URLs for a specific etcd member.
                         properties:
@@ -384,6 +385,7 @@ spec:
                             description: |-
                               URLs is a list of additional peer URLs for this member.
                               These will be appended to the default internal service URL.
+                              A maximum of 5 URLs can be specified per member.
                             items:
                               type: string
                             maxItems: 5
