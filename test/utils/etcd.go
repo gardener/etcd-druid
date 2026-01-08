@@ -545,6 +545,9 @@ func (eb *EtcdBuilder) WithGarbageCollection(period time.Duration, policy druidv
 
 // Build returns the built Etcd resource.
 func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
+	if eb == nil {
+		return nil
+	}
 	return eb.etcd
 }
 

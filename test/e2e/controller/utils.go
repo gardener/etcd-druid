@@ -7,9 +7,11 @@ package controller
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
-	"github.com/gardener/etcd-druid/api/core/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/store"
 	"github.com/gardener/etcd-druid/test/e2e/testenv"
 	e2etestutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -17,6 +19,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	. "github.com/onsi/gomega"
@@ -27,13 +30,26 @@ const (
 	defaultBackupStoreSecretName = "etcd-backup"
 )
 
+// getProviderSuffix returns the storage provider suffix for the given storage provider,
+// to be used for generating the namespace for a test case.
+func getProviderSuffix(provider druidv1alpha1.StorageProvider) (string, error) {
+	if provider == "none" {
+		return "none", nil
+	}
+	p, err := store.StorageProviderFromInfraProvider(ptr.To(provider))
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(p), nil
+}
+
 // initializeTestCase sets up the test environment by creating a namespace, generating PKI resources,
 // and creating the necessary TLS secrets and backup secret.
-func initializeTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace, etcdName string) {
+func initializeTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace, etcdName string, provider druidv1alpha1.StorageProvider) {
 	createNamespace(g, testEnv, logger, testNamespace)
 	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir := generatePKIResourcesToDefaultDirectory(g, logger, testNamespace, etcdName)
 	createTLSSecrets(g, testEnv, logger, testNamespace, etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir)
-	createBackupSecret(g, testEnv, logger, testNamespace)
+	createBackupSecret(g, testEnv, logger, testNamespace, provider)
 }
 
 // createNamespace creates a new namespace for testing.
@@ -104,14 +120,14 @@ func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretNam
 }
 
 // createBackupSecret creates a backup secret in the specified namespace.
-func createBackupSecret(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, namespace string) {
+func createBackupSecret(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, namespace string, provider druidv1alpha1.StorageProvider) {
 	logger.Info("creating backup secret")
-	g.Expect(testutils.CreateBackupProviderLocalSecret(testEnv.GetContext(), testEnv.GetClient(), defaultBackupStoreSecretName, namespace)).To(Succeed())
+	g.Expect(testutils.CreateBackupSecret(testEnv.GetContext(), testEnv.GetClient(), defaultBackupStoreSecretName, namespace, provider)).To(Succeed())
 	logger.Info("successfully created backup secret")
 }
 
 // updateEtcdTLSAndLabels updates the TLS configurations and labels of the given Etcd resource.
-func updateEtcdTLSAndLabels(etcd *v1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, additionalLabels map[string]string) {
+func updateEtcdTLSAndLabels(etcd *druidv1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, additionalLabels map[string]string) {
 	etcd.Spec.Etcd.ClientUrlTLS = nil
 	if clientTLSEnabled {
 		etcd.Spec.Etcd.ClientUrlTLS = testutils.GetClientTLSConfig()

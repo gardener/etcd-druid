@@ -51,7 +51,7 @@ var (
 
 // TestMain sets up the test environment.
 func TestMain(m *testing.M) {
-	kubeconfigPath, err := druide2etestutils.GetEnvOrError(envKubeconfigPath)
+	kubeconfigPath, err := testutils.GetEnvOrError(envKubeconfigPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "KUBECONFIG not provided: %v\n", err)
 		os.Exit(1)
@@ -70,15 +70,19 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	val, err := druide2etestutils.GetEnvOrError(envRetainTestArtifacts)
+	val, err := testutils.GetEnvOrError(envRetainTestArtifacts)
 	if err == nil && val == "true" {
 		retainTestArtifacts = true
 	}
 
 	// default to {"none"} if no providers are specified
-	backupProviders, err := druide2etestutils.GetEnvOrError(envBackupProviders)
+	backupProviders, err := testutils.GetEnvOrError(envBackupProviders)
 	if err == nil {
-		providers = druide2etestutils.ParseBackupProviders(backupProviders)
+		providers, err = druide2etestutils.ParseBackupProviders(backupProviders)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to parse backup providers: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	exitCode := m.Run()
@@ -140,7 +144,9 @@ func TestBasic(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("basic-%s-%s", tc.name, provider)
+			providerSuffix, err := getProviderSuffix(provider)
+			g.Expect(err).ToNot(HaveOccurred())
+			tcName := fmt.Sprintf("basic-%s-%s", tc.name, providerSuffix)
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
@@ -148,7 +154,7 @@ func TestBasic(t *testing.T) {
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
+				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
@@ -230,19 +236,15 @@ func TestScaleOut(t *testing.T) {
 			peerTLSEnabledAfterScaleOut:   true,
 			additionalLabelsAfterScaleOut: map[string]string{"foo": "bar"},
 		},
-		// TODO: enable this once disabling peer TLS is supported
-		//{
-		//	name:                         "disable-peer-tls",
-		//	purpose:                      "test Etcd with peer TLS enabled before scale out and disabled after scale out, with no label changes",
-		//	peerTLSEnabledBeforeScaleOut: true,
-		//},
 	}
 
 	g := NewWithT(t)
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("scaleout-%s-%s", tc.name, provider)
+			providerSuffix, err := getProviderSuffix(provider)
+			g.Expect(err).ToNot(HaveOccurred())
+			tcName := fmt.Sprintf("scaleout-%s-%s", tc.name, providerSuffix)
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
@@ -250,7 +252,7 @@ func TestScaleOut(t *testing.T) {
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
+				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
@@ -339,34 +341,15 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 			clientTLSEnabledBeforeUpdate:        true,
 			backupRestoreTLSEnabledBeforeUpdate: true,
 		},
-		// TODO: enable these once disabling peer TLS is supported
-		//{
-		//	name:                       "disable-p-tls",
-		//  purpose:					"test Etcd with peer TLS enabled before update and disabled after update, with no other TLS changes and no label changes",
-		//	peerTLSEnabledBeforeUpdate: true,
-		//},
-		//{
-		//	name:                                "disable-c-p-br-tls",
-		//  purpose:					         "test Etcd with all TLS enabled before update and disabled after update, with no label changes",
-		//	clientTLSEnabledBeforeUpdate:        true,
-		//	peerTLSEnabledBeforeUpdate:          true,
-		//	backupRestoreTLSEnabledBeforeUpdate: true,
-		//},
-		//{
-		//	name:                       "disable-ptls-label-change",
-		//  purpose:					"test Etcd with peer TLS enabled before update and disabled after update, with label changes",
-		//	peerTLSEnabledBeforeUpdate: true,
-		//	additionalLabelsAfterUpdate: map[string]string{
-		//		"foo": "bar",
-		//	},
-		//},
 	}
 
 	g := NewWithT(t)
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("update1-%s-%s", tc.name, provider)
+			providerSuffix, err := getProviderSuffix(provider)
+			g.Expect(err).ToNot(HaveOccurred())
+			tcName := fmt.Sprintf("update1-%s-%s", tc.name, providerSuffix)
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
@@ -374,7 +357,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
+				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
@@ -490,7 +473,9 @@ func TestRecovery(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("recovery-%s-%s", tc.name, provider)
+			providerSuffix, err := getProviderSuffix(provider)
+			g.Expect(err).ToNot(HaveOccurred())
+			tcName := fmt.Sprintf("recovery-%s-%s", tc.name, providerSuffix)
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
@@ -498,7 +483,7 @@ func TestRecovery(t *testing.T) {
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
+				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
@@ -581,7 +566,9 @@ func TestClusterUpdate(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("update2-%s-%s", tc.name, provider)
+			providerSuffix, err := getProviderSuffix(provider)
+			g.Expect(err).ToNot(HaveOccurred())
+			tcName := fmt.Sprintf("update2-%s-%s", tc.name, providerSuffix)
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 
@@ -589,7 +576,7 @@ func TestClusterUpdate(t *testing.T) {
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
+				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
@@ -629,77 +616,3 @@ func TestClusterUpdate(t *testing.T) {
 		}
 	}
 }
-
-// TestClusterMaintenance tests for zero downtime during cluster maintenance.
-// TODO: complete me once EtcdOpsTask for on-demand defragmentation is implemented.
-// This test is currently not implemented since etcd-druid does not control defragmentation
-// operations on the etcd members, and that is managed by the backup sidecars themselves.
-//func TestClusterMaintenance(t *testing.T) {
-//	t.Parallel()
-//	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
-//
-//	testCases := []struct {
-//		name           string
-//		purpose        string
-//		replicas       int32
-//		expectDowntime bool
-//	}{
-//		{
-//			name:           "1-defrag",
-//			purpose:        "test Etcd with 1 replica with on-demand defragmentation",
-//			replicas:       1,
-//			expectDowntime: true,
-//		},
-//		{
-//			name:     "3-defrag",
-//			purpose:  "test Etcd with 3 replicas with on-demand defragmentation",
-//			replicas: 3,
-//		},
-//	}
-//
-//	g := NewWithT(t)
-//
-//	for _, provider := range providers {
-//		for _, tc := range testCases {
-//			tcName := fmt.Sprintf("maintenance-%s-%s", tc.name, provider)
-//			t.Run(tcName, func(t *testing.T) {
-//				t.Parallel()
-//
-//				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-//				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-//              defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-//
-//              initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
-//
-//				logger.Info("running tests", "purpose", tc.purpose)
-//				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
-//					WithReplicas(tc.replicas).
-//					WithGRPCGatewayEnabled()
-//				etcd := etcdBuilder.Build()
-//
-//				logger.Info("creating Etcd")
-//				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
-//				logger.Info("successfully created Etcd")
-//
-//				logger.Info("starting zero-downtime validator job")
-//				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
-//				logger.Info("started running zero-downtime validator job")
-//
-//				// deploy EtcdOpsTask for on-demand defragmentation.
-//				// check that eventually its status should say Succeeded.
-//
-//				logger.Info("checking if downtime occurred")
-//				testEnv.CheckForDowntime(g, testNamespace, tc.expectDowntime)
-//				logger.Info("successfully checked if downtime occurred")
-//
-//				logger.Info("finished running tests")
-//			})
-//		}
-//	}
-//}
-
-// TODO: complete me when we support 3-node KIND clusters for e2e testing
-// TestScaleOutWithExternalTSCInjection tests scale out of an Etcd cluster from 1 -> 3 replicas with
-// external injection of Topology Spread Constraints into the pods.
-//func TestScaleOutWithExternalTSCInjection(t *testing.T) {
-//}
