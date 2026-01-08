@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package utils
+package utils_test
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -55,7 +56,7 @@ func TestGetEtcdImages(t *testing.T) {
 
 func testWithEtcdWrapperAndEtcdBRImagesInSpec(g *WithT, etcd *druidv1alpha1.Etcd) {
 	iv := testutils.CreateImageVector(false, false)
-	etcdImg, etcdBRImg, initContainerImg, err := GetEtcdImages(etcd, iv)
+	etcdImg, etcdBRImg, initContainerImg, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImg).ToNot(BeEmpty())
 	g.Expect(etcdImg).To(Equal(*etcd.Spec.Etcd.Image))
@@ -70,7 +71,7 @@ func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv
 	etcd.Spec.Etcd.Image = nil
 	etcd.Spec.Backup.Image = nil
 	iv := testutils.CreateImageVector(true, true)
-	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
 	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
@@ -88,7 +89,7 @@ func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv
 func testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Etcd.Image = nil
 	iv := testutils.CreateImageVector(true, false)
-	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
 	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
@@ -104,7 +105,7 @@ func testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage(g *WithT, etcd *druidv1alp
 func testSpecAndIVWithoutEtcdBRImage(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Backup.Image = nil
 	iv := testutils.CreateImageVector(true, false)
-	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).ToNot(BeNil())
 	g.Expect(etcdImage).To(BeEmpty())
 	g.Expect(etcdBackupRestoreImage).To(BeEmpty())
@@ -114,7 +115,7 @@ func testSpecAndIVWithoutEtcdBRImage(g *WithT, etcd *druidv1alpha1.Etcd) {
 func testWithSpecAndIVNotHavingAnyImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Backup.Image = nil
 	iv := testutils.CreateImageVector(false, false)
-	etcdImage, etcdBackupRestoreImage, initContainerImage, err := GetEtcdImages(etcd, iv)
+	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).ToNot(BeNil())
 	g.Expect(etcdImage).To(BeEmpty())
 	g.Expect(etcdBackupRestoreImage).To(BeEmpty())

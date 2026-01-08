@@ -27,7 +27,9 @@ func TestSecretFinalizers(t *testing.T) {
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
 	g := NewWithT(t)
 	for _, provider := range providers {
-		tcName := fmt.Sprintf("secret-%s", provider)
+		providerSuffix, err := getProviderSuffix(provider)
+		g.Expect(err).ToNot(HaveOccurred())
+		tcName := fmt.Sprintf("secret-%s", providerSuffix)
 		t.Run(tcName, func(t *testing.T) {
 			t.Parallel()
 
@@ -35,7 +37,7 @@ func TestSecretFinalizers(t *testing.T) {
 			logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 			defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
 
-			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName)
+			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 			logger.Info("running tests")
 			etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
