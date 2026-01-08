@@ -124,7 +124,7 @@ func CreateBackupSecret(ctx context.Context, c client.Client, name, namespace st
 	if provider == "none" {
 		return nil
 	}
-	
+
 	secretData, err := GenerateBackupSecretData(provider)
 	if err != nil {
 		return fmt.Errorf("failed to generate backup secret: %w", err)
