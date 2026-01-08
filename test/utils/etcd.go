@@ -12,6 +12,7 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/store"
 
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +42,7 @@ var (
 	autoCompactionRetention = "2m"
 	snapshotCount           = int64(10000)
 	quota                   = resource.MustParse("8Gi")
-	localProvider           = druidv1alpha1.StorageProvider("Local")
+	localProvider           = druidv1alpha1.StorageProvider(store.Local)
 	prefix                  = "/tmp"
 	volumeClaimTemplateName = "etcd-main"
 	garbageCollectionPolicy = druidv1alpha1.GarbageCollectionPolicy(druidv1alpha1.GarbageCollectionPolicyExponential)
@@ -286,18 +287,18 @@ func (eb *EtcdBuilder) WithStorageProvider(provider druidv1alpha1.StorageProvide
 	// TODO: there is no default case right now which is not very right, returning an error in a default case makes it difficult to chain
 	// This should be improved later
 	switch provider {
-	case "aws":
+	case store.S3, "aws":
 		return eb.WithProviderS3(prefix)
-	case "azure":
+	case store.ABS, "azure":
 		return eb.WithProviderABS(prefix)
-	case "alicloud":
-		return eb.WithProviderOSS(prefix)
-	case "gcp":
+	case store.GCS, "gcp":
 		return eb.WithProviderGCS(prefix)
-	case "openstack":
+	case store.Swift, "openstack":
 		return eb.WithProviderSwift(prefix)
-	case "local":
+	case store.Local, "local":
 		return eb.WithProviderLocal(prefix)
+	case store.OSS, "alicloud":
+		return eb.WithProviderOSS(prefix)
 	case "none":
 		return eb.WithoutProvider()
 	default:
