@@ -119,7 +119,7 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 			if test.enabled != nil && *test.enabled {
 				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName)
 			}
-			actualErrList := validateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
+			actualErrList := ValidateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
 			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
 				g.Expect(actualErrList).To(test.matcher)
@@ -160,7 +160,7 @@ func TestUpdateClientConnectionConfiguration(t *testing.T) {
 			if test.overrideBurst != nil {
 				clientConnConfig.Burst = *test.overrideBurst
 			}
-			actualErrList := validateClientConnectionConfiguration(*clientConnConfig, fldPath)
+			actualErrList := ValidateClientConnectionConfiguration(*clientConnConfig, fldPath)
 			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 		})
 	}
@@ -227,7 +227,7 @@ func TestValidateLogConfiguration(t *testing.T) {
 			if test.logFormat != nil {
 				logConfig.LogFormat = *test.logFormat
 			}
-			actualErrList := validateLogConfiguration(*logConfig, fldPath)
+			actualErrList := ValidateLogConfiguration(*logConfig, fldPath)
 			g.Expect(len(actualErrList)).To(Equal(test.expectedErrors))
 			if test.matcher != nil {
 				g.Expect(actualErrList).To(test.matcher)
