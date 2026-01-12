@@ -13,60 +13,78 @@ import (
 )
 
 var (
-	addProtectionExample = `
-		# Add component protection to an Etcd resource named "my-etcd" in the test namespace
-		druidctl add-component-protection 'test/my-etcd'
+	addExample = `
+		# Add component protection to an Etcd resource
+		kubectl druid component-protection add test/my-etcd
 
-		# Add component protection to all Etcd resources in the test namespace
-		druidctl add-component-protection 'test/*'
-		
-		# Add component protection to different Etcd resources in different namespaces
-		druidctl add-component-protection 'test/my-etcd,dev/my-etcd'
-		
-		# Add component protection to all Etcd resources in all namespaces
-		druidctl add-component-protection --all-namespaces`
+		# Add component protection to multiple Etcd resources
+		kubectl druid component-protection add ns1/etcd1 ns2/etcd2
 
-	removeProtectionExample = `
-		# Remove component protection from an Etcd resource named "my-etcd" in the test namespace
-		druidctl remove-component-protection 'test/my-etcd'
+		# Add component protection to all Etcd resources
+		kubectl druid component-protection add -A`
 
-		# Remove component protection from all Etcd resources in the test namespace
-		druidctl remove-component-protection 'test/*'
-		
-		# Remove component protection from different Etcd resources in different namespaces
-		druidctl remove-component-protection 'test/my-etcd,dev/my-etcd'
-		
-		# Remove component protection from all Etcd resources in all namespaces
-		druidctl remove-component-protection --all-namespaces`
+	removeExample = `
+		# Remove component protection from an Etcd resource
+		kubectl druid component-protection remove test/my-etcd
+
+		# Remove component protection from multiple Etcd resources
+		kubectl druid component-protection remove ns1/etcd1 ns2/etcd2
+
+		# Remove component protection from all Etcd resources
+		kubectl druid component-protection remove -A`
 )
 
-// NewAddProtectionCommand creates the add-component-protection subcommand.
-func NewAddProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+// NewComponentProtectionCommand creates the 'component-protection' parent command with nested subcommands
+// Structure:
+//   - `kubectl druid component-protection add <resources>` - enable protection
+//   - `kubectl druid component-protection remove <resources>` - disable protection
+func NewComponentProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "component-protection",
+		Short: "Manage component protection for etcd resources",
+		Long: `Manage component protection for etcd resources.
+
+Component protection prevents accidental deletion of managed Kubernetes resources
+(StatefulSets, Services, ConfigMaps, etc.) by etcd-druid.
+
+Use 'add' to enable protection and 'remove' to disable protection.
+NOTE: This will only have effect if resource protection webhook has been enabled when deploying etcd-druid.`,
+	}
+
+	// Add subcommands
+	cmd.AddCommand(NewAddCommand(options))
+	cmd.AddCommand(NewRemoveCommand(options))
+
+	return cmd
+}
+
+// NewAddCommand creates the 'component-protection add' subcommand
+func NewAddCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	return &cobra.Command{
-		Use:   "add-component-protection <etcd-resource-name>",
-		Short: "Adds resource protection to all managed components for a given etcd cluster",
-		Long: `Adds resource protection to all managed components for a given etcd cluster.
-			   NOTE: This will only have effect if resource protection webhook has been enabled when deploying etcd-druid.`,
-		Example: addProtectionExample,
-		Args:    cobra.MaximumNArgs(1),
+		Use:     "add [resources] [flags]",
+		Short:   "Enable component protection for etcd resources",
+		Long:    "Enable component protection for the specified etcd resources by removing the disable-protection annotation.",
+		Example: addExample,
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			resourceProtectionOptions := newResourceProtectionOptions(options)
-			resourceProtectionCmdCtx := &resourceProtectionCmdCtx{
+			ctx := &resourceProtectionCmdCtx{
 				resourceProtectionOptions: resourceProtectionOptions,
 			}
 
-			if err := resourceProtectionCmdCtx.validate(); err != nil {
+			if err := ctx.validate(); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Add component protection validation failed", err)
 				if err := cmd.Help(); err != nil {
 					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
 				}
 				return err
 			}
 
-			if err := resourceProtectionCmdCtx.complete(options); err != nil {
+			if err := ctx.complete(options); err != nil {
 				return err
 			}
 
-			if err := resourceProtectionCmdCtx.removeDisableProtectionAnnotation(context.TODO()); err != nil {
+			if err := ctx.removeDisableProtectionAnnotation(context.TODO()); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Add component protection failed", err)
 				return err
 			}
@@ -77,33 +95,33 @@ func NewAddProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	}
 }
 
-// NewRemoveProtectionCommand creates the remove-component-protection subcommand.
-func NewRemoveProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+// NewRemoveCommand creates the 'component-protection remove' subcommand
+func NewRemoveCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove-component-protection <etcd-resource-name>",
-		Short: "Removes resource protection for all managed components for a given etcd cluster",
-		Long: `Removes resource protection for all managed components for a given etcd cluster.
-			   NOTE: This will only have effect if resource protection webhook has been enabled when deploying etcd-druid.`,
-		Example: removeProtectionExample,
-		Args:    cobra.MaximumNArgs(1),
+		Use:     "remove [resources] [flags]",
+		Short:   "Disable component protection for etcd resources",
+		Long:    "Disable component protection for the specified etcd resources by adding the disable-protection annotation.",
+		Example: removeExample,
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			resourceProtectionOptions := newResourceProtectionOptions(options)
-			resourceProtectionCmdCtx := &resourceProtectionCmdCtx{
+			ctx := &resourceProtectionCmdCtx{
 				resourceProtectionOptions: resourceProtectionOptions,
 			}
 
-			if err := resourceProtectionCmdCtx.validate(); err != nil {
+			if err := ctx.validate(); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Remove component protection validation failed", err)
 				if err := cmd.Help(); err != nil {
 					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
 				}
 				return err
 			}
 
-			if err := resourceProtectionCmdCtx.complete(options); err != nil {
+			if err := ctx.complete(options); err != nil {
 				return err
 			}
 
-			if err := resourceProtectionCmdCtx.addDisableProtectionAnnotation(context.TODO()); err != nil {
+			if err := ctx.addDisableProtectionAnnotation(context.TODO()); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Remove component protection failed", err)
 				return err
 			}

@@ -6,8 +6,6 @@ package reconcile
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
@@ -22,128 +20,98 @@ const (
 var (
 	reconcileExample = `
 		# Reconcile an Etcd resource named "my-etcd" in the test namespace
-		druidctl reconcile 'test/my-etcd'
+		kubectl druid reconcile test/my-etcd
 
-		# Reconcile all Etcd resources in the test namespace
-		druidctl reconcile 'test/*'
-
-		# Reconcile different Etcd resources in different namespaces
-		druidctl reconcile 'test/my-etcd,dev/my-etcd'
+		# Reconcile multiple Etcd resources (kubectl-style space-separated)
+		kubectl druid reconcile test/my-etcd dev/my-etcd
 
 		# Reconcile all Etcd resources across all namespaces
-		druidctl reconcile --all-namespaces(-A)
+		kubectl druid reconcile -A
 
-		# Reconcile an Etcd resource named "my-etcd" in the test namespace and wait until it's ready with default timeout
-		druidctl reconcile 'test/my-etcd' --wait-till-ready
+		# Reconcile an Etcd resource and wait until it's ready
+		kubectl druid reconcile test/my-etcd --wait-till-ready
 
-		# Reconcile an Etcd resource named "my-etcd" in the test namespace with a custom timeout
-		druidctl reconcile 'test/my-etcd' --wait-till-ready --timeout=10m
-		
-		# Reconcile an Etcd resource named "my-etcd" in the test namespace and watch until it's ready, i.e, --wait-till-ready with indefinite timeout
-		druidctl reconcile 'test/my-etcd' --watch(-W)`
+		# Reconcile and watch until ready (indefinite timeout)
+		kubectl druid reconcile test/my-etcd --watch`
 
-	suspendReconcileExample = `
-		# Suspend reconciliation for an Etcd resource named "my-etcd" in the test namespace
-		druidctl suspend-reconcile 'test/my-etcd'
+	suspendExample = `
+		# Suspend reconciliation for an Etcd resource
+		kubectl druid reconcile suspend test/my-etcd
 
-		# Suspend reconciliation for all Etcd resources in the test namespace
-		druidctl suspend-reconcile 'test/*'
-		
-		# Suspend reconciliation for different Etcd resources in different namespaces
-		druidctl suspend-reconcile 'test/my-etcd,dev/my-etcd'
+		# Suspend reconciliation for multiple Etcd resources
+		kubectl druid reconcile suspend ns1/etcd1 ns2/etcd2
 
-		# Suspend reconciliation for all Etcd resources in all namespaces
-		druidctl suspend-reconcile --all-namespaces`
+		# Suspend reconciliation for all Etcd resources
+		kubectl druid reconcile suspend -A`
 
-	resumeReconcileExample = `
-		# Resume reconciliation for an Etcd resource named "my-etcd" in the test namespace
-		druidctl resume-reconcile 'test/my-etcd'
+	resumeExample = `
+		# Resume reconciliation for an Etcd resource
+		kubectl druid reconcile resume test/my-etcd
 
-		# Resume reconciliation for all Etcd resources in the test namespace
-		druidctl resume-reconcile 'test/*'
+		# Resume reconciliation for multiple Etcd resources
+		kubectl druid reconcile resume ns1/etcd1 ns2/etcd2
 
-		# Resume reconciliation for different Etcd resources in different namespaces
-		druidctl resume-reconcile 'test/my-etcd,dev/my-etcd'
-
-		# Resume reconciliation for all Etcd resources in all namespaces
-		druidctl resume-reconcile --all-namespaces`
+		# Resume reconciliation for all Etcd resources
+		kubectl druid reconcile resume -A`
 )
 
-// group the Use, Short, Long and Example for the reconcile commands into a structure
-type reconcileCommandInfo struct {
-	use     string
-	short   string
-	long    string
-	example string
-}
+// NewReconcileCommand creates the 'reconcile' command with nested subcommands
+// Structure:
+//   - `kubectl druid reconcile <resources>` - trigger reconciliation
+//   - `kubectl druid reconcile suspend <resources>` - suspend reconciliation
+//   - `kubectl druid reconcile resume <resources>` - resume reconciliation
+func NewReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+	var waitTillReady bool
+	var watch bool
+	var timeout time.Duration = defaultTimeout
 
-func newReconcileBaseCommand(
-	cmdInfo *reconcileCommandInfo,
-	options *cmdutils.GlobalOptions,
-	reconcileCmdCtx func(*cmdutils.GlobalOptions) reconcileCmdCtxInterface,
-) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     cmdInfo.use,
-		Short:   cmdInfo.short,
-		Long:    cmdInfo.long,
-		Example: cmdInfo.example,
-		Args:    cobra.MaximumNArgs(1),
+	reconcileCmd := &cobra.Command{
+		Use:   "reconcile [resources] [flags]",
+		Short: "Manage etcd resource reconciliation",
+		Long: `Manage etcd resource reconciliation.
+
+When called directly with resource names, triggers a reconciliation of the specified etcd resources.
+Use subcommands 'suspend' and 'resume' to control reconciliation state.`,
+		Example: reconcileExample,
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			reconcileCmdCtx := reconcileCmdCtx(options)
-			if err := reconcileCmdCtx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, fmt.Sprintf("%s validation failed", getOperationName(cmdInfo.use)), err)
+			// If no args and no -A flag, show help
+			if len(options.ResourceArgs) == 0 && !options.AllNamespaces {
+				return cmd.Help()
+			}
+
+			// Create reconcile context
+			reconcileOpts := newReconcileOptions(options, waitTillReady, watch, timeout)
+			ctx := &reconcileCmdCtx{reconcileOptions: reconcileOpts}
+
+			if err := ctx.validate(); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Reconciling validation failed", err)
 				if herr := cmd.Help(); herr != nil {
 					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
 				}
 				return err
 			}
 
-			if err := reconcileCmdCtx.complete(options); err != nil {
+			if err := ctx.complete(options); err != nil {
 				return err
 			}
 
 			if options.AllNamespaces {
-				options.Logger.Info(options.IOStreams.Out, fmt.Sprintf("%s Etcd resources across all namespaces", getOperationName(cmdInfo.use)))
+				options.Logger.Info(options.IOStreams.Out, "Reconciling Etcd resources across all namespaces")
 			} else {
-				options.Logger.Info(options.IOStreams.Out, fmt.Sprintf("%s for selected Etcd resources", getOperationName(cmdInfo.use)))
+				options.Logger.Info(options.IOStreams.Out, "Reconciling selected Etcd resources")
 			}
 
-			if err := reconcileCmdCtx.execute(context.TODO()); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, fmt.Sprintf("%s failed", getOperationName(cmdInfo.use)), err)
+			if err := ctx.execute(context.TODO()); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Reconciling failed", err)
 				return err
 			}
-			options.Logger.Success(options.IOStreams.Out, fmt.Sprintf("%s completed successfully", getOperationName(cmdInfo.use)))
+			options.Logger.Success(options.IOStreams.Out, "Reconciling completed successfully")
 			return nil
 		},
 	}
-	return cmd
-}
 
-// NewReconcileCommand creates the 'reconcile' command
-func NewReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
-	var waitTillReady bool
-	var watch bool
-	var timeout time.Duration = defaultTimeout
-
-	cmdInfo := &reconcileCommandInfo{
-		use:     "reconcile <etcd-resource-name> --wait-till-ready(optional flag) --timeout(optional flag)",
-		short:   "Reconcile the mentioned etcd resource",
-		long:    "Reconcile the mentioned etcd resource. If the flag --wait-till-ready is set, then reconcile only after the Etcd CR is considered ready",
-		example: reconcileExample,
-	}
-
-	reconcileCmd := newReconcileBaseCommand(
-		cmdInfo,
-		options,
-		func(options *cmdutils.GlobalOptions) reconcileCmdCtxInterface {
-			reconcileOptions := newReconcileOptions(options, waitTillReady, watch, timeout)
-			return &reconcileCmdCtx{
-				reconcileOptions: reconcileOptions,
-			}
-		},
-	)
-
-	// Add command-specific flags
+	// Add reconcile-specific flags
 	reconcileCmd.Flags().BoolVarP(&waitTillReady, "wait-till-ready", "w", false,
 		"Wait until the Etcd resource is ready before reconciling")
 	reconcileCmd.Flags().BoolVarP(&watch, "watch", "W", false,
@@ -151,62 +119,94 @@ func NewReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	reconcileCmd.Flags().DurationVarP(&timeout, "timeout", "t", defaultTimeout,
 		"Timeout for the reconciliation process")
 
+	// Add subcommands
+	reconcileCmd.AddCommand(NewSuspendCommand(options))
+	reconcileCmd.AddCommand(NewResumeCommand(options))
+
 	return reconcileCmd
 }
 
-// NewSuspendReconcileCommand creates a new 'suspend-reconcile' command.
-func NewSuspendReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
-	cmdInfo := &reconcileCommandInfo{
-		use:     "suspend-reconcile <etcd-resource-name>",
-		short:   "Suspend reconciliation for the mentioned etcd resource",
-		long:    "Suspend reconciliation for the mentioned etcd resource.",
-		example: suspendReconcileExample,
-	}
-	suspendReconcileCmd := newReconcileBaseCommand(
-		cmdInfo,
-		options,
-		func(options *cmdutils.GlobalOptions) reconcileCmdCtxInterface {
-			suspendReconcileOptions := newSuspendReconcileOptions(options)
-			return &suspendReconcileCmdCtx{
-				suspendReconcileOptions: suspendReconcileOptions,
+// NewSuspendCommand creates the 'reconcile suspend' subcommand
+func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "suspend [resources] [flags]",
+		Short:   "Suspend reconciliation for etcd resources",
+		Long:    "Suspend reconciliation for the specified etcd resources by adding a suspend annotation.",
+		Example: suspendExample,
+		Args:    cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			suspendOpts := newSuspendReconcileOptions(options)
+			ctx := &suspendReconcileCmdCtx{suspendReconcileOptions: suspendOpts}
+
+			if err := ctx.validate(); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Suspending reconciliation validation failed", err)
+				if herr := cmd.Help(); herr != nil {
+					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+				}
+				return err
 			}
-		},
-	)
 
-	return suspendReconcileCmd
-}
-
-// NewResumeReconcileCommand creates a new 'resume-reconcile' command.
-func NewResumeReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
-	cmdInfo := &reconcileCommandInfo{
-		use:     "resume-reconcile <etcd-resource-name>",
-		short:   "Resume reconciliation for the mentioned etcd resource",
-		long:    "Resume reconciliation for the mentioned etcd resource.",
-		example: resumeReconcileExample,
-	}
-	resumeReconcileCmd := newReconcileBaseCommand(
-		cmdInfo,
-		options,
-		func(options *cmdutils.GlobalOptions) reconcileCmdCtxInterface {
-			resumeReconcileOptions := newResumeReconcileOptions(options)
-			return &resumeReconcileCmdCtx{
-				resumeReconcileOptions: resumeReconcileOptions,
+			if err := ctx.complete(options); err != nil {
+				return err
 			}
+
+			if options.AllNamespaces {
+				options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for Etcd resources across all namespaces")
+			} else {
+				options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for selected Etcd resources")
+			}
+
+			if err := ctx.execute(context.TODO()); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Suspending reconciliation failed", err)
+				return err
+			}
+			options.Logger.Success(options.IOStreams.Out, "Suspending reconciliation completed successfully")
+			return nil
 		},
-	)
-
-	return resumeReconcileCmd
-}
-
-func getOperationName(commandUse string) string {
-	command := strings.Split(commandUse, " ")[0]
-	switch command {
-	case "suspend-reconcile":
-		return "Suspending reconciliation"
-	case "resume-reconcile":
-		return "Resuming reconciliation"
-	case "reconcile":
-		return "Reconciling"
 	}
-	return "Processing"
+
+	return cmd
 }
+
+// NewResumeCommand creates the 'reconcile resume' subcommand
+func NewResumeCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "resume [resources] [flags]",
+		Short:   "Resume reconciliation for etcd resources",
+		Long:    "Resume reconciliation for the specified etcd resources by removing the suspend annotation.",
+		Example: resumeExample,
+		Args:    cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			resumeOpts := newResumeReconcileOptions(options)
+			ctx := &resumeReconcileCmdCtx{resumeReconcileOptions: resumeOpts}
+
+			if err := ctx.validate(); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Resuming reconciliation validation failed", err)
+				if herr := cmd.Help(); herr != nil {
+					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+				}
+				return err
+			}
+
+			if err := ctx.complete(options); err != nil {
+				return err
+			}
+
+			if options.AllNamespaces {
+				options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for Etcd resources across all namespaces")
+			} else {
+				options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for selected Etcd resources")
+			}
+
+			if err := ctx.execute(context.TODO()); err != nil {
+				options.Logger.Error(options.IOStreams.ErrOut, "Resuming reconciliation failed", err)
+				return err
+			}
+			options.Logger.Success(options.IOStreams.Out, "Resuming reconciliation completed successfully")
+			return nil
+		},
+	}
+
+	return cmd
+}
+

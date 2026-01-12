@@ -45,7 +45,7 @@ func TestAddComponentProtectionCommand(t *testing.T) {
 	}
 
 	// Create the command
-	cmd := NewAddProtectionCommand(globalOpts)
+	cmd := NewAddCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -54,7 +54,7 @@ func TestAddComponentProtectionCommand(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestAddProtectionWithoutAnnotation(t *testing.T) {
 	}
 
 	// Create the add protection command
-	cmd := NewAddProtectionCommand(globalOpts)
+	cmd := NewAddCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -121,7 +121,7 @@ func TestAddProtectionWithoutAnnotation(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -172,7 +172,7 @@ func TestRemoveComponentProtectionCommand(t *testing.T) {
 	}
 
 	// Create the command
-	cmd := NewRemoveProtectionCommand(globalOpts)
+	cmd := NewRemoveCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -181,7 +181,7 @@ func TestRemoveComponentProtectionCommand(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err = globalOpts.Validate(); err != nil {
+	if err = globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -221,6 +221,8 @@ func TestResourceProtectionAllNamespaces(t *testing.T) {
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
+	// Provide 'y' confirmation for --all-namespaces prompt
+	streams.In = strings.NewReader("y\n")
 	globalOpts.IOStreams = streams
 
 	etcdClient, err := globalOpts.Clients.EtcdClient()
@@ -229,7 +231,7 @@ func TestResourceProtectionAllNamespaces(t *testing.T) {
 	}
 
 	// Get initial list of etcds and add disable protection annotation to all
-	etcds, err := etcdClient.ListEtcds(context.TODO(), "")
+	etcds, err := etcdClient.ListEtcds(context.TODO(), "", "")
 	if err != nil {
 		t.Fatalf("Failed to list etcds: %v", err)
 	}
@@ -248,19 +250,19 @@ func TestResourceProtectionAllNamespaces(t *testing.T) {
 	}
 
 	// Create the add protection command
-	cmd := NewAddProtectionCommand(globalOpts)
+	cmd := NewAddCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Set all-namespaces
-	globalOpts.AllNamespaces = true
+	emptyNs := ""; globalOpts.ConfigFlags.Namespace = &emptyNs; globalOpts.AllNamespaces = true
 
 	// Complete and validate options
 	if err := globalOpts.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -270,7 +272,7 @@ func TestResourceProtectionAllNamespaces(t *testing.T) {
 	}
 
 	// Verify the intended action, i.e. disable protection annotation should be removed from all etcds
-	updatedEtcds, err := etcdClient.ListEtcds(context.TODO(), "")
+	updatedEtcds, err := etcdClient.ListEtcds(context.TODO(), "", "")
 	if err != nil {
 		t.Fatalf("Failed to list updated etcds: %v", err)
 	}
@@ -309,7 +311,7 @@ func TestResourceProtectionErrorHandling(t *testing.T) {
 	globalOpts.IOStreams = streams
 
 	// Create the command
-	cmd := NewAddProtectionCommand(globalOpts)
+	cmd := NewAddCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -318,7 +320,7 @@ func TestResourceProtectionErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 

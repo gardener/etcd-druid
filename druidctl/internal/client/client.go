@@ -52,8 +52,13 @@ func (e *EtcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, e
 }
 
 // ListEtcds lists all Etcd resources in the specified namespace. If namespace is empty, it lists across all namespaces.
-func (e *EtcdClient) ListEtcds(ctx context.Context, namespace string) (*druidv1alpha1.EtcdList, error) {
-	etcdList, err := e.client.Etcds(namespace).List(ctx, metav1.ListOptions{})
+// labelSelector filters resources by label (e.g., "app=etcd,env=prod"). Empty string means no filtering.
+func (e *EtcdClient) ListEtcds(ctx context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
+	listOpts := metav1.ListOptions{}
+	if labelSelector != "" {
+		listOpts.LabelSelector = labelSelector
+	}
+	etcdList, err := e.client.Etcds(namespace).List(ctx, listOpts)
 	if err != nil {
 		return nil, err
 	}

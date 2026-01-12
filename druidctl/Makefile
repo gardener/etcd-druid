@@ -11,13 +11,13 @@ DRUIDCTL_MODULE_TOOLS_DIR 	:= $(HACK_DIR)/tools
 include $(HACK_DIR)/tools.mk
 
 # Application build variables
-GO ?= go
-BIN_DIR := $(DRUIDCTL_MODULE_ROOT)/bin
-BIN_NAME := druidctl
+GO 				:= go
+BIN_DIR 		:= $(DRUIDCTL_MODULE_ROOT)/bin
+BIN_NAME 		:= druidctl
 PLUGIN_BIN_NAME := kubectl-druid
-GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
-INSTALL_DIR ?= $(or $(GOBIN),$(HOME)/.local/bin)
-VERSION_FILE := $(DRUIDCTL_MODULE_ROOT)/version
+GO_FILES 		:= $(shell find . -name '*.go' -not -path './vendor/*')
+INSTALL_DIR 	:= $(or $(GOBIN),$(shell $(GO) env GOPATH)/bin,$(HOME)/go/bin)
+VERSION_FILE 	:= $(DRUIDCTL_MODULE_ROOT)/version
 
 .PHONY: build build-plugin
 
@@ -35,21 +35,21 @@ $(BIN_DIR)/$(BIN_NAME): $(GO_FILES) go.mod $(VERSION_FILE) $(HACK_DIR)/ld-flags.
 		-o $@ \
 		-ldflags "$$($(HACK_DIR)/ld-flags.sh)" \
 		.
-	@echo "✓ Built: $@"
+	@echo "Built: $@"
 	@echo "Version: $$($(BIN_DIR)/$(BIN_NAME) version --short)"
 
 $(BIN_DIR)/$(PLUGIN_BIN_NAME): $(BIN_DIR)/$(BIN_NAME)
 	@echo "Creating kubectl plugin..."
 	@cp $(BIN_DIR)/$(BIN_NAME) $@
-	@echo "✓ Created: $@"
+	@echo "Created: $@"
 
 .PHONY: plugin-install
 plugin-install: ## Install kubectl-druid plugin
 	@$(MAKE) $(BIN_DIR)/$(PLUGIN_BIN_NAME)
 	@mkdir -p $(INSTALL_DIR)
 	@cp $(BIN_DIR)/$(PLUGIN_BIN_NAME) $(INSTALL_DIR)/$(PLUGIN_BIN_NAME)
-	@echo "✓ Installed $(PLUGIN_BIN_NAME) to $(INSTALL_DIR)"
-	@echo "  Test with: kubectl druid --help"
+	@echo "Installed $(PLUGIN_BIN_NAME) to $(INSTALL_DIR)"
+	@echo "Test with: kubectl druid --help"
 
 .PHONY: install
 install: ## Install druidctl to $GOPATH/bin
@@ -57,7 +57,7 @@ install: ## Install druidctl to $GOPATH/bin
 	@echo "Installing druidctl..."
 	@mkdir -p $(shell go env GOPATH)/bin
 	@cp $(BIN_DIR)/$(BIN_NAME) $(shell go env GOPATH)/bin/$(BIN_NAME)
-	@echo "✓ Installed druidctl to $(shell go env GOPATH)/bin/$(BIN_NAME)"
+	@echo "Installed druidctl to $(shell go env GOPATH)/bin/$(BIN_NAME)"
 
 .PHONY: tidy
 tidy:

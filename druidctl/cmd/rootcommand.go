@@ -16,55 +16,48 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Global options instance
-var options *cmdutils.GlobalOptions
+// NewDruidCommand creates the root druid command with all subcommands.
+func NewDruidCommand() *cobra.Command {
+	options := cmdutils.NewOptions()
 
-var rootCmd = &cobra.Command{
-	Use:     "druid [command] [resource] [flags]",
-	Short:   "CLI for etcd-druid operator",
-	Long:    `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
-	Version: version.Get().String(),
-	Run: func(cmd *cobra.Command, _ []string) {
-		if options.Verbose {
-			cmd.Println("Verbose mode enabled")
-		}
-		if err := cmd.Help(); err != nil {
-			options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
-		}
-	},
-}
+	rootCmd := &cobra.Command{
+		Use:     "druid [command] [resource] [flags]",
+		Short:   "CLI for etcd-druid operator",
+		Long:    `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
+		Version: version.Get().String(),
+		Run: func(cmd *cobra.Command, _ []string) {
+			if options.Verbose {
+				cmd.Println("Verbose mode enabled")
+			}
+			if err := cmd.Help(); err != nil {
+				options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+			}
+		},
+	}
 
-func init() {
 	// Customize the version template for --version flag
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
-}
 
-// Execute runs the root command
-func Execute() error {
-	options = cmdutils.NewOptions()
+	// Add global flags
 	options.AddFlags(rootCmd)
 
-	originalPreRun := rootCmd.PersistentPreRun
+	// Setup persistent pre-run hook for completion and validation
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
+
+		// Skip for shell completion commands as they don't need any setup
+		cmdName := cmd.Name()
+		if cmdName == cobra.ShellCompRequestCmd || cmdName == cobra.ShellCompNoDescRequestCmd ||
+			cmdName == "completion" || cmdName == "bash" || cmdName == "zsh" ||
+			cmdName == "fish" || cmdName == "powershell" {
+			return nil
+		}
+
 		banner.ShowBanner(rootCmd, cmd, options.DisableBanner)
 		if err := options.Complete(cmd, args); err != nil {
 			options.Logger.Error(options.IOStreams.ErrOut, "Completion failed: ", err)
 			return err
-		}
-		if err := options.Validate(); err != nil {
-			options.Logger.Error(options.IOStreams.ErrOut, "Validation failed: ", err)
-			if _, werr := options.IOStreams.Out.Write([]byte("\n")); werr != nil {
-				options.Logger.Warning(options.IOStreams.ErrOut, "Failed writing newline: ", werr.Error())
-			}
-			if herr := cmd.Help(); herr != nil {
-				options.Logger.Warning(options.IOStreams.ErrOut, "Help display failed: ", herr.Error())
-			}
-			return err
-		}
-		if originalPreRun != nil {
-			originalPreRun(cmd, args)
 		}
 		return nil
 	}
@@ -72,10 +65,13 @@ func Execute() error {
 	// Add subcommands
 	rootCmd.AddCommand(versioncmd.NewVersionCommand(options))
 	rootCmd.AddCommand(reconcile.NewReconcileCommand(options))
-	rootCmd.AddCommand(resourceprotection.NewAddProtectionCommand(options))
-	rootCmd.AddCommand(resourceprotection.NewRemoveProtectionCommand(options))
-	rootCmd.AddCommand(reconcile.NewSuspendReconcileCommand(options))
-	rootCmd.AddCommand(reconcile.NewResumeReconcileCommand(options))
+	rootCmd.AddCommand(resourceprotection.NewComponentProtectionCommand(options))
 	rootCmd.AddCommand(listresources.NewListResourcesCommand(options))
-	return rootCmd.Execute()
+
+	return rootCmd
+}
+
+// Execute creates and executes the root druid command.
+func Execute() error {
+	return NewDruidCommand().Execute()
 }

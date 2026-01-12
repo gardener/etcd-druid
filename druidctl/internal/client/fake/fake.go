@@ -11,7 +11,11 @@ import (
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -101,8 +105,9 @@ func (c *FakeEtcdClient) UpdateEtcd(_ context.Context, etcd *druidv1alpha1.Etcd,
 	return nil
 }
 
-// ListEtcds lists Etcd objects optionally filtered by namespace.
-func (c *FakeEtcdClient) ListEtcds(_ context.Context, namespace string) (*druidv1alpha1.EtcdList, error) {
+// ListEtcds lists Etcd objects optionally filtered by namespace and label selector.
+// Note: The fake implementation ignores labelSelector for simplicity in tests.
+func (c *FakeEtcdClient) ListEtcds(_ context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
 	etcdList := &druidv1alpha1.EtcdList{}
 	for _, etcd := range c.etcds {
 		if namespace == "" || etcd.Namespace == namespace {
@@ -118,6 +123,7 @@ type FakeGenericClient struct {
 	k8sClient       kubernetes.Interface
 	dynClient       dynamic.Interface
 	discoveryClient discovery.DiscoveryInterface
+	restMapper      meta.RESTMapper
 }
 
 // NewFakeGenericClient creates a FakeGenericClient with pre-seeded data
@@ -125,9 +131,21 @@ type FakeGenericClient struct {
 func NewFakeGenericClient(k8sObjects []runtime.Object) *FakeGenericClient {
 	scheme := runtime.NewScheme()
 
-	// Add core types to scheme
+	// Add API types to scheme for dynamic client listing support
 	if err := corev1.AddToScheme(scheme); err != nil {
 		panic(fmt.Sprintf("failed to add corev1 to scheme: %v", err))
+	}
+	if err := appsv1.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add appsv1 to scheme: %v", err))
+	}
+	if err := coordinationv1.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add coordinationv1 to scheme: %v", err))
+	}
+	if err := policyv1.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add policyv1 to scheme: %v", err))
+	}
+	if err := rbacv1.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add rbacv1 to scheme: %v", err))
 	}
 
 	// Create fake clients with pre-seeded data
@@ -135,11 +153,34 @@ func NewFakeGenericClient(k8sObjects []runtime.Object) *FakeGenericClient {
 	dynClient := dynamicfake.NewSimpleDynamicClient(scheme, k8sObjects...)
 	discoveryClient := discoveryfake.FakeDiscovery{Fake: &k8sClient.Fake}
 
+	// Create a simple RESTMapper with common resource types
+	restMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{
+		{Group: "", Version: "v1"},
+		{Group: "apps", Version: "v1"},
+		{Group: "coordination.k8s.io", Version: "v1"},
+		{Group: "policy", Version: "v1"},
+		{Group: "rbac.authorization.k8s.io", Version: "v1"},
+	})
+
+	// Register common resource types
+	restMapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Service"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "policy", Version: "v1", Kind: "PodDisruptionBudget"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"}, meta.RESTScopeNamespace)
+	restMapper.Add(schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "RoleBinding"}, meta.RESTScopeNamespace)
+
 	return &FakeGenericClient{
 		scheme:          scheme,
 		k8sClient:       k8sClient,
 		dynClient:       dynClient,
 		discoveryClient: &discoveryClient,
+		restMapper:      restMapper,
 	}
 }
 
@@ -152,5 +193,6 @@ func (c *FakeGenericClient) Dynamic() dynamic.Interface { return c.dynClient }
 // Discovery returns the discovery client implementation.
 func (c *FakeGenericClient) Discovery() discovery.DiscoveryInterface { return c.discoveryClient }
 
-// RESTMapper returns a RESTMapper; the fake implementation returns nil.
-func (c *FakeGenericClient) RESTMapper() meta.RESTMapper { return nil }
+// RESTMapper returns a RESTMapper with common resource types registered for testing.
+func (c *FakeGenericClient) RESTMapper() meta.RESTMapper { return c.restMapper }
+
