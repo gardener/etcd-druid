@@ -33,7 +33,7 @@ func TestListResourcesCommand(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestListResourcesAllNamespaces(t *testing.T) {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
-	etcds, err := etcdClient.ListEtcds(context.TODO(), "")
+	etcds, err := etcdClient.ListEtcds(context.TODO(), "", "")
 	if err != nil {
 		t.Fatalf("Failed to list etcds: %v", err)
 	}
@@ -96,14 +96,14 @@ func TestListResourcesAllNamespaces(t *testing.T) {
 	cmd.SetErr(errBuf)
 
 	// Set all-namespaces
-	globalOpts.AllNamespaces = true
+	emptyNs := ""; globalOpts.ConfigFlags.Namespace = &emptyNs; globalOpts.AllNamespaces = true
 
 	// Complete and validate options
 	if err := globalOpts.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -153,7 +153,7 @@ func TestListResourcesWithFilter(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func TestListResourcesOutputFormats(t *testing.T) {
 				t.Fatalf("Failed to complete options: %v", err)
 			}
 
-			if err := globalOpts.Validate(); err != nil {
+			if err := globalOpts.ValidateResourceSelection(); err != nil {
 				t.Fatalf("Failed to validate options: %v", err)
 			}
 
@@ -252,7 +252,7 @@ func TestListResourcesErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
-	etcds, err := etcdClient.ListEtcds(context.TODO(), "")
+	etcds, err := etcdClient.ListEtcds(context.TODO(), "", "")
 	if err != nil {
 		t.Fatalf("Failed to list etcds: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestListResourcesErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -313,14 +313,14 @@ func TestListResourcesEmptyNamespaces(t *testing.T) {
 	cmd.SetErr(errBuf)
 
 	// Set all-namespaces
-	globalOpts.AllNamespaces = true
+	emptyNs := ""; globalOpts.ConfigFlags.Namespace = &emptyNs; globalOpts.AllNamespaces = true
 
 	// Complete and validate options
 	if err := globalOpts.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 

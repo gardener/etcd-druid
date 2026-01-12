@@ -7,7 +7,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,31 +31,40 @@ func GetConfigFlags() *genericclioptions.ConfigFlags {
 }
 
 // GetEtcdList returns a list of Etcd objects based on the provided references or all namespaces flag.
-func GetEtcdList(ctx context.Context, cl client.EtcdClientInterface, etcdRefList []types.NamespacedName, allNamespaces bool) (*druidv1alpha1.EtcdList, error) {
+// namespace is the namespace to use when etcdRefList is empty (list all in namespace).
+// labelSelector filters resources by label (e.g., "app=etcd"). Empty string means no filtering.
+func GetEtcdList(ctx context.Context, cl client.EtcdClientInterface, etcdRefList []types.NamespacedName, allNamespaces bool, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
 	etcdList := &druidv1alpha1.EtcdList{}
 	var err error
+
+	// when -A flag is set, list across all namespaces with optional label filter
 	if allNamespaces {
-		etcdList, err = cl.ListEtcds(ctx, "")
+		etcdList, err = cl.ListEtcds(ctx, "", labelSelector)
 		if err != nil {
-			return nil, fmt.Errorf("unable to list etcd objects: %w", err)
+			return nil, fmt.Errorf("unable to list etcd objects across all namespaces: %w", err)
 		}
-	} else {
-		for _, ref := range etcdRefList {
-			if ref.Name == "*" {
-				nsEtcdList, err := cl.ListEtcds(ctx, ref.Namespace)
-				if err != nil {
-					return nil, fmt.Errorf("unable to list etcd objects in namespace %s: %w", ref.Namespace, err)
-				}
-				etcdList.Items = append(etcdList.Items, nsEtcdList.Items...)
-				continue
-			}
-			etcd, err := cl.GetEtcd(ctx, ref.Namespace, ref.Name)
-			if err != nil {
-				return nil, fmt.Errorf("unable to get etcd object: %w", err)
-			}
-			etcdList.Items = append(etcdList.Items, *etcd)
-		}
+		return etcdList, nil
 	}
+
+	// when no explicit refs are provided, list all in namespace (with optional label filter)
+	// This handles: `-n ns` or `-l selector` or `-n ns -l selector`
+	if len(etcdRefList) == 0 {
+		etcdList, err = cl.ListEtcds(ctx, namespace, labelSelector)
+		if err != nil {
+			return nil, fmt.Errorf("unable to list etcd objects in namespace %q: %w", namespace, err)
+		}
+		return etcdList, nil
+	}
+
+	// when explicit refs are provided, get each specific etcd by name
+	for _, ref := range etcdRefList {
+		etcd, err := cl.GetEtcd(ctx, ref.Namespace, ref.Name)
+		if err != nil {
+			return nil, fmt.Errorf("etcd %q not found in namespace %q", ref.Name, ref.Namespace)
+		}
+		etcdList.Items = append(etcdList.Items, *etcd)
+	}
+
 	return etcdList, nil
 }
 
@@ -73,35 +81,4 @@ func ShortDuration(d time.Duration) string {
 	}
 	days := int(d.Hours()) / 24
 	return fmt.Sprintf("%dd", days)
-}
-
-// SplitQualifiedName splits a qualified resource name into namespace and name.
-func SplitQualifiedName(str string) (string, string) {
-	parts := strings.Split(str, "/")
-	if len(parts) < 2 {
-		return "default", str
-	}
-	return parts[0], parts[1]
-}
-
-// GetEtcdRefList parses a comma-separated list of namespaced etcd resource names and returns a slice of NamespacedName.
-func GetEtcdRefList(resourcesRef string) []types.NamespacedName {
-	resources := strings.Split(resourcesRef, ",")
-	etcdList := make([]types.NamespacedName, 0, len(resources))
-	for _, resource := range resources {
-		namespace, name := SplitQualifiedName(resource)
-		etcdList = append(etcdList, types.NamespacedName{Namespace: namespace, Name: name})
-	}
-	return etcdList
-}
-
-// ValidateResourceNames checks if the provided resource names are valid.
-func ValidateResourceNames(resourcesRef string) error {
-	resources := strings.Split(resourcesRef, ",")
-	for _, resource := range resources {
-		if len(strings.Split(resource, "/")) > 2 {
-			return fmt.Errorf("invalid resource name: %s", resource)
-		}
-	}
-	return nil
 }

@@ -78,15 +78,14 @@ func (l *listResourcesCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 		options.Logger.Error(l.IOStreams.ErrOut, "Failed to create formatter: ", err)
 		return err
 	}
-	l.etcdRefList = cmdutils.GetEtcdRefList(l.ResourcesRef)
+
+	// Build etcd reference list from resource args using kubectl-compatible parsing
+	l.etcdRefList = options.BuildEtcdRefList()
 	return nil
 }
 
 func (l *listResourcesCmdCtx) validate() error {
-	if err := cmdutils.ValidateResourceNames(l.ResourcesRef); err != nil {
-		return err
-	}
-	return nil
+	return l.GlobalOptions.ValidateResourceSelection()
 }
 
 // execute lists the managed resources for the selected etcd resources based on the filter.
@@ -105,23 +104,20 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 	if len(tokens) == 0 || (len(tokens) == 1 && tokens[0] == "all") {
 		tokens = defaultResourceTokens()
 	}
-	resolver, err := newAPIResourceResolver(genClient.Discovery())
-	if err != nil {
-		return fmt.Errorf("failed to initialize resource resolver: %w", err)
-	}
+	resolver := newRESTMapperResolver(genClient.RESTMapper())
 	metas, err := resolver.resolve(tokens)
 	if err != nil {
 		return err
 	}
 
 	// Identify etcds to operate on
-	etcdList, err := cmdutils.GetEtcdList(ctx, etcdClient, l.etcdRefList, l.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, etcdClient, l.etcdRefList, l.AllNamespaces, l.GetNamespace(), l.LabelSelector)
 	if err != nil {
 		return err
 	}
 	if len(etcdList.Items) == 0 {
 		if !l.AllNamespaces {
-			return fmt.Errorf("no Etcd resources found for the given selection: %s", l.ResourcesRef)
+			return fmt.Errorf("no Etcd resources found in namespace %q", l.GetNamespace())
 		}
 		out.Info(l.IOStreams.Out, "No Etcd resources found across all namespaces")
 		return nil
@@ -131,33 +127,33 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 		Etcds: make([]EtcdResourceResult, 0, len(etcdList.Items)),
 		Kind:  "EtcdResourceList",
 	}
-	for _, e := range etcdList.Items {
+	for _, etcd := range etcdList.Items {
 		etcdResult := EtcdResourceResult{
-			Etcd:  EtcdRef{Name: e.Name, Namespace: e.Namespace},
+			Etcd:  EtcdRef{Name: etcd.Name, Namespace: etcd.Namespace},
 			Items: make([]ResourceListPerKey, 0),
 		}
 
-		selector := fmt.Sprintf("app.kubernetes.io/part-of=%s", e.Name)
-		for _, m := range metas {
+		labelSelector := fmt.Sprintf("app.kubernetes.io/part-of=%s", etcd.Name)
+		for _, resMeta := range metas {
 			// Skip cluster-scoped if not intended; most curated resources are namespaced.
-			namespace := ""
-			if m.Namespaced {
-				namespace = e.Namespace
+			resourceNamespace := ""
+			if resMeta.Namespaced {
+				resourceNamespace = etcd.Namespace
 			}
-			ulist, err := genClient.Dynamic().Resource(m.GVR).Namespace(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+			resourceList, err := genClient.Dynamic().Resource(resMeta.GVR).Namespace(resourceNamespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
 			if err != nil {
-				out.Warning(l.IOStreams.Out, "Failed to list ", m.GVR.Resource, " for etcd ", e.Name, ": ", err.Error())
+				out.Warning(l.IOStreams.Out, "Failed to list ", resMeta.GVR.Resource, " for etcd ", etcd.Name, ": ", err.Error())
 				continue
 			}
-			if len(ulist.Items) == 0 {
+			if len(resourceList.Items) == 0 {
 				continue
 			}
-			resourceKey := ResourceKey{Group: m.GVR.Group, Version: m.GVR.Version, Resource: m.GVR.Resource, Kind: m.Kind}
-			for _, item := range ulist.Items {
+			resourceKey := ResourceKey{Group: resMeta.GVR.Group, Version: resMeta.GVR.Version, Resource: resMeta.GVR.Resource, Kind: resMeta.Kind}
+			for _, item := range resourceList.Items {
 				found := false
-				for i, resourceListPerKey := range etcdResult.Items {
+				for idx, resourceListPerKey := range etcdResult.Items {
 					if resourceListPerKey.Key == resourceKey {
-						etcdResult.Items[i].Resources = append(etcdResult.Items[i].Resources, toResourceRef(&item))
+						etcdResult.Items[idx].Resources = append(etcdResult.Items[idx].Resources, toResourceRef(&item))
 						found = true
 						break
 					}
@@ -171,13 +167,13 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 			}
 		}
 		// Sort within each resource kind by namespace/name for determinism
-		for k := range etcdResult.Items {
-			sort.Slice(etcdResult.Items[k].Resources, func(i, j int) bool {
-				ai, aj := etcdResult.Items[k].Resources[i], etcdResult.Items[k].Resources[j]
-				if ai.Namespace == aj.Namespace {
-					return ai.Name < aj.Name
+		for kindIdx := range etcdResult.Items {
+			sort.Slice(etcdResult.Items[kindIdx].Resources, func(i, j int) bool {
+				resourceA, resourceB := etcdResult.Items[kindIdx].Resources[i], etcdResult.Items[kindIdx].Resources[j]
+				if resourceA.Namespace == resourceB.Namespace {
+					return resourceA.Name < resourceB.Name
 				}
-				return ai.Namespace < aj.Namespace
+				return resourceA.Namespace < resourceB.Namespace
 			})
 		}
 		result.Etcds = append(result.Etcds, etcdResult)

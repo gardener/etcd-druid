@@ -26,20 +26,28 @@ func (s *suspendReconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error
 		return err
 	}
 	s.etcdClient = etcdClient
-	s.etcdRefList = cmdutils.GetEtcdRefList(s.ResourcesRef)
+	s.etcdRefList = options.BuildEtcdRefList()
 	return nil
 }
 
 func (s *suspendReconcileCmdCtx) validate() error {
-	if err := cmdutils.ValidateResourceNames(s.ResourcesRef); err != nil {
-		return err
-	}
-	return nil
+	return s.GlobalOptions.ValidateResourceSelection()
 }
 
 // execute adds the suspend reconcile annotation to the Etcd resource.
 func (s *suspendReconcileCmdCtx) execute(ctx context.Context) error {
-	etcdList, err := cmdutils.GetEtcdList(ctx, s.etcdClient, s.etcdRefList, s.AllNamespaces)
+	// Prompt for confirmation when operating on all namespaces
+	if s.AllNamespaces {
+		confirmed, err := cmdutils.ConfirmAllNamespaces(s.IOStreams.Out, s.IOStreams.In, "suspend reconciliation for")
+		if err != nil {
+			return fmt.Errorf("confirmation failed: %w", err)
+		}
+		if !confirmed {
+			return cmdutils.ErrConfirmationDeclined
+		}
+	}
+
+	etcdList, err := cmdutils.GetEtcdList(ctx, s.etcdClient, s.etcdRefList, s.AllNamespaces, s.GetNamespace(), s.LabelSelector)
 	if err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func NewClientFactory(configFlags *genericclioptions.ConfigFlags) *ClientFactory
 type EtcdClientInterface interface {
 	GetEtcd(ctx context.Context, namespace, name string) (*druidv1alpha1.Etcd, error)
 	UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, etcdModifier func(*druidv1alpha1.Etcd)) error
-	ListEtcds(ctx context.Context, namespace string) (*druidv1alpha1.EtcdList, error)
+	ListEtcds(ctx context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error)
 }
 
 // EtcdClient implements EtcdClientInterface using a generated typed client.

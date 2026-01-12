@@ -39,7 +39,7 @@ func TestReconcileCommand(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -81,6 +81,8 @@ func TestReconcileCommandAllNamespaces(t *testing.T) {
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
+	// Provide 'y' confirmation for --all-namespaces prompt
+	streams.In = strings.NewReader("y\n")
 	globalOpts.IOStreams = streams
 
 	etcdClient, err := globalOpts.Clients.EtcdClient()
@@ -94,14 +96,16 @@ func TestReconcileCommandAllNamespaces(t *testing.T) {
 	cmd.SetErr(errBuf)
 
 	// Set all-namespaces
+	emptyNs := ""
+	globalOpts.ConfigFlags.Namespace = &emptyNs
 	globalOpts.AllNamespaces = true
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{""}); err != nil {
+	if err := globalOpts.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -159,7 +163,7 @@ func TestSuspendReconcileCommand(t *testing.T) {
 	}
 
 	// Create the suspend-reconcile command
-	cmd := NewSuspendReconcileCommand(globalOpts)
+	cmd := NewSuspendCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -168,7 +172,7 @@ func TestSuspendReconcileCommand(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -234,7 +238,7 @@ func TestResumeReconcileCommand(t *testing.T) {
 	}
 
 	// Create the resume-reconcile command
-	cmd := NewResumeReconcileCommand(globalOpts)
+	cmd := NewResumeCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -243,7 +247,7 @@ func TestResumeReconcileCommand(t *testing.T) {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.Validate(); err != nil {
+	if err := globalOpts.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -329,7 +333,7 @@ func TestResumeReconcileWithoutAnnotation(t *testing.T) {
 	}
 
 	// Create the resume-reconcile command
-	cmd := NewResumeReconcileCommand(globalOpts)
+	cmd := NewResumeCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 

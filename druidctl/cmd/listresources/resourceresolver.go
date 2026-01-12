@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
 )
 
 // resourceMeta captures details needed to operate against a resource type.
@@ -19,110 +21,119 @@ type resourceMeta struct {
 	Namespaced bool
 }
 
-// apiResourceResolver resolves user tokens to resource metadata using discovery.
-type apiResourceResolver struct {
-	byName map[string]resourceMeta // resource plural or short names -> meta
-	byKind map[string]resourceMeta // kind (singular) -> meta
+// shortNameMap maps common short names to their full resource names.
+// This mirrors what kubectl uses for short name expansion.
+var shortNameMap = map[string]schema.GroupVersionKind{
+	// Core v1
+	"po":  {Group: "", Version: "v1", Kind: "Pod"},
+	"pod": {Group: "", Version: "v1", Kind: "Pod"},
+	"svc": {Group: "", Version: "v1", Kind: "Service"},
+	"cm":  {Group: "", Version: "v1", Kind: "ConfigMap"},
+	"pvc": {Group: "", Version: "v1", Kind: "PersistentVolumeClaim"},
+	"sa":  {Group: "", Version: "v1", Kind: "ServiceAccount"},
+	// Also map plural names
+	"pods":                   {Group: "", Version: "v1", Kind: "Pod"},
+	"services":               {Group: "", Version: "v1", Kind: "Service"},
+	"configmaps":             {Group: "", Version: "v1", Kind: "ConfigMap"},
+	"secrets":                {Group: "", Version: "v1", Kind: "Secret"},
+	"persistentvolumeclaims": {Group: "", Version: "v1", Kind: "PersistentVolumeClaim"},
+	"serviceaccounts":        {Group: "", Version: "v1", Kind: "ServiceAccount"},
+	// Apps v1
+	"sts":          {Group: "apps", Version: "v1", Kind: "StatefulSet"},
+	"statefulsets": {Group: "apps", Version: "v1", Kind: "StatefulSet"},
+	// Coordination
+	"lease":  {Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
+	"leases": {Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
+	// Policy
+	"pdb":                  {Group: "policy", Version: "v1", Kind: "PodDisruptionBudget"},
+	"poddisruptionbudgets": {Group: "policy", Version: "v1", Kind: "PodDisruptionBudget"},
+	// RBAC
+	"role":         {Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"},
+	"roles":        {Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"},
+	"rolebinding":  {Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "RoleBinding"},
+	"rolebindings": {Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "RoleBinding"},
 }
 
-// newAPIResourceResolver builds a resolver using the server's preferred resources.
-func newAPIResourceResolver(disco discovery.DiscoveryInterface) (*apiResourceResolver, error) {
-	lists, err := disco.ServerPreferredResources()
-	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
-		return nil, fmt.Errorf("failed to discover server resources: %w", err)
-	}
+// restMapperResolver resolves user tokens to resource metadata using RESTMapper.
+type restMapperResolver struct {
+	mapper meta.RESTMapper
+}
 
-	r := &apiResourceResolver{
-		byName: map[string]resourceMeta{},
-		byKind: map[string]resourceMeta{},
-	}
-
-	for _, l := range lists {
-		if l == nil {
-			continue
-		}
-		gv, err := schema.ParseGroupVersion(l.GroupVersion)
-		if err != nil {
-			continue
-		}
-		for _, ar := range l.APIResources {
-			// skip subresources like pods/status
-			if strings.Contains(ar.Name, "/") {
-				continue
-			}
-			meta := resourceMeta{
-				GVR: schema.GroupVersionResource{
-					Group:    gv.Group,
-					Version:  gv.Version,
-					Resource: ar.Name,
-				},
-				Kind:       ar.Kind,
-				Namespaced: ar.Namespaced,
-			}
-			// Index by resource plural name (e.g: pods) and short names
-			nameKey := strings.ToLower(ar.Name)
-			if _, exists := r.byName[nameKey]; !exists {
-				r.byName[nameKey] = meta
-			}
-			for _, sn := range ar.ShortNames {
-				snKey := strings.ToLower(sn)
-				if _, exists := r.byName[snKey]; !exists {
-					r.byName[snKey] = meta
-				}
-			}
-			// Index by Kind (singular), prefer first seen (preferred)
-			kindKey := strings.ToLower(ar.Kind)
-			if _, exists := r.byKind[kindKey]; !exists {
-				r.byKind[kindKey] = meta
-			}
-		}
-	}
-	return r, nil
+// newRESTMapperResolver creates a resolver using the provided RESTMapper.
+func newRESTMapperResolver(mapper meta.RESTMapper) *restMapperResolver {
+	return &restMapperResolver{mapper: mapper}
 }
 
 // resolve converts tokens (short names, resource names, kinds) into resource metadata list.
-func (r *apiResourceResolver) resolve(tokens []string) ([]resourceMeta, error) {
+func (r *restMapperResolver) resolve(tokens []string) ([]resourceMeta, error) {
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("no resource tokens provided")
 	}
+
 	out := make([]resourceMeta, 0, len(tokens))
 	seen := map[schema.GroupVersionResource]struct{}{}
 	var unknown []string
+
 	for _, t := range tokens {
 		tok := strings.TrimSpace(strings.ToLower(t))
 		if tok == "" {
 			continue
 		}
-		var meta resourceMeta
-		var ok bool
-		if meta, ok = r.byName[tok]; !ok {
-			if meta, ok = r.byKind[tok]; !ok {
-				// try fully qualified like leases.coordination.k8s.io -> resource.group
-				if gr := schema.ParseGroupResource(tok); gr.Resource != "" {
-					// Find by resource name match then filter by group if possible
-					if m, ok2 := r.byName[gr.Resource]; ok2 {
-						if m.GVR.Group == gr.Group {
-							meta = m
-							ok = true
-						}
-					}
-				}
-			}
-		}
-		if !ok {
+
+		m, err := r.resolveToken(tok)
+		if err != nil {
 			unknown = append(unknown, t)
 			continue
 		}
-		if _, dup := seen[meta.GVR]; dup {
+
+		if _, dup := seen[m.GVR]; dup {
 			continue
 		}
-		seen[meta.GVR] = struct{}{}
-		out = append(out, meta)
+		seen[m.GVR] = struct{}{}
+		out = append(out, m)
 	}
+
 	if len(unknown) > 0 {
-		return nil, &unknownResourcesError{Tokens: unknown, Known: r.sampleKnown()}
+		return nil, &unknownResourcesError{Tokens: unknown, Known: commonResourceHints()}
 	}
+
 	return out, nil
+}
+
+// resolveToken resolves a single token using the short name map and RESTMapper.
+func (r *restMapperResolver) resolveToken(token string) (resourceMeta, error) {
+	// First, try the short name map
+	if gvk, ok := shortNameMap[token]; ok {
+		return r.gvkToMeta(gvk)
+	}
+
+	// Try as a Kind name (capitalized)
+	titleCaser := cases.Title(language.English)
+	capitalizedToken := titleCaser.String(token)
+	mapping, err := r.mapper.RESTMapping(schema.GroupKind{Kind: capitalizedToken})
+	if err == nil {
+		return resourceMeta{
+			GVR:        mapping.Resource,
+			Kind:       mapping.GroupVersionKind.Kind,
+			Namespaced: mapping.Scope.Name() == meta.RESTScopeNameNamespace,
+		}, nil
+	}
+
+	return resourceMeta{}, fmt.Errorf("unknown resource: %s", token)
+}
+
+// gvkToMeta converts a GVK to resourceMeta using the RESTMapper.
+func (r *restMapperResolver) gvkToMeta(gvk schema.GroupVersionKind) (resourceMeta, error) {
+	mapping, err := r.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return resourceMeta{}, fmt.Errorf("failed to get mapping for %v: %w", gvk, err)
+	}
+
+	return resourceMeta{
+		GVR:        mapping.Resource,
+		Kind:       mapping.GroupVersionKind.Kind,
+		Namespaced: mapping.Scope.Name() == meta.RESTScopeNameNamespace,
+	}, nil
 }
 
 // unknownResourcesError conveys which tokens failed and a subset of known tokens.
@@ -135,23 +146,12 @@ func (e *unknownResourcesError) Error() string {
 	return fmt.Sprintf("unknown resource tokens: %v; known examples: %v", e.Tokens, e.Known)
 }
 
-// sampleKnown returns a subset of known tokens for hinting.
-func (r *apiResourceResolver) sampleKnown() []string {
-	out := make([]string, 0, 16)
-	common := []string{"po", "pods", "pod", "sts", "statefulsets", "svc", "services", "cm", "configmaps", "pvc", "secrets", "lease", "leases", "pdb", "role", "rolebinding", "sa", "serviceaccount"}
-	for _, c := range common {
-		if _, ok := r.byName[c]; ok {
-			out = append(out, c)
-		}
+// commonResourceHints returns common resource tokens for error hints.
+func commonResourceHints() []string {
+	return []string{
+		"po", "pods", "svc", "services", "cm", "configmaps",
+		"sts", "statefulsets", "pvc", "persistentvolumeclaims",
+		"secrets", "sa", "serviceaccounts", "lease", "leases",
+		"pdb", "poddisruptionbudgets", "role", "rolebinding",
 	}
-	// Fill up with any other names if needed
-	if len(out) < 10 {
-		for name := range r.byName {
-			out = append(out, name)
-			if len(out) >= 20 {
-				break
-			}
-		}
-	}
-	return out
 }

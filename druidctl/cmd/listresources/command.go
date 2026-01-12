@@ -17,26 +17,32 @@ const defaultFilter = "all"
 
 var (
 	example = `
-		# List all managed resources for the etcd resource named 'my-etcd' in the 'test' namespace
-		druidctl list-resources 'test/my-etcd'
+		# List all managed resources for an etcd resource in the current/default namespace
+		druidctl list-resources my-etcd
 
-		# List all managed resources for all etcd resources in the 'test' namespace
-		druidctl list-resources 'test/*'
+		# List all managed resources for an etcd resource in a specific namespace
+		druidctl list-resources my-etcd -n test
 
-		# List all managed resources for different etcd resources in different namespaces
-		druidctl list-resources 'test/my-etcd,dev/my-etcd'
+		# List all managed resources for all etcd resources in a namespace
+		druidctl list-resources -n test
 
 		# List all managed resources for all etcd resources across all namespaces
-		druidctl list-resources --all-namespaces
+		druidctl list-resources -A
 
-		# List only the Secrets and ConfigMaps managed resources for the etcd resource named 'my-etcd' in the 'test' namespace
-		druidctl list-resources 'test/my-etcd' --filter=secrets,configmaps
+		# List resources with label selector
+		druidctl list-resources -l app=etcd -n default
 
-		# List all managed resources for the etcd resource named 'my-etcd' in the 'test' namespace in JSON format
-		druidctl list-resources 'test/my-etcd' --output=json
+		# List all managed resources for multiple etcd resources
+		druidctl list-resources etcd1 etcd2 -n test
 
-		# List all managed resources for all etcd resources across all namespaces in YAML format
-		druidctl list-resources --all-namespaces --output=yaml
+		# Cross-namespace selection (explicit ns/name format)
+		druidctl list-resources ns1/etcd1 ns2/etcd2
+
+		# Filter by resource type
+		druidctl list-resources my-etcd --filter=pods,services
+
+		# Output in JSON format
+		druidctl list-resources my-etcd -n test --output=json
 	`
 )
 
@@ -48,7 +54,7 @@ func NewListResourcesCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Use:     "list-resources <etcd-resource-name> --filter=<comma separated types> (optional flag) --output=<output-format> (optional flag)",
 		Short:   "List managed resources for an etcd cluster filtered by the specified types",
 		Long:    `List managed resources for an etcd cluster filtered by the specified types. If no types are specified, all managed resources will be listed.`,
-		Args:    cobra.MaximumNArgs(1),
+		Args:    cobra.ArbitraryArgs,
 		Example: example,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			listResourcesCmdCtx := &listResourcesCmdCtx{

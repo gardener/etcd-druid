@@ -20,25 +20,30 @@ func (r *resourceProtectionCmdCtx) complete(options *cmdutils.GlobalOptions) err
 		return err
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = cmdutils.GetEtcdRefList(r.ResourcesRef)
+	r.etcdRefList = options.BuildEtcdRefList()
 	return nil
 }
 
 func (r *resourceProtectionCmdCtx) validate() error {
-	if err := cmdutils.ValidateResourceNames(r.ResourcesRef); err != nil {
-		return err
-	}
-	return nil
+	return r.GlobalOptions.ValidateResourceSelection()
 }
 
 // addDisableProtectionAnnotation adds the disable protection annotation to the Etcd resource. It makes the resources vulnerable
 func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Context) error {
+	// Prompt for confirmation when operating on all namespaces
 	if r.AllNamespaces {
+		confirmed, err := cmdutils.ConfirmAllNamespaces(r.IOStreams.Out, r.IOStreams.In, "remove protection from")
+		if err != nil {
+			return fmt.Errorf("confirmation failed: %w", err)
+		}
+		if !confirmed {
+			return cmdutils.ErrConfirmationDeclined
+		}
 		r.Logger.Info(r.IOStreams.Out, "Removing component protection from Etcds across all namespaces")
 	} else {
-		r.Logger.Info(r.IOStreams.Out, "Removing component protection from selected Etcds", r.ResourcesRef)
+		r.Logger.Info(r.IOStreams.Out, "Removing component protection from selected Etcds")
 	}
-	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces, r.GetNamespace(), r.LabelSelector)
 	if err != nil {
 		return err
 	}
@@ -73,12 +78,20 @@ func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Co
 
 // removeDisableProtectionAnnotation removes the disable protection annotation from the Etcd resource. It protects the resources
 func (r *resourceProtectionCmdCtx) removeDisableProtectionAnnotation(ctx context.Context) error {
+	// Prompt for confirmation when operating on all namespaces
 	if r.AllNamespaces {
+		confirmed, err := cmdutils.ConfirmAllNamespaces(r.IOStreams.Out, r.IOStreams.In, "add protection to")
+		if err != nil {
+			return fmt.Errorf("confirmation failed: %w", err)
+		}
+		if !confirmed {
+			return cmdutils.ErrConfirmationDeclined
+		}
 		r.Logger.Info(r.IOStreams.Out, "Adding component protection to all namespaces")
 	} else {
-		r.Logger.Info(r.IOStreams.Out, "Adding component protection from selected Etcds", r.ResourcesRef)
+		r.Logger.Info(r.IOStreams.Out, "Adding component protection to selected Etcds")
 	}
-	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces, r.GetNamespace(), r.LabelSelector)
 	if err != nil {
 		return err
 	}

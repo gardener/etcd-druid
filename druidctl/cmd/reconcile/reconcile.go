@@ -29,12 +29,12 @@ func (r *reconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 		return err
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = cmdutils.GetEtcdRefList(r.ResourcesRef)
+	r.etcdRefList = options.BuildEtcdRefList()
 	return nil
 }
 
 func (r *reconcileCmdCtx) validate() error {
-	if err := cmdutils.ValidateResourceNames(r.ResourcesRef); err != nil {
+	if err := r.GlobalOptions.ValidateResourceSelection(); err != nil {
 		return err
 	}
 	// timeout is only valid if wait-till-ready is set
@@ -52,6 +52,17 @@ func (r *reconcileCmdCtx) validate() error {
 // Another where you wait till all the changes done to the Etcd resource have successfully reconciled and post reconciliation
 // all the etcd cluster members are Ready
 func (r *reconcileCmdCtx) execute(ctx context.Context) error {
+	// Prompt for confirmation when operating on all namespaces
+	if r.AllNamespaces {
+		confirmed, err := cmdutils.ConfirmAllNamespaces(r.IOStreams.Out, r.IOStreams.In, "reconcile")
+		if err != nil {
+			return fmt.Errorf("confirmation failed: %w", err)
+		}
+		if !confirmed {
+			return cmdutils.ErrConfirmationDeclined
+		}
+	}
+
 	var ctxWithTimeout context.Context
 	var cancel context.CancelFunc
 	if r.watch {
@@ -62,7 +73,7 @@ func (r *reconcileCmdCtx) execute(ctx context.Context) error {
 	}
 	defer cancel()
 
-	etcdList, err := cmdutils.GetEtcdList(ctxWithTimeout, r.etcdClient, r.etcdRefList, r.AllNamespaces)
+	etcdList, err := cmdutils.GetEtcdList(ctxWithTimeout, r.etcdClient, r.etcdRefList, r.AllNamespaces, r.GetNamespace(), r.LabelSelector)
 	if err != nil {
 		return err
 	}
