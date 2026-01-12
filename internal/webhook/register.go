@@ -15,7 +15,7 @@ import (
 // Register registers all etcd-druid webhooks with the controller manager.
 func Register(mgr ctrl.Manager, config druidconfigv1alpha1.WebhookConfiguration) error {
 	// Add Etcd Components webhook to the manager
-	if config.EtcdComponentProtection.Enabled {
+	if config.EtcdComponentProtection.Enabled != nil && *config.EtcdComponentProtection.Enabled {
 		etcdComponentsWebhook, err := etcdcomponentprotection.NewHandler(
 			mgr,
 			config.EtcdComponentProtection,

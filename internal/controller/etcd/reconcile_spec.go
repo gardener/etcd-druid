@@ -152,7 +152,7 @@ func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	}
 
 	// Prefer using EnableEtcdSpecAutoReconcile for automatic reconciliation.
-	if r.config.EnableEtcdSpecAutoReconcile {
+	if r.config.EnableEtcdSpecAutoReconcile != nil && *r.config.EnableEtcdSpecAutoReconcile {
 		return true
 	}
 

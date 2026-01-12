@@ -32,7 +32,7 @@ const (
 // Borrowed defaults from: https://github.com/kubernetes/component-base/blob/master/config/v1alpha1/defaults.go
 func SetDefaults_LeaderElectionConfiguration(leaderElectionConfig *LeaderElectionConfiguration) {
 	// Set default values for leader election configuration if it has been enabled.
-	if !leaderElectionConfig.Enabled {
+	if leaderElectionConfig.Enabled == nil || !*leaderElectionConfig.Enabled {
 		return
 	}
 	if leaderElectionConfig.ResourceLock == "" {
@@ -137,7 +137,7 @@ const (
 
 // SetDefaults_CompactionControllerConfiguration sets defaults for the compaction controller configuration.
 func SetDefaults_CompactionControllerConfiguration(compactionCtrlConfig *CompactionControllerConfiguration) {
-	if !compactionCtrlConfig.Enabled {
+	if compactionCtrlConfig.Enabled == nil || !*compactionCtrlConfig.Enabled {
 		return
 	}
 	if compactionCtrlConfig.ConcurrentSyncs == nil {
@@ -159,7 +159,7 @@ const DefaultEtcdCopyBackupsTaskConcurrentSyncs = 3
 
 // SetDefaults_EtcdCopyBackupsTaskControllerConfiguration sets defaults for the etcd copy backups task controller configuration.
 func SetDefaults_EtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskCtrlConfig *EtcdCopyBackupsTaskControllerConfiguration) {
-	if !etcdCopyBackupsTaskCtrlConfig.Enabled {
+	if etcdCopyBackupsTaskCtrlConfig.Enabled == nil || !*etcdCopyBackupsTaskCtrlConfig.Enabled {
 		return
 	}
 	if etcdCopyBackupsTaskCtrlConfig.ConcurrentSyncs == nil {

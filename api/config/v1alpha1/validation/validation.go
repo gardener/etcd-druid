@@ -38,7 +38,7 @@ func validateClientConnectionConfiguration(clientConnConfig druidconfigv1alpha1.
 
 func validateLeaderElectionConfiguration(leaderElectionConfig druidconfigv1alpha1.LeaderElectionConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !leaderElectionConfig.Enabled {
+	if leaderElectionConfig.Enabled == nil || !*leaderElectionConfig.Enabled {
 		return allErrs
 	}
 	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(leaderElectionConfig.LeaseDuration, fldPath.Child("leaseDuration"))...)
@@ -89,7 +89,7 @@ func validateEtcdControllerConfiguration(etcdControllerConfig druidconfigv1alpha
 
 func validateCompactionControllerConfiguration(compactionControllerConfig druidconfigv1alpha1.CompactionControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !compactionControllerConfig.Enabled {
+	if compactionControllerConfig.Enabled == nil || !*compactionControllerConfig.Enabled {
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(compactionControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
@@ -106,7 +106,7 @@ func validateCompactionControllerConfiguration(compactionControllerConfig druidc
 
 func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskControllerConfig druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !etcdCopyBackupsTaskControllerConfig.Enabled {
+	if etcdCopyBackupsTaskControllerConfig.Enabled == nil || !*etcdCopyBackupsTaskControllerConfig.Enabled {
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdCopyBackupsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
@@ -130,7 +130,7 @@ func validateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfi
 
 func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !webhookConfig.Enabled {
+	if webhookConfig.Enabled == nil || !*webhookConfig.Enabled {
 		return allErrs
 	}
 	// Ensure that at least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo is set.

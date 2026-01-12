@@ -42,7 +42,7 @@ func Register(mgr ctrl.Manager, controllerConfig druidconfigv1alpha1.ControllerC
 	}
 
 	// Add compaction reconciler to the manager if the CLI flag enable-backup-compaction is true.
-	if controllerConfig.Compaction.Enabled {
+	if controllerConfig.Compaction.Enabled != nil && *controllerConfig.Compaction.Enabled {
 		compactionReconciler, err := compaction.NewReconciler(mgr, controllerConfig.Compaction)
 		if err != nil {
 			return err

@@ -30,7 +30,7 @@ const (
 func TestValidateLeaderElectionConfiguration(t *testing.T) {
 	tests := []struct {
 		name                  string
-		enabled               bool
+		enabled               *bool
 		overrideLeaseDuration *time.Duration
 		overrideRenewDeadline *time.Duration
 		overrideRetryPeriod   *time.Duration
@@ -40,34 +40,40 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 		matcher               gomegatypes.GomegaMatcher
 	}{
 		{
+			name:           "should allow to unset leader election",
+			enabled:        nil,
+			expectedErrors: 0,
+			matcher:        nil,
+		},
+		{
 			name:           "should allow to disable leader election",
-			enabled:        false,
+			enabled:        ptr.To(false),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow default leader election configuration",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:                 "should forbid empty resource lock",
-			enabled:              true,
+			enabled:              ptr.To(true),
 			overrideResourceLock: ptr.To(""),
 			expectedErrors:       1,
 			matcher:              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("leaderElection.resourceLock")}))),
 		},
 		{
 			name:                 "should forbid empty resource name",
-			enabled:              true,
+			enabled:              ptr.To(true),
 			overrideResourceName: ptr.To(""),
 			expectedErrors:       1,
 			matcher:              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("leaderElection.resourceName")}))),
 		},
 		{
 			name:                  "should forbid zero lease duration",
-			enabled:               true,
+			enabled:               ptr.To(true),
 			overrideLeaseDuration: ptr.To(zero),
 			expectedErrors:        2,
 			matcher: ConsistOf(
@@ -77,21 +83,21 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 		},
 		{
 			name:                  "should forbid zero renew deadline",
-			enabled:               true,
+			enabled:               ptr.To(true),
 			overrideRenewDeadline: ptr.To(zero),
 			expectedErrors:        1,
 			matcher:               ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("leaderElection.renewDeadline")}))),
 		},
 		{
 			name:                "should forbid zero retry period",
-			enabled:             true,
+			enabled:             ptr.To(true),
 			overrideRetryPeriod: ptr.To(zero),
 			expectedErrors:      1,
 			matcher:             ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("leaderElection.retryPeriod")}))),
 		},
 		{
 			name:                  "should forbid renew deadline greater than lease duration",
-			enabled:               true,
+			enabled:               ptr.To(true),
 			overrideLeaseDuration: ptr.To(time.Second),
 			overrideRenewDeadline: ptr.To(2 * time.Second),
 			expectedErrors:        1,
@@ -110,7 +116,7 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 				Enabled: test.enabled,
 			}
 			druidconfigv1alpha1.SetDefaults_LeaderElectionConfiguration(leaderElectionConfig)
-			if test.enabled {
+			if test.enabled != nil && *test.enabled {
 				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName)
 			}
 			actualErrList := validateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
@@ -314,7 +320,7 @@ func TestValidateEtcdControllerConfiguration(t *testing.T) {
 func TestValidateCompactionControllerConfiguration(t *testing.T) {
 	tests := []struct {
 		name                         string
-		enabled                      bool
+		enabled                      *bool
 		concurrentSync               *int
 		eventsThreshold              *int64
 		triggerFullSnapshotThreshold *int64
@@ -325,74 +331,80 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 	}{
 		{
 			name:           "should allow default compaction controller configuration when it is enabled",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow empty compaction controller configuration when it is disabled",
-			enabled:        false,
+			enabled:        ptr.To(false),
+			expectedErrors: 0,
+			matcher:        nil,
+		},
+		{
+			name:           "should allow empty compaction controller configuration when enabled is unset",
+			enabled:        nil,
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow concurrent syncs greater than zero",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			concurrentSync: ptr.To(1),
 			expectedErrors: 0,
 		},
 		{
 			name:           "should forbid concurrent syncs equal to zero",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			concurrentSync: ptr.To(0),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.concurrentSyncs")}))),
 		},
 		{
 			name:           "should forbid concurrent syncs less than zero",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			concurrentSync: ptr.To(-1),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.concurrentSyncs")}))),
 		},
 		{
 			name:            "should forbid events threshold equal to zero",
-			enabled:         true,
+			enabled:         ptr.To(true),
 			eventsThreshold: ptr.To(int64(0)),
 			expectedErrors:  1,
 			matcher:         ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
 		},
 		{
 			name:            "should forbid events threshold less than zero",
-			enabled:         true,
+			enabled:         ptr.To(true),
 			eventsThreshold: ptr.To(int64(-1)),
 			expectedErrors:  1,
 			matcher:         ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.eventsThreshold")}))),
 		},
 		{
 			name:                         "should forbid trigger full snapshot threshold equal to zero",
-			enabled:                      true,
+			enabled:                      ptr.To(true),
 			triggerFullSnapshotThreshold: ptr.To(int64(0)),
 			expectedErrors:               1,
 			matcher:                      ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.triggerFullSnapshotThreshold")}))),
 		},
 		{
 			name:                         "should forbid trigger full snapshot threshold less than zero",
-			enabled:                      true,
+			enabled:                      ptr.To(true),
 			triggerFullSnapshotThreshold: ptr.To(int64(-1)),
 			expectedErrors:               1,
 			matcher:                      ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.triggerFullSnapshotThreshold")}))),
 		},
 		{
 			name:                   "should forbid active deadline duration less than zero",
-			enabled:                true,
+			enabled:                ptr.To(true),
 			activeDeadlineDuration: &metav1.Duration{Duration: -time.Second},
 			expectedErrors:         1,
 			matcher:                ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.activeDeadlineDuration")}))),
 		},
 		{
 			name:                      "should forbid metrics scrape wait duration less than zero",
-			enabled:                   true,
+			enabled:                   ptr.To(true),
 			metricsScrapeWaitDuration: &metav1.Duration{Duration: -time.Second},
 			expectedErrors:            1,
 			matcher:                   ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.compaction.metricsScrapeWaitDuration")}))),
@@ -435,38 +447,43 @@ func TestValidateCompactionControllerConfiguration(t *testing.T) {
 func TestValidateEtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 	tests := []struct {
 		name           string
-		enabled        bool
+		enabled        *bool
 		concurrentSync *int
 		expectedErrors int
 		matcher        gomegatypes.GomegaMatcher
 	}{
 		{
 			name:           "should allow default etcdCopyBackupsTask controller configuration when it is enabled",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:           "should allow empty etcdCopyBackupsTask controller configuration when it is disabled",
-			enabled:        false,
+			enabled:        ptr.To(false),
+			expectedErrors: 0,
+		},
+		{
+			name:           "should allow empty etcdCopyBackupsTask controller configuration when enabled is unset",
+			enabled:        nil,
 			expectedErrors: 0,
 		},
 		{
 			name:           "should allow concurrent syncs greater than zero",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			concurrentSync: ptr.To(1),
 			expectedErrors: 0,
 		},
 		{
 			name:           "should forbid concurrent syncs equal to zero",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			concurrentSync: ptr.To(0),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdCopyBackupsTask.concurrentSyncs")}))),
 		},
 		{
 			name:           "should forbid concurrent syncs less than zero",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			concurrentSync: ptr.To(-1),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeInvalid), "Field": Equal("controllers.etcdCopyBackupsTask.concurrentSyncs")}))),
@@ -636,7 +653,7 @@ func TestValidateSecretControllerConfiguration(t *testing.T) {
 func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 	tests := []struct {
 		name                                 string
-		enabled                              bool
+		enabled                              *bool
 		overrideReconcilerServiceAccountFQDN *string
 		serviceAccountInfo                   *druidconfigv1alpha1.ServiceAccountInfo
 		overrideExemptServiceAccounts        []string
@@ -645,13 +662,19 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 	}{
 		{
 			name:           "should allow empty configuration when it is disabled",
-			enabled:        false,
+			enabled:        ptr.To(false),
+			expectedErrors: 0,
+			matcher:        nil,
+		},
+		{
+			name:           "should allow empty configuration when enabled is unset",
+			enabled:        nil,
 			expectedErrors: 0,
 			matcher:        nil,
 		},
 		{
 			name:                                 "when enabled, should allow valid configuration using deprecated reconciler service account FQDN",
-			enabled:                              true,
+			enabled:                              ptr.To(true),
 			overrideReconcilerServiceAccountFQDN: ptr.To(testServiceAccountFQDN),
 			overrideExemptServiceAccounts:        []string{"garbage-collector-sa"},
 			expectedErrors:                       0,
@@ -659,7 +682,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		},
 		{
 			name:    "when enabled, should allow valid configuration using a valid service account info",
-			enabled: true,
+			enabled: ptr.To(true),
 			serviceAccountInfo: &druidconfigv1alpha1.ServiceAccountInfo{
 				Name:      testServiceAccountName,
 				Namespace: testNs,
@@ -669,13 +692,13 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		},
 		{
 			name:           "when enabled, should forbid nil values for both reconcilerServiceAccountFQDN and serviceAccountInfo",
-			enabled:        true,
+			enabled:        ptr.To(true),
 			expectedErrors: 1,
 			matcher:        ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection")}))),
 		},
 		{
 			name:    "when enabled, should forbid setting non-nil and non-empty values for both reconcilerServiceAccountFQDN and serviceAccountInfo",
-			enabled: true,
+			enabled: ptr.To(true),
 			serviceAccountInfo: &druidconfigv1alpha1.ServiceAccountInfo{
 				Name:      testServiceAccountName,
 				Namespace: testNs,
@@ -686,7 +709,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		},
 		{
 			name:                          "when enabled with non-nil serviceAccountInfo, should forbid empty values for namePath and namespacePath",
-			enabled:                       true,
+			enabled:                       ptr.To(true),
 			overrideExemptServiceAccounts: []string{"garbage-collector-sa"},
 			serviceAccountInfo:            &druidconfigv1alpha1.ServiceAccountInfo{},
 			expectedErrors:                2,
@@ -697,7 +720,7 @@ func TestValidateEtcdComponentProtectionWebhookConfiguration(t *testing.T) {
 		},
 		{
 			name:                                 "when enabled, with non-nil reconcilerServiceAccountFQDN and nil serviceAccountInfo, should forbid empty value for reconcilerServiceAccountFQDN",
-			enabled:                              true,
+			enabled:                              ptr.To(true),
 			overrideReconcilerServiceAccountFQDN: ptr.To(""),
 			expectedErrors:                       1,
 			matcher:                              ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Type": Equal(field.ErrorTypeRequired), "Field": Equal("webhooks.etcdComponentProtection.reconcilerServiceAccountFQDN")}))),

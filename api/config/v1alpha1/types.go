@@ -51,7 +51,7 @@ type ClientConnectionConfiguration struct {
 type LeaderElectionConfiguration struct {
 	// Enabled specifies whether leader election is enabled. Set this
 	// to true when running replicated instances of the operator for high availability.
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled,omitempty"`
 	// LeaseDuration is the duration that non-leader candidates will wait
 	// after observing a leadership renewal until attempting to acquire
 	// leadership of the occupied but un-renewed leader slot. This is effectively the
@@ -110,7 +110,7 @@ type ControllerConfiguration struct {
 	// Deprecated: This field will be eventually removed. It is recommended to not use this.
 	// It has only been introduced to allow for backward compatibility with the old CLI flags.
 	// +optional
-	DisableLeaseCache bool `json:"disableLeaseCache"`
+	DisableLeaseCache *bool `json:"disableLeaseCache,omitempty"`
 	// Etcd is the configuration for the Etcd controller.
 	Etcd EtcdControllerConfiguration `json:"etcd"`
 	// Compaction is the configuration for the compaction controller.
@@ -135,9 +135,9 @@ type EtcdControllerConfiguration struct {
 	// NOTE: Decision to enable it should be carefully taken as spec updates could potentially result in rolling update
 	// of the StatefulSet which will cause a minor downtime for a single node etcd cluster and can potentially cause a
 	// downtime for a multi-node etcd cluster.
-	EnableEtcdSpecAutoReconcile bool `json:"enableEtcdSpecAutoReconcile"`
+	EnableEtcdSpecAutoReconcile *bool `json:"enableEtcdSpecAutoReconcile,omitempty"`
 	// DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd StatefulSets.
-	DisableEtcdServiceAccountAutomount bool `json:"disableEtcdServiceAccountAutomount"`
+	DisableEtcdServiceAccountAutomount *bool `json:"disableEtcdServiceAccountAutomount,omitempty"`
 	// EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring etcd status synchronization.
 	EtcdStatusSyncPeriod metav1.Duration `json:"etcdStatusSyncPeriod"`
 	// EtcdMember holds configuration related to etcd members.
@@ -162,7 +162,7 @@ type SecretControllerConfiguration struct {
 // CompactionControllerConfiguration defines the configuration for the compaction controller.
 type CompactionControllerConfiguration struct {
 	// Enabled specifies whether backup compaction should be enabled.
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled,omitempty"`
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
 	// +optional
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
@@ -179,7 +179,7 @@ type CompactionControllerConfiguration struct {
 // EtcdCopyBackupsTaskControllerConfiguration defines the configuration for the EtcdCopyBackupsTask controller.
 type EtcdCopyBackupsTaskControllerConfiguration struct {
 	// Enabled specifies whether EtcdCopyBackupsTaskController should be enabled.
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled,omitempty"`
 	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
 	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
@@ -204,7 +204,7 @@ type WebhookConfiguration struct {
 // NOTE: At least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo must be set. It is recommended to switch to ServiceAccountInfo.
 type EtcdComponentProtectionWebhookConfiguration struct {
 	// Enabled indicates whether the EtcdComponentProtection webhook is enabled.
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled,omitempty"`
 	// ReconcilerServiceAccountFQDN is the FQDN of the reconciler service account used by the etcd-druid operator.
 	// Deprecated: Please use ServiceAccountInfo instead and ensure that both Name and Namespace are set via projected volumes and downward API in the etcd-druid deployment spec.
 	ReconcilerServiceAccountFQDN *string `json:"reconcilerServiceAccountFQDN,omitempty"`
