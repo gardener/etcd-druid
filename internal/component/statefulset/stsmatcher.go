@@ -551,6 +551,6 @@ func getStatefulSetLabels(etcdName string) map[string]string {
 	}
 }
 
-func containerIdentifier(element interface{}) string {
+func containerIdentifier(element any) string {
 	return (element.(corev1.Container)).Name
 }

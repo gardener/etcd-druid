@@ -330,7 +330,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	}))
 	// Validate the etcd config data
 	actualETCDConfigYAML := actualConfigMap.Data[common.EtcdConfigFileName]
-	actualETCDConfig := make(map[string]interface{})
+	actualETCDConfig := make(map[string]any)
 	err := yaml.Unmarshal([]byte(actualETCDConfigYAML), &actualETCDConfig)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
@@ -349,7 +349,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	matchPeerTLSRelatedConfiguration(g, etcd, actualETCDConfig)
 }
 
-func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]interface{}) {
+func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
@@ -388,11 +388,11 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 	return advUrlsMap
 }
 
-func expectedAdvertiseURLsAsInterface(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string]interface{} {
+func expectedAdvertiseURLsAsInterface(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme string) map[string]any {
 	advertiseUrlsMap := expectedAdvertiseURLs(etcd, advertiseURLType, scheme)
-	advertiseUrlsInterface := make(map[string]interface{}, len(advertiseUrlsMap))
+	advertiseUrlsInterface := make(map[string]any, len(advertiseUrlsMap))
 	for podName, urlList := range advertiseUrlsMap {
-		urlsListInterface := make([]interface{}, len(urlList))
+		urlsListInterface := make([]any, len(urlList))
 		for i, url := range urlList {
 			urlsListInterface[i] = url
 		}
@@ -401,7 +401,7 @@ func expectedAdvertiseURLsAsInterface(etcd *druidv1alpha1.Etcd, advertiseURLType
 	return advertiseUrlsInterface
 }
 
-func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]interface{}) {
+func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
 	if etcd.Spec.Etcd.PeerUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
 			"peer-transport-security": MatchKeys(IgnoreExtras, Keys{

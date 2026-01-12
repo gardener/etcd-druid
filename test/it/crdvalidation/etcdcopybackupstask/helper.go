@@ -58,7 +58,7 @@ func validatePatchedObjectCreation[T client.Object](g *WithT, patchedObject *uns
 
 // patchObject is a helper that patches a key within the given Kubernetes object. This is needed to simulate invalid
 // values passed in through YAML to the api-server, bypassing the type-checks of the Go client.
-func patchObject[T client.Object](object T, fieldPath []string, value interface{}) (*unstructured.Unstructured, error) {
+func patchObject[T client.Object](object T, fieldPath []string, value any) (*unstructured.Unstructured, error) {
 	// Convert the object to a vanilla Go map
 	unstructuredObject, err := runtime.DefaultUnstructuredConverter.ToUnstructured(object)
 	if err != nil {
@@ -70,9 +70,9 @@ func patchObject[T client.Object](object T, fieldPath []string, value interface{
 	for _, key := range fieldPath[:len(fieldPath)-1] {
 		// Initialize the map for the sub-path if it does not exist to avoid runtime error in the next iteration.
 		if _, exists := currentObject[key]; !exists {
-			currentObject[key] = make(map[string]interface{})
+			currentObject[key] = make(map[string]any)
 		}
-		currentObject = currentObject[key].(map[string]interface{})
+		currentObject = currentObject[key].(map[string]any)
 	}
 	currentObject[fieldPath[len(fieldPath)-1]] = value
 

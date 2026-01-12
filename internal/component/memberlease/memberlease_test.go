@@ -292,8 +292,8 @@ func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, mat
 	return leases.Items
 }
 
-func memberLeases(etcdName string, etcdUID types.UID, numLeases int32) []interface{} {
-	var elements []interface{}
+func memberLeases(etcdName string, etcdUID types.UID, numLeases int32) []any {
+	var elements []any
 	for i := 0; i < int(numLeases); i++ {
 		leaseName := fmt.Sprintf("%s-%d", etcdName, i)
 		elements = append(elements, matchLeaseElement(leaseName, etcdName, etcdUID))
@@ -316,7 +316,7 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 	}
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	leases := make([]*coordinationv1.Lease, 0, numLeases)
-	for i := 0; i < numLeases; i++ {
+	for i := range numLeases {
 		lease := &coordinationv1.Lease{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            memberLeaseNames[i],

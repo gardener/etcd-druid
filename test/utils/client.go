@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"maps"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -349,8 +350,6 @@ func (c *testClient) getRecordedObjectCollectionError(method ClientMethod, names
 
 func createLabelSet(l map[string]string) labels.Set {
 	s := labels.Set{}
-	for k, v := range l {
-		s[k] = v
-	}
+	maps.Copy(s, l)
 	return s
 }

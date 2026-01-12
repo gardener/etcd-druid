@@ -154,7 +154,7 @@ func createLeases(etcd *druidv1alpha1.Etcd, withTLSEnabled int) []*coordinationv
 		druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue,
 	}
 	tlsEnabledCount := 0
-	for i := 0; i < numLeases; i++ {
+	for i := range numLeases {
 		var annotations map[string]string
 		if tlsEnabledCount < withTLSEnabled {
 			annotations = map[string]string{

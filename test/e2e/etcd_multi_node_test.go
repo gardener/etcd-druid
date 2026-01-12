@@ -585,7 +585,7 @@ func checkDefragmentationFinished(ctx context.Context, cl client.Client, etcd *d
 			return fmt.Errorf("error occurred while getting [%s] pod logs, error: %v ", leaderPodKey, err)
 		}
 
-		for i := 0; i < int(multiNodeEtcdReplicas); i++ {
+		for i := range int(multiNodeEtcdReplicas) {
 			if !strings.Contains(logs,
 				fmt.Sprintf("Finished defragmenting etcd member[https://%s-%d.%s-peer.%s.svc:2379]",
 					etcd.Name, i, etcd.Name, namespace)) {

@@ -9,26 +9,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func OwnerRefIterator(element interface{}) string {
+func OwnerRefIterator(element any) string {
 	return (element.(metav1.OwnerReference)).Name
 }
 
-func VolumeMountIterator(element interface{}) string {
+func VolumeMountIterator(element any) string {
 	return (element.(corev1.VolumeMount)).Name
 }
 
-func VolumeIterator(element interface{}) string {
+func VolumeIterator(element any) string {
 	return (element.(corev1.Volume)).Name
 }
 
-func EnvIterator(element interface{}) string {
+func EnvIterator(element any) string {
 	return (element.(corev1.EnvVar)).Name
 }
 
-func ContainerIterator(element interface{}) string {
+func ContainerIterator(element any) string {
 	return (element.(corev1.Container)).Name
 }
 
-func CmdIterator(element interface{}) string {
+func CmdIterator(element any) string {
 	return element.(string)
 }

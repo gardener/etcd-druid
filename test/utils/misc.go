@@ -26,7 +26,7 @@ func MatchFinalizer(finalizer string) gomegatypes.GomegaMatcher {
 	})
 }
 
-func stringIdentifier(element interface{}) string {
+func stringIdentifier(element any) string {
 	return element.(string)
 }
 
