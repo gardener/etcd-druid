@@ -1,11 +1,10 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
 package reconcile
 
 import (
-	"context"
 	"time"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
@@ -13,12 +12,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 )
-
-type reconcileCmdCtxInterface interface {
-	complete(*cmdutils.GlobalOptions) error
-	validate() error
-	execute(context.Context) error
-}
 
 // reconcileOptions holds state and functionality specific to the reconcile command
 type reconcileOptions struct {

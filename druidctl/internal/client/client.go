@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -52,7 +52,7 @@ func (e *EtcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, e
 }
 
 // ListEtcds lists all Etcd resources in the specified namespace. If namespace is empty, it lists across all namespaces.
-// labelSelector filters resources by label (e.g., "app=etcd,env=prod"). Empty string means no filtering.
+// labelSelector filters resources by label (e.g., "app=etcd-statefulset,env=prod"). Empty string means no filtering.
 func (e *EtcdClient) ListEtcds(ctx context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
 	listOpts := metav1.ListOptions{}
 	if labelSelector != "" {

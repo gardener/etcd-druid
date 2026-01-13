@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -162,7 +162,7 @@ func NewFakeGenericClient(k8sObjects []runtime.Object) *FakeGenericClient {
 		{Group: "rbac.authorization.k8s.io", Version: "v1"},
 	})
 
-	// Register common resource types with full GVK → GVR mappings
+	// Register common resource types with full GVK -> GVR mappings
 	// Using AddSpecific() so RESTMapping() can return proper GVR
 	restMapper.AddSpecific(
 		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},

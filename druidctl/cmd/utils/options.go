@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -63,16 +63,13 @@ func (o *GlobalOptions) AddFlags(cmd *cobra.Command) {
 }
 
 // Complete fills in the GlobalOptions based on command line args and flags.
-// Supports both kubectl-style space-separated args and legacy comma-separated format.
 func (o *GlobalOptions) Complete(_ *cobra.Command, args []string) error {
 	// Initialize Logger
 	o.Logger = log.NewLogger(o.LogType)
 	o.Logger.SetVerbose(o.Verbose)
 
 	// Store all args - each arg is a resource name or ns/name
-	// No comma splitting - use space-separated args like kubectl
 	o.ResourceArgs = args
-
 	return nil
 }
 
@@ -106,13 +103,6 @@ func (o *GlobalOptions) ValidateResourceSelection() error {
 	if hasCrossNamespaceArgs && hasNamespaceFlag {
 		return fmt.Errorf("cannot use --namespace/-n with cross-namespace resource references (ns/name format)")
 	}
-
-	// All other combinations are valid:
-	// - resource args with or without -n
-	// - -n alone (lists all in namespace)
-	// - -l selector with or without -n
-	// - no args, no -n, no -l, no -A (will use default namespace and list all)
-
 	return nil
 }
 
@@ -128,9 +118,9 @@ func (o *GlobalOptions) hasCrossNamespaceArgs() bool {
 
 // BuildEtcdRefList builds a list of NamespacedName from ResourceArgs respecting the -n flag.
 // kubectl-compatible behavior:
-//   - "name" → uses namespace from -n flag or default
-//   - "ns/name" → uses explicit namespace (cross-namespace selection)
-//   - Empty args → returns nil (caller should list all in namespace)
+//   - "name" : uses namespace from -n flag or default
+//   - "ns/name" : uses explicit namespace (cross-namespace selection)
+//   - Empty args : returns nil (caller should list all in namespace)
 func (o *GlobalOptions) BuildEtcdRefList() []types.NamespacedName {
 	if len(o.ResourceArgs) == 0 {
 		return nil

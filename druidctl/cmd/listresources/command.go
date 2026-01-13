@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -17,7 +17,7 @@ const defaultFilter = "all"
 
 var (
 	example = `
-		# List all managed resources for an etcd resource in the current/default namespace
+		# List all managed resources for an etcd resource in the default namespace
 		druidctl list-resources my-etcd
 
 		# List all managed resources for an etcd resource in a specific namespace
@@ -29,10 +29,10 @@ var (
 		# List all managed resources for all etcd resources across all namespaces
 		druidctl list-resources -A
 
-		# List resources with label selector
-		druidctl list-resources -l app=etcd -n default
+		# List resources with label selector in a namespace
+		druidctl list-resources -l app=etcd-statefulset -n test
 
-		# List all managed resources for multiple etcd resources
+		# List all managed resources for multiple etcd resources in a namespace
 		druidctl list-resources etcd1 etcd2 -n test
 
 		# Cross-namespace selection (explicit ns/name format)

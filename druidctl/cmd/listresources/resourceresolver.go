@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -22,7 +22,6 @@ type resourceMeta struct {
 }
 
 // shortNameMap maps common short names to their full resource names.
-// This mirrors what kubectl uses for short name expansion.
 var shortNameMap = map[string]schema.GroupVersionKind{
 	// Core v1
 	"po":  {Group: "", Version: "v1", Kind: "Pod"},
@@ -102,12 +101,12 @@ func (r *restMapperResolver) resolve(tokens []string) ([]resourceMeta, error) {
 
 // resolveToken resolves a single token using the short name map and RESTMapper.
 func (r *restMapperResolver) resolveToken(token string) (resourceMeta, error) {
-	// First, try the short name map
+	// Try short name map first
 	if gvk, ok := shortNameMap[token]; ok {
 		return r.gvkToMeta(gvk)
 	}
 
-	// Try as a Kind name (capitalized)
+	// Try as a Kind name
 	titleCaser := cases.Title(language.English)
 	capitalizedToken := titleCaser.String(token)
 	mapping, err := r.mapper.RESTMapping(schema.GroupKind{Kind: capitalizedToken})
