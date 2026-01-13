@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -32,7 +32,7 @@ func GetConfigFlags() *genericclioptions.ConfigFlags {
 
 // GetEtcdList returns a list of Etcd objects based on the provided references or all namespaces flag.
 // namespace is the namespace to use when etcdRefList is empty (list all in namespace).
-// labelSelector filters resources by label (e.g., "app=etcd"). Empty string means no filtering.
+// labelSelector filters resources by label (e.g., "app=etcd-statefulset"). Empty string means no filtering.
 func GetEtcdList(ctx context.Context, cl client.EtcdClientInterface, etcdRefList []types.NamespacedName, allNamespaces bool, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
 	etcdList := &druidv1alpha1.EtcdList{}
 	var err error

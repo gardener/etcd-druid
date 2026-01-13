@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -22,7 +22,7 @@ var (
 		# Reconcile an Etcd resource named "my-etcd" in the test namespace
 		kubectl druid reconcile test/my-etcd
 
-		# Reconcile multiple Etcd resources (kubectl-style space-separated)
+		# Reconcile multiple Etcd resources using space-separated list
 		kubectl druid reconcile test/my-etcd dev/my-etcd
 
 		# Reconcile all Etcd resources across all namespaces
@@ -39,7 +39,7 @@ var (
 		kubectl druid reconcile suspend test/my-etcd
 
 		# Suspend reconciliation for multiple Etcd resources
-		kubectl druid reconcile suspend ns1/etcd1 ns2/etcd2
+		kubectl druid reconcile suspend test/my-etcd dev/my-etcd
 
 		# Suspend reconciliation for all Etcd resources
 		kubectl druid reconcile suspend -A`
@@ -49,7 +49,7 @@ var (
 		kubectl druid reconcile resume test/my-etcd
 
 		# Resume reconciliation for multiple Etcd resources
-		kubectl druid reconcile resume ns1/etcd1 ns2/etcd2
+		kubectl druid reconcile resume test/my-etcd dev/my-etcd
 
 		# Resume reconciliation for all Etcd resources
 		kubectl druid reconcile resume -A`
@@ -209,4 +209,3 @@ func NewResumeCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 
 	return cmd
 }
-

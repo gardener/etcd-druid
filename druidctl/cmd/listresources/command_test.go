@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -25,9 +25,10 @@ func extractJSON(output string) string {
 	// Find matching closing brace
 	depth := 0
 	for i := start; i < len(output); i++ {
-		if output[i] == '{' {
+		switch output[i] {
+		case '{':
 			depth++
-		} else if output[i] == '}' {
+		case '}':
 			depth--
 			if depth == 0 {
 				return output[start : i+1]
@@ -208,7 +209,7 @@ func TestListResourcesWithFilter(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
-	// Set filter flag to specific resource types (pods only, not services)
+	// Set filter flag to specific resource types like pods
 	if err := cmd.Flags().Set("filter", "pods"); err != nil {
 		t.Fatalf("Failed to set filter flag: %v", err)
 	}

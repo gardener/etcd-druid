@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -135,7 +135,6 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 
 		labelSelector := fmt.Sprintf("app.kubernetes.io/part-of=%s", etcd.Name)
 		for _, resMeta := range metas {
-			// Skip cluster-scoped if not intended; most curated resources are namespaced.
 			resourceNamespace := ""
 			if resMeta.Namespaced {
 				resourceNamespace = etcd.Namespace
