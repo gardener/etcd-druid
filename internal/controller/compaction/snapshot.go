@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultEtcdFullSnapshotReqTimeout = 600 * time.Second
+	defaultEtcdFullSnapshotReqTimeout = 900 * time.Second
 )
 
 type httpClientInterface interface {

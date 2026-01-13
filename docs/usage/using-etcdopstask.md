@@ -26,7 +26,7 @@ spec:
     onDemandSnapshot:
       type: full  # or delta
       #isFinal: false
-      timeoutSecondsFull: 480
+      timeoutSecondsFull: 900
       #timeoutSecondsDelta: 60
    ttlSecondsAfterFinished: 360   
   
@@ -125,7 +125,7 @@ Triggers an on-demand snapshot outside the regular snapshot schedule.
 **Configuration Options:**
 - `type`: Specifies the snapshot type (`full` or `delta`)
 - `isFinal`: Optional boolean flag to mark the snapshot as final (default: `false`). This field is applicable only for full snapshots.
-- `timeoutSecondsFull`: Timeout in seconds for full snapshot operations (default: 480)
+- `timeoutSecondsFull`: Timeout in seconds for full snapshot operations (default: 900)
 - `timeoutSecondsDelta`: Timeout in seconds for delta snapshot operations (default: 60)
 
 

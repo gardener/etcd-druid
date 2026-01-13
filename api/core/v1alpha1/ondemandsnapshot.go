@@ -35,9 +35,9 @@ type OnDemandSnapshotConfig struct {
 	TimeoutSecondsDelta *int32 `json:"timeoutSecondsDelta,omitempty"`
 
 	// TimeoutSecondsFull is the timeout for full snapshot operations.
-	// Defaults to 480 seconds (8 minutes).
+	// Defaults to 900 seconds (15 minutes).
 	// +optional
-	// +kubebuilder:default=480
+	// +kubebuilder:default=900
 	// +kubebuilder:validation:Minimum=120
 	TimeoutSecondsFull *int32 `json:"timeoutSecondsFull,omitempty"`
 }

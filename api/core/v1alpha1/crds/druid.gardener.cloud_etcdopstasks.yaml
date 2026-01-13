@@ -85,10 +85,10 @@ spec:
                         minimum: 10
                         type: integer
                       timeoutSecondsFull:
-                        default: 480
+                        default: 900
                         description: |-
                           TimeoutSecondsFull is the timeout for full snapshot operations.
-                          Defaults to 480 seconds (8 minutes).
+                          Defaults to 900 seconds (15 minutes).
                         format: int32
                         minimum: 120
                         type: integer
