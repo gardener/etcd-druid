@@ -990,7 +990,7 @@ _Appears in:_
 | `type` _[OnDemandSnapshotType](#ondemandsnapshottype)_ | Type specifies whether the snapshot is a 'full' or 'delta' snapshot.<br />Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot. |  | Enum: [full delta] <br />Required: \{\} <br /> |
 | `isFinal` _boolean_ | IsFinal indicates whether the snapshot of type: full is marked as final. This is subject to change. |  |  |
 | `timeoutSecondsDelta` _integer_ | TimeoutSeconds is the timeout for the delta snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 10 <br /> |
-| `timeoutSecondsFull` _integer_ | TimeoutSecondsFull is the timeout for full snapshot operations.<br />Defaults to 480 seconds (8 minutes). | 480 | Minimum: 120 <br /> |
+| `timeoutSecondsFull` _integer_ | TimeoutSecondsFull is the timeout for full snapshot operations.<br />Defaults to 900 seconds (15 minutes). | 900 | Minimum: 120 <br /> |
 
 
 #### OnDemandSnapshotType

@@ -39,7 +39,7 @@ func main() {
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{
 					Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
 					IsFinal:            ptr.To(false),
-					TimeoutSecondsFull: ptr.To(int32(480)),
+					TimeoutSecondsFull: ptr.To(int32(900)),
 				},
 			},
 			EtcdName:                ptr.To("example-etcd"),

@@ -264,7 +264,7 @@ func TestValidateEtcdOpsTaskSpecDefaults(t *testing.T) {
 			name:                        "Default values set for spec.TTLSecondsAfterFinished and spec.config.onDemandSnapshot.timeoutSeconds",
 			taskName:                    "task-defaults",
 			expectedTTL:                 3600,
-			expectedTimeoutSecondsFull:  480,
+			expectedTimeoutSecondsFull:  900,
 			expectedTimeoutSecondsDelta: 60,
 		},
 	}
