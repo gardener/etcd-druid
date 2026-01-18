@@ -76,23 +76,22 @@ func TestSnapshotCompaction(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
 	for _, provider := range providers {
 		if provider == "none" {
 			continue
 		}
 		for _, tc := range testCases {
-			providerSuffix, err := getProviderSuffix(provider)
-			g.Expect(err).ToNot(HaveOccurred())
-			tcName := fmt.Sprintf("compaction-%s-%s", tc.name, providerSuffix)
+			tcName := fmt.Sprintf("compaction-%s-%s", tc.name, getProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+				defer func() {
+					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
@@ -146,6 +145,9 @@ func TestSnapshotCompaction(t *testing.T) {
 					testEnv.EnsureNoCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutCompaction)
 					logger.Info("ensured that compaction was not triggered")
 				}
+
+				logger.Info("finished running tests")
+				testSucceeded = true
 			})
 		}
 	}

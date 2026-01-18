@@ -25,6 +25,17 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type retainTestArtifactsMode string
+
+const (
+	// retainTestArtifactsAll indicates that all test artifacts should be retained.
+	retainTestArtifactsAll retainTestArtifactsMode = "all"
+	// retainTestArtifactsFailed indicates that only artifacts from failed tests should be retained.
+	retainTestArtifactsFailed retainTestArtifactsMode = "failed"
+	// retainTestArtifactsNone indicates that no test artifacts should be retained.
+	retainTestArtifactsNone retainTestArtifactsMode = "none"
+)
+
 const (
 	pkiResourcesDir              = "pki-resources"
 	defaultBackupStoreSecretName = "etcd-backup"
@@ -32,15 +43,15 @@ const (
 
 // getProviderSuffix returns the storage provider suffix for the given storage provider,
 // to be used for generating the namespace for a test case.
-func getProviderSuffix(provider druidv1alpha1.StorageProvider) (string, error) {
+func getProviderSuffix(provider druidv1alpha1.StorageProvider) string {
 	if provider == "none" {
-		return "none", nil
+		return "none"
 	}
 	p, err := store.StorageProviderFromInfraProvider(ptr.To(provider))
 	if err != nil {
-		return "", err
+		return ""
 	}
-	return strings.ToLower(p), nil
+	return strings.ToLower(p)
 }
 
 // initializeTestCase sets up the test environment by creating a namespace, generating PKI resources,
@@ -147,10 +158,18 @@ func updateEtcdTLSAndLabels(etcd *druidv1alpha1.Etcd, clientTLSEnabled, peerTLSE
 }
 
 // cleanupTestArtifacts deletes the test namespace if shouldCleanup is true.
-func cleanupTestArtifacts(shouldCleanup bool, testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string) {
-	if !shouldCleanup {
+func cleanupTestArtifacts(retainTestArtifacts retainTestArtifactsMode, testSucceeded bool, testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string) {
+	switch retainTestArtifacts {
+	case retainTestArtifactsAll:
+		logger.Info("retaining test artifacts as per configuration")
 		return
+	case retainTestArtifactsFailed:
+		if !testSucceeded {
+			logger.Info("retaining test artifacts for failed test as per configuration")
+			return
+		}
 	}
+
 	logger.Info(fmt.Sprintf("deleting namespace %s", ns))
 	g.Expect(testEnv.DeleteTestNamespace(ns)).To(Succeed())
 	logger.Info("successfully deleted namespace")

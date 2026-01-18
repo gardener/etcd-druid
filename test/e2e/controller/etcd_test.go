@@ -45,7 +45,7 @@ const (
 
 var (
 	testEnv             *testenv.TestEnvironment
-	retainTestArtifacts = false
+	retainTestArtifacts retainTestArtifactsMode
 	providers           = []druidv1alpha1.StorageProvider{"none"}
 )
 
@@ -71,18 +71,21 @@ func TestMain(m *testing.M) {
 	}
 
 	val, err := testutils.GetEnvOrError(envRetainTestArtifacts)
-	if err == nil && val == "true" {
-		retainTestArtifacts = true
+	switch retainTestArtifactsMode(val) {
+	case retainTestArtifactsAll:
+		retainTestArtifacts = retainTestArtifactsAll
+	case retainTestArtifactsFailed:
+		retainTestArtifacts = retainTestArtifactsFailed
+	default:
+		retainTestArtifacts = retainTestArtifactsNone
 	}
 
 	// default to {"none"} if no providers are specified
-	backupProviders, err := testutils.GetEnvOrError(envBackupProviders)
-	if err == nil {
-		providers, err = druide2etestutils.ParseBackupProviders(backupProviders)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to parse backup providers: %v\n", err)
-			os.Exit(1)
-		}
+	backupProviders := testutils.GetEnvOrDefault(envBackupProviders, "none,local")
+	providers, err = druide2etestutils.ParseBackupProviders(backupProviders)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to parse backup providers: %v\n", err)
+		os.Exit(1)
 	}
 
 	exitCode := m.Run()
@@ -140,20 +143,19 @@ func TestBasic(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			providerSuffix, err := getProviderSuffix(provider)
-			g.Expect(err).ToNot(HaveOccurred())
-			tcName := fmt.Sprintf("basic-%s-%s", tc.name, providerSuffix)
+			tcName := fmt.Sprintf("basic-%s-%s", tc.name, getProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool // cannot use t.Failed() in deferred functions since it is evaluated at the end of the test
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+				defer func() {
+					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
@@ -193,6 +195,7 @@ func TestBasic(t *testing.T) {
 				logger.Info("successfully deleted Etcd")
 
 				logger.Info("finished running tests")
+				testSucceeded = true
 			})
 		}
 	}
@@ -238,20 +241,19 @@ func TestScaleOut(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			providerSuffix, err := getProviderSuffix(provider)
-			g.Expect(err).ToNot(HaveOccurred())
-			tcName := fmt.Sprintf("scaleout-%s-%s", tc.name, providerSuffix)
+			tcName := fmt.Sprintf("scaleout-%s-%s", tc.name, getProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+				defer func() {
+					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
@@ -278,6 +280,7 @@ func TestScaleOut(t *testing.T) {
 				logger.Info("successfully scaled out Etcd to 3 replicas")
 
 				logger.Info("finished running tests")
+				testSucceeded = true
 			})
 		}
 	}
@@ -343,20 +346,19 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			providerSuffix, err := getProviderSuffix(provider)
-			g.Expect(err).ToNot(HaveOccurred())
-			tcName := fmt.Sprintf("update1-%s-%s", tc.name, providerSuffix)
+			tcName := fmt.Sprintf("update1-%s-%s", tc.name, getProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+				defer func() {
+					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
@@ -399,6 +401,7 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 				}
 
 				logger.Info("finished running tests")
+				testSucceeded = true
 			})
 		}
 	}
@@ -469,20 +472,19 @@ func TestRecovery(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			providerSuffix, err := getProviderSuffix(provider)
-			g.Expect(err).ToNot(HaveOccurred())
-			tcName := fmt.Sprintf("recovery-%s-%s", tc.name, providerSuffix)
+			tcName := fmt.Sprintf("recovery-%s-%s", tc.name, getProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+				defer func() {
+					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
@@ -520,6 +522,7 @@ func TestRecovery(t *testing.T) {
 				logger.Info("successfully checked if downtime occurred")
 
 				logger.Info("finished running tests")
+				testSucceeded = true
 			})
 		}
 	}
@@ -562,20 +565,19 @@ func TestClusterUpdate(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			providerSuffix, err := getProviderSuffix(provider)
-			g.Expect(err).ToNot(HaveOccurred())
-			tcName := fmt.Sprintf("update2-%s-%s", tc.name, providerSuffix)
+			tcName := fmt.Sprintf("update2-%s-%s", tc.name, getProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-				defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+				defer func() {
+					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
 				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
@@ -612,6 +614,7 @@ func TestClusterUpdate(t *testing.T) {
 				logger.Info("successfully checked if downtime occurred")
 
 				logger.Info("finished running tests")
+				testSucceeded = true
 			})
 		}
 	}

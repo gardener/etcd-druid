@@ -13,7 +13,7 @@ IMAGE_NAME          := gardener/etcd-druid
 IMAGE_REPOSITORY    := $(REGISTRY)/$(IMAGE_NAME)
 IMAGE_BUILD_TAG     := $(VERSION)
 PLATFORM            ?= $(shell docker info --format '{{.OSType}}/{{.Architecture}}')
-PROVIDERS           ?= ""
+PROVIDERS           ?= "none,local"
 BUCKET_NAME         := "e2e-test"
 IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 TEST_COVER          := "true"
@@ -124,10 +124,10 @@ test-cov-clean:
 
 # Set env var PROVIDERS to specify which providers to test. Current options are:
 # - none: tests without any cloud provider integration.
-# - local: tests with localstack and azurite as cloud provider emulators.
+# - local: tests with local storage provider.
 # - none,local: tests with both none and local providers.
-# - By default, all providers are tested.
-# Set env var RETAIN_TEST_ARTIFACTS=true to retain the test artifacts.
+# - Default: none,local.
+# Set env var RETAIN_TEST_ARTIFACTS=[all|failed] to retain the test artifacts for all test cases or only the failed ones.
 # Set env var GO_TEST_ARGS to pass additional args to go test command, like "-run <TestName> -count=1 -v":
 # - Set -run <TestName> to run specific tests.
 # - Set -count=1 to not use cached results.
@@ -137,8 +137,8 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
 	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
 
 # Set env var PROVIDERS to specify which providers to test. Current options are "none", "local" and "none,local".
-# By default, all providers are tested.
-# Set env var RETAIN_TEST_ARTIFACTS=true to retain the test artifacts.
+# Default: none,local.
+# Set env var RETAIN_TEST_ARTIFACTS=[all|failed] to retain the test artifacts for all test cases or only the failed ones.
 # Set env var RETAIN_KIND_CLUSTER=true to retain the kind cluster.
 # Set env var GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`.
 .PHONY: ci-e2e-kind

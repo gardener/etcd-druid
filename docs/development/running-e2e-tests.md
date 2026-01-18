@@ -21,8 +21,8 @@ For a fully automated local e2e test run, use:
 
 ```sh
 make \
-  [RETAIN_TEST_ARTIFACTS=true|false \]
-  [RETAIN_KIND_CLUSTER=true|false \]
+  [RETAIN_TEST_ARTIFACTS=true \]
+  [RETAIN_KIND_CLUSTER=all|failed \]
   [PROVIDERS="none,local" \]
   [GO_TEST_ARGS="..." \]
   ci-e2e-kind
@@ -53,7 +53,7 @@ export KUBECONFIG=/path/to/your/kubeconfig
 DRUID_E2E_TEST=true make deploy
 
 make \
-  [RETAIN_TEST_ARTIFACTS=true|false \]
+  [RETAIN_TEST_ARTIFACTS=all|failed \]
   [PROVIDERS="none,local" \]
   [GO_TEST_ARGS="..." \]
   test-e2e
@@ -76,7 +76,7 @@ This installs etcd-druid configured for e2e tests into the cluster pointed to by
 - **Timeouts:** Each test has a default timeout of 1 hour.
 - **Resource Cleanup:**
   - By default, all test-created namespaces and resources are cleaned up after each test.
-  - Set `RETAIN_TEST_ARTIFACTS=true` to retain all test resources for debugging.
+  - Set `RETAIN_TEST_ARTIFACTS=all` to retain all test resources for debugging, or `RETAIN_TEST_ARTIFACTS=failed` to retain test resources belonging only to the failed test cases.
 - **Providers:**
   - `none`: No backup storage provider configured.
   - `local`: Local filesystem-based backup storage provider.
@@ -92,14 +92,14 @@ This installs etcd-druid configured for e2e tests into the cluster pointed to by
 #### Configurable environment variables
 
 - `KUBECONFIG`: Path to the kubeconfig file for the target cluster (default: `$KUBECONFIG`).
-- `RETAIN_TEST_ARTIFACTS`: Set to `true` to retain test namespaces and resources after tests finish (default: false).
+- `RETAIN_TEST_ARTIFACTS`: Set to `all` to retain all test namespaces and resources after tests finish, or `failed` to retain only test namespaces and resources belonging to the failed test cases (default: unset, which will clean up all test artifacts).
 - `RETAIN_KIND_CLUSTER`: Set to `true` to retain the KinD cluster after tests finish (default: false, only applicable for `make ci-e2e-kind`).
 - `GO_TEST_ARGS`: Additional arguments to pass to `go test` (e.g. `-run`, `-v`, `-timeout`).
 - `PROVIDERS`: Comma-separated list of storage providers to test against (default: `none`).
 
 ### Test Lifecycle
 - Tests expect an existing Etcd-Druid installation in the cluster.
-- Each test creates its own namespace and resources, and cleans them up by default. Set `RETAIN_TEST_ARTIFACTS=true` to retain all test resources for debugging.
+- Each test creates its own namespace and resources, and cleans them up by default. Set `RETAIN_TEST_ARTIFACTS=all` to retain all test resources for debugging, or `RETAIN_TEST_ARTIFACTS=failed` to retain only the test resources belonging to failed test cases.
 
 ## Running e2e tests against backup storage providers [AWS, AZURE, GCP]
 
@@ -180,7 +180,7 @@ export FAKEGCS_HOST="localhost:4443"
 
 ## Cleaning up e2e test resources
 
-To manually clean up any test namespaces or resources left behind (if `RETAIN_TEST_ARTIFACTS=true` was set), you can run:
+To manually clean up any test namespaces or resources left behind (if `RETAIN_TEST_ARTIFACTS` was set to `all`, or if set to `failed` and there were failed test cases), you can run:
 
 ```sh
 make clean-e2e-test-resources
