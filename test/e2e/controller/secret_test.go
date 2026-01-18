@@ -25,18 +25,19 @@ var (
 func TestSecretFinalizers(t *testing.T) {
 	t.Parallel()
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
-	g := NewWithT(t)
+
 	for _, provider := range providers {
-		providerSuffix, err := getProviderSuffix(provider)
-		g.Expect(err).ToNot(HaveOccurred())
-		tcName := fmt.Sprintf("secret-%s", providerSuffix)
+		tcName := fmt.Sprintf("secret-%s", getProviderSuffix(provider))
 		t.Run(tcName, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
+			var testSucceeded bool
 
 			testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 			logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
-			defer cleanupTestArtifacts(!retainTestArtifacts, testEnv, logger, g, testNamespace)
-
+			defer func() {
+				cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+			}()
 			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
 
 			logger.Info("running tests")
@@ -90,6 +91,7 @@ func TestSecretFinalizers(t *testing.T) {
 			}
 
 			logger.Info("finished running tests")
+			testSucceeded = true
 		})
 	}
 }

@@ -51,11 +51,14 @@ func ParseBackupProviders(providers string) ([]druidv1alpha1.StorageProvider, er
 
 	if providers != "" {
 		for _, p := range strings.Split(providers, ",") {
-			prov, err := store.StorageProviderFromInfraProvider(ptr.To(druidv1alpha1.StorageProvider(strings.TrimSpace(p))))
-			if err != nil {
-				errs = errors.Join(errs, fmt.Errorf("failed to parse provider %s: %w", p, err))
+			provider := druidv1alpha1.StorageProvider("none")
+			if p != "none" {
+				prov, err := store.StorageProviderFromInfraProvider(ptr.To(druidv1alpha1.StorageProvider(strings.TrimSpace(p))))
+				if err != nil {
+					errs = errors.Join(errs, fmt.Errorf("failed to parse provider %s: %w", p, err))
+				}
+				provider = druidv1alpha1.StorageProvider(prov)
 			}
-			provider := druidv1alpha1.StorageProvider(prov)
 			if slices.Contains(knownBackupProviders, provider) && !slices.Contains(providerList, provider) {
 				providerList = append(providerList, provider)
 			}
