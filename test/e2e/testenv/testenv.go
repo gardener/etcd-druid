@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -13,10 +13,22 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/component"
+	"github.com/gardener/etcd-druid/internal/component/clientservice"
+	"github.com/gardener/etcd-druid/internal/component/configmap"
+	"github.com/gardener/etcd-druid/internal/component/memberlease"
+	"github.com/gardener/etcd-druid/internal/component/peerservice"
+	"github.com/gardener/etcd-druid/internal/component/poddistruptionbudget"
+	"github.com/gardener/etcd-druid/internal/component/role"
+	"github.com/gardener/etcd-druid/internal/component/rolebinding"
+	"github.com/gardener/etcd-druid/internal/component/serviceaccount"
+	"github.com/gardener/etcd-druid/internal/component/snapshotlease"
+	"github.com/gardener/etcd-druid/internal/component/statefulset"
+	"github.com/gardener/etcd-druid/internal/images"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
+	"github.com/google/uuid"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,19 +44,19 @@ import (
 
 const (
 	defaultPollingInterval       = 2 * time.Second
-	defaultRetryInterval         = 5 * time.Second
-	defaultTimeout               = 2 * time.Minute
 	jobNameZeroDowntimeValidator = "zero-downtime-validator"
 	jobNameEtcdLoader            = "etcd-loader"
 	jobNameSnapshotter           = "snapshotter"
 )
 
+// TestEnvironment encapsulates the test environment for e2e tests.
 type TestEnvironment struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 	cl        client.Client
 }
 
+// NewTestEnvironment creates a new TestEnvironment instance.
 func NewTestEnvironment(ctx context.Context, cancelCtx context.CancelFunc, cl client.Client) *TestEnvironment {
 	return &TestEnvironment{
 		ctx:       ctx,
@@ -53,22 +65,27 @@ func NewTestEnvironment(ctx context.Context, cancelCtx context.CancelFunc, cl cl
 	}
 }
 
-func (t *TestEnvironment) GetContext() context.Context {
+// Context returns the context of the test environment.
+func (t *TestEnvironment) Context() context.Context {
 	return t.ctx
 }
 
-func (t *TestEnvironment) GetClient() client.Client {
+// Client returns the client of the test environment.
+func (t *TestEnvironment) Client() client.Client {
 	return t.cl
 }
 
+// Close cancels the context of the test environment.
 func (t *TestEnvironment) Close() {
 	t.cancelCtx()
 }
 
+// PrepareScheme adds the druidv1alpha1 scheme to the test environment's scheme.
 func (t *TestEnvironment) PrepareScheme() error {
 	return druidv1alpha1.AddToScheme(scheme.Scheme)
 }
 
+// CreateTestNamespace creates a namespace with the given name.
 func (t *TestEnvironment) CreateTestNamespace(name string) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -78,6 +95,7 @@ func (t *TestEnvironment) CreateTestNamespace(name string) error {
 	return t.cl.Create(t.ctx, ns)
 }
 
+// DeleteTestNamespace deletes the namespace with the given name.
 func (t *TestEnvironment) DeleteTestNamespace(name string) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -87,6 +105,7 @@ func (t *TestEnvironment) DeleteTestNamespace(name string) error {
 	return t.cl.Delete(t.ctx, ns)
 }
 
+// DeletePVCs deletes all PVCs in the given namespace.
 func (t *TestEnvironment) DeletePVCs(namespace string) error {
 	pvcs := &corev1.PersistentVolumeClaimList{}
 	if err := t.cl.List(t.ctx, pvcs, client.InNamespace(namespace)); err != nil {
@@ -213,8 +232,33 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
+// getOperatorRegistry returns the operator registry used by the Etcd operator.
+func (t *TestEnvironment) getOperatorRegistry() (component.Registry, error) {
+	imageVector, err := images.CreateImageVector()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create image vector: %w", err)
+	}
+	reg := component.NewRegistry()
+	reg.Register(component.ServiceAccountKind, serviceaccount.New(t.Client(), true))
+	reg.Register(component.RoleKind, role.New(t.Client()))
+	reg.Register(component.RoleBindingKind, rolebinding.New(t.Client()))
+	reg.Register(component.MemberLeaseKind, memberlease.New(t.Client()))
+	reg.Register(component.SnapshotLeaseKind, snapshotlease.New(t.Client()))
+	reg.Register(component.PodDisruptionBudgetKind, poddistruptionbudget.New(t.Client()))
+	reg.Register(component.ClientServiceKind, clientservice.New(t.Client()))
+	reg.Register(component.PeerServiceKind, peerservice.New(t.Client()))
+	reg.Register(component.ConfigMapKind, configmap.New(t.Client()))
+	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector))
+
+	return reg, nil
+}
+
 // DeleteAndCheckEtcd deletes the Etcd object and checks if it is fully deleted.
 func (t *TestEnvironment) DeleteAndCheckEtcd(g *WithT, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	operatorRegistry, err := t.getOperatorRegistry()
+	g.Expect(err).ToNot(HaveOccurred(), "Failed to get operator registry")
+	componentOperators := operatorRegistry.AllOperators()
+
 	g.Expect(t.cl.Delete(t.ctx, etcd, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 	g.Eventually(func() error {
 		ctx, cancelFunc := context.WithTimeout(t.ctx, timeout)
@@ -224,16 +268,15 @@ func (t *TestEnvironment) DeleteAndCheckEtcd(g *WithT, logger logr.Logger, etcd 
 			return fmt.Errorf("etcd %s is not deleted", etcd.Name)
 		}
 
-		if err := t.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, &corev1.Service{}); !apierrors.IsNotFound(err) {
-			return fmt.Errorf("etcd %s client service is not deleted", etcd.Name)
-		}
-
-		if err := t.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetConfigMapName(etcd.ObjectMeta), Namespace: etcd.Namespace}, &corev1.ConfigMap{}); !apierrors.IsNotFound(err) {
-			return fmt.Errorf("etcd %s configmap is not deleted", etcd.Name)
-		}
-
-		if err := t.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), Namespace: etcd.Namespace}, &appsv1.StatefulSet{}); !apierrors.IsNotFound(err) {
-			return fmt.Errorf("etcd %s statefulset is not deleted", etcd.Name)
+		opCtx := component.NewOperatorContext(ctx, logr.Discard(), uuid.NewString())
+		for kind, operator := range componentOperators {
+			existingResourceNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
+			if err != nil {
+				return fmt.Errorf("failed to get existing resource names for operator %s: %w", kind, err)
+			}
+			if len(existingResourceNames) > 0 {
+				return fmt.Errorf("etcd %s still has %d resources of kind %s", etcd.Name, len(existingResourceNames), kind)
+			}
 		}
 
 		return nil
