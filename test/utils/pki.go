@@ -195,15 +195,15 @@ func getDNSNames(name, namespace string) []string {
 type certificateType string
 
 const (
-	// CertTypeServer represents a server TLS certificate.
-	CertTypeServer certificateType = "server"
-	// CertTypeClient represents a client TLS certificate.
-	CertTypeClient certificateType = "client"
+	// certTypeServer represents a server TLS certificate.
+	certTypeServer certificateType = "server"
+	// certTypeClient represents a client TLS certificate.
+	certTypeClient certificateType = "client"
 )
 
-// GenerateTLSKeyCertToDirectory generates TLS key and certificate for either server or client, specified by certType parameter
+// generateTLSKeyCertToDirectory generates TLS key and certificate for either server or client, specified by certType parameter
 // using the given CA directory, and writes them to the specified output directory.
-func GenerateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType, caDir, outputDir, name, namespace string) (err error) {
+func generateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType, caDir, outputDir, name, namespace string) (err error) {
 	logger.Info("generating TLS key", "type", certType, "name", name, "caDir", caDir, "outputDir", outputDir)
 
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
@@ -214,9 +214,9 @@ func GenerateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType,
 
 	var keyPath string
 	switch certType {
-	case CertTypeServer:
+	case certTypeServer:
 		keyPath = filepath.Join(outputDir, ServerKeyFileName)
-	case CertTypeClient:
+	case certTypeClient:
 		keyPath = filepath.Join(outputDir, ClientKeyFileName)
 	}
 	keyFile, err := os.Create(keyPath) // #nosec: G304 -- test files.
@@ -249,11 +249,11 @@ func GenerateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType,
 		IsCA:                  false,
 	}
 	switch certType {
-	case CertTypeServer:
+	case certTypeServer:
 		certTemplate.SerialNumber = big.NewInt(2)
 		certTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 		certTemplate.DNSNames = getDNSNames(name, namespace)
-	case CertTypeClient:
+	case certTypeClient:
 		certTemplate.SerialNumber = big.NewInt(3)
 		certTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 	}
@@ -272,9 +272,9 @@ func GenerateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType,
 
 	var certPath string
 	switch certType {
-	case CertTypeServer:
+	case certTypeServer:
 		certPath = filepath.Join(outputDir, ServerCertFileName)
-	case CertTypeClient:
+	case certTypeClient:
 		certPath = filepath.Join(outputDir, ClientCertFileName)
 	}
 	certFile, err := os.Create(certPath) // #nosec: G304 -- test files.
@@ -308,11 +308,11 @@ func GeneratePKIResourcesToDirectory(logger logr.Logger, tlsDir, name, namespace
 		return err
 	}
 
-	if err := GenerateTLSKeyCertToDirectory(logger, CertTypeServer, tlsDir, tlsDir, name, namespace); err != nil {
+	if err := generateTLSKeyCertToDirectory(logger, certTypeServer, tlsDir, tlsDir, name, namespace); err != nil {
 		return err
 	}
 
-	if err := GenerateTLSKeyCertToDirectory(logger, CertTypeClient, tlsDir, tlsDir, name, namespace); err != nil {
+	if err := generateTLSKeyCertToDirectory(logger, certTypeClient, tlsDir, tlsDir, name, namespace); err != nil {
 		return err
 	}
 

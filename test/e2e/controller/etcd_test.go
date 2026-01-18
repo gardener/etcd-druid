@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/e2e/testenv"
@@ -20,33 +19,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/gomega"
-)
-
-const (
-	// environment variables
-	envKubeconfigPath      = "KUBECONFIG"
-	envRetainTestArtifacts = "RETAIN_TEST_ARTIFACTS"
-	envBackupProviders     = "PROVIDERS"
-
-	// test parameters
-	timeoutTest                = 1 * time.Hour
-	timeoutEtcdCreation        = 5 * time.Minute
-	timeoutEtcdDeletion        = 2 * time.Minute
-	timeoutEtcdHibernation     = 2 * time.Minute
-	timeoutEtcdUnhibernation   = 5 * time.Minute
-	timeoutEtcdUpdation        = 10 * time.Minute
-	timeoutEtcdDisruptionStart = 30 * time.Second
-	timeoutEtcdRecovery        = 5 * time.Minute
-	timeoutDeployJob           = 2 * time.Minute
-
-	testNamespacePrefix = "etcd-e2e"
-	defaultEtcdName     = "test"
-)
-
-var (
-	testEnv             *testenv.TestEnvironment
-	retainTestArtifacts retainTestArtifactsMode
-	providers           = []druidv1alpha1.StorageProvider{"none"}
 )
 
 // TestMain sets up the test environment.
