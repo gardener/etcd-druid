@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -50,7 +50,7 @@ func ParseBackupProviders(providers string) ([]druidv1alpha1.StorageProvider, er
 	)
 
 	if providers != "" {
-		for _, p := range strings.Split(providers, ",") {
+		for p := range strings.SplitSeq(providers, ",") {
 			provider := druidv1alpha1.StorageProvider("none")
 			if p != "none" {
 				prov, err := store.StorageProviderFromInfraProvider(ptr.To(druidv1alpha1.StorageProvider(strings.TrimSpace(p))))

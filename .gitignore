@@ -42,6 +42,7 @@ hack/e2e-test/infrastructure/kind/kubeconfig
 *.dll
 *.so
 *.dylib
+quickmark.toml
 
 # gosec
 gosec-report.sarif
@@ -49,7 +50,7 @@ gosec-report.sarif
 # env file
 .env
 
-# code editor ignores
+# code editor and plugin ignores
 .vscode
 .idea
 .DS_Store

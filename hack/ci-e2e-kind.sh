@@ -13,7 +13,7 @@ if ! kind get clusters | grep -q "^etcd-druid-e2e$"; then
   make kind-up
 fi
 
-# if RETAIN_KIND_CLUSTER is set to true, the test artifacts will be retained and the kind cluster will not be deleted
+# if RETAIN_KIND_CLUSTER is set to true, the kind cluster will not be deleted
 if [[ "${RETAIN_KIND_CLUSTER:-false}" != "true" ]]; then
   trap '{
     kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true

@@ -617,7 +617,7 @@ spec:
                 replicas:
                   description: |-
                     Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.
-                    If set to 0, the etcd cluster will be hibernated, i.e., it will cease to run.
+                    If set to 0, the etcd cluster will be scaled down, i.e., it will cease to run.
                     It can be scaled back up to the previously set value to continue running the etcd cluster.
                   format: int32
                   type: integer

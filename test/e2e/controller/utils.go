@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -23,6 +24,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	// environment variables
+	envKubeconfigPath      = "KUBECONFIG"
+	envRetainTestArtifacts = "RETAIN_TEST_ARTIFACTS"
+	envBackupProviders     = "PROVIDERS"
+
+	// test parameters
+	timeoutTest                = 1 * time.Hour
+	timeoutEtcdCreation        = 5 * time.Minute
+	timeoutEtcdDeletion        = 2 * time.Minute
+	timeoutEtcdHibernation     = 2 * time.Minute
+	timeoutEtcdUnhibernation   = 5 * time.Minute
+	timeoutEtcdUpdation        = 10 * time.Minute
+	timeoutEtcdDisruptionStart = 30 * time.Second
+	timeoutEtcdRecovery        = 5 * time.Minute
+	timeoutDeployJob           = 2 * time.Minute
+
+	testNamespacePrefix = "etcd-e2e"
+	defaultEtcdName     = "test"
+)
+
+var (
+	testEnv             *testenv.TestEnvironment
+	retainTestArtifacts retainTestArtifactsMode
+	providers           = []druidv1alpha1.StorageProvider{"none"}
 )
 
 type retainTestArtifactsMode string
@@ -94,23 +122,23 @@ func generatePKIResourcesToDefaultDirectory(g *WithT, logger logr.Logger, testNa
 func createTLSSecrets(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace string, etcdCertsDir string, etcdPeerCertsDir string, etcdbrCertsDir string) {
 	logger.Info("creating TLS secrets")
 	// TLS secrets for etcd server-client communication
-	g.Expect(e2etestutils.CreateCASecret(testEnv.GetContext(), testEnv.GetClient(), testutils.ClientTLSCASecretName, testNamespace, etcdCertsDir)).To(Succeed())
-	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.ClientTLSServerCertSecretName, testNamespace, etcdCertsDir)).To(Succeed())
-	g.Expect(e2etestutils.CreateClientTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.ClientTLSClientCertSecretName, testNamespace, etcdCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateCASecret(testEnv.Context(), testEnv.Client(), testutils.ClientTLSCASecretName, testNamespace, etcdCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.Context(), testEnv.Client(), testutils.ClientTLSServerCertSecretName, testNamespace, etcdCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateClientTLSSecret(testEnv.Context(), testEnv.Client(), testutils.ClientTLSClientCertSecretName, testNamespace, etcdCertsDir)).To(Succeed())
 	// TLS secrets for etcd peer communication
-	g.Expect(e2etestutils.CreateCASecret(testEnv.GetContext(), testEnv.GetClient(), testutils.PeerTLSCASecretName, testNamespace, etcdPeerCertsDir)).To(Succeed())
-	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.PeerTLSServerCertSecretName, testNamespace, etcdPeerCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateCASecret(testEnv.Context(), testEnv.Client(), testutils.PeerTLSCASecretName, testNamespace, etcdPeerCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.Context(), testEnv.Client(), testutils.PeerTLSServerCertSecretName, testNamespace, etcdPeerCertsDir)).To(Succeed())
 	// TLS secrets for etcd-backup-restore TLS
-	g.Expect(e2etestutils.CreateCASecret(testEnv.GetContext(), testEnv.GetClient(), testutils.BackupRestoreTLSCASecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
-	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.BackupRestoreTLSServerCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
-	g.Expect(e2etestutils.CreateClientTLSSecret(testEnv.GetContext(), testEnv.GetClient(), testutils.BackupRestoreTLSClientCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateCASecret(testEnv.Context(), testEnv.Client(), testutils.BackupRestoreTLSCASecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.Context(), testEnv.Client(), testutils.BackupRestoreTLSServerCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateClientTLSSecret(testEnv.Context(), testEnv.Client(), testutils.BackupRestoreTLSClientCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
 	logger.Info("successfully created TLS secrets")
 }
 
 // getSecret retrieves a secret by name from the specified namespace.
 func getSecret(testEnv *testenv.TestEnvironment, namespace, secretName string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
-	err := testEnv.GetClient().Get(testEnv.GetContext(), types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
+	err := testEnv.Client().Get(testEnv.Context(), types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret %s in namespace %s: %w", secretName, namespace, err)
 	}
@@ -133,7 +161,7 @@ func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretNam
 // createBackupSecret creates a backup secret in the specified namespace.
 func createBackupSecret(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, namespace string, provider druidv1alpha1.StorageProvider) {
 	logger.Info("creating backup secret")
-	g.Expect(testutils.CreateBackupSecret(testEnv.GetContext(), testEnv.GetClient(), defaultBackupStoreSecretName, namespace, provider)).To(Succeed())
+	g.Expect(testutils.CreateBackupSecret(testEnv.Context(), testEnv.Client(), defaultBackupStoreSecretName, namespace, provider)).To(Succeed())
 	logger.Info("successfully created backup secret")
 }
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -45,7 +45,7 @@ func TestSnapshotCompaction(t *testing.T) {
 			name:                          "no-snaps",
 			purpose:                       "test with no snapshots taken",
 			expectCompaction:              false,
-			expectedFullSnapshotRevision:  1, // default revision in etcd cluster
+			expectedFullSnapshotRevision:  1, // default starting revision in etcd cluster
 			expectedDeltaSnapshotRevision: 0,
 		},
 		{

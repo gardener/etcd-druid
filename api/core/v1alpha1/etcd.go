@@ -334,7 +334,7 @@ type EtcdSpec struct {
 	// +optional
 	SchedulingConstraints SchedulingConstraints `json:"schedulingConstraints,omitempty"`
 	// Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.
-	// If set to 0, the etcd cluster will be hibernated, i.e., it will cease to run.
+	// If set to 0, the etcd cluster will be scaled down, i.e., it will cease to run.
 	// It can be scaled back up to the previously set value to continue running the etcd cluster.
 	// +required
 	// +kubebuilder:validation:XValidation:message="Replicas can either be increased or be downscaled to 0.",rule="self==0 ? true : self < oldSelf ? false : true"
