@@ -7,6 +7,7 @@ title: Local E2E Tests
 The Etcd-Druid project now features a comprehensive, Go-native e2e test suite (see [PR #1060](https://github.com/gardener/etcd-druid/pull/1060)) that comprehensively covers various aspects of Etcd-Druid's management of Etcd clusters. The suite is designed for reliability, speed, and ease of use, and does not require kustomize or any mandatory provider-specific setup.
 
 ## Available Test Suites
+
 - `TestBasic` tests creation, hibernation, unhibernation and deletion of Etcd clusters of varying replicas and TLS configurations.
 - `TestScaleOut` tests scale out of an Etcd cluster from 1 to 3 replicas along with label changes.
 - `TestTLSAndLabelUpdates` tests TLS changes along with label changes in an Etcd cluster.
@@ -29,6 +30,7 @@ make \
 ```
 
 This will:
+
 1. Spin up a local KinD cluster, whose `KUBECONFIG` is made available at `hack/kind/kubeconfig`.
 2. Install Etcd-Druid into the cluster, configured for e2e testing.
 3. Run the full e2e test suite (see [make test-e2e](#running-e2e-tests-against-an-existing-cluster) below).
@@ -38,7 +40,7 @@ This will:
 This is the recommended way to validate changes in a clean, reproducible environment.
 
 > [!NOTE]
-> `make ci-e2e-kind` target only supports providers `local` and `none`. In order to run e2e tests against real or emulated storage providers, please use `make test-e2e` target against an existing cluster with etcd-druid installed as described [here](#running-e2e-tests-against-an-existing-cluster).
+> `make ci-e2e-kind` target only supports providers `local` and `none`. In order to run e2e tests against real or emulated storage providers, please use `make test-e2e` target against an existing cluster with etcd-druid installed as described at [running-e2e-tests-against-an-existing-cluster](#running-e2e-tests-against-an-existing-cluster).
 
 ### Environment Variables
 
@@ -66,6 +68,7 @@ This installs etcd-druid configured for e2e tests into the cluster pointed to by
 > Check the [etcd-druid deployment documentation](../deployment/getting-started-locally/getting-started-locally.md#02-setting-up-etcd-druid) for more details.
 
 ### User Controls & Test Knobs
+
 - **Parallelism:** All test cases are run in parallel of 10 test units by default for speed and to simulate real-world concurrency. Each test is run its own dedicated namespace for easy debugging.
 - **Test Selection:**
   - Use Go test flags via `GO_TEST_ARGS` to select or filter tests, e.g.:
@@ -98,6 +101,7 @@ This installs etcd-druid configured for e2e tests into the cluster pointed to by
 - `PROVIDERS`: Comma-separated list of storage providers to test against (default: `none`).
 
 ### Test Lifecycle
+
 - Tests expect an existing Etcd-Druid installation in the cluster.
 - Each test creates its own namespace and resources, and cleans them up by default. Set `RETAIN_TEST_ARTIFACTS=all` to retain all test resources for debugging, or `RETAIN_TEST_ARTIFACTS=failed` to retain only the test resources belonging to failed test cases.
 
@@ -189,6 +193,7 @@ make clean-e2e-test-resources
 This will delete all namespaces created by the e2e tests, denoted by the `etcd-e2e-` prefix. Additionally, all PKI artifacts created for the tests will also be removed.
 
 ## Notes
-- Provider-specific setup and configuration (AWS, Azure, GCP, etc.) is not mandatory for running e2e tests, but can be enabled and used as mentioned [here](#running-e2e-tests-against-backup-storage-providers-aws-azure-gcp).
+
+- Provider-specific setup and configuration (AWS, Azure, GCP, etc.) is not mandatory for running e2e tests, but can be enabled and used as mentioned in [running-e2e-tests-against-backup-storage-providers-aws-azure-gcp](#running-e2e-tests-against-backup-storage-providers-aws-azure-gcp).
 - All test orchestration is handled natively in Go.
 - For more details, see the source code in `test/e2e` and the `Makefile` targets for e2e testing.
