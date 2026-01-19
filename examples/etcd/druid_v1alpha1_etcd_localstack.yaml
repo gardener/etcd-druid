@@ -51,7 +51,7 @@ spec:
       container: etcd-bucket
       prefix: etcd-test
       provider: S3
-      endpoint: http://localstack.default:4566
+      endpointOverride: http://localstack.default:4566
       secretRef:
         name: etcd-backup-aws
     compression:

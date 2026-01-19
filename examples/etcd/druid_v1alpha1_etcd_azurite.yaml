@@ -51,7 +51,7 @@ spec:
       container: etcd-bucket
       prefix: etcd-test
       provider: ABS
-      endpoint: http://azurite-service.default:10000/devstoreaccount1/etcd-bucket
+      endpointOverride: http://azurite-service.default:10000/devstoreaccount1/etcd-bucket
       secretRef:
         name: etcd-backup-azurite
     compression:
