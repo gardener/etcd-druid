@@ -65,8 +65,6 @@ const (
 	EnvAzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvGoogleApplicationCredentials is the environment variable key for Google application credentials.
 	EnvGoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
-	// EnvGoogleStorageEmulatorHost is the environment variable key required by the GCS SDK which is set to the endpoint of the emulator.
-	EnvGoogleStorageEmulatorHost = "STORAGE_EMULATOR_HOST" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvOpenstackApplicationCredentials is the environment variable key for OpenStack application credentials.
 	EnvOpenstackApplicationCredentials = "OPENSTACK_APPLICATION_CREDENTIALS" // #nosec G101 -- this is the name of an env var, and not the credential itself.
 	// EnvAlicloudApplicationCredentials is the environment variable key for Alicloud application credentials.
