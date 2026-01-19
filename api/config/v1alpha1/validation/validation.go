@@ -135,7 +135,7 @@ func ValidateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfi
 
 func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if webhookConfig.Enabled == nil || !*webhookConfig.Enabled {
+	if !ptr.Deref(webhookConfig.Enabled, false) {
 		return allErrs
 	}
 	// Ensure that at least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo is set.

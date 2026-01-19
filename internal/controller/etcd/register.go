@@ -10,6 +10,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -99,7 +100,7 @@ func (r *Reconciler) hasReconcileAnnotation() predicate.Predicate {
 func (r *Reconciler) autoReconcileEnabled() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(_ event.UpdateEvent) bool {
-			return r.config.EnableEtcdSpecAutoReconcile != nil && *r.config.EnableEtcdSpecAutoReconcile
+			return ptr.Deref(r.config.EnableEtcdSpecAutoReconcile, false)
 		},
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return true

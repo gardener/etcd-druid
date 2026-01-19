@@ -9,13 +9,14 @@ import (
 	"github.com/gardener/etcd-druid/internal/webhook/etcdcomponentprotection"
 
 	"golang.org/x/exp/slog"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Register registers all etcd-druid webhooks with the controller manager.
 func Register(mgr ctrl.Manager, config druidconfigv1alpha1.WebhookConfiguration) error {
 	// Add Etcd Components webhook to the manager
-	if config.EtcdComponentProtection.Enabled != nil && *config.EtcdComponentProtection.Enabled {
+	if ptr.Deref(config.EtcdComponentProtection.Enabled, false) {
 		etcdComponentsWebhook, err := etcdcomponentprotection.NewHandler(
 			mgr,
 			config.EtcdComponentProtection,

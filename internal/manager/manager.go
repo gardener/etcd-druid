@@ -65,7 +65,7 @@ func createManager(operatorConfig *druidconfigv1alpha1.OperatorConfiguration) (c
 		&eventsv1.Event{},
 	}
 
-	if operatorConfig.Controllers.DisableLeaseCache != nil && *operatorConfig.Controllers.DisableLeaseCache {
+	if ptr.Deref(operatorConfig.Controllers.DisableLeaseCache, false) {
 		uncachedObjects = append(uncachedObjects, &coordinationv1.Lease{}, &coordinationv1beta1.Lease{})
 	}
 
@@ -91,7 +91,7 @@ func createManager(operatorConfig *druidconfigv1alpha1.OperatorConfiguration) (c
 		Metrics: metricsserver.Options{
 			BindAddress: operatorConfig.Server.Metrics.BindAddress,
 		},
-		LeaderElection:                operatorConfig.LeaderElection.Enabled != nil && *operatorConfig.LeaderElection.Enabled,
+		LeaderElection:                ptr.Deref(operatorConfig.LeaderElection.Enabled, false),
 		LeaderElectionID:              operatorConfig.LeaderElection.ResourceName,
 		LeaderElectionResourceLock:    operatorConfig.LeaderElection.ResourceLock,
 		LeaderElectionReleaseOnCancel: true,

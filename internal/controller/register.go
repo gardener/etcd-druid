@@ -15,6 +15,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -42,7 +43,7 @@ func Register(mgr ctrl.Manager, controllerConfig druidconfigv1alpha1.ControllerC
 	}
 
 	// Add compaction reconciler to the manager if the CLI flag enable-backup-compaction is true.
-	if controllerConfig.Compaction.Enabled != nil && *controllerConfig.Compaction.Enabled {
+	if ptr.Deref(controllerConfig.Compaction.Enabled, false) {
 		compactionReconciler, err := compaction.NewReconciler(mgr, controllerConfig.Compaction)
 		if err != nil {
 			return err

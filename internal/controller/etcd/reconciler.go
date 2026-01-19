@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -149,7 +150,7 @@ func (r *Reconciler) GetOperatorRegistry() component.Registry {
 
 func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector) component.Registry {
 	reg := component.NewRegistry()
-	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount != nil && *config.DisableEtcdServiceAccountAutomount))
+	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, ptr.Deref(config.DisableEtcdServiceAccountAutomount, false)))
 	reg.Register(component.RoleKind, role.New(client))
 	reg.Register(component.RoleBindingKind, rolebinding.New(client))
 	reg.Register(component.MemberLeaseKind, memberlease.New(client))

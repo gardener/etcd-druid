@@ -18,6 +18,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -152,7 +153,7 @@ func (r *Reconciler) shouldReconcileSpec(etcd *druidv1alpha1.Etcd) bool {
 	}
 
 	// Prefer using EnableEtcdSpecAutoReconcile for automatic reconciliation.
-	if r.config.EnableEtcdSpecAutoReconcile != nil && *r.config.EnableEtcdSpecAutoReconcile {
+	if ptr.Deref(r.config.EnableEtcdSpecAutoReconcile, false) {
 		return true
 	}
 
