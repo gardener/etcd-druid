@@ -14,7 +14,6 @@ import (
 
 	flag "github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 )
 
 type deprecatedOperatorConfiguration struct {
@@ -124,27 +123,27 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfig
 	config.Server.Webhooks.BindAddress = d.webhookServerBindAddress
 	config.Server.Webhooks.Port = d.webhookServerPort
 	config.Server.Webhooks.ServerCertDir = d.webhookServerTLSCertDir
-	config.LeaderElection.Enabled = ptr.To(d.leaderElectionEnabled)
+	config.LeaderElection.Enabled = &d.leaderElectionEnabled
 	config.LeaderElection.ResourceName = d.leaderElectionResourceName
 	config.LeaderElection.ResourceLock = d.leaderElectionResourceLock
-	config.Controllers.DisableLeaseCache = ptr.To(d.disableLeaseCache)
+	config.Controllers.DisableLeaseCache = &d.disableLeaseCache
 	config.Controllers.Etcd.ConcurrentSyncs = &d.etcdWorkers
-	config.Controllers.Etcd.EnableEtcdSpecAutoReconcile = ptr.To(d.etcdSpecAutoReconcile)
-	config.Controllers.Etcd.DisableEtcdServiceAccountAutomount = ptr.To(d.etcdDisableServiceAccountAutomount)
+	config.Controllers.Etcd.EnableEtcdSpecAutoReconcile = &d.etcdSpecAutoReconcile
+	config.Controllers.Etcd.DisableEtcdServiceAccountAutomount = &d.etcdDisableServiceAccountAutomount
 	config.Controllers.Etcd.EtcdStatusSyncPeriod = metav1.Duration{Duration: d.etcdStatusSyncPeriod}
 	config.Controllers.Etcd.EtcdMember.NotReadyThreshold = metav1.Duration{Duration: d.etcdMemberNotReadyThreshold}
 	config.Controllers.Etcd.EtcdMember.UnknownThreshold = metav1.Duration{Duration: d.etcdMemberUnknownThreshold}
-	config.Controllers.Compaction.Enabled = ptr.To(d.compactionEnabled)
+	config.Controllers.Compaction.Enabled = &d.compactionEnabled
 	config.Controllers.Compaction.ConcurrentSyncs = &d.compactionWorkers
 	config.Controllers.Compaction.EventsThreshold = d.compactionEventsThreshold
 	config.Controllers.Compaction.ActiveDeadlineDuration = metav1.Duration{Duration: d.compactionActiveDeadlineDuration}
 	config.Controllers.Compaction.MetricsScrapeWaitDuration = metav1.Duration{Duration: d.compactionMetricsScrapeWaitDuration}
-	config.Controllers.EtcdCopyBackupsTask.Enabled = ptr.To(d.etcdCopyBackupsTaskEnabled)
+	config.Controllers.EtcdCopyBackupsTask.Enabled = &d.etcdCopyBackupsTaskEnabled
 	config.Controllers.EtcdCopyBackupsTask.ConcurrentSyncs = &d.etcdCopyBackupsTaskWorkers
 	config.Controllers.EtcdOpsTask.ConcurrentSyncs = &d.etcdOpsTaskWorkers
 	config.Controllers.EtcdOpsTask.RequeueInterval = &metav1.Duration{Duration: d.etcdOpsTaskRequeueInterval}
 	config.Controllers.Secret.ConcurrentSyncs = &d.secretWorkers
-	config.Webhooks.EtcdComponentProtection.Enabled = ptr.To(d.etcdComponentProtectionEnabled)
+	config.Webhooks.EtcdComponentProtection.Enabled = &d.etcdComponentProtectionEnabled
 	if len(strings.TrimSpace(d.etcdComponentProtectionReconcilerServiceAccount)) > 0 {
 		config.Webhooks.EtcdComponentProtection.ReconcilerServiceAccountFQDN = &d.etcdComponentProtectionReconcilerServiceAccount
 	}
