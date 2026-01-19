@@ -22,8 +22,8 @@ For a fully automated local e2e test run, use:
 
 ```sh
 make \
-  [RETAIN_TEST_ARTIFACTS=true \]
-  [RETAIN_KIND_CLUSTER=all|failed \]
+  [RETAIN_TEST_ARTIFACTS=all|failed \]
+  [RETAIN_KIND_CLUSTER=true \]
   [PROVIDERS="none,local" \]
   [GO_TEST_ARGS="..." \]
   ci-e2e-kind
