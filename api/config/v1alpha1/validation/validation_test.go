@@ -116,7 +116,7 @@ func TestValidateLeaderElectionConfiguration(t *testing.T) {
 				Enabled: test.enabled,
 			}
 			druidconfigv1alpha1.SetDefaults_LeaderElectionConfiguration(leaderElectionConfig)
-			if test.enabled != nil && *test.enabled {
+			if ptr.Deref(test.enabled, false) {
 				updateLeaderElectionConfig(leaderElectionConfig, test.overrideLeaseDuration, test.overrideRenewDeadline, test.overrideRetryPeriod, test.overrideResourceLock, test.overrideResourceName)
 			}
 			actualErrList := ValidateLeaderElectionConfiguration(*leaderElectionConfig, fldPath)
