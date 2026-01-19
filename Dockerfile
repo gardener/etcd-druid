@@ -1,5 +1,8 @@
-# Build the manager binary
-FROM golang:1.25.3 AS builder
+# SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+FROM golang:1.25.5 AS builder
 WORKDIR /go/src/github.com/gardener/etcd-druid
 COPY . .
 
