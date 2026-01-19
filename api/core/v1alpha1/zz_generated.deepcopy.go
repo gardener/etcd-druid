@@ -982,8 +982,8 @@ func (in *StoreSpec) DeepCopyInto(out *StoreSpec) {
 		*out = new(string)
 		**out = **in
 	}
-	if in.Endpoint != nil {
-		in, out := &in.Endpoint, &out.Endpoint
+	if in.EndpointOverride != nil {
+		in, out := &in.EndpointOverride, &out.EndpointOverride
 		*out = new(string)
 		**out = **in
 	}
