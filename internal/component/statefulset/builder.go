@@ -529,8 +529,8 @@ func (b *stsBuilder) getBackupStoreCommandArgs() []string {
 	}
 	commandArgs = append(commandArgs, fmt.Sprintf("--storage-provider=%s", *b.provider))
 	commandArgs = append(commandArgs, fmt.Sprintf("--store-prefix=%s", b.etcd.Spec.Backup.Store.Prefix))
-	if b.etcd.Spec.Backup.Store.Endpoint != nil {
-		commandArgs = append(commandArgs, fmt.Sprintf("--store-endpoint=%s", *b.etcd.Spec.Backup.Store.Endpoint))
+	if b.etcd.Spec.Backup.Store.EndpointOverride != nil {
+		commandArgs = append(commandArgs, fmt.Sprintf("--store-endpoint-override=%s", *b.etcd.Spec.Backup.Store.EndpointOverride))
 	}
 
 	// Full snapshot command line args

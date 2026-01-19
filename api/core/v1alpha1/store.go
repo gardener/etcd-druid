@@ -14,10 +14,10 @@ type StoreSpec struct {
 	// Container is the name of the container the backup is stored at.
 	// +optional
 	Container *string `json:"container,omitempty"`
-	// Endpoint denotes the storage endpoint that will be used to override the provider's default.
+	// EndpointOverride denotes the storage endpoint that will be used to override the provider's default.
 	// +optional
 	// +kubebuilder:validation:XValidation:message="endpoint override must be a valid URL.",rule="isURL(self)"
-	Endpoint *string `json:"endpoint,omitempty"`
+	EndpointOverride *string `json:"endpointOverride,omitempty"`
 	// Prefix is the prefix used for the store.
 	// +required
 	Prefix string `json:"prefix"`
