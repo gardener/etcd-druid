@@ -315,7 +315,8 @@ spec:
                         type: string
                       endpointOverride:
                         description: EndpointOverride denotes the storage endpoint
-                          that will be used to override the provider's default.
+                          that will be used to override the storage provider's default
+                          endpoint.
                         type: string
                         x-kubernetes-validations:
                         - message: endpoint override must be a valid URL.

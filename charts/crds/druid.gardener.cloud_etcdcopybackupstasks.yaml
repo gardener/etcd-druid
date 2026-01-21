@@ -72,9 +72,9 @@ spec:
                     description: Container is the name of the container the backup
                       is stored at.
                     type: string
-                  endpoint:
-                    description: Endpoint denotes the storage endpoint that will be
-                      used to override the provider's default.
+                  endpointOverride:
+                    description: EndpointOverride denotes the storage endpoint that
+                      will be used to override the storage provider's default endpoint.
                     type: string
                     x-kubernetes-validations:
                     - message: endpoint override must be a valid URL.
@@ -110,9 +110,9 @@ spec:
                     description: Container is the name of the container the backup
                       is stored at.
                     type: string
-                  endpoint:
-                    description: Endpoint denotes the storage endpoint that will be
-                      used to override the provider's default.
+                  endpointOverride:
+                    description: EndpointOverride denotes the storage endpoint that
+                      will be used to override the storage provider's default endpoint.
                     type: string
                     x-kubernetes-validations:
                     - message: endpoint override must be a valid URL.
