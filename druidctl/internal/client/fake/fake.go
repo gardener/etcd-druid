@@ -28,6 +28,26 @@ import (
 	kubefake "k8s.io/client-go/kubernetes/fake"
 )
 
+// resourceMapping defines a k8s resource type for RESTMapper registration.
+type resourceMapping struct {
+	group, version, kind, plural, singular string
+}
+
+// commonResourceMappings lists resource types used in tests.
+var commonResourceMappings = []resourceMapping{
+	{"", "v1", "Pod", "pods", "pod"},
+	{"", "v1", "Service", "services", "service"},
+	{"", "v1", "ConfigMap", "configmaps", "configmap"},
+	{"", "v1", "Secret", "secrets", "secret"},
+	{"", "v1", "PersistentVolumeClaim", "persistentvolumeclaims", "persistentvolumeclaim"},
+	{"", "v1", "ServiceAccount", "serviceaccounts", "serviceaccount"},
+	{"apps", "v1", "StatefulSet", "statefulsets", "statefulset"},
+	{"coordination.k8s.io", "v1", "Lease", "leases", "lease"},
+	{"policy", "v1", "PodDisruptionBudget", "poddisruptionbudgets", "poddisruptionbudget"},
+	{"rbac.authorization.k8s.io", "v1", "Role", "roles", "role"},
+	{"rbac.authorization.k8s.io", "v1", "RoleBinding", "rolebindings", "rolebinding"},
+}
+
 // TestFactory provides helpers for constructing fake etcd and Kubernetes clients for unit tests.
 type TestFactory struct {
 	etcdObjects []runtime.Object
@@ -158,63 +178,14 @@ func NewFakeGenericClient(k8sObjects []runtime.Object) *FakeGenericClient {
 		{Group: "rbac.authorization.k8s.io", Version: "v1"},
 	})
 
-	// Register common resource types with full GVK -> GVR mappings
-	// Using AddSpecific() so RESTMapping() can return proper GVR
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pod"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Service"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "service"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmaps"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmap"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secret"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "PersistentVolumeClaim"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumeclaim"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ServiceAccount"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "serviceaccounts"},
-		schema.GroupVersionResource{Group: "", Version: "v1", Resource: "serviceaccount"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"},
-		schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
-		schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulset"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "coordination.k8s.io", Version: "v1", Kind: "Lease"},
-		schema.GroupVersionResource{Group: "coordination.k8s.io", Version: "v1", Resource: "leases"},
-		schema.GroupVersionResource{Group: "coordination.k8s.io", Version: "v1", Resource: "lease"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "policy", Version: "v1", Kind: "PodDisruptionBudget"},
-		schema.GroupVersionResource{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
-		schema.GroupVersionResource{Group: "policy", Version: "v1", Resource: "poddisruptionbudget"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "Role"},
-		schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"},
-		schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "role"},
-		meta.RESTScopeNamespace)
-	restMapper.AddSpecific(
-		schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "v1", Kind: "RoleBinding"},
-		schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebindings"},
-		schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebinding"},
-		meta.RESTScopeNamespace)
+	// Register common resource types using data-driven approach
+	for _, r := range commonResourceMappings {
+		restMapper.AddSpecific(
+			schema.GroupVersionKind{Group: r.group, Version: r.version, Kind: r.kind},
+			schema.GroupVersionResource{Group: r.group, Version: r.version, Resource: r.plural},
+			schema.GroupVersionResource{Group: r.group, Version: r.version, Resource: r.singular},
+			meta.RESTScopeNamespace)
+	}
 
 	return &FakeGenericClient{
 		scheme:          scheme,
