@@ -5,8 +5,6 @@
 package listresources
 
 import (
-	"context"
-
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	"github.com/gardener/etcd-druid/druidctl/internal/printer"
 
@@ -71,12 +69,11 @@ func NewListResourcesCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 				return err
 			}
 
-			if err := listResourcesCmdCtx.execute(context.TODO()); err != nil {
+			if err := listResourcesCmdCtx.execute(cmdutils.CmdContext(cmd)); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Listing Managed resources for Etcds failed", err)
 				return err
 			}
 
-			options.Logger.Success(options.IOStreams.Out, "Listing Managed resources for Etcds completed successfully")
 			return nil
 		},
 	}

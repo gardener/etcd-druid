@@ -13,7 +13,7 @@ import (
 
 // Printer defines an interface for formatting data into various output formats.
 type Printer interface {
-	Print(data interface{}) ([]byte, error)
+	Print(data any) ([]byte, error)
 }
 
 // =======================
@@ -27,7 +27,7 @@ type JSONFormatter struct {
 }
 
 // Print marshals the provided data into JSON. It pretty-prints if Indent is true.
-func (f *JSONFormatter) Print(data interface{}) ([]byte, error) {
+func (f *JSONFormatter) Print(data any) ([]byte, error) {
 	if f.Indent {
 		return json.MarshalIndent(data, "", "  ")
 	}
@@ -42,7 +42,7 @@ func (f *JSONFormatter) Print(data interface{}) ([]byte, error) {
 type YAMLFormatter struct{}
 
 // Print marshals the provided data into YAML.
-func (f *YAMLFormatter) Print(data interface{}) ([]byte, error) {
+func (f *YAMLFormatter) Print(data any) ([]byte, error) {
 	return yaml.Marshal(data)
 }
 
@@ -51,11 +51,11 @@ func (f *YAMLFormatter) Print(data interface{}) ([]byte, error) {
 // =======================
 
 // TableFormatter formats data as a table.
-// (Implementation to be added)
+// TODO:@anveshreddy18 -> Implementation to be added.
 type TableFormatter struct{}
 
-// Format converts the given data into a table representation. (Not yet implemented.)
-func (f *TableFormatter) Format(_ interface{}) ([]byte, error) {
+// Format converts the given data into a table representation.
+func (f *TableFormatter) Format(_ any) ([]byte, error) {
 	// Implement table formatting logic here. Currently returns no data.
 	return nil, nil
 }

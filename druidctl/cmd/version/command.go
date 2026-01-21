@@ -37,13 +37,13 @@ func NewVersionCommand(globalOpts *cmdutils.GlobalOptions) *cobra.Command {
 		Long:    `Print the version information for druidctl.`,
 		Example: versionExample,
 		// Skip the persistent pre-run hook for version command
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			// Don't validate or complete for version command
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
 			return nil
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runVersion(globalOpts, opts)
 		},
 	}
@@ -58,7 +58,7 @@ func runVersion(globalOpts *cmdutils.GlobalOptions, opts *versionOptions) error 
 	versionInfo := version.Get()
 
 	if opts.short {
-		fmt.Fprintln(globalOpts.IOStreams.Out, versionInfo.GitVersion)
+		_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, versionInfo.GitVersion)
 		return nil
 	}
 
@@ -68,7 +68,7 @@ func runVersion(globalOpts *cmdutils.GlobalOptions, opts *versionOptions) error 
 		if err != nil {
 			return fmt.Errorf("failed to marshal version info to JSON: %w", err)
 		}
-		fmt.Fprintln(globalOpts.IOStreams.Out, string(data))
+		_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, string(data))
 		return nil
 	case "yaml":
 		data, err := yaml.Marshal(versionInfo)
@@ -87,10 +87,10 @@ func runVersion(globalOpts *cmdutils.GlobalOptions, opts *versionOptions) error 
 		fmt.Fprintf(globalOpts.IOStreams.Out, "  Platform:       %s\n", versionInfo.Platform)
 
 		if !versionInfo.IsRelease() {
-			fmt.Fprintln(globalOpts.IOStreams.Out, "\n ⚠️  This is a development build and not an official release.")
+			_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, "\n ⚠️  This is a development build and not an official release.")
 		}
 		if versionInfo.IsDirty() {
-			fmt.Fprintln(globalOpts.IOStreams.Out, " ⚠️  Built from modified source (dirty git tree).")
+			_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, " ⚠️  Built from modified source (dirty git tree).")
 		}
 		return nil
 	default:

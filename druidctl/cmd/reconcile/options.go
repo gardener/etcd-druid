@@ -36,7 +36,7 @@ func newReconcileOptions(options *cmdutils.GlobalOptions, waitTillReady bool, wa
 	}
 }
 
-// suspendReconcileOptions holds state and functionality specific to the suspend-reconcile command
+// suspendReconcileOptions holds state and functionality specific to the reconcile suspend command
 type suspendReconcileOptions struct {
 	*cmdutils.GlobalOptions
 }
@@ -53,7 +53,7 @@ func newSuspendReconcileOptions(options *cmdutils.GlobalOptions) *suspendReconci
 	}
 }
 
-// resumeReconcileOptions holds state and functionality specific to the resume-reconcile command
+// resumeReconcileOptions holds state and functionality specific to the reconcile resume command
 type resumeReconcileOptions struct {
 	*cmdutils.GlobalOptions
 }

@@ -21,7 +21,7 @@ type Formatter interface {
 // Writer handles log delivery to the underlying logger mechanism
 type Writer interface {
 	LogInfo(writer io.Writer, message string)
-	LogError(writer io.Writer, message string, keyvals ...interface{})
+	LogError(writer io.Writer, message string, keyvals ...any)
 	LogWarn(writer io.Writer, message string)
 	WriteRaw(writer io.Writer, message string)
 

@@ -5,8 +5,6 @@
 package resourceprotection
 
 import (
-	"context"
-
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 
 	"github.com/spf13/cobra"
@@ -84,12 +82,11 @@ func NewAddCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 				return err
 			}
 
-			if err := ctx.removeDisableProtectionAnnotation(context.TODO()); err != nil {
+			if err := ctx.removeDisableProtectionAnnotation(cmdutils.CmdContext(cmd)); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Add component protection failed", err)
 				return err
 			}
 
-			options.Logger.Success(options.IOStreams.Out, "Component protection added successfully")
 			return nil
 		},
 	}
@@ -121,12 +118,11 @@ func NewRemoveCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 				return err
 			}
 
-			if err := ctx.addDisableProtectionAnnotation(context.TODO()); err != nil {
+			if err := ctx.addDisableProtectionAnnotation(cmdutils.CmdContext(cmd)); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Remove component protection failed", err)
 				return err
 			}
 
-			options.Logger.Success(options.IOStreams.Out, "Component protection removed successfully")
 			return nil
 		},
 	}

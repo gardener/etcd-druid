@@ -19,64 +19,22 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// ResourceKey identifies a Kubernetes resource kind by group/version/resource/Kind.
-type ResourceKey struct {
-	Group    string `json:"group" yaml:"group"`
-	Version  string `json:"version" yaml:"version"`
-	Resource string `json:"resource" yaml:"resource"`
-	Kind     string `json:"kind" yaml:"kind"`
-}
-
-// ResourceRef references a single namespaced resource and includes its age.
-type ResourceRef struct {
-	Namespace string        `json:"namespace" yaml:"namespace"`
-	Name      string        `json:"name" yaml:"name"`
-	Age       time.Duration `json:"age" yaml:"age"`
-}
-
-// EtcdRef identifies an Etcd custom resource by name and namespace.
-type EtcdRef struct {
-	Name      string `json:"name" yaml:"name"`
-	Namespace string `json:"namespace" yaml:"namespace"`
-}
-
-// ResourceListPerKey groups resources under a single ResourceKey.
-type ResourceListPerKey struct {
-	Key       ResourceKey   `json:"key" yaml:"key"`
-	Resources []ResourceRef `json:"resources" yaml:"resources"`
-}
-
-// EtcdResourceResult contains all managed resources for a single Etcd.
-type EtcdResourceResult struct {
-	Etcd  EtcdRef              `json:"etcd" yaml:"etcd"`
-	Items []ResourceListPerKey `json:"items" yaml:"items"`
-}
-
-// Result is the top-level aggregation for managed resources across Etcds.
-type Result struct {
-	Etcds []EtcdResourceResult `json:"etcds" yaml:"etcds"`
-	Kind  string               `json:"kind" yaml:"kind"`
-}
-
 func (l *listResourcesCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 	etcdClient, err := options.Clients.EtcdClient()
 	if err != nil {
-		options.Logger.Error(l.IOStreams.ErrOut, "Unable to create etcd client: ", err)
-		return err
+		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	l.EtcdClient = etcdClient
 
 	genericClient, err := options.Clients.GenericClient()
 	if err != nil {
-		options.Logger.Error(l.IOStreams.ErrOut, "Unable to create generic kube clients: ", err)
-		return err
+		return fmt.Errorf("unable to create generic kube clients: %w", err)
 	}
 	l.GenericClient = genericClient
 
 	l.Printer, err = printer.NewFormatter(printer.OutputFormat(l.OutputFormat))
 	if err != nil {
-		options.Logger.Error(l.IOStreams.ErrOut, "Failed to create formatter: ", err)
-		return err
+		return fmt.Errorf("failed to create formatter: %w", err)
 	}
 
 	// Build etcd reference list from resource args using kubectl-compatible parsing
@@ -90,10 +48,12 @@ func (l *listResourcesCmdCtx) validate() error {
 
 // execute lists the managed resources for the selected etcd resources based on the filter.
 func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
-	if l.AllNamespaces {
-		l.Logger.Info(l.IOStreams.Out, "Listing all Managed resources for Etcds across all namespaces")
-	} else {
-		l.Logger.Info(l.IOStreams.Out, "Listing Managed resources for selected Etcds")
+	if l.Verbose {
+		if l.AllNamespaces {
+			l.Logger.Info(l.IOStreams.Out, "Listing all Managed resources for Etcds across all namespaces")
+		} else {
+			l.Logger.Info(l.IOStreams.Out, "Listing Managed resources for selected Etcds")
+		}
 	}
 	out := l.Logger
 

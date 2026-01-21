@@ -64,11 +64,8 @@ func (o *GlobalOptions) AddFlags(cmd *cobra.Command) {
 
 // Complete fills in the GlobalOptions based on command line args and flags.
 func (o *GlobalOptions) Complete(_ *cobra.Command, args []string) error {
-	// Initialize Logger
 	o.Logger = log.NewLogger(o.LogType)
 	o.Logger.SetVerbose(o.Verbose)
-
-	// Store all args - each arg is a resource name or ns/name
 	o.ResourceArgs = args
 	return nil
 }

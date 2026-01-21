@@ -23,8 +23,7 @@ type resumeReconcileResult struct {
 func (r *resumeReconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 	etcdClient, err := options.Clients.EtcdClient()
 	if err != nil {
-		options.Logger.Error(r.IOStreams.ErrOut, "Unable to create etcd client: ", err)
-		return err
+		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	r.etcdClient = etcdClient
 	r.etcdRefList = options.BuildEtcdRefList()
