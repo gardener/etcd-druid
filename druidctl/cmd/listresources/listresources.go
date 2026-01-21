@@ -15,9 +15,18 @@ import (
 	"github.com/gardener/etcd-druid/druidctl/internal/log"
 	"github.com/gardener/etcd-druid/druidctl/internal/printer"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+// resourceMeta captures details needed to operate against a resource type.
+type resourceMeta struct {
+	GVR        schema.GroupVersionResource
+	Kind       string
+	Namespaced bool
+}
 
 func (l *listResourcesCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 	etcdClient, err := options.Clients.EtcdClient()
@@ -60,14 +69,38 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 	etcdClient := l.EtcdClient
 	genClient := l.GenericClient
 
-	tokens := parseFilter(l.Filter)
-	if len(tokens) == 0 || (len(tokens) == 1 && tokens[0] == "all") {
-		tokens = defaultResourceTokens()
+	resourceTokens := parseFilter(l.Filter)
+	if len(resourceTokens) == 0 || (len(resourceTokens) == 1 && resourceTokens[0] == "all") {
+		resourceTokens = defaultResourceTokens()
 	}
-	resolver := newRESTMapperResolver(genClient.RESTMapper())
-	metas, err := resolver.resolve(tokens)
-	if err != nil {
-		return err
+
+	mapper := genClient.RESTMapper()
+	resourceMetas := make([]resourceMeta, 0, len(resourceTokens))
+	seen := make(map[schema.GroupVersionResource]bool)
+
+	for _, token := range resourceTokens {
+		gvr, err := mapper.ResourceFor(schema.GroupVersionResource{Resource: token})
+		if err != nil {
+			return fmt.Errorf("unknown resource '%s': %w", token, err)
+		}
+		if seen[gvr] {
+			continue
+		}
+		seen[gvr] = true
+
+		gvk, err := mapper.KindFor(gvr)
+		if err != nil {
+			return fmt.Errorf("failed to get kind for '%s': %w", token, err)
+		}
+		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err != nil {
+			return fmt.Errorf("failed to get mapping for '%s': %w", token, err)
+		}
+		resourceMetas = append(resourceMetas, resourceMeta{
+			GVR:        gvr,
+			Kind:       gvk.Kind,
+			Namespaced: mapping.Scope.Name() == meta.RESTScopeNameNamespace,
+		})
 	}
 
 	// Identify etcds to operate on
@@ -94,7 +127,7 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 		}
 
 		labelSelector := fmt.Sprintf("app.kubernetes.io/part-of=%s", etcd.Name)
-		for _, resMeta := range metas {
+		for _, resMeta := range resourceMetas {
 			resourceNamespace := ""
 			if resMeta.Namespaced {
 				resourceNamespace = etcd.Namespace
@@ -182,7 +215,7 @@ func parseFilter(filter string) []string {
 
 // defaultResourceTokens returns the curated default set for "all"
 func defaultResourceTokens() []string {
-	return []string{"po", "sts", "svc", "cm", "secret", "pvc", "lease", "pdb", "role", "rolebinding", "sa"}
+	return []string{"pods", "statefulsets", "services", "configmaps", "secrets", "persistentvolumeclaims", "leases", "poddisruptionbudgets", "roles", "rolebindings", "serviceaccounts"}
 }
 
 func toResourceRef(u *unstructured.Unstructured) ResourceRef {
