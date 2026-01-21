@@ -5,7 +5,6 @@
 package reconcile
 
 import (
-	"context"
 	"time"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
@@ -96,17 +95,18 @@ Use subcommands 'suspend' and 'resume' to control reconciliation state.`,
 				return err
 			}
 
-			if options.AllNamespaces {
-				options.Logger.Info(options.IOStreams.Out, "Reconciling Etcd resources across all namespaces")
-			} else {
-				options.Logger.Info(options.IOStreams.Out, "Reconciling selected Etcd resources")
+			if options.Verbose {
+				if options.AllNamespaces {
+					options.Logger.Info(options.IOStreams.Out, "Reconciling Etcd resources across all namespaces")
+				} else {
+					options.Logger.Info(options.IOStreams.Out, "Reconciling selected Etcd resources")
+				}
 			}
 
-			if err := ctx.execute(context.TODO()); err != nil {
+			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Reconciling failed", err)
 				return err
 			}
-			options.Logger.Success(options.IOStreams.Out, "Reconciling completed successfully")
 			return nil
 		},
 	}
@@ -150,17 +150,18 @@ func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 				return err
 			}
 
-			if options.AllNamespaces {
-				options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for Etcd resources across all namespaces")
-			} else {
-				options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for selected Etcd resources")
+			if options.Verbose {
+				if options.AllNamespaces {
+					options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for Etcd resources across all namespaces")
+				} else {
+					options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for selected Etcd resources")
+				}
 			}
 
-			if err := ctx.execute(context.TODO()); err != nil {
+			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Suspending reconciliation failed", err)
 				return err
 			}
-			options.Logger.Success(options.IOStreams.Out, "Suspending reconciliation completed successfully")
 			return nil
 		},
 	}
@@ -192,17 +193,18 @@ func NewResumeCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 				return err
 			}
 
-			if options.AllNamespaces {
-				options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for Etcd resources across all namespaces")
-			} else {
-				options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for selected Etcd resources")
+			if options.Verbose {
+				if options.AllNamespaces {
+					options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for Etcd resources across all namespaces")
+				} else {
+					options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for selected Etcd resources")
+				}
 			}
 
-			if err := ctx.execute(context.TODO()); err != nil {
+			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
 				options.Logger.Error(options.IOStreams.ErrOut, "Resuming reconciliation failed", err)
 				return err
 			}
-			options.Logger.Success(options.IOStreams.Out, "Resuming reconciliation completed successfully")
 			return nil
 		},
 	}

@@ -22,8 +22,7 @@ type suspendReconcileResult struct {
 func (s *suspendReconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 	etcdClient, err := options.Clients.EtcdClient()
 	if err != nil {
-		options.Logger.Error(s.IOStreams.ErrOut, "Unable to create etcd client: ", err)
-		return err
+		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	s.etcdClient = etcdClient
 	s.etcdRefList = options.BuildEtcdRefList()

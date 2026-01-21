@@ -34,8 +34,7 @@ type TestFactory struct {
 	k8sObjects  []runtime.Object
 }
 
-// NewTestFactory creates a TestFactory without test data
-// NewTestFactory creates an empty TestFactory without any seeded objects.
+// NewTestFactory creates an empty TestFactory without any test data
 func NewTestFactory() *TestFactory {
 	return &TestFactory{
 		etcdObjects: make([]runtime.Object, 0),
@@ -43,7 +42,6 @@ func NewTestFactory() *TestFactory {
 	}
 }
 
-// NewTestFactoryWithData creates a TestFactory with pre-seeded test data
 // NewTestFactoryWithData creates a TestFactory seeded with the provided etcd and k8s objects.
 func NewTestFactoryWithData(etcdObjects, k8sObjects []runtime.Object) *TestFactory {
 	return &TestFactory{
@@ -67,7 +65,6 @@ type FakeEtcdClient struct {
 	etcds map[string]*druidv1alpha1.Etcd
 }
 
-// NewFakeEtcdClient creates a FakeEtcdClient with pre-seeded data
 // NewFakeEtcdClient constructs a FakeEtcdClient optionally seeded with Etcd objects.
 func NewFakeEtcdClient(etcdObjects []runtime.Object) *FakeEtcdClient {
 	etcds := make(map[string]*druidv1alpha1.Etcd)
@@ -107,7 +104,7 @@ func (c *FakeEtcdClient) UpdateEtcd(_ context.Context, etcd *druidv1alpha1.Etcd,
 
 // ListEtcds lists Etcd objects optionally filtered by namespace and label selector.
 // Note: The fake implementation ignores labelSelector for simplicity in tests.
-func (c *FakeEtcdClient) ListEtcds(_ context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
+func (c *FakeEtcdClient) ListEtcds(_ context.Context, namespace string, _ string) (*druidv1alpha1.EtcdList, error) {
 	etcdList := &druidv1alpha1.EtcdList{}
 	for _, etcd := range c.etcds {
 		if namespace == "" || etcd.Namespace == namespace {
@@ -126,7 +123,6 @@ type FakeGenericClient struct {
 	restMapper      meta.RESTMapper
 }
 
-// NewFakeGenericClient creates a FakeGenericClient with pre-seeded data
 // NewFakeGenericClient constructs a FakeGenericClient seeded with the provided Kubernetes objects.
 func NewFakeGenericClient(k8sObjects []runtime.Object) *FakeGenericClient {
 	scheme := runtime.NewScheme()

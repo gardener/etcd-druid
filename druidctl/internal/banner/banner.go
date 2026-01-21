@@ -46,15 +46,15 @@ func ShowBanner(rootCmd, cmd *cobra.Command, disableBanner bool) {
 	}
 
 	logger := log.NewLogger(log.LogTypeCharm)
-	lines := strings.Split(strings.TrimSpace(asciiArt), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(strings.TrimSpace(asciiArt), "\n")
+	for line := range lines {
 		logger.RawHeader(os.Stdout, line)
 	}
 
 	versionInfo := version.Get()
 	logger.RawHeader(os.Stdout, "Version: "+versionInfo.String())
 
-	// Optional: Show development build warning in banner
+	// Show development build warning in banner
 	if !versionInfo.IsRelease() {
 		logger.RawHeader(os.Stdout, "⚠️  Development Build")
 	}

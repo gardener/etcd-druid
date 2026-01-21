@@ -38,7 +38,7 @@ func (w *CharmWriter) LogInfo(writer io.Writer, message string) {
 }
 
 // LogError logs an error message
-func (w *CharmWriter) LogError(writer io.Writer, message string, keyvals ...interface{}) {
+func (w *CharmWriter) LogError(writer io.Writer, message string, keyvals ...any) {
 	w.logger.SetOutput(writer)
 	w.logger.Error(message, keyvals...)
 }

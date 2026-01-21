@@ -13,9 +13,20 @@ import (
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
+
+// CmdContext returns the command's context, or context.Background() if nil.
+// This allows tests to call RunE directly without needing to set up cobra's context.
+func CmdContext(cmd *cobra.Command) context.Context {
+	ctx := cmd.Context()
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
 
 var (
 	configFlags     *genericclioptions.ConfigFlags
