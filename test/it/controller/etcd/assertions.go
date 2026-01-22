@@ -106,7 +106,6 @@ func doAssertComponentsExist(ctx context.Context, t *testing.T, rtEnv Reconciler
 	wg := sync.WaitGroup{}
 	wg.Add(len(assertionFns))
 	for _, assertFn := range assertionFns {
-		assertFn := assertFn
 		go func() {
 			defer wg.Done()
 			assertFn(opCtx, t, opRegistry, etcd, timeout, pollInterval)

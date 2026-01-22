@@ -6,6 +6,7 @@ package utils
 
 import (
 	"fmt"
+	"slices"
 
 	"golang.org/x/exp/constraints"
 )
@@ -13,10 +14,8 @@ import (
 // ShouldBeOneOfAllowedValues checks if value is amongst the allowedValues. If it is not then an error is returned else nil is returned.
 // Type is constrained by comparable forcing the consumers to only use concrete types that can be compared using the == or != operators.
 func ShouldBeOneOfAllowedValues[E comparable](key string, allowedValues []E, value E) error {
-	for _, av := range allowedValues {
-		if av == value {
-			return nil
-		}
+	if slices.Contains(allowedValues, value) {
+		return nil
 	}
 	return fmt.Errorf("unsupported value %v provided for %s. allowed values are: %v", value, key, allowedValues)
 }

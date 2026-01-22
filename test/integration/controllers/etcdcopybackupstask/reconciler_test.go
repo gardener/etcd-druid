@@ -411,6 +411,6 @@ func addEqual(elements Elements, s string) {
 	elements[s] = Equal(s)
 }
 
-func conditionIdentifier(element interface{}) string {
+func conditionIdentifier(element any) string {
 	return string((element.(druidv1alpha1.Condition)).Type)
 }

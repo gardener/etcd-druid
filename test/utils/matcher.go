@@ -27,7 +27,7 @@ type mapMatcher[T comparable] struct {
 	diff      []string
 }
 
-func (m mapMatcher[T]) Match(actual interface{}) (bool, error) {
+func (m mapMatcher[T]) Match(actual any) (bool, error) {
 	if actual == nil {
 		return false, nil
 	}
@@ -47,15 +47,15 @@ func (m mapMatcher[T]) Match(actual interface{}) (bool, error) {
 	return len(m.diff) == 0, nil
 }
 
-func (m mapMatcher[T]) FailureMessage(actual interface{}) string {
+func (m mapMatcher[T]) FailureMessage(actual any) string {
 	return m.createMessage(actual, "to be")
 }
 
-func (m mapMatcher[T]) NegatedFailureMessage(actual interface{}) string {
+func (m mapMatcher[T]) NegatedFailureMessage(actual any) string {
 	return m.createMessage(actual, "to not be")
 }
 
-func (m mapMatcher[T]) createMessage(actual interface{}, message string) string {
+func (m mapMatcher[T]) createMessage(actual any, message string) string {
 	msgBuilder := strings.Builder{}
 	msgBuilder.WriteString(format.Message(actual, message, m.expected))
 	if len(m.diff) > 0 {
