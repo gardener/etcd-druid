@@ -15,7 +15,7 @@ jobs:
     with:
       mode: snapshot
     secrets: inherit
-    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'reviewed/ok-to-test' }}
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ok-to-test' }}
     permissions:
       pull-requests: write
       contents: read
@@ -27,7 +27,7 @@ jobs:
     needs:
       - build
     secrets: inherit
-    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'reviewed/ok-to-test' }}
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'ok-to-test' }}
     permissions:
       id-token: write
       contents: write
