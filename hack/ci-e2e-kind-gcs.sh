@@ -17,7 +17,7 @@ trap '{
 
 kubectl wait --for=condition=ready node --all
 
-echo "{ \"serviceaccount.json\": { \"type\": \"service_account\", \"project_id\": \"theworld\" } }" >/tmp/svc_acc.json
+echo "{ \"type\": \"service_account\", \"project_id\": \"theworld\" }" >/tmp/svc_acc.json
 
 # Deploy fake-gcs and run e2e tests
 make deploy-fakegcs
