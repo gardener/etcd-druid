@@ -18,40 +18,41 @@ const (
 
 var (
 	reconcileExample = `
-		# Reconcile an Etcd resource named "my-etcd" in the test namespace
-		kubectl druid reconcile test/my-etcd
+# Reconcile an Etcd resource named "my-etcd" in the test namespace
+kubectl druid reconcile test/my-etcd
 
-		# Reconcile multiple Etcd resources using space-separated list
-		kubectl druid reconcile test/my-etcd dev/my-etcd
+# Reconcile multiple Etcd resources using space-separated list
+kubectl druid reconcile test/my-etcd dev/my-etcd
 
-		# Reconcile all Etcd resources across all namespaces
-		kubectl druid reconcile -A
+# Reconcile all Etcd resources across all namespaces
+kubectl druid reconcile -A
 
-		# Reconcile an Etcd resource and wait until it's ready
-		kubectl druid reconcile test/my-etcd --wait-till-ready
+# Reconcile an Etcd resource and wait until it's ready
+kubectl druid reconcile test/my-etcd --wait-till-ready
 
-		# Reconcile and watch until ready (indefinite timeout)
-		kubectl druid reconcile test/my-etcd --watch`
-
+# Reconcile and watch until ready (indefinite timeout)
+kubectl druid reconcile test/my-etcd --watch
+`
 	suspendExample = `
-		# Suspend reconciliation for an Etcd resource
-		kubectl druid reconcile suspend test/my-etcd
+# Suspend reconciliation for an Etcd resource
+kubectl druid reconcile suspend test/my-etcd
 
-		# Suspend reconciliation for multiple Etcd resources
-		kubectl druid reconcile suspend test/my-etcd dev/my-etcd
+# Suspend reconciliation for multiple Etcd resources
+kubectl druid reconcile suspend test/my-etcd dev/my-etcd
 
-		# Suspend reconciliation for all Etcd resources
-		kubectl druid reconcile suspend -A`
-
+# Suspend reconciliation for all Etcd resources
+kubectl druid reconcile suspend -A
+`
 	resumeExample = `
-		# Resume reconciliation for an Etcd resource
-		kubectl druid reconcile resume test/my-etcd
+# Resume reconciliation for an Etcd resource
+kubectl druid reconcile resume test/my-etcd
 
-		# Resume reconciliation for multiple Etcd resources
-		kubectl druid reconcile resume test/my-etcd dev/my-etcd
+# Resume reconciliation for multiple Etcd resources
+kubectl druid reconcile resume test/my-etcd dev/my-etcd
 
-		# Resume reconciliation for all Etcd resources
-		kubectl druid reconcile resume -A`
+# Resume reconciliation for all Etcd resources
+kubectl druid reconcile resume -A
+`
 )
 
 // NewReconcileCommand creates the 'reconcile' command with nested subcommands
@@ -67,9 +68,7 @@ func NewReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	reconcileCmd := &cobra.Command{
 		Use:   "reconcile [resources] [flags]",
 		Short: "Manage etcd resource reconciliation",
-		Long: `Manage etcd resource reconciliation.
-
-When called directly with resource names, triggers a reconciliation of the specified etcd resources.
+		Long: `Manage etcd resource reconciliation. When called directly with resource names, triggers a reconciliation of the specified etcd resources.
 Use subcommands 'suspend' and 'resume' to control reconciliation state.`,
 		Example: reconcileExample,
 		Args:    cobra.ArbitraryArgs,

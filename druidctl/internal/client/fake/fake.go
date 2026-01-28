@@ -178,7 +178,7 @@ func NewFakeGenericClient(k8sObjects []runtime.Object) *FakeGenericClient {
 		{Group: "rbac.authorization.k8s.io", Version: "v1"},
 	})
 
-	// Register common resource types using data-driven approach
+	// Register common resource types
 	for _, r := range commonResourceMappings {
 		restMapper.AddSpecific(
 			schema.GroupVersionKind{Group: r.group, Version: r.version, Kind: r.kind},

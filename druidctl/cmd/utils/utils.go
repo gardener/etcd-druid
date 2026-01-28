@@ -7,7 +7,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/gardener/etcd-druid/druidctl/internal/client"
@@ -15,7 +14,6 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
 // CmdContext returns the command's context, or context.Background() if nil.
@@ -26,19 +24,6 @@ func CmdContext(cmd *cobra.Command) context.Context {
 		return context.Background()
 	}
 	return ctx
-}
-
-var (
-	configFlags     *genericclioptions.ConfigFlags
-	configFlagsOnce sync.Once
-)
-
-// GetConfigFlags returns a singleton *ConfigFlags for kubeconfig and context handling.
-func GetConfigFlags() *genericclioptions.ConfigFlags {
-	configFlagsOnce.Do(func() {
-		configFlags = genericclioptions.NewConfigFlags(true)
-	})
-	return configFlags
 }
 
 // GetEtcdList returns a list of Etcd objects based on the provided references or all namespaces flag.

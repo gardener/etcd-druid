@@ -15,33 +15,33 @@ const defaultFilter = "all"
 
 var (
 	example = `
-		# List all managed resources for an etcd resource in the default namespace
-		druidctl list-resources my-etcd
+# List all managed resources for an etcd resource in the default namespace
+kubectl druid list-resources my-etcd
 
-		# List all managed resources for an etcd resource in a specific namespace
-		druidctl list-resources my-etcd -n test
+# List all managed resources for an etcd resource in a specific namespace
+kubectl druid list-resources my-etcd -n test
 
-		# List all managed resources for all etcd resources in a namespace
-		druidctl list-resources -n test
+# List all managed resources for all etcd resources in a namespace
+kubectl druid list-resources -n test
 
-		# List all managed resources for all etcd resources across all namespaces
-		druidctl list-resources -A
+# List all managed resources for all etcd resources across all namespaces
+kubectl druid list-resources -A
 
-		# List resources with label selector in a namespace
-		druidctl list-resources -l app=etcd-statefulset -n test
+# List resources with label selector in a namespace
+kubectl druid list-resources -l app=etcd-statefulset -n test
 
-		# List all managed resources for multiple etcd resources in a namespace
-		druidctl list-resources etcd1 etcd2 -n test
+# List all managed resources for multiple etcd resources in a namespace
+kubectl druid list-resources etcd1 etcd2 -n test
 
-		# Cross-namespace selection (explicit ns/name format)
-		druidctl list-resources ns1/etcd1 ns2/etcd2
+# Cross-namespace selection (explicit ns/name format)
+kubectl druid list-resources ns1/etcd1 ns2/etcd2
 
-		# Filter by resource type
-		druidctl list-resources my-etcd --filter=pods,services
+# Filter by resource type
+kubectl druid list-resources my-etcd --filter=pods,services
 
-		# Output in JSON format
-		druidctl list-resources my-etcd -n test --output=json
-	`
+# Output in JSON format
+kubectl druid list-resources my-etcd -n test --output=json
+`
 )
 
 // NewListResourcesCommand creates the list-resources command

@@ -21,7 +21,7 @@ func NewDruidCommand() *cobra.Command {
 	options := cmdutils.NewOptions()
 
 	rootCmd := &cobra.Command{
-		Use:     "druid [command] [resource] [flags]",
+		Use:     "kubectl druid [command] [resource] [flags]",
 		Short:   "CLI for etcd-druid operator",
 		Long:    `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
 		Version: version.Get().String(),

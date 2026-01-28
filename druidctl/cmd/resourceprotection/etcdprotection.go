@@ -6,6 +6,7 @@ package resourceprotection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
@@ -38,8 +39,10 @@ func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Co
 		if !confirmed {
 			return cmdutils.ErrConfirmationDeclined
 		}
-		r.Logger.Info(r.IOStreams.Out, "Removing component protection from Etcds across all namespaces")
-	} else {
+		if r.Verbose {
+			r.Logger.Info(r.IOStreams.Out, "Removing component protection from Etcds across all namespaces")
+		}
+	} else if r.Verbose {
 		r.Logger.Info(r.IOStreams.Out, "Removing component protection from selected Etcds")
 	}
 	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces, r.GetNamespace(), r.LabelSelector)
@@ -51,7 +54,7 @@ func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Co
 		r.Logger.Info(r.IOStreams.Out, fmt.Sprintf("Fetched %d etcd resources for AddDisableProtectionAnnotation", len(etcdList.Items)))
 	}
 
-	var errList []error
+	var errs []error
 	for _, etcd := range etcdList.Items {
 		if r.Verbose {
 			r.Logger.Info(r.IOStreams.Out, "Processing set disable protection annotation for etcd", etcd.Name, etcd.Namespace)
@@ -63,14 +66,15 @@ func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Co
 			e.Annotations[druidv1alpha1.DisableEtcdComponentProtectionAnnotation] = ""
 		}
 		if err := r.etcdClient.UpdateEtcd(ctx, &etcd, etcdModifier); err != nil {
-			r.Logger.Error(r.IOStreams.ErrOut, "Failed to update etcd object", err, etcd.Name, etcd.Namespace)
-			errList = append(errList, fmt.Errorf("unable to update etcd object %s/%s: %w", etcd.Namespace, etcd.Name, err))
+			errs = append(errs, fmt.Errorf("unable to update etcd object %s/%s: %w", etcd.Namespace, etcd.Name, err))
 			continue
 		}
-		r.Logger.Success(r.IOStreams.Out, "Added protection annotation to etcd", etcd.Name, etcd.Namespace)
+		if r.Verbose {
+			r.Logger.Success(r.IOStreams.Out, "Added protection annotation to etcd", etcd.Name, etcd.Namespace)
+		}
 	}
-	if len(errList) > 0 {
-		return fmt.Errorf("failed to add protection annotation to some etcd objects: %v", errList)
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to add protection annotation to some etcd objects: %w", errors.Join(errs...))
 	}
 	return nil
 }
@@ -86,8 +90,10 @@ func (r *resourceProtectionCmdCtx) removeDisableProtectionAnnotation(ctx context
 		if !confirmed {
 			return cmdutils.ErrConfirmationDeclined
 		}
-		r.Logger.Info(r.IOStreams.Out, "Adding component protection to all namespaces")
-	} else {
+		if r.Verbose {
+			r.Logger.Info(r.IOStreams.Out, "Adding component protection to all namespaces")
+		}
+	} else if r.Verbose {
 		r.Logger.Info(r.IOStreams.Out, "Adding component protection to selected Etcds")
 	}
 	etcdList, err := cmdutils.GetEtcdList(ctx, r.etcdClient, r.etcdRefList, r.AllNamespaces, r.GetNamespace(), r.LabelSelector)
@@ -99,13 +105,15 @@ func (r *resourceProtectionCmdCtx) removeDisableProtectionAnnotation(ctx context
 		r.Logger.Info(r.IOStreams.Out, fmt.Sprintf("Fetched %d etcd resources for RemoveDisableProtectionAnnotation", len(etcdList.Items)))
 	}
 
-	var errList []error
+	var errs []error
 	for _, etcd := range etcdList.Items {
 		if r.Verbose {
 			r.Logger.Info(r.IOStreams.Out, "Processing remove disable protection annotation for etcd", etcd.Name, etcd.Namespace)
 		}
 		if etcd.Annotations == nil {
-			r.Logger.Info(r.IOStreams.Out, "No annotation found to remove in ns/etcd: %s/%s", etcd.Namespace, etcd.Name)
+			if r.Verbose {
+				r.Logger.Info(r.IOStreams.Out, "No annotation found to remove in ns/etcd: %s/%s", etcd.Namespace, etcd.Name)
+			}
 			continue
 		}
 		etcdModifier := func(e *druidv1alpha1.Etcd) {
@@ -114,14 +122,15 @@ func (r *resourceProtectionCmdCtx) removeDisableProtectionAnnotation(ctx context
 			}
 		}
 		if err := r.etcdClient.UpdateEtcd(ctx, &etcd, etcdModifier); err != nil {
-			r.Logger.Error(r.IOStreams.ErrOut, "Failed to update etcd object", err, etcd.Name, etcd.Namespace)
-			errList = append(errList, fmt.Errorf("unable to update etcd object %s/%s: %w", etcd.Namespace, etcd.Name, err))
+			errs = append(errs, fmt.Errorf("unable to update etcd object %s/%s: %w", etcd.Namespace, etcd.Name, err))
 			continue
 		}
-		r.Logger.Success(r.IOStreams.Out, "Removed protection annotation from etcd", etcd.Name, etcd.Namespace)
+		if r.Verbose {
+			r.Logger.Success(r.IOStreams.Out, "Removed protection annotation from etcd", etcd.Name, etcd.Namespace)
+		}
 	}
-	if len(errList) > 0 {
-		return fmt.Errorf("failed to remove protection annotation from some etcd objects: %v", errList)
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to remove protection annotation from some etcd objects: %w", errors.Join(errs...))
 	}
 	return nil
 }

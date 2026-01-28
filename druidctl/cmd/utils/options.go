@@ -33,21 +33,19 @@ type GlobalOptions struct {
 	IOStreams genericiooptions.IOStreams
 
 	// client options
-	ConfigFlags   *genericclioptions.ConfigFlags
-	ClientFactory client.Factory
-	Clients       *ClientBundle
+	ConfigFlags *genericclioptions.ConfigFlags
+	Clients     *ClientBundle
 }
 
 // NewOptions returns a new Options instance with default values
 func NewOptions() *GlobalOptions {
-	configFlags := GetConfigFlags()
+	configFlags := genericclioptions.NewConfigFlags(true)
 	factory := client.NewClientFactory(configFlags)
 	return &GlobalOptions{
-		LogType:       log.LogTypeCharm,
-		ConfigFlags:   configFlags,
-		ClientFactory: factory,
-		Clients:       NewClientBundle(factory),
-		IOStreams:     genericiooptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
+		LogType:     log.LogTypeCharm,
+		ConfigFlags: configFlags,
+		Clients:     NewClientBundle(factory),
+		IOStreams:   genericiooptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
 	}
 }
 

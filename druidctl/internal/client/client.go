@@ -24,12 +24,12 @@ import (
 )
 
 // GetEtcd fetches a single Etcd resource by name and namespace.
-func (e *EtcdClient) GetEtcd(ctx context.Context, namespace, name string) (*druidv1alpha1.Etcd, error) {
+func (e *etcdClient) GetEtcd(ctx context.Context, namespace, name string) (*druidv1alpha1.Etcd, error) {
 	return e.client.Etcds(namespace).Get(ctx, name, metav1.GetOptions{})
 }
 
 // UpdateEtcd updates the given Etcd resource and returns the updated object.
-func (e *EtcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, etcdModifier func(*druidv1alpha1.Etcd)) error {
+func (e *etcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, etcdModifier func(*druidv1alpha1.Etcd)) error {
 	backoff := wait.Backoff{
 		Steps:    5,
 		Duration: 100 * time.Millisecond,
@@ -53,7 +53,7 @@ func (e *EtcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, e
 
 // ListEtcds lists all Etcd resources in the specified namespace. If namespace is empty, it lists across all namespaces.
 // labelSelector filters resources by label (e.g., "app=etcd-statefulset,env=prod"). Empty string means no filtering.
-func (e *EtcdClient) ListEtcds(ctx context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
+func (e *etcdClient) ListEtcds(ctx context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error) {
 	listOpts := metav1.ListOptions{}
 	if labelSelector != "" {
 		listOpts.LabelSelector = labelSelector
