@@ -6,6 +6,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -125,11 +126,11 @@ func (r *reconcileCmdCtx) execute(ctx context.Context) error {
 	}
 
 	if len(failedResults) > 0 {
-		r.Logger.Info(r.IOStreams.Out, "Reconciliation failed for the following etcd resources:")
+		var errs []error
 		for _, result := range failedResults {
-			r.Logger.Error(r.IOStreams.ErrOut, "Reconciliation failed", result.Error, result.Etcd.Name, result.Etcd.Namespace)
+			errs = append(errs, fmt.Errorf("reconciliation failed for etcd %s/%s: %w", result.Etcd.Namespace, result.Etcd.Name, result.Error))
 		}
-		return fmt.Errorf("one or more reconciliations failed")
+		return fmt.Errorf("reconciliation failed for some etcd resources: %w", errors.Join(errs...))
 	}
 	return nil
 }

@@ -12,24 +12,26 @@ import (
 
 var (
 	addExample = `
-		# Add component protection to an Etcd resource
-		kubectl druid component-protection add test/my-etcd
+# Add component protection to an Etcd resource
+kubectl druid component-protection add test/my-etcd
 
-		# Add component protection to multiple Etcd resources
-		kubectl druid component-protection add ns1/etcd1 ns2/etcd2
+# Add component protection to multiple Etcd resources
+kubectl druid component-protection add ns1/etcd1 ns2/etcd2
 
-		# Add component protection to all Etcd resources
-		kubectl druid component-protection add -A`
+# Add component protection to all Etcd resources
+kubectl druid component-protection add -A
+`
 
 	removeExample = `
-		# Remove component protection from an Etcd resource
-		kubectl druid component-protection remove test/my-etcd
+# Remove component protection from an Etcd resource
+kubectl druid component-protection remove test/my-etcd
 
-		# Remove component protection from multiple Etcd resources
-		kubectl druid component-protection remove ns1/etcd1 ns2/etcd2
+# Remove component protection from multiple Etcd resources
+kubectl druid component-protection remove ns1/etcd1 ns2/etcd2
 
-		# Remove component protection from all Etcd resources
-		kubectl druid component-protection remove -A`
+# Remove component protection from all Etcd resources
+kubectl druid component-protection remove -A
+`
 )
 
 // NewComponentProtectionCommand creates the 'component-protection' parent command with nested subcommands

@@ -109,10 +109,11 @@ func (l *listResourcesCmdCtx) execute(ctx context.Context) error {
 		return err
 	}
 	if len(etcdList.Items) == 0 {
-		if !l.AllNamespaces {
-			return fmt.Errorf("no Etcd resources found in namespace %q", l.GetNamespace())
+		if l.AllNamespaces {
+			out.Info(l.IOStreams.Out, "No Etcd resources found across all namespaces")
+		} else {
+			out.Info(l.IOStreams.Out, "no Etcd resources found in namespace %q", l.GetNamespace())
 		}
-		out.Info(l.IOStreams.Out, "No Etcd resources found across all namespaces")
 		return nil
 	}
 
@@ -198,16 +199,11 @@ func parseFilter(filter string) []string {
 	}
 	parts := strings.Split(filter, ",")
 	out := make([]string, 0, len(parts))
-	seen := map[string]struct{}{}
 	for _, p := range parts {
 		t := strings.ToLower(strings.TrimSpace(p))
 		if t == "" {
 			continue
 		}
-		if _, ok := seen[t]; ok {
-			continue
-		}
-		seen[t] = struct{}{}
 		out = append(out, t)
 	}
 	return out

@@ -41,14 +41,14 @@ type EtcdClientInterface interface {
 	ListEtcds(ctx context.Context, namespace string, labelSelector string) (*druidv1alpha1.EtcdList, error)
 }
 
-// EtcdClient implements EtcdClientInterface using a generated typed client.
-type EtcdClient struct {
+// etcdClient implements EtcdClientInterface using a generated typed client.
+type etcdClient struct {
 	client v1alpha1.DruidV1alpha1Interface
 }
 
 // NewEtcdClient creates a new EtcdClient.
 func NewEtcdClient(client v1alpha1.DruidV1alpha1Interface) EtcdClientInterface {
-	return &EtcdClient{client: client}
+	return &etcdClient{client: client}
 }
 
 // GenericClientInterface exposes commonly used Kubernetes clients in one place.

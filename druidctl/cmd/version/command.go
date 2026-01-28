@@ -17,14 +17,14 @@ import (
 
 var (
 	versionExample = `
-	  	# Print version information
-		druidctl version
+# Print version information
+kubectl druid version
 
-		# Print version in JSON format
-		druidctl version --output json
-		
-		# Print only the version number
-		druidctl version --short`
+# Print version in JSON format
+kubectl druid version --output json
+
+# Print only the version number
+kubectl druid version --short`
 )
 
 // NewVersionCommand creates the version command

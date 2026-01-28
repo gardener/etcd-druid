@@ -6,8 +6,8 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
@@ -16,8 +16,8 @@ import (
 )
 
 type resumeReconcileResult struct {
-	Etcd  *druidv1alpha1.Etcd
-	Error error
+	etcd *druidv1alpha1.Etcd
+	err  error
 }
 
 func (r *resumeReconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error {
@@ -69,33 +69,37 @@ func (r *resumeReconcileCmdCtx) execute(ctx context.Context) error {
 			defer wg.Done()
 			err := r.resumeEtcdReconcile(ctx, etcd)
 			results = append(results, &resumeReconcileResult{
-				Etcd:  &etcd,
-				Error: err,
+				etcd: &etcd,
+				err:  err,
 			})
 		}(etcd)
 	}
 
 	wg.Wait()
 
-	failedEtcds := make([]string, 0)
+	var errs []error
 	for _, result := range results {
-		if result.Error == nil {
-			r.Logger.Success(r.IOStreams.Out, "Resumed reconciliation for etcd", result.Etcd.Name, result.Etcd.Namespace)
+		if result.err == nil {
+			if r.Verbose {
+				r.Logger.Success(r.IOStreams.Out, "Resumed reconciliation for etcd", result.etcd.Name, result.etcd.Namespace)
+			}
 		} else {
-			r.Logger.Error(r.IOStreams.ErrOut, "Failed to resume reconciliation for etcd", result.Error, result.Etcd.Name, result.Etcd.Namespace)
-			failedEtcds = append(failedEtcds, fmt.Sprintf("%s/%s", result.Etcd.Namespace, result.Etcd.Name))
+			errs = append(errs, fmt.Errorf("failed to resume reconciliation for etcd %s/%s: %w", result.etcd.Namespace, result.etcd.Name, result.err))
 		}
 	}
-	if len(failedEtcds) > 0 {
-		r.Logger.Warning(r.IOStreams.Out, "Failed to resume reconciliation for etcd resources", failedEtcds...)
-		return fmt.Errorf("failed to resume reconciliation for etcd resources: %s", strings.Join(failedEtcds, ", "))
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to resume reconciliation for some etcd resources: %w", errors.Join(errs...))
 	}
-	r.Logger.Success(r.IOStreams.Out, "Resumed reconciliation for all etcd resources")
+	if r.Verbose {
+		r.Logger.Success(r.IOStreams.Out, "Resumed reconciliation for all etcd resources")
+	}
 	return nil
 }
 
 func (r *resumeReconcileCmdCtx) resumeEtcdReconcile(ctx context.Context, etcd druidv1alpha1.Etcd) error {
-	r.Logger.Start(r.IOStreams.Out, "Starting to resume reconciliation for etcd", etcd.Name, etcd.Namespace)
+	if r.Verbose {
+		r.Logger.Start(r.IOStreams.Out, "Starting to resume reconciliation for etcd", etcd.Name, etcd.Namespace)
+	}
 
 	etcdModifier := func(e *druidv1alpha1.Etcd) {
 		if e.Annotations != nil {

@@ -6,6 +6,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -15,8 +16,8 @@ import (
 )
 
 type suspendReconcileResult struct {
-	Etcd  *druidv1alpha1.Etcd
-	Error error
+	etcd *druidv1alpha1.Etcd
+	err  error
 }
 
 func (s *suspendReconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error {
@@ -68,33 +69,37 @@ func (s *suspendReconcileCmdCtx) execute(ctx context.Context) error {
 			defer wg.Done()
 			err := s.suspendEtcdReconcile(ctx, etcd)
 			results = append(results, &suspendReconcileResult{
-				Etcd:  &etcd,
-				Error: err,
+				etcd: &etcd,
+				err:  err,
 			})
 		}(etcd)
 	}
 
 	wg.Wait()
 
-	failedEtcds := make([]string, 0)
+	var errs []error
 	for _, result := range results {
-		if result.Error == nil {
-			s.Logger.Success(s.IOStreams.Out, "Suspended reconciliation for etcd", result.Etcd.Name, result.Etcd.Namespace)
+		if result.err == nil {
+			if s.Verbose {
+				s.Logger.Success(s.IOStreams.Out, "Suspended reconciliation for etcd", result.etcd.Name, result.etcd.Namespace)
+			}
 		} else {
-			s.Logger.Error(s.IOStreams.ErrOut, "Failed to suspend reconciliation for etcd", result.Error, result.Etcd.Name, result.Etcd.Namespace)
-			failedEtcds = append(failedEtcds, fmt.Sprintf("%s/%s", result.Etcd.Namespace, result.Etcd.Name))
+			errs = append(errs, fmt.Errorf("failed to suspend reconciliation for etcd %s/%s: %w", result.etcd.Namespace, result.etcd.Name, result.err))
 		}
 	}
-	if len(failedEtcds) > 0 {
-		s.Logger.Warning(s.IOStreams.Out, "Failed to suspend reconciliation for etcd resources", failedEtcds...)
-		return fmt.Errorf("suspending reconciliation failed for etcd resources: %v", failedEtcds)
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to suspend reconciliation for some etcd resources: %w", errors.Join(errs...))
 	}
-	s.Logger.Success(s.IOStreams.Out, "Suspended reconciliation for all etcd resources")
+	if s.Verbose {
+		s.Logger.Success(s.IOStreams.Out, "Suspended reconciliation for all etcd resources")
+	}
 	return nil
 }
 
 func (s *suspendReconcileCmdCtx) suspendEtcdReconcile(ctx context.Context, etcd druidv1alpha1.Etcd) error {
-	s.Logger.Start(s.IOStreams.Out, "Starting to suspend reconciliation for etcd", etcd.Name, etcd.Namespace)
+	if s.Verbose {
+		s.Logger.Start(s.IOStreams.Out, "Starting to suspend reconciliation for etcd", etcd.Name, etcd.Namespace)
+	}
 
 	etcdModifier := func(e *druidv1alpha1.Etcd) {
 		if e.Annotations == nil {
