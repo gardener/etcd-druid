@@ -30,8 +30,8 @@ rm -rf "${AZURE_APPLICATION_CREDENTIALS}"
 mkdir -p "${AZURE_APPLICATION_CREDENTIALS}"
 echo -n "${STORAGE_ACCOUNT}" > "${AZURE_APPLICATION_CREDENTIALS}/storageAccount"
 echo -n "${STORAGE_KEY}" > "${AZURE_APPLICATION_CREDENTIALS}/storageKey"
-echo -n "true" > "${AZURE_APPLICATION_CREDENTIALS}/emulatorEnabled"
-echo -n "${AZURITE_DOMAIN_LOCAL}" > "${AZURE_APPLICATION_CREDENTIALS}/domain"
+# echo -n "true" > "${AZURE_APPLICATION_CREDENTIALS}/emulatorEnabled"
+# echo -n "${AZURITE_DOMAIN_LOCAL}" > "${AZURE_APPLICATION_CREDENTIALS}/domain"
 
 # Deploy Azurite and run end-to-end tests
 make deploy-azurite

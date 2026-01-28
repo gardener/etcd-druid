@@ -17,8 +17,7 @@ trap '{
 
 kubectl wait --for=condition=ready node --all
 
-echo "{ \"serviceaccount.json\": \"\", \"storageAPIEndpoint\": \"http://fake-gcs.default:8000/storage/v1/\", \"emulatorEnabled\": \"true\" }" >/tmp/svc_acc.json
-echo -n "http://localhost:8000/storage/v1/" > /tmp/storageAPIEndpoint
+echo "{ \"type\": \"service_account\", \"project_id\": \"theworld\" }" >/tmp/svc_acc.json
 
 # Deploy fake-gcs and run e2e tests
 make deploy-fakegcs

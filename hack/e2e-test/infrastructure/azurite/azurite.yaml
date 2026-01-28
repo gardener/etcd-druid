@@ -22,7 +22,7 @@ spec:
         ports:
           - containerPort: 10000
             hostPort: 10000
-        command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--disableProductStyleUrl"]
+        command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--disableProductStyleUrl", "--skipApiVersionCheck"]
       restartPolicy: Always
 ---
 apiVersion: v1
