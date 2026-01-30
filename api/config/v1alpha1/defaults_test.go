@@ -21,17 +21,26 @@ func TestSetDefaults_LeaderElectionConfiguration(t *testing.T) {
 		expected *LeaderElectionConfiguration
 	}{
 		{
-			name:     "should correctly set default values when leader election is disabled",
+			name:     "should correctly set default values when leader election enabled is unset",
 			config:   &LeaderElectionConfiguration{},
 			expected: &LeaderElectionConfiguration{},
 		},
 		{
-			name: "should correctly set default values when leader election is enabled",
+			name: "should correctly set default values when leader election is disabled",
 			config: &LeaderElectionConfiguration{
-				Enabled: true,
+				Enabled: ptr.To(false),
 			},
 			expected: &LeaderElectionConfiguration{
-				Enabled:       true,
+				Enabled: ptr.To(false),
+			},
+		},
+		{
+			name: "should correctly set default values when leader election is enabled",
+			config: &LeaderElectionConfiguration{
+				Enabled: ptr.To(true),
+			},
+			expected: &LeaderElectionConfiguration{
+				Enabled:       ptr.To(true),
 				ResourceLock:  "leases",
 				ResourceName:  "druid-leader-election",
 				LeaseDuration: metav1.Duration{Duration: 15 * time.Second},
@@ -42,13 +51,13 @@ func TestSetDefaults_LeaderElectionConfiguration(t *testing.T) {
 		{
 			name: "should not overwrite already set values",
 			config: &LeaderElectionConfiguration{
-				Enabled:       true,
+				Enabled:       ptr.To(true),
 				ResourceLock:  "endpoints",
 				ResourceName:  "custom-resource-name",
 				LeaseDuration: metav1.Duration{Duration: 20 * time.Second},
 			},
 			expected: &LeaderElectionConfiguration{
-				Enabled:       true,
+				Enabled:       ptr.To(true),
 				ResourceLock:  "endpoints",
 				ResourceName:  "custom-resource-name",
 				LeaseDuration: metav1.Duration{Duration: 20 * time.Second},
@@ -257,17 +266,26 @@ func TestSetDefaults_CompactionControllerConfiguration(t *testing.T) {
 		expected *CompactionControllerConfiguration
 	}{
 		{
-			name:     "should not set default values when not enabled",
+			name:     "should not set default values when enabled is unset",
 			config:   &CompactionControllerConfiguration{},
 			expected: &CompactionControllerConfiguration{},
 		},
 		{
-			name: "should correctly set default values when enabled is true",
+			name: "should not set default values when enabled is false",
 			config: &CompactionControllerConfiguration{
-				Enabled: true,
+				Enabled: ptr.To(false),
 			},
 			expected: &CompactionControllerConfiguration{
-				Enabled:                      true,
+				Enabled: ptr.To(false),
+			},
+		},
+		{
+			name: "should correctly set default values when enabled is true",
+			config: &CompactionControllerConfiguration{
+				Enabled: ptr.To(true),
+			},
+			expected: &CompactionControllerConfiguration{
+				Enabled:                      ptr.To(true),
 				ConcurrentSyncs:              ptr.To(3),
 				EventsThreshold:              1000000,
 				TriggerFullSnapshotThreshold: 3000000,
@@ -277,13 +295,13 @@ func TestSetDefaults_CompactionControllerConfiguration(t *testing.T) {
 		{
 			name: "should not overwrite already set values",
 			config: &CompactionControllerConfiguration{
-				Enabled:                      true,
+				Enabled:                      ptr.To(true),
 				ConcurrentSyncs:              ptr.To(5),
 				TriggerFullSnapshotThreshold: 2000000,
 				ActiveDeadlineDuration:       metav1.Duration{Duration: 1 * time.Hour},
 			},
 			expected: &CompactionControllerConfiguration{
-				Enabled:                      true,
+				Enabled:                      ptr.To(true),
 				ConcurrentSyncs:              ptr.To(5),
 				EventsThreshold:              1000000,
 				TriggerFullSnapshotThreshold: 2000000,
@@ -310,28 +328,37 @@ func TestSetDefaults_EtcdCopyBackupsTaskControllerConfiguration(t *testing.T) {
 		expected *EtcdCopyBackupsTaskControllerConfiguration
 	}{
 		{
-			name:     "should not set default values when not enabled",
+			name:     "should not set default values when enabled is unset",
 			config:   &EtcdCopyBackupsTaskControllerConfiguration{},
 			expected: &EtcdCopyBackupsTaskControllerConfiguration{},
 		},
 		{
-			name: "should correctly set default values when enabled is true",
+			name: "should not set default values when enabled is false",
 			config: &EtcdCopyBackupsTaskControllerConfiguration{
-				Enabled: true,
+				Enabled: ptr.To(false),
 			},
 			expected: &EtcdCopyBackupsTaskControllerConfiguration{
-				Enabled:         true,
+				Enabled: ptr.To(false),
+			},
+		},
+		{
+			name: "should correctly set default values when enabled is true",
+			config: &EtcdCopyBackupsTaskControllerConfiguration{
+				Enabled: ptr.To(true),
+			},
+			expected: &EtcdCopyBackupsTaskControllerConfiguration{
+				Enabled:         ptr.To(true),
 				ConcurrentSyncs: ptr.To(3),
 			},
 		},
 		{
 			name: "should not overwrite already set values",
 			config: &EtcdCopyBackupsTaskControllerConfiguration{
-				Enabled:         true,
+				Enabled:         ptr.To(true),
 				ConcurrentSyncs: ptr.To(5),
 			},
 			expected: &EtcdCopyBackupsTaskControllerConfiguration{
-				Enabled:         true,
+				Enabled:         ptr.To(true),
 				ConcurrentSyncs: ptr.To(5),
 			},
 		},

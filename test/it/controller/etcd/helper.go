@@ -43,8 +43,8 @@ func initializeEtcdReconcilerTestEnv(t *testing.T, controllerName string, itTest
 		reconciler, err = etcd.NewReconcilerWithImageVector(mgr, controllerName,
 			druidconfigv1alpha1.EtcdControllerConfiguration{
 				ConcurrentSyncs:                    ptr.To(5),
-				EnableEtcdSpecAutoReconcile:        autoReconcile,
-				DisableEtcdServiceAccountAutomount: false,
+				EnableEtcdSpecAutoReconcile:        ptr.To(autoReconcile),
+				DisableEtcdServiceAccountAutomount: ptr.To(false),
 				EtcdStatusSyncPeriod:               metav1.Duration{Duration: 2 * time.Second},
 				EtcdMember: druidconfigv1alpha1.EtcdMemberConfiguration{
 					NotReadyThreshold: metav1.Duration{Duration: 5 * time.Minute},

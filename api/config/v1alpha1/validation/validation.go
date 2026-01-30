@@ -19,16 +19,17 @@ import (
 func ValidateOperatorConfiguration(config *druidconfigv1alpha1.OperatorConfiguration) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, validateClientConnectionConfiguration(config.ClientConnection, field.NewPath("clientConnection"))...)
-	allErrs = append(allErrs, validateLeaderElectionConfiguration(config.LeaderElection, field.NewPath("leaderElection"))...)
-	allErrs = append(allErrs, validateControllerConfiguration(config.Controllers, field.NewPath("controllers"))...)
-	allErrs = append(allErrs, validateLogConfiguration(config.Logging, field.NewPath("log"))...)
-	allErrs = append(allErrs, validateWebhookConfiguration(config.Webhooks, field.NewPath("webhooks"))...)
+	allErrs = append(allErrs, ValidateClientConnectionConfiguration(config.ClientConnection, field.NewPath("clientConnection"))...)
+	allErrs = append(allErrs, ValidateLeaderElectionConfiguration(config.LeaderElection, field.NewPath("leaderElection"))...)
+	allErrs = append(allErrs, ValidateControllerConfiguration(config.Controllers, field.NewPath("controllers"))...)
+	allErrs = append(allErrs, ValidateLogConfiguration(config.Logging, field.NewPath("log"))...)
+	allErrs = append(allErrs, ValidateWebhookConfiguration(config.Webhooks, field.NewPath("webhooks"))...)
 
 	return allErrs
 }
 
-func validateClientConnectionConfiguration(clientConnConfig druidconfigv1alpha1.ClientConnectionConfiguration, fldPath *field.Path) field.ErrorList {
+// ValidateClientConnectionConfiguration validates the client connection configuration.
+func ValidateClientConnectionConfiguration(clientConnConfig druidconfigv1alpha1.ClientConnectionConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if clientConnConfig.Burst < 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("burst"), clientConnConfig.Burst, "must be non-negative"))
@@ -36,9 +37,10 @@ func validateClientConnectionConfiguration(clientConnConfig druidconfigv1alpha1.
 	return allErrs
 }
 
-func validateLeaderElectionConfiguration(leaderElectionConfig druidconfigv1alpha1.LeaderElectionConfiguration, fldPath *field.Path) field.ErrorList {
+// ValidateLeaderElectionConfiguration validates the leader election configuration.
+func ValidateLeaderElectionConfiguration(leaderElectionConfig druidconfigv1alpha1.LeaderElectionConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !leaderElectionConfig.Enabled {
+	if !ptr.Deref(leaderElectionConfig.Enabled, false) {
 		return allErrs
 	}
 	allErrs = append(allErrs, mustBeGreaterThanZeroDuration(leaderElectionConfig.LeaseDuration, fldPath.Child("leaseDuration"))...)
@@ -57,7 +59,8 @@ func validateLeaderElectionConfiguration(leaderElectionConfig druidconfigv1alpha
 	return allErrs
 }
 
-func validateLogConfiguration(logConfig druidconfigv1alpha1.LogConfiguration, fldPath *field.Path) field.ErrorList {
+// ValidateLogConfiguration validates the log configuration.
+func ValidateLogConfiguration(logConfig druidconfigv1alpha1.LogConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if logConfig.LogLevel != "" && !sets.New(druidconfigv1alpha1.AllLogLevels...).Has(logConfig.LogLevel) {
 		allErrs = append(allErrs, field.NotSupported(fldPath.Child("logLevel"), logConfig.LogLevel, druidconfigv1alpha1.AllLogLevels))
@@ -68,7 +71,8 @@ func validateLogConfiguration(logConfig druidconfigv1alpha1.LogConfiguration, fl
 	return allErrs
 }
 
-func validateControllerConfiguration(controllerConfig druidconfigv1alpha1.ControllerConfiguration, fldPath *field.Path) field.ErrorList {
+// ValidateControllerConfiguration validates the controller configuration.
+func ValidateControllerConfiguration(controllerConfig druidconfigv1alpha1.ControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(allErrs, validateEtcdControllerConfiguration(controllerConfig.Etcd, fldPath.Child("etcd"))...)
 	allErrs = append(allErrs, validateSecretControllerConfiguration(controllerConfig.Secret, fldPath.Child("secret"))...)
@@ -89,7 +93,7 @@ func validateEtcdControllerConfiguration(etcdControllerConfig druidconfigv1alpha
 
 func validateCompactionControllerConfiguration(compactionControllerConfig druidconfigv1alpha1.CompactionControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !compactionControllerConfig.Enabled {
+	if !ptr.Deref(compactionControllerConfig.Enabled, false) {
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(compactionControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
@@ -106,7 +110,7 @@ func validateCompactionControllerConfiguration(compactionControllerConfig druidc
 
 func validateEtcdCopyBackupsTaskControllerConfiguration(etcdCopyBackupsTaskControllerConfig druidconfigv1alpha1.EtcdCopyBackupsTaskControllerConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !etcdCopyBackupsTaskControllerConfig.Enabled {
+	if !ptr.Deref(etcdCopyBackupsTaskControllerConfig.Enabled, false) {
 		return allErrs
 	}
 	allErrs = append(allErrs, validateConcurrentSyncs(etcdCopyBackupsTaskControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))...)
@@ -124,13 +128,14 @@ func validateSecretControllerConfiguration(secretControllerConfig druidconfigv1a
 	return validateConcurrentSyncs(secretControllerConfig.ConcurrentSyncs, fldPath.Child("concurrentSyncs"))
 }
 
-func validateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
+// ValidateWebhookConfiguration validates the webhook configuration.
+func ValidateWebhookConfiguration(webhookConfig druidconfigv1alpha1.WebhookConfiguration, fldPath *field.Path) field.ErrorList {
 	return validateEtcdComponentProtectionWebhookConfiguration(webhookConfig.EtcdComponentProtection, fldPath.Child("etcdComponentProtection"))
 }
 
 func validateEtcdComponentProtectionWebhookConfiguration(webhookConfig druidconfigv1alpha1.EtcdComponentProtectionWebhookConfiguration, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if !webhookConfig.Enabled {
+	if !ptr.Deref(webhookConfig.Enabled, false) {
 		return allErrs
 	}
 	// Ensure that at least one of ReconcilerServiceAccountFQDN or ServiceAccountInfo is set.

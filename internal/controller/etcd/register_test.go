@@ -421,7 +421,7 @@ func createReconciler(t *testing.T, enableEtcdSpecAutoReconcile bool) *Reconcile
 	mgr.EXPECT().GetClient().AnyTimes().Return(testutils.NewTestClientBuilder().Build())
 	mgr.EXPECT().GetEventRecorderFor(gomock.Any()).AnyTimes().Return(nil)
 	etcdConfig := druidconfigv1alpha1.EtcdControllerConfiguration{
-		EnableEtcdSpecAutoReconcile: enableEtcdSpecAutoReconcile,
+		EnableEtcdSpecAutoReconcile: ptr.To(enableEtcdSpecAutoReconcile),
 	}
 	r, err := NewReconcilerWithImageVector(mgr, ControllerName, etcdConfig, nil)
 	g.Expect(err).NotTo(HaveOccurred())

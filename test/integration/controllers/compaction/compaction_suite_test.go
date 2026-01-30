@@ -62,7 +62,7 @@ var _ = BeforeSuite(func() {
 	intTestEnv = setup.NewIntegrationTestEnv(testNamespacePrefix, "compaction-int-tests", crdPaths)
 	intTestEnv.RegisterReconcilers(func(mgr manager.Manager) {
 		reconciler := compaction.NewReconcilerWithImageVector(mgr, druidconfigv1alpha1.CompactionControllerConfiguration{
-			Enabled:                      true,
+			Enabled:                      ptr.To(true),
 			ConcurrentSyncs:              ptr.To(5),
 			EventsThreshold:              100,
 			TriggerFullSnapshotThreshold: 300,
