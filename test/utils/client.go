@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"maps"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -26,6 +28,8 @@ const (
 	ClientMethodGet ClientMethod = "Get"
 	// ClientMethodList is the name of the List method on client.Client.
 	ClientMethodList ClientMethod = "List"
+	// ClientMethodApply is the name of the Apply method on client.Client.
+	ClientMethodApply ClientMethod = "Apply"
 	// ClientMethodCreate is the name of the Create method on client.Client.
 	ClientMethodCreate ClientMethod = "Create"
 	// ClientMethodDelete is the name of the Delete method on client.Client.
@@ -257,6 +261,29 @@ func (c *testClient) List(ctx context.Context, list client.ObjectList, opts ...c
 		return err
 	}
 	return c.delegate.List(ctx, list, opts...)
+}
+
+func (c *testClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	type applyConfigurationWithNamespacedName interface {
+		runtime.ApplyConfiguration
+		GetName() *string
+		GetNamespace() *string
+	}
+	namespacedName, ok := obj.(applyConfigurationWithNamespacedName)
+	if !ok {
+		return fmt.Errorf("could not convert `runtime.ApplyConfiguration` to fetch the name and namespace of the object")
+	}
+	objKey := client.ObjectKey{
+		Namespace: ptr.Deref(namespacedName.GetNamespace(), ""),
+		Name:      ptr.Deref(namespacedName.GetName(), ""),
+	}
+	if objKey.Namespace == "" && objKey.Name == "" {
+		return fmt.Errorf("apply configuration does not have any namespaced name")
+	}
+	if err := c.getRecordedObjectError(ClientMethodApply, objKey); err != nil {
+		return err
+	}
+	return c.delegate.Apply(ctx, obj, opts...)
 }
 
 func (c *testClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
