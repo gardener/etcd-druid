@@ -79,37 +79,37 @@ func TestBasic(t *testing.T) {
 	}{
 		{
 			name:       "no-tls-0",
-			purpose:    "test Etcd with 0 replicas and TLS disabled",
+			purpose:    "test Etcd with 0 replicas and client, peer, backup-restore TLS disabled",
 			tlsEnabled: false,
 			replicas:   0,
 		},
 		{
 			name:       "no-tls-1",
-			purpose:    "test Etcd with 1 replica and TLS disabled",
+			purpose:    "test Etcd with 1 replica and client, peer, backup-restore TLS disabled",
 			tlsEnabled: false,
 			replicas:   1,
 		},
 		{
 			name:       "no-tls-3",
-			purpose:    "test Etcd with 3 replicas and TLS disabled",
+			purpose:    "test Etcd with 3 replicas and client, peer, backup-restore TLS disabled",
 			tlsEnabled: false,
 			replicas:   3,
 		},
 		{
 			name:       "tls-0",
-			purpose:    "test Etcd with 0 replicas and TLS enabled",
+			purpose:    "test Etcd with 0 replicas and client, peer, backup-restore TLS enabled",
 			tlsEnabled: true,
 			replicas:   0,
 		},
 		{
 			name:       "tls-1",
-			purpose:    "test Etcd with 1 replica and TLS enabled",
+			purpose:    "test Etcd with 1 replica and client, peer, backup-restore TLS enabled",
 			tlsEnabled: true,
 			replicas:   1,
 		},
 		{
 			name:       "tls-3",
-			purpose:    "test Etcd with 3 replicas and TLS enabled",
+			purpose:    "test Etcd with 3 replicas and client, peer, backup-restore TLS enabled",
 			tlsEnabled: true,
 			replicas:   3,
 		},
@@ -153,7 +153,7 @@ func TestBasic(t *testing.T) {
 					testEnv.HibernateAndCheckEtcd(g, etcd, timeoutEtcdHibernation)
 					logger.Info("successfully hibernated Etcd")
 
-					logger.Info("unhibernating Etcd")
+					logger.Info("unhibernating Etcd") // currently, unhibernation assumes the Etcd members' PVCs are intact
 					etcd, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
 					g.Expect(err).ToNot(HaveOccurred())
 					testEnv.UnhibernateAndCheckEtcd(g, etcd, replicas, timeoutEtcdUnhibernation)

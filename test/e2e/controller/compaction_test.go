@@ -21,8 +21,8 @@ import (
 const (
 	configuredEventsThreshold = 15 // as configured in the compaction controller for e2e tests (via ../../../skaffold.yaml)
 
-	timeoutCompaction = 1 * time.Minute
-	timeoutSnapshot   = 30 * time.Second
+	timeoutSnapshotCompaction = 1 * time.Minute
+	timeoutFullSnapshot       = 30 * time.Second
 )
 
 // TestSnapshotCompaction tests snapshot compaction.
@@ -114,11 +114,11 @@ func TestSnapshotCompaction(t *testing.T) {
 
 				if tc.revisionsForFullSnapshot > 0 {
 					logger.Info("creating EtcdLoader job to put data for full snapshot")
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForFullSnapshot, timeoutCompaction)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForFullSnapshot, timeoutSnapshotCompaction)
 					logger.Info("successfully put data for full snapshot")
 
 					logger.Info("triggering full snapshot")
-					testEnv.TakeFullSnapshot(g, etcd, timeoutSnapshot)
+					testEnv.TakeFullSnapshot(g, etcd, timeoutFullSnapshot)
 					logger.Info("successfully triggered full snapshot")
 				}
 
@@ -126,11 +126,11 @@ func TestSnapshotCompaction(t *testing.T) {
 					g.Expect(tc.revisionsForDeltaSnapshot).To(BeNumerically(">", tc.revisionsForFullSnapshot))
 
 					logger.Info("creating EtcdLoader job to put data for delta snapshot")
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForDeltaSnapshot, timeoutCompaction)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForDeltaSnapshot, timeoutSnapshotCompaction)
 					logger.Info("successfully put data for delta snapshot")
 
 					logger.Info("triggering delta snapshot")
-					testEnv.TakeDeltaSnapshot(g, etcd, timeoutSnapshot)
+					testEnv.TakeDeltaSnapshot(g, etcd, timeoutFullSnapshot)
 					logger.Info("successfully triggered delta snapshot")
 				}
 
@@ -138,11 +138,11 @@ func TestSnapshotCompaction(t *testing.T) {
 					g.Expect(tc.expectedFullSnapshotRevision).ToNot(BeZero())
 					g.Expect(tc.expectedDeltaSnapshotRevision).ToNot(BeZero())
 					logger.Info("waiting for compaction to be triggered")
-					testEnv.EnsureCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutCompaction)
+					testEnv.EnsureCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutSnapshotCompaction)
 					logger.Info("compaction successfully triggered")
 				} else {
-					logger.Info(fmt.Sprintf("waiting for duration %v to ensure that compaction is not triggered", timeoutCompaction.String()))
-					testEnv.EnsureNoCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutCompaction)
+					logger.Info(fmt.Sprintf("waiting for duration %v to ensure that compaction is not triggered", timeoutSnapshotCompaction.String()))
+					testEnv.EnsureNoCompaction(g, etcd.ObjectMeta, tc.expectedFullSnapshotRevision, tc.expectedDeltaSnapshotRevision, timeoutSnapshotCompaction)
 					logger.Info("ensured that compaction was not triggered")
 				}
 
