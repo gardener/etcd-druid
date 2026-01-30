@@ -158,7 +158,7 @@ func createLeases(etcd *druidv1alpha1.Etcd, withTLSEnabled int) []*coordinationv
 		var annotations map[string]string
 		if tlsEnabledCount < withTLSEnabled {
 			annotations = map[string]string{
-				LeaseAnnotationKeyPeerURLTLSEnabled: "true",
+				common.LeaseAnnotationKeyPeerURLTLSEnabled: "true",
 			}
 			tlsEnabledCount++
 		} else {
@@ -183,7 +183,7 @@ func randomizeAnnotations() map[string]string {
 	rBool := r.Intn(2) == 1
 	if rBool {
 		return map[string]string{
-			LeaseAnnotationKeyPeerURLTLSEnabled: "false",
+			common.LeaseAnnotationKeyPeerURLTLSEnabled: "false",
 		}
 	}
 	return nil

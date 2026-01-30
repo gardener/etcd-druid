@@ -11,6 +11,11 @@ const (
 	CheckSumKeyConfigMap = "checksum/etcd-configmap"
 )
 
+// LeaseAnnotationKeyPeerURLTLSEnabled is the annotation key present on the member lease.
+// If its value is `true` then it indicates that the member is TLS enabled.
+// If the annotation is not present or its value is `false` then it indicates that the member is not TLS enabled.
+const LeaseAnnotationKeyPeerURLTLSEnabled = "member.etcd.gardener.cloud/tls-enabled"
+
 // Constants for image keys
 const (
 	// ImageKeyEtcd is the key for the etcd image in the image vector.

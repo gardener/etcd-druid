@@ -10,17 +10,13 @@ import (
 	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// LeaseAnnotationKeyPeerURLTLSEnabled is the annotation key present on the member lease.
-// If its value is `true` then it indicates that the member is TLS enabled.
-// If the annotation is not present or its value is `false` then it indicates that the member is not TLS enabled.
-const LeaseAnnotationKeyPeerURLTLSEnabled = "member.etcd.gardener.cloud/tls-enabled"
 
 // IsPeerURLInSyncForAllMembers checks if the peer URL is in sync for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
 func IsPeerURLInSyncForAllMembers(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, replicas int32) (bool, error) {
@@ -90,7 +86,7 @@ func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *d
 
 func parseAndGetTLSEnabledValue(leaseObjMeta metav1.PartialObjectMetadata, logger logr.Logger) (bool, error) {
 	if leaseObjMeta.Annotations != nil {
-		if tlsEnabledStr, ok := leaseObjMeta.Annotations[LeaseAnnotationKeyPeerURLTLSEnabled]; ok {
+		if tlsEnabledStr, ok := leaseObjMeta.Annotations[common.LeaseAnnotationKeyPeerURLTLSEnabled]; ok {
 			tlsEnabled, err := strconv.ParseBool(tlsEnabledStr)
 			if err != nil {
 				logger.Error(err, "tls-enabled value is not a valid boolean", "namespace", leaseObjMeta.Namespace, "leaseName", leaseObjMeta.Name)

@@ -16,7 +16,6 @@ import (
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -93,7 +92,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 	g := NewWithT(t)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			test.fn(t, testNs, reconcilerTestEnv)
@@ -228,9 +227,9 @@ func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentC
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance
@@ -384,9 +383,9 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{kubernetes.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
 	// get latest version of etcdInstance
@@ -427,7 +426,7 @@ func TestEtcdDeletion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			test.fn(t, testNs)
 		})
 	}
@@ -560,7 +559,7 @@ func TestEtcdStatusReconciliation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// --------------------------- create test namespace ---------------------------
-			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 			g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 			// ---------------------------- create etcd instance --------------------------
@@ -586,7 +585,7 @@ func TestScaleSubresource(t *testing.T) {
 	g := NewWithT(t)
 
 	// --------------------------- create test namespace ---------------------------
-	testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix)
+	testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 	g.Expect(reconcilerTestEnv.itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
 	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 	// ---------------------------- create etcd instance --------------------------

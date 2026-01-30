@@ -62,23 +62,22 @@ func StorageProviderFromInfraProvider(infra *druidv1alpha1.StorageProvider) (str
 	}
 
 	switch *infra {
-	case aws, S3:
+	case aws, S3, druidv1alpha1.StorageProvider(strings.ToLower(S3)):
 		return S3, nil
-	// S3-compatible providers
-	case stackit:
-		return S3, nil
-	case azure, ABS:
+	case azure, ABS, druidv1alpha1.StorageProvider(strings.ToLower(ABS)):
 		return ABS, nil
-	case alicloud, OSS:
-		return OSS, nil
-	case openstack, Swift:
-		return Swift, nil
-	case gcp, GCS:
+	case gcp, GCS, druidv1alpha1.StorageProvider(strings.ToLower(GCS)):
 		return GCS, nil
-	case dell, ECS:
+	case openstack, Swift, druidv1alpha1.StorageProvider(strings.ToLower(Swift)):
+		return Swift, nil
+	case alicloud, OSS, druidv1alpha1.StorageProvider(strings.ToLower(OSS)):
+		return OSS, nil
+	case dell, ECS, druidv1alpha1.StorageProvider(strings.ToLower(ECS)):
 		return ECS, nil
-	case openshift, OCS:
+	case openshift, OCS, druidv1alpha1.StorageProvider(strings.ToLower(OCS)):
 		return OCS, nil
+	case stackit: // S3-compatible providers
+		return S3, nil
 	case Local, druidv1alpha1.StorageProvider(strings.ToLower(Local)):
 		return Local, nil
 	default:

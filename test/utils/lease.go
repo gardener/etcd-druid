@@ -6,10 +6,13 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -61,4 +64,36 @@ func IsLeaseRemoved(c client.Client, name, namespace string, timeout time.Durati
 		return err
 	}
 	return fmt.Errorf("lease not deleted")
+}
+
+// verifyPeerTLSEnabledOnMemberLease checks if peer TLS is enabled on the Etcd member via its corresponding member lease.
+func verifyPeerTLSEnabledOnMemberLease(ctx context.Context, c client.Client, name, namespace string) error {
+	lease := &coordinationv1.Lease{}
+	err := c.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, lease)
+	if err != nil {
+		return fmt.Errorf("failed to get lease %s/%s: %w", namespace, name, err)
+	}
+	if val, ok := lease.GetAnnotations()[common.LeaseAnnotationKeyPeerURLTLSEnabled]; ok {
+		tlsEnabled, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("failed to parse TLS enabled annotation value %s on lease %s/%s: %w", val, namespace, name, err)
+		}
+		if tlsEnabled {
+			return nil
+		}
+	}
+	return fmt.Errorf("peer TLS is not enabled on lease %s/%s", namespace, name)
+}
+
+// VerifyPeerTLSEnabledOnAllMemberLeases checks if peer TLS is enabled on all member leases of the given Etcd cluster.
+func VerifyPeerTLSEnabledOnAllMemberLeases(ctx context.Context, c client.Client, etcd *druidv1alpha1.Etcd) error {
+	var errs error
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	for _, leaseName := range leaseNames {
+		err := verifyPeerTLSEnabledOnMemberLease(ctx, c, leaseName, etcd.Namespace)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("peer TLS enablement verification failed for member lease %s/%s: %w", etcd.Namespace, leaseName, err))
+		}
+	}
+	return errs
 }

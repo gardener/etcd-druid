@@ -1,0 +1,204 @@
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package controller
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/store"
+	"github.com/gardener/etcd-druid/test/e2e/testenv"
+	e2etestutils "github.com/gardener/etcd-druid/test/e2e/utils"
+	testutils "github.com/gardener/etcd-druid/test/utils"
+
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	. "github.com/onsi/gomega"
+)
+
+const (
+	// environment variables
+	envKubeconfigPath      = "KUBECONFIG"
+	envRetainTestArtifacts = "RETAIN_TEST_ARTIFACTS"
+	envBackupProviders     = "PROVIDERS"
+
+	// test parameters
+	timeoutTest                = 1 * time.Hour
+	timeoutEtcdCreation        = 5 * time.Minute
+	timeoutEtcdDeletion        = 2 * time.Minute
+	timeoutEtcdHibernation     = 2 * time.Minute
+	timeoutEtcdUnhibernation   = 5 * time.Minute
+	timeoutEtcdUpdation        = 10 * time.Minute
+	timeoutEtcdDisruptionStart = 30 * time.Second
+	timeoutEtcdRecovery        = 5 * time.Minute
+	timeoutDeployJob           = 2 * time.Minute
+
+	testNamespacePrefix = "etcd-e2e"
+	defaultEtcdName     = "test"
+)
+
+var (
+	testEnv             *testenv.TestEnvironment
+	retainTestArtifacts retainTestArtifactsMode
+	providers           = []druidv1alpha1.StorageProvider{"none"}
+)
+
+type retainTestArtifactsMode string
+
+const (
+	// retainTestArtifactsAll indicates that all test artifacts should be retained.
+	retainTestArtifactsAll retainTestArtifactsMode = "all"
+	// retainTestArtifactsFailed indicates that only artifacts from failed tests should be retained.
+	retainTestArtifactsFailed retainTestArtifactsMode = "failed"
+	// retainTestArtifactsNone indicates that no test artifacts should be retained.
+	retainTestArtifactsNone retainTestArtifactsMode = "none"
+)
+
+const (
+	pkiResourcesDir              = "pki-resources"
+	defaultBackupStoreSecretName = "etcd-backup"
+)
+
+// getProviderSuffix returns the storage provider suffix for the given storage provider,
+// to be used for generating the namespace for a test case.
+func getProviderSuffix(provider druidv1alpha1.StorageProvider) string {
+	if provider == "none" {
+		return "none"
+	}
+	p, err := store.StorageProviderFromInfraProvider(ptr.To(provider))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(p)
+}
+
+// initializeTestCase sets up the test environment by creating a namespace, generating PKI resources,
+// and creating the necessary TLS secrets and backup secret.
+func initializeTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace, etcdName string, provider druidv1alpha1.StorageProvider) {
+	createNamespace(g, testEnv, logger, testNamespace)
+	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir := generatePKIResourcesToDefaultDirectory(g, logger, testNamespace, etcdName)
+	createTLSSecrets(g, testEnv, logger, testNamespace, etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir)
+	createBackupSecret(g, testEnv, logger, testNamespace, provider)
+}
+
+// createNamespace creates a new namespace for testing.
+func createNamespace(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace string) {
+	logger.Info("creating test namespace")
+	g.Expect(testEnv.CreateTestNamespace(testNamespace)).To(Succeed())
+	logger.Info("successfully created test namespace")
+}
+
+// generatePKIResourcesToDefaultDirectory generates PKI resources for etcd and returns the directories containing the generated certificates.
+func generatePKIResourcesToDefaultDirectory(g *WithT, logger logr.Logger, testNamespace, etcdName string) (string, string, string) {
+	logger.Info("generating PKI resources")
+	certDir := fmt.Sprintf("%s/%s", pkiResourcesDir, testNamespace)
+	// certs for etcd server-client communication
+	etcdCertsDir := fmt.Sprintf("%s/etcd", certDir)
+	g.Expect(os.MkdirAll(etcdCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
+	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdCertsDir, etcdName, testNamespace)).To(Succeed())
+	// certs for etcd peer communication
+	etcdPeerCertsDir := fmt.Sprintf("%s/etcd-peer", certDir)
+	g.Expect(os.MkdirAll(etcdPeerCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
+	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdPeerCertsDir, etcdName, testNamespace)).To(Succeed())
+	// certs for etcd-backup-restore TLS
+	etcdbrCertsDir := fmt.Sprintf("%s/etcd-backup-restore", certDir)
+	g.Expect(os.MkdirAll(etcdbrCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
+	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdbrCertsDir, etcdName, testNamespace)).To(Succeed())
+	logger.Info("successfully generated PKI resources")
+	return etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir
+}
+
+// createTLSSecrets creates the necessary TLS secrets in the specified namespace using the provided certificate directories.
+func createTLSSecrets(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace string, etcdCertsDir string, etcdPeerCertsDir string, etcdbrCertsDir string) {
+	logger.Info("creating TLS secrets")
+	// TLS secrets for etcd server-client communication
+	g.Expect(e2etestutils.CreateCASecret(testEnv.Context(), testEnv.Client(), testutils.ClientTLSCASecretName, testNamespace, etcdCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.Context(), testEnv.Client(), testutils.ClientTLSServerCertSecretName, testNamespace, etcdCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateClientTLSSecret(testEnv.Context(), testEnv.Client(), testutils.ClientTLSClientCertSecretName, testNamespace, etcdCertsDir)).To(Succeed())
+	// TLS secrets for etcd peer communication
+	g.Expect(e2etestutils.CreateCASecret(testEnv.Context(), testEnv.Client(), testutils.PeerTLSCASecretName, testNamespace, etcdPeerCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.Context(), testEnv.Client(), testutils.PeerTLSServerCertSecretName, testNamespace, etcdPeerCertsDir)).To(Succeed())
+	// TLS secrets for etcd-backup-restore TLS
+	g.Expect(e2etestutils.CreateCASecret(testEnv.Context(), testEnv.Client(), testutils.BackupRestoreTLSCASecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateServerTLSSecret(testEnv.Context(), testEnv.Client(), testutils.BackupRestoreTLSServerCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
+	g.Expect(e2etestutils.CreateClientTLSSecret(testEnv.Context(), testEnv.Client(), testutils.BackupRestoreTLSClientCertSecretName, testNamespace, etcdbrCertsDir)).To(Succeed())
+	logger.Info("successfully created TLS secrets")
+}
+
+// getSecret retrieves a secret by name from the specified namespace.
+func getSecret(testEnv *testenv.TestEnvironment, namespace, secretName string) (*corev1.Secret, error) {
+	secret := &corev1.Secret{}
+	err := testEnv.Client().Get(testEnv.Context(), types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret %s in namespace %s: %w", secretName, namespace, err)
+	}
+	return secret, nil
+}
+
+// checkSecretFinalizer checks if the specified secret has or does not have the etcd finalizer based on expectFinalizer.
+func checkSecretFinalizer(testEnv *testenv.TestEnvironment, namespace, secretName string, expectFinalizer bool) error {
+	secret, err := getSecret(testEnv, namespace, secretName)
+	if err != nil {
+		return err
+	}
+
+	if expectFinalizer == controllerutil.ContainsFinalizer(secret, druidapicommon.EtcdFinalizerName) {
+		return nil
+	}
+	return fmt.Errorf("expected finalizer %v on secret %s in namespace %s, but was not satisfied", druidapicommon.EtcdFinalizerName, secretName, namespace)
+}
+
+// createBackupSecret creates a backup secret in the specified namespace.
+func createBackupSecret(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, namespace string, provider druidv1alpha1.StorageProvider) {
+	logger.Info("creating backup secret")
+	g.Expect(testutils.CreateBackupSecret(testEnv.Context(), testEnv.Client(), defaultBackupStoreSecretName, namespace, provider)).To(Succeed())
+	logger.Info("successfully created backup secret")
+}
+
+// updateEtcdTLSAndLabels updates the TLS configurations and labels of the given Etcd resource.
+func updateEtcdTLSAndLabels(etcd *druidv1alpha1.Etcd, clientTLSEnabled, peerTLSEnabled, backupRestoreTLSEnabled bool, additionalLabels map[string]string) {
+	etcd.Spec.Etcd.ClientUrlTLS = nil
+	if clientTLSEnabled {
+		etcd.Spec.Etcd.ClientUrlTLS = testutils.GetClientTLSConfig()
+	}
+
+	etcd.Spec.Etcd.PeerUrlTLS = nil
+	if peerTLSEnabled {
+		etcd.Spec.Etcd.PeerUrlTLS = testutils.GetPeerTLSConfig()
+	}
+
+	etcd.Spec.Backup.TLS = nil
+	if backupRestoreTLSEnabled {
+		etcd.Spec.Backup.TLS = testutils.GetBackupRestoreTLSConfig()
+	}
+
+	etcd.Spec.Labels = testutils.MergeMaps(etcd.Spec.Labels, additionalLabels)
+}
+
+// cleanupTestArtifacts deletes the test namespace if shouldCleanup is true.
+func cleanupTestArtifacts(retainTestArtifacts retainTestArtifactsMode, testSucceeded bool, testEnv *testenv.TestEnvironment, logger logr.Logger, g *WithT, ns string) {
+	switch retainTestArtifacts {
+	case retainTestArtifactsAll:
+		logger.Info("retaining test artifacts as per configuration")
+		return
+	case retainTestArtifactsFailed:
+		if !testSucceeded {
+			logger.Info("retaining test artifacts for failed test as per configuration")
+			return
+		}
+	}
+
+	logger.Info(fmt.Sprintf("deleting namespace %s", ns))
+	g.Expect(testEnv.DeleteTestNamespace(ns)).To(Succeed())
+	logger.Info("successfully deleted namespace")
+}
