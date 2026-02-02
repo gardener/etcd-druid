@@ -6,6 +6,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"maps"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +27,8 @@ const (
 	ClientMethodGet ClientMethod = "Get"
 	// ClientMethodList is the name of the List method on client.Client.
 	ClientMethodList ClientMethod = "List"
+	// ClientMethodApply is the name of the Apply method on client.Client.
+	ClientMethodApply ClientMethod = "Apply"
 	// ClientMethodCreate is the name of the Create method on client.Client.
 	ClientMethodCreate ClientMethod = "Create"
 	// ClientMethodDelete is the name of the Delete method on client.Client.
@@ -257,6 +260,10 @@ func (c *testClient) List(ctx context.Context, list client.ObjectList, opts ...c
 		return err
 	}
 	return c.delegate.List(ctx, list, opts...)
+}
+
+func (c *testClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return fmt.Errorf("not implemented")
 }
 
 func (c *testClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
