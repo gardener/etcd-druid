@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -264,26 +263,7 @@ func (c *testClient) List(ctx context.Context, list client.ObjectList, opts ...c
 }
 
 func (c *testClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
-	type applyConfigurationWithNamespacedName interface {
-		runtime.ApplyConfiguration
-		GetName() *string
-		GetNamespace() *string
-	}
-	namespacedName, ok := obj.(applyConfigurationWithNamespacedName)
-	if !ok {
-		return fmt.Errorf("could not convert `runtime.ApplyConfiguration` to fetch the name and namespace of the object")
-	}
-	objKey := client.ObjectKey{
-		Namespace: ptr.Deref(namespacedName.GetNamespace(), ""),
-		Name:      ptr.Deref(namespacedName.GetName(), ""),
-	}
-	if objKey.Namespace == "" && objKey.Name == "" {
-		return fmt.Errorf("apply configuration does not have any namespaced name")
-	}
-	if err := c.getRecordedObjectError(ClientMethodApply, objKey); err != nil {
-		return err
-	}
-	return c.delegate.Apply(ctx, obj, opts...)
+	return fmt.Errorf("not implemented")
 }
 
 func (c *testClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
