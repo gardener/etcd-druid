@@ -1,0 +1,14 @@
+ocm:
+  component_name: github.com/gardener/etcd-wrapper
+  component_version: v0.6.1
+release_notes:
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: renormalize
+  category: other
+  contents: Upgrade to `golang:1.25.6` in Dockerfile, `1.25.0` in `go.mod`.
+  mimetype: text/markdown
+  reference: '[#77](https://github.com/gardener/etcd-wrapper/pull/77)'
+  type: standard
