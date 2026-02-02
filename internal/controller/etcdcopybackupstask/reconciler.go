@@ -553,5 +553,9 @@ func createJobArgumentFromStore(store *druidv1alpha1.StoreSpec, provider, prefix
 	if store.Container != nil && len(*store.Container) > 0 {
 		arguments = append(arguments, argPrefix+"store-container="+*store.Container)
 	}
+
+	if store.EndpointOverride != nil && len(*store.EndpointOverride) > 0 {
+		arguments = append(arguments, argPrefix+"store-endpoint-override="+*store.EndpointOverride)
+	}
 	return
 }
