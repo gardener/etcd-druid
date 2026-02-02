@@ -104,7 +104,7 @@ func GenerateBackupSecretData(provider druidv1alpha1.StorageProvider) (map[strin
 		}
 		fakegcsHost := GetEnvOrDefault("FAKEGCS_HOST", "")
 
-		gcsSA, err := os.ReadFile(gcpServiceAccountJSONPath)
+		gcsSA, err := os.ReadFile(gcpServiceAccountJSONPath) // #nosec: G304 -- test code reading local file
 		if err != nil {
 			return nil, fmt.Errorf("failed to read GCP service account JSON file: %w", err)
 		}
