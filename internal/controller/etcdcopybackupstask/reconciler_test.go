@@ -274,22 +274,33 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 					Container: ptr.To("store_container"),
 				}
 				provider = "storage_provider"
-				prefix = "prefix"
+				prefix = "prefix-"
 			})
 
 			It("returns a argument slice with provider, prefix, and container information", func() {
 				expected := []string{
-					"--prefixstorage-provider=storage_provider",
-					"--prefixstore-prefix=store_prefix",
-					"--prefixstore-container=store_container",
+					"--prefix-storage-provider=storage_provider",
+					"--prefix-store-prefix=store_prefix",
+					"--prefix-store-container=store_container",
+				}
+				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
+			})
+
+			It("returns a argument slice with provider, prefix, container, and endpoint override information", func() {
+				store.EndpointOverride = ptr.To("http://override-information")
+				expected := []string{
+					"--prefix-storage-provider=storage_provider",
+					"--prefix-store-prefix=store_prefix",
+					"--prefix-store-container=store_container",
+					"--prefix-store-endpoint-override=http://override-information",
 				}
 				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
 			})
 
 			It("should return a argument slice with provider and prefix information only when StoreSpec.Container is nil", func() {
 				expected := []string{
-					"--prefixstorage-provider=storage_provider",
-					"--prefixstore-prefix=store_prefix",
+					"--prefix-storage-provider=storage_provider",
+					"--prefix-store-prefix=store_prefix",
 				}
 				store.Container = nil
 				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
@@ -297,8 +308,8 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 
 			It("should return a argument slice with provider and container information only when StoreSpec.Prefix is empty", func() {
 				expected := []string{
-					"--prefixstorage-provider=storage_provider",
-					"--prefixstore-container=store_container",
+					"--prefix-storage-provider=storage_provider",
+					"--prefix-store-container=store_container",
 				}
 				store.Prefix = ""
 				Expect(createJobArgumentFromStore(&store, provider, prefix)).To(Equal(expected))
