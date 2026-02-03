@@ -27,7 +27,7 @@ var (
 // setupTestEnvironment creates namespace and test environment
 func setupTestEnvironment(t *testing.T) (string, *WithT) {
 	g := NewWithT(t)
-	testNs := utils.GenerateTestNamespaceName(t, testNamespacePrefix)
+	testNs := utils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 
 	t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
 	t.Log("Setting up Client")

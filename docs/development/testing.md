@@ -155,18 +155,14 @@ Once you are done the testing you can press `Ctrl+C` in the terminal session whe
 
 ## End-To-End (e2e) Tests
 
-End-To-End tests are run using [Kind](https://kind.sigs.k8s.io/) cluster and [Skaffold](https://skaffold.dev/). These tests provide a high level of confidence that the code runs as expected by users when deployed to production.
+End-To-End tests are run using [Kind](https://kind.sigs.k8s.io/) cluster. These tests provide a high level of confidence that the code runs as expected by users when deployed to production.
 
-* Purpose of running these tests is to be able to catch bugs which result from interaction amongst different components within etcd-druid.
+* The purpose of running these tests is to be able to catch bugs which result from interaction amongst different components within etcd-druid.
 
-* In CI pipelines e2e tests are run with S3 compatible [LocalStack](https://www.localstack.cloud/) (in cases where backup functionality has been enabled for an etcd cluster).
-
-  > In future we will only be using a file-system based local provider to reduce the run times for the e2e tests when run in a CI pipeline.
-
-* e2e tests can be triggered either with other cloud provider object-store emulators or they can also be run against actual/remove cloud provider object-store services.
+* In CI pipelines e2e tests are run with `local` and `none` providers, testing cases where backup functionality has been enabled as well as disabled for an etcd cluster.
 
 * In contrast to integration tests, in e2e tests, it might make sense to specify higher timeouts for Gomega's [AsyncAssertion](https://pkg.go.dev/github.com/onsi/gomega#AsyncAssertion) calls.
 
 ### Running e2e tests locally
 
-Detailed instructions on how to run e2e tests can be found [here](https://github.com/gardener/etcd-druid/blob/4e9971aba3c3880a4cb6583d05843eabb8ca1409/docs/development/local-e2e-tests.md).
+Detailed instructions on how to run e2e tests can be found [here](./running-e2e-tests.md).

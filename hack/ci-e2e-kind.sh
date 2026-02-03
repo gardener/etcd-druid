@@ -7,27 +7,32 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-make kind-up
+export NAMESPACE="etcd-druid-e2e"
 
-trap '{
-  kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true
-  echo "cleaning copied and generated helm chart resources"
-  make clean-chart-resources
-  make kind-down
-}' EXIT
+if ! kind get clusters | grep -q "^etcd-druid-e2e$"; then
+  make kind-up
+fi
+
+# if RETAIN_KIND_CLUSTER is set to true, the kind cluster will not be deleted
+if [[ "${RETAIN_KIND_CLUSTER:-false}" != "true" ]]; then
+  trap '{
+    kind export logs "${ARTIFACTS:-/tmp}/etcd-druid-e2e" --name etcd-druid-e2e || true
+    echo "Cleaning copied and generated helm chart resources"
+    make clean-chart-resources
+    make kind-down
+  }' EXIT
+fi
 
 kubectl wait --for=condition=ready node --all
-export AWS_APPLICATION_CREDENTIALS_JSON="/tmp/aws.json"
-echo "{ \"accessKeyID\": \"ACCESSKEYAWSUSER\", \"secretAccessKey\": \"sEcreTKey\", \"region\": \"us-east-2\", \"endpoint\": \"http://127.0.0.1:4566\", \"s3ForcePathStyle\": true, \"bucketName\": \"${BUCKET_NAME}\" }" >/tmp/aws.json
 
-make deploy-localstack
-make LOCALSTACK_HOST="localstack.default:4566" \
-  AWS_ACCESS_KEY_ID="ACCESSKEYAWSUSER" \
-  AWS_SECRET_ACCESS_KEY="sEcreTKey" \
-  AWS_REGION="us-east-2" \
-  PROVIDERS="aws" \
-  TEST_ID="$BUCKET_NAME" \
-  DRUID_E2E_TEST=true \
+make NAMESPACE=$NAMESPACE \
+  CERT_EXPIRY_DAYS=30 \
+  prepare-helm-charts
+make DRUID_E2E_TEST=true \
   ENABLE_ETCD_COMPONENT_PROTECTION_WEBHOOK=true \
-  STEPS="setup,deploy,test" \
+  deploy
+make NAMESPACE=$NAMESPACE \
+  RETAIN_TEST_ARTIFACTS="${RETAIN_TEST_ARTIFACTS:-''}" \
+  PROVIDERS="${PROVIDERS:-none,local}" \
+  GO_TEST_ARGS="${GO_TEST_ARGS:-}" \
   test-e2e

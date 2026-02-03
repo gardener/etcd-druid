@@ -84,7 +84,7 @@ func patchObject[T client.Object](object T, fieldPath []string, value any) (*uns
 // setupTestEnvironment performs the initial setup for namespace and test environment
 func setupTestEnvironment(t *testing.T) (string, *WithT) {
 	g := NewWithT(t)
-	testNs := utils.GenerateTestNamespaceName(t, testNamespacePrefix)
+	testNs := utils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
 
 	t.Logf("Successfully created namespace: %s to run test => '%s'", testNs, t.Name())
 	t.Log("Setting up Client")
