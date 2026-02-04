@@ -13,6 +13,7 @@ jobs:
   build:
     uses: ./.github/workflows/base.yaml
     permissions:
+      pull-requests: write
       contents: read
       id-token: write
       packages: write
