@@ -53,7 +53,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger := r.logger.WithValues("secret", client.ObjectKeyFromObject(secret))
 
 	etcdList := &druidv1alpha1.EtcdList{}
-	if err := r.Client.List(ctx, etcdList, client.InNamespace(secret.Namespace)); err != nil {
+	if err := r.List(ctx, etcdList, client.InNamespace(secret.Namespace)); err != nil {
 		return ctrl.Result{}, err
 	}
 
