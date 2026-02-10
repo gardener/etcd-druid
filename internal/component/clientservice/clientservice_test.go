@@ -105,7 +105,7 @@ func TestSyncWhenNoServiceExists(t *testing.T) {
 		},
 		{
 			name:                "create client service with traffic distribution",
-			trafficDistribution: ptr.To("PreferClose"),
+			trafficDistribution: ptr.To("PreferSameZone"),
 		},
 		{
 			name:      "create fails when there is a create error",
@@ -145,7 +145,7 @@ func TestSyncWhenServiceExists(t *testing.T) {
 		originalServerPort          int32  = 2380
 		originalBackupPort          int32  = 8080
 		originalWrapperPort         int32  = 9095
-		originalTrafficDistribution string = "PreferClose"
+		originalTrafficDistribution string = "PreferSameZone"
 	)
 	existingEtcd := buildEtcd(ptr.To(originalClientPort), ptr.To(originalServerPort), ptr.To(originalBackupPort), ptr.To(originalWrapperPort), ptr.To(originalTrafficDistribution))
 	testCases := []struct {
