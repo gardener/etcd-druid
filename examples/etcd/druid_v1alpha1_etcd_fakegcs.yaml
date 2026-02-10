@@ -36,7 +36,7 @@ spec:
     #     key: value
     #   labels:
     #     key: value
-    #   trafficDistribution: PreferClose
+    #   trafficDistribution: PreferSameZone
   backup:
     port: 8080
     fullSnapshotSchedule: "0 */24 * * *"
