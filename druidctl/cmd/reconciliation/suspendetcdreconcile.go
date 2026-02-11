@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package reconcile
+package reconciliation
 
 import (
 	"context"
@@ -43,7 +43,8 @@ func (s *suspendReconcileCmdCtx) execute(ctx context.Context) error {
 			return fmt.Errorf("confirmation failed: %w", err)
 		}
 		if !confirmed {
-			return cmdutils.ErrConfirmationDeclined
+			s.Logger.Info(s.IOStreams.Out, "Operation cancelled by user")
+			return nil
 		}
 	}
 

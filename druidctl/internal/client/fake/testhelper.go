@@ -64,7 +64,7 @@ func (h *TestHelper) CreateTestOptions() *cmdutils.GlobalOptions {
 	}
 
 	return &cmdutils.GlobalOptions{
-		LogType:     log.LogTypeCharm,
+		LoggerKind:  log.LoggerKindCharm,
 		ConfigFlags: configFlags,
 		IOStreams:   h.streams,
 		Clients:     cmdutils.NewClientBundle(testFactory),
