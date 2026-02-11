@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package reconcile
+package reconciliation
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func TestReconcileCommand(t *testing.T) {
 	}
 
 	// Create the reconcile command
-	cmd := NewReconcileCommand(globalOpts)
+	cmd := NewTriggerCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -87,7 +87,7 @@ func TestReconcileCommandAllNamespaces(t *testing.T) {
 	}
 
 	// Create the reconcile command
-	cmd := NewReconcileCommand(globalOpts)
+	cmd := NewTriggerCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -281,7 +281,7 @@ func TestReconcileErrorHandling(t *testing.T) {
 	globalOpts.IOStreams = streams
 
 	// Test reconcile command with non-existent etcd
-	reconcileCmd := NewReconcileCommand(globalOpts)
+	reconcileCmd := NewTriggerCommand(globalOpts)
 	reconcileCmd.SetOut(buf)
 	reconcileCmd.SetErr(errBuf)
 
@@ -364,7 +364,7 @@ func TestReconcileNamespaceFlag(t *testing.T) {
 	}
 
 	// Create the reconcile command
-	cmd := NewReconcileCommand(globalOpts)
+	cmd := NewTriggerCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -431,7 +431,7 @@ func TestReconcileCrossNamespace(t *testing.T) {
 	}
 
 	// Create the reconcile command
-	cmd := NewReconcileCommand(globalOpts)
+	cmd := NewTriggerCommand(globalOpts)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 

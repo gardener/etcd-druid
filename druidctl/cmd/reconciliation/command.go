@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package reconcile
+package reconciliation
 
 import (
 	"time"
@@ -17,60 +17,76 @@ const (
 )
 
 var (
-	reconcileExample = `
-# Reconcile an Etcd resource named "my-etcd" in the test namespace
-kubectl druid reconcile test/my-etcd
+	triggerExample = `
+# Trigger reconciliation for an Etcd resource named "my-etcd" in the test namespace
+kubectl druid reconciliation trigger test/my-etcd
 
-# Reconcile multiple Etcd resources using space-separated list
-kubectl druid reconcile test/my-etcd dev/my-etcd
+# Trigger reconciliation for multiple Etcd resources using space-separated list
+kubectl druid reconciliation trigger test/my-etcd dev/my-etcd
 
-# Reconcile all Etcd resources across all namespaces
-kubectl druid reconcile -A
+# Trigger reconciliation for all Etcd resources across all namespaces
+kubectl druid reconciliation trigger -A
 
-# Reconcile an Etcd resource and wait until it's ready
-kubectl druid reconcile test/my-etcd --wait-till-ready
+# Trigger reconciliation for an Etcd resource and wait until it's ready
+kubectl druid reconciliation trigger test/my-etcd --wait-till-ready
 
-# Reconcile and watch until ready (indefinite timeout)
-kubectl druid reconcile test/my-etcd --watch
+# Trigger reconciliation and watch until ready (indefinite timeout)
+kubectl druid reconciliation trigger test/my-etcd --watch
 `
 	suspendExample = `
 # Suspend reconciliation for an Etcd resource
-kubectl druid reconcile suspend test/my-etcd
+kubectl druid reconciliation suspend test/my-etcd
 
 # Suspend reconciliation for multiple Etcd resources
-kubectl druid reconcile suspend test/my-etcd dev/my-etcd
+kubectl druid reconciliation suspend test/my-etcd dev/my-etcd
 
 # Suspend reconciliation for all Etcd resources
-kubectl druid reconcile suspend -A
+kubectl druid reconciliation suspend -A
 `
 	resumeExample = `
 # Resume reconciliation for an Etcd resource
-kubectl druid reconcile resume test/my-etcd
+kubectl druid reconciliation resume test/my-etcd
 
 # Resume reconciliation for multiple Etcd resources
-kubectl druid reconcile resume test/my-etcd dev/my-etcd
+kubectl druid reconciliation resume test/my-etcd dev/my-etcd
 
 # Resume reconciliation for all Etcd resources
-kubectl druid reconcile resume -A
+kubectl druid reconciliation resume -A
 `
 )
 
-// NewReconcileCommand creates the 'reconcile' command with nested subcommands
+// NewReconciliationCommand creates the 'reconciliation' command with nested subcommands
 // Structure:
-//   - `kubectl druid reconcile <resources>` - trigger reconciliation
-//   - `kubectl druid reconcile suspend <resources>` - suspend reconciliation
-//   - `kubectl druid reconcile resume <resources>` - resume reconciliation
-func NewReconcileCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+//   - `kubectl druid reconciliation trigger <resources>` - trigger reconciliation
+//   - `kubectl druid reconciliation suspend <resources>` - suspend reconciliation
+//   - `kubectl druid reconciliation resume <resources>` - resume reconciliation
+func NewReconciliationCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+	reconciliationCmd := &cobra.Command{
+		Use:   "reconciliation",
+		Short: "Manage etcd resource reconciliation",
+		Long: `Manage etcd resource reconciliation.
+Use subcommands 'trigger', 'suspend', and 'resume' to control reconciliation state.`,
+	}
+
+	// Add subcommands
+	reconciliationCmd.AddCommand(NewTriggerCommand(options))
+	reconciliationCmd.AddCommand(NewSuspendCommand(options))
+	reconciliationCmd.AddCommand(NewResumeCommand(options))
+
+	return reconciliationCmd
+}
+
+// NewTriggerCommand creates the 'reconciliation trigger' subcommand
+func NewTriggerCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	var waitTillReady bool
 	var watch bool
 	var timeout time.Duration = defaultTimeout
 
-	reconcileCmd := &cobra.Command{
-		Use:   "reconcile [resources] [flags]",
-		Short: "Manage etcd resource reconciliation",
-		Long: `Manage etcd resource reconciliation. When called directly with resource names, triggers a reconciliation of the specified etcd resources.
-Use subcommands 'suspend' and 'resume' to control reconciliation state.`,
-		Example: reconcileExample,
+	cmd := &cobra.Command{
+		Use:     "trigger [resources] [flags]",
+		Short:   "Trigger reconciliation for etcd resources",
+		Long:    "Trigger reconciliation for the specified etcd resources by adding a reconcile annotation.",
+		Example: triggerExample,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// If no args and no -A flag, show help
@@ -83,7 +99,7 @@ Use subcommands 'suspend' and 'resume' to control reconciliation state.`,
 			ctx := &reconcileCmdCtx{reconcileOptions: reconcileOpts}
 
 			if err := ctx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Reconciling validation failed", err)
+				options.Logger.Error(options.IOStreams.ErrOut, "Trigger reconciliation validation failed", err)
 				if herr := cmd.Help(); herr != nil {
 					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
 				}
@@ -96,36 +112,32 @@ Use subcommands 'suspend' and 'resume' to control reconciliation state.`,
 
 			if options.Verbose {
 				if options.AllNamespaces {
-					options.Logger.Info(options.IOStreams.Out, "Reconciling Etcd resources across all namespaces")
+					options.Logger.Info(options.IOStreams.Out, "Triggering reconciliation for Etcd resources across all namespaces")
 				} else {
-					options.Logger.Info(options.IOStreams.Out, "Reconciling selected Etcd resources")
+					options.Logger.Info(options.IOStreams.Out, "Triggering reconciliation for selected Etcd resources")
 				}
 			}
 
 			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Reconciling failed", err)
+				options.Logger.Error(options.IOStreams.ErrOut, "Trigger reconciliation failed", err)
 				return err
 			}
 			return nil
 		},
 	}
 
-	// Add reconcile-specific flags
-	reconcileCmd.Flags().BoolVarP(&waitTillReady, "wait-till-ready", "w", false,
-		"Wait until the Etcd resource is ready before reconciling")
-	reconcileCmd.Flags().BoolVarP(&watch, "watch", "W", false,
-		"Watch the Etcd resources until they are ready after reconciliation")
-	reconcileCmd.Flags().DurationVarP(&timeout, "timeout", "t", defaultTimeout,
-		"Timeout for the reconciliation process")
+	// Add trigger-specific flags
+	cmd.Flags().BoolVarP(&waitTillReady, "wait-till-ready", "w", false,
+		"Wait until the Etcd resource is ready after triggering reconciliation")
+	cmd.Flags().BoolVarP(&watch, "watch", "W", false,
+		"Watch the Etcd resources until they are ready after reconciliation (no timeout)")
+	cmd.Flags().DurationVarP(&timeout, "timeout", "t", defaultTimeout,
+		"Timeout for waiting (only valid with --wait-till-ready)")
 
-	// Add subcommands
-	reconcileCmd.AddCommand(NewSuspendCommand(options))
-	reconcileCmd.AddCommand(NewResumeCommand(options))
-
-	return reconcileCmd
+	return cmd
 }
 
-// NewSuspendCommand creates the 'reconcile suspend' subcommand
+// NewSuspendCommand creates the 'reconciliation suspend' subcommand
 func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "suspend [resources] [flags]",
@@ -168,7 +180,7 @@ func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	return cmd
 }
 
-// NewResumeCommand creates the 'reconcile resume' subcommand
+// NewResumeCommand creates the 'reconciliation resume' subcommand
 func NewResumeCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "resume [resources] [flags]",

@@ -37,7 +37,8 @@ func (r *resourceProtectionCmdCtx) addDisableProtectionAnnotation(ctx context.Co
 			return fmt.Errorf("confirmation failed: %w", err)
 		}
 		if !confirmed {
-			return cmdutils.ErrConfirmationDeclined
+			r.Logger.Info(r.IOStreams.Out, "Operation cancelled by user")
+			return nil
 		}
 		if r.Verbose {
 			r.Logger.Info(r.IOStreams.Out, "Removing component protection from Etcds across all namespaces")
@@ -88,7 +89,8 @@ func (r *resourceProtectionCmdCtx) removeDisableProtectionAnnotation(ctx context
 			return fmt.Errorf("confirmation failed: %w", err)
 		}
 		if !confirmed {
-			return cmdutils.ErrConfirmationDeclined
+			r.Logger.Info(r.IOStreams.Out, "Operation cancelled by user")
+			return nil
 		}
 		if r.Verbose {
 			r.Logger.Info(r.IOStreams.Out, "Adding component protection to all namespaces")

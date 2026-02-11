@@ -6,7 +6,7 @@ package cmd
 
 import (
 	"github.com/gardener/etcd-druid/druidctl/cmd/listresources"
-	"github.com/gardener/etcd-druid/druidctl/cmd/reconcile"
+	"github.com/gardener/etcd-druid/druidctl/cmd/reconciliation"
 	"github.com/gardener/etcd-druid/druidctl/cmd/resourceprotection"
 	cmdutils "github.com/gardener/etcd-druid/druidctl/cmd/utils"
 	versioncmd "github.com/gardener/etcd-druid/druidctl/cmd/version"
@@ -64,7 +64,7 @@ func NewDruidCommand() *cobra.Command {
 
 	// Add subcommands
 	rootCmd.AddCommand(versioncmd.NewVersionCommand(options))
-	rootCmd.AddCommand(reconcile.NewReconcileCommand(options))
+	rootCmd.AddCommand(reconciliation.NewReconciliationCommand(options))
 	rootCmd.AddCommand(resourceprotection.NewComponentProtectionCommand(options))
 	rootCmd.AddCommand(listresources.NewListResourcesCommand(options))
 

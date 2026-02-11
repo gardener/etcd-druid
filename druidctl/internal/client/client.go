@@ -7,20 +7,16 @@ package client
 import (
 	"context"
 	"fmt"
-	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	druidclientset "github.com/gardener/etcd-druid/client/clientset/versioned"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/discovery"
 	cached "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/util/retry"
 )
 
 // GetEtcd fetches a single Etcd resource by name and namespace.
@@ -30,25 +26,14 @@ func (e *etcdClient) GetEtcd(ctx context.Context, namespace, name string) (*drui
 
 // UpdateEtcd updates the given Etcd resource and returns the updated object.
 func (e *etcdClient) UpdateEtcd(ctx context.Context, etcd *druidv1alpha1.Etcd, etcdModifier func(*druidv1alpha1.Etcd)) error {
-	backoff := wait.Backoff{
-		Steps:    5,
-		Duration: 100 * time.Millisecond,
-		Factor:   2.0,
-		Jitter:   0.1,
-		Cap:      5 * time.Second,
-	}
-	return retry.OnError(backoff, func(err error) bool {
-		return errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsInternalError(err)
-	}, func() error {
-		latestEtcd, err := e.GetEtcd(ctx, etcd.Namespace, etcd.Name)
-		if err != nil {
-			return err
-		}
-		updatedEtcd := latestEtcd.DeepCopy()
-		etcdModifier(updatedEtcd)
-		_, err = e.client.Etcds(updatedEtcd.Namespace).Update(ctx, updatedEtcd, metav1.UpdateOptions{})
+	latestEtcd, err := e.GetEtcd(ctx, etcd.Namespace, etcd.Name)
+	if err != nil {
 		return err
-	})
+	}
+	updatedEtcd := latestEtcd.DeepCopy()
+	etcdModifier(updatedEtcd)
+	_, err = e.client.Etcds(updatedEtcd.Namespace).Update(ctx, updatedEtcd, metav1.UpdateOptions{})
+	return err
 }
 
 // ListEtcds lists all Etcd resources in the specified namespace. If namespace is empty, it lists across all namespaces.

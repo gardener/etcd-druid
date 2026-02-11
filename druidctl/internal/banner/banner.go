@@ -45,7 +45,7 @@ func ShowBanner(rootCmd, cmd *cobra.Command, disableBanner bool) {
 		return
 	}
 
-	logger := log.NewLogger(log.LogTypeCharm)
+	logger := log.NewLogger(log.LoggerKindCharm)
 	lines := strings.SplitSeq(strings.TrimSpace(asciiArt), "\n")
 	for line := range lines {
 		logger.RawHeader(os.Stdout, line)

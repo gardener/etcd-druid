@@ -28,9 +28,9 @@ type GlobalOptions struct {
 	LabelSelector string // from -l flag for filtering resources by labels
 
 	// IO options
-	LogType   log.LogType
-	Logger    log.Logger
-	IOStreams genericiooptions.IOStreams
+	LoggerKind log.LoggerKind
+	Logger     log.Logger
+	IOStreams  genericiooptions.IOStreams
 
 	// client options
 	ConfigFlags *genericclioptions.ConfigFlags
@@ -42,7 +42,7 @@ func NewOptions() *GlobalOptions {
 	configFlags := genericclioptions.NewConfigFlags(true)
 	factory := client.NewClientFactory(configFlags)
 	return &GlobalOptions{
-		LogType:     log.LogTypeCharm,
+		LoggerKind:  log.LoggerKindCharm,
 		ConfigFlags: configFlags,
 		Clients:     NewClientBundle(factory),
 		IOStreams:   genericiooptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
@@ -62,7 +62,7 @@ func (o *GlobalOptions) AddFlags(cmd *cobra.Command) {
 
 // Complete fills in the GlobalOptions based on command line args and flags.
 func (o *GlobalOptions) Complete(_ *cobra.Command, args []string) error {
-	o.Logger = log.NewLogger(o.LogType)
+	o.Logger = log.NewLogger(o.LoggerKind)
 	o.Logger.SetVerbose(o.Verbose)
 	o.ResourceArgs = args
 	return nil

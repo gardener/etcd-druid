@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package reconcile
+package reconciliation
 
 import (
 	"fmt"

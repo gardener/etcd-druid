@@ -26,6 +26,3 @@ func ConfirmAllNamespaces(out io.Writer, in io.Reader, operation string) (bool, 
 	response = strings.TrimSpace(strings.ToLower(response))
 	return response == "y" || response == "yes", nil
 }
-
-// ErrConfirmationDeclined is returned when confirmation is skipped due to non-interactive mode
-var ErrConfirmationDeclined = fmt.Errorf("operation cancelled by user")

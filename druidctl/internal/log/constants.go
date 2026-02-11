@@ -4,10 +4,10 @@
 
 package log
 
-// LogType defines the type for logging service, e.g., Charm
-type LogType string
+// LoggerKind defines the logger implementation to use, e.g., Charm
+type LoggerKind string
 
 const (
-	// LogTypeCharm selects the Charm logger implementation.
-	LogTypeCharm LogType = "Charm"
+	// LoggerKindCharm selects the Charm logger implementation.
+	LoggerKindCharm LoggerKind = "Charm"
 )

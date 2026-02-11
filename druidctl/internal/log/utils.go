@@ -13,10 +13,10 @@ func DefaultLogger() Logger {
 	return charm.NewCharmLogger()
 }
 
-// NewLogger constructs a logger based on the provided LogType.
-func NewLogger(logType LogType) Logger {
-	switch logType {
-	case LogTypeCharm:
+// NewLogger constructs a logger based on the provided LoggerKind.
+func NewLogger(loggerKind LoggerKind) Logger {
+	switch loggerKind {
+	case LoggerKindCharm:
 		return charm.NewCharmLogger()
 	default:
 		return DefaultLogger()
