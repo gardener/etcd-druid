@@ -184,17 +184,6 @@ func TestPrepareInitialCluster(t *testing.T) {
 	}
 }
 
-func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
-	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
-	if clientTLSEnabled {
-		etcdBuilder.WithClientTLS()
-	}
-	if peerTLSEnabled {
-		etcdBuilder.WithPeerTLS()
-	}
-	return etcdBuilder.Build()
-}
-
 func TestSyncWhenConfigMapExists(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -298,6 +287,17 @@ func TestTriggerDelete(t *testing.T) {
 }
 
 // ---------------------------- Helper Functions -----------------------------
+func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
+	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
+	if clientTLSEnabled {
+		etcdBuilder.WithClientTLS()
+	}
+	if peerTLSEnabled {
+		etcdBuilder.WithPeerTLS()
+	}
+	return etcdBuilder.Build()
+}
+
 func newConfigMap(g *WithT, etcd *druidv1alpha1.Etcd) *corev1.ConfigMap {
 	cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
 	err := buildResource(etcd, cm)
@@ -334,16 +334,17 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	err := yaml.Unmarshal([]byte(actualETCDConfigYAML), &actualETCDConfig)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-		"name":                      Equal("etcd-config"),
-		"data-dir":                  Equal(fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)),
-		"metrics":                   Equal(string(druidv1alpha1.Basic)),
-		"snapshot-count":            Equal(ptr.Deref(etcd.Spec.Etcd.SnapshotCount, defaultSnapshotCount)),
-		"enable-v2":                 Equal(false),
-		"quota-backend-bytes":       Equal(etcd.Spec.Etcd.Quota.Value()),
-		"initial-cluster-token":     Equal("etcd-cluster"),
-		"initial-cluster-state":     Equal("new"),
-		"auto-compaction-mode":      Equal(string(ptr.Deref(etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic))),
-		"auto-compaction-retention": Equal(ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention)),
+		"name":                            Equal("etcd-config"),
+		"data-dir":                        Equal(fmt.Sprintf("%s/new.etcd", common.VolumeMountPathEtcdData)),
+		"metrics":                         Equal(string(druidv1alpha1.Basic)),
+		"snapshot-count":                  Equal(ptr.Deref(etcd.Spec.Etcd.SnapshotCount, defaultSnapshotCount)),
+		"enable-v2":                       Equal(false),
+		"quota-backend-bytes":             Equal(etcd.Spec.Etcd.Quota.Value()),
+		"initial-cluster-token":           Equal("etcd-cluster"),
+		"initial-cluster-state":           Equal("new"),
+		"auto-compaction-mode":            Equal(string(ptr.Deref(etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic))),
+		"auto-compaction-retention":       Equal(ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention)),
+		"next-cluster-version-compatible": Equal(true),
 	}))
 	matchClientTLSRelatedConfiguration(g, etcd, actualETCDConfig)
 	matchPeerTLSRelatedConfiguration(g, etcd, actualETCDConfig)
