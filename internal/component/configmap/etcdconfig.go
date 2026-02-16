@@ -50,7 +50,7 @@ type etcdConfig struct {
 	AdvertiseClientUrls          map[string][]string          `json:"advertise-client-urls"`
 	ClientSecurity               *securityConfig              `json:"client-transport-security,omitempty"`
 	PeerSecurity                 *securityConfig              `json:"peer-transport-security,omitempty"`
-	//TODO: (i745851): remove this field once etcd 3.5.26 is the minimum supported version.
+	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
 	NextClusterVersionCompatible bool                         `json:"next-cluster-version-compatible,omitempty"`
 }
 
