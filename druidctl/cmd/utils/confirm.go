@@ -14,7 +14,7 @@ import (
 // ConfirmAllNamespaces prompts the user to confirm operating on all namespaces.
 // Returns true if user confirms (y/Y), false otherwise.
 func ConfirmAllNamespaces(out io.Writer, in io.Reader, operation string) (bool, error) {
-	prompt := fmt.Sprintf("⚠️ You are about to %s ALL etcd resources across ALL namespaces. Continue? [y/N]: ", operation)
+	prompt := fmt.Sprintf("--⚠️-- You are about to %s ALL etcd resources across ALL namespaces. Continue? [y/n]: ", operation)
 	fmt.Fprint(out, prompt)
 
 	reader := bufio.NewReader(in)

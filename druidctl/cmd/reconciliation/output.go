@@ -16,11 +16,11 @@ import (
 )
 
 type task struct {
-	Etcd        string
-	TimeElapsed string
-	Reconciled  bool
-	Updated     bool
-	Done        bool
+	etcd        string
+	timeElapsed string
+	reconciled  bool
+	updated     bool
+	done        bool
 }
 
 // setupReconcileStatusTable builds a table summarizing reconcile status for each Etcd.
@@ -29,11 +29,11 @@ func setupReconcileStatusTable(tasks []task) *table.Table {
 	var rows [][]string
 	for _, task := range tasks {
 		rows = append(rows, []string{
-			task.Etcd,
-			fmt.Sprintf("%t", task.Reconciled),
-			fmt.Sprintf("%t", task.Updated),
-			task.TimeElapsed,
-			fmt.Sprintf("%t", task.Done),
+			task.etcd,
+			fmt.Sprintf("%t", task.reconciled),
+			fmt.Sprintf("%t", task.updated),
+			task.timeElapsed,
+			fmt.Sprintf("%t", task.done),
 		})
 	}
 	t := table.New().
@@ -88,13 +88,21 @@ func (sm *statusManager) setUpdated(key types.NamespacedName) {
 	}
 }
 
-func (sm *statusManager) setComplete(key types.NamespacedName) {
+func (sm *statusManager) setComplete(key types.NamespacedName, endTime time.Time) {
 	sm.Lock()
 	defer sm.Unlock()
 	if result, exists := sm.data[key]; exists {
-		now := time.Now()
-		result.endTime = &now
+		result.endTime = &endTime
 	}
+}
+
+func (sm *statusManager) getStartTime(key types.NamespacedName) *time.Time {
+	sm.RLock()
+	defer sm.RUnlock()
+	if result, exists := sm.data[key]; exists {
+		return result.startTime
+	}
+	return nil
 }
 
 func (sm *statusManager) getStatus() map[types.NamespacedName]*printResult {
@@ -131,16 +139,16 @@ func printReconcileStatus(sm *statusManager) {
 		}
 
 		task := task{
-			Etcd:        fmt.Sprintf("%s/%s", namespacedName.Namespace, namespacedName.Name),
-			Reconciled:  result.reconcileTriggered,
-			Updated:     result.updated,
-			TimeElapsed: timeElapsed,
-			Done:        done,
+			etcd:        fmt.Sprintf("%s/%s", namespacedName.Namespace, namespacedName.Name),
+			reconciled:  result.reconcileTriggered,
+			updated:     result.updated,
+			timeElapsed: timeElapsed,
+			done:        done,
 		}
 		tasks = append(tasks, task)
 	}
 	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].Etcd < tasks[j].Etcd
+		return tasks[i].etcd < tasks[j].etcd
 	})
 	table := setupReconcileStatusTable(tasks)
 	fmt.Println("Reconciliation Status:")

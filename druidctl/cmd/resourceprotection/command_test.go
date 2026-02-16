@@ -18,13 +18,13 @@ import (
 func TestAddComponentProtectionCommand(t *testing.T) {
 	// Test the add-component-protection command
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -45,16 +45,16 @@ func TestAddComponentProtectionCommand(t *testing.T) {
 	}
 
 	// Create the command
-	cmd := NewAddCommand(globalOpts)
+	cmd := NewAddCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -84,13 +84,13 @@ func TestAddComponentProtectionCommand(t *testing.T) {
 func TestAddProtectionWithoutAnnotation(t *testing.T) {
 	// Test add protection when etcd doesn't have the annotation
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -108,16 +108,16 @@ func TestAddProtectionWithoutAnnotation(t *testing.T) {
 	}
 
 	// Create the add protection command
-	cmd := NewAddCommand(globalOpts)
+	cmd := NewAddCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -147,13 +147,13 @@ func TestAddProtectionWithoutAnnotation(t *testing.T) {
 func TestRemoveComponentProtectionCommand(t *testing.T) {
 	// Test the remove-component-protection command
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -164,16 +164,16 @@ func TestRemoveComponentProtectionCommand(t *testing.T) {
 	}
 
 	// Create the command
-	cmd := NewRemoveCommand(globalOpts)
+	cmd := NewRemoveCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err = globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err = cmdCtx.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err = globalOpts.ValidateResourceSelection(); err != nil {
+	if err = cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -205,15 +205,15 @@ func TestRemoveComponentProtectionCommand(t *testing.T) {
 func TestResourceProtectionAllNamespaces(t *testing.T) {
 	// Test resource protection commands with --all-namespaces flag
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
 	// Provide 'y' confirmation for --all-namespaces prompt
 	streams.In = strings.NewReader("y\n")
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -238,21 +238,21 @@ func TestResourceProtectionAllNamespaces(t *testing.T) {
 	}
 
 	// Create the add protection command
-	cmd := NewAddCommand(globalOpts)
+	cmd := NewAddCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Set all-namespaces
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
-	globalOpts.AllNamespaces = true
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.AllNamespaces = true
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -290,23 +290,23 @@ func TestResourceProtectionAllNamespaces(t *testing.T) {
 func TestResourceProtectionErrorHandling(t *testing.T) {
 	// Test error cases with non-existent etcd
 	helper := fake.NewTestHelper()
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Create the command
-	cmd := NewAddCommand(globalOpts)
+	cmd := NewAddCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"non-existent-etcd"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"non-existent-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -327,13 +327,13 @@ func TestResourceProtectionErrorHandling(t *testing.T) {
 func TestProtectionNamespaceFlag(t *testing.T) {
 	// Test protection commands with -n namespace flag
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -353,20 +353,20 @@ func TestProtectionNamespaceFlag(t *testing.T) {
 	}
 
 	// Create the add-protection command
-	cmd := NewAddCommand(globalOpts)
+	cmd := NewAddCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Set namespace to shoot-ns1
 	shootNs1 := "shoot-ns1"
-	globalOpts.ConfigFlags.Namespace = &shootNs1
+	cmdCtx.Options.ConfigFlags.Namespace = &shootNs1
 
 	// Complete with just the resource name
-	if err := globalOpts.Complete(cmd, []string{"etcd-main"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"etcd-main"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -403,13 +403,13 @@ func TestProtectionNamespaceFlag(t *testing.T) {
 func TestProtectionCrossNamespace(t *testing.T) {
 	// Test protection commands with cross-namespace references
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -432,21 +432,21 @@ func TestProtectionCrossNamespace(t *testing.T) {
 	})
 
 	// Create the add-protection command
-	cmd := NewAddCommand(globalOpts)
+	cmd := NewAddCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Clear namespace flag for cross-namespace selection
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
 
 	// Use cross-namespace format
 	args := []string{"shoot-ns1/etcd-main", "shoot-ns2/etcd-main"}
-	if err := globalOpts.Complete(cmd, args); err != nil {
+	if err := cmdCtx.Complete(cmd, args); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 

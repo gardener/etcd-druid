@@ -18,7 +18,7 @@ import (
 
 // NewDruidCommand creates the root druid command with all subcommands.
 func NewDruidCommand() *cobra.Command {
-	options := cmdutils.NewOptions()
+	cmdCtx := cmdutils.NewCommandContext()
 
 	rootCmd := &cobra.Command{
 		Use:     "kubectl druid [command] [resource] [flags]",
@@ -26,11 +26,11 @@ func NewDruidCommand() *cobra.Command {
 		Long:    `This is a command line interface for Druid. It allows you to interact with Druid using various commands and flags.`,
 		Version: version.Get().String(),
 		Run: func(cmd *cobra.Command, _ []string) {
-			if options.Verbose {
+			if cmdCtx.Options.Verbose {
 				cmd.Println("Verbose mode enabled")
 			}
 			if err := cmd.Help(); err != nil {
-				options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+				cmdCtx.Runtime.Logger.Warning(cmdCtx.Runtime.IOStreams.ErrOut, "Failed to show help: ", err.Error())
 			}
 		},
 	}
@@ -39,7 +39,7 @@ func NewDruidCommand() *cobra.Command {
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 
 	// Add global flags
-	options.AddFlags(rootCmd)
+	cmdCtx.AddFlags(rootCmd)
 
 	// Setup persistent pre-run hook for completion and validation
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
@@ -54,19 +54,19 @@ func NewDruidCommand() *cobra.Command {
 			return nil
 		}
 
-		banner.ShowBanner(rootCmd, cmd, options.DisableBanner)
-		if err := options.Complete(cmd, args); err != nil {
-			options.Logger.Error(options.IOStreams.ErrOut, "Completion failed: ", err)
+		banner.ShowBanner(rootCmd, cmd, cmdCtx.Options.DisableBanner)
+		if err := cmdCtx.Complete(cmd, args); err != nil {
+			cmdCtx.Runtime.Logger.Error(cmdCtx.Runtime.IOStreams.ErrOut, "Completion failed: ", err)
 			return err
 		}
 		return nil
 	}
 
 	// Add subcommands
-	rootCmd.AddCommand(versioncmd.NewVersionCommand(options))
-	rootCmd.AddCommand(reconciliation.NewReconciliationCommand(options))
-	rootCmd.AddCommand(resourceprotection.NewComponentProtectionCommand(options))
-	rootCmd.AddCommand(listresources.NewListResourcesCommand(options))
+	rootCmd.AddCommand(versioncmd.NewVersionCommand(cmdCtx))
+	rootCmd.AddCommand(reconciliation.NewReconciliationCommand(cmdCtx))
+	rootCmd.AddCommand(resourceprotection.NewComponentProtectionCommand(cmdCtx))
+	rootCmd.AddCommand(listresources.NewListResourcesCommand(cmdCtx))
 
 	return rootCmd
 }

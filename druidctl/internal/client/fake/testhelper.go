@@ -53,8 +53,8 @@ func (h *TestHelper) WithTestScenario(builder *TestDataBuilder) *TestHelper {
 	return h
 }
 
-// CreateTestOptions creates Options configured for testing
-func (h *TestHelper) CreateTestOptions() *cmdutils.GlobalOptions {
+// CreateTestCommandContext creates a CommandContext configured for testing
+func (h *TestHelper) CreateTestCommandContext() *cmdutils.CommandContext {
 	testFactory := NewTestFactoryWithData(h.etcdObjects, h.k8sObjects)
 	namespace := "default"
 
@@ -63,10 +63,14 @@ func (h *TestHelper) CreateTestOptions() *cmdutils.GlobalOptions {
 		Namespace: &namespace,
 	}
 
-	return &cmdutils.GlobalOptions{
-		LoggerKind:  log.LoggerKindCharm,
-		ConfigFlags: configFlags,
-		IOStreams:   h.streams,
-		Clients:     cmdutils.NewClientBundle(testFactory),
+	return &cmdutils.CommandContext{
+		Options: &cmdutils.GlobalOptions{
+			ConfigFlags: configFlags,
+		},
+		Runtime: &cmdutils.RuntimeEnv{
+			Logger:    log.NewLogger(log.LoggerKindCharm),
+			IOStreams: h.streams,
+			Clients:   cmdutils.NewClientBundle(testFactory),
+		},
 	}
 }

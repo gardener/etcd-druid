@@ -45,8 +45,8 @@ kubectl druid list-resources my-etcd -n test --output=json
 )
 
 // NewListResourcesCommand creates the list-resources command
-func NewListResourcesCommand(options *cmdutils.GlobalOptions) *cobra.Command {
-	listResourcesOptions := newListResourcesOptions(options, defaultFilter, string(printer.OutputTypeNone))
+func NewListResourcesCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
+	listResourcesOptions := newListResourcesOptions(cmdCtx.Options, defaultFilter, string(printer.OutputTypeNone))
 
 	listResourcesCmd := &cobra.Command{
 		Use:     "list-resources <etcd-resource-name> --filter=<comma separated types> (optional flag) --output=<output-format> (optional flag)",
@@ -57,20 +57,21 @@ func NewListResourcesCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			listResourcesCmdCtx := &listResourcesCmdCtx{
 				listResourcesOptions: listResourcesOptions,
+				listResourcesRuntime: newListResourcesRuntime(cmdCtx.Runtime),
 			}
 			if err := listResourcesCmdCtx.validate(); err != nil {
 				if herr := cmd.Help(); herr != nil {
-					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+					cmdCtx.Runtime.Logger.Warning(cmdCtx.Runtime.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
 				}
 				return err
 			}
 
-			if err := listResourcesCmdCtx.complete(options); err != nil {
+			if err := listResourcesCmdCtx.complete(); err != nil {
 				return err
 			}
 
 			if err := listResourcesCmdCtx.execute(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Listing Managed resources for Etcds failed", err)
+				cmdCtx.Runtime.Logger.Error(cmdCtx.Runtime.IOStreams.ErrOut, "Listing Managed resources for Etcds failed", err)
 				return err
 			}
 

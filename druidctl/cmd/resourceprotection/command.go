@@ -38,7 +38,7 @@ kubectl druid component-protection remove -A
 // Structure:
 //   - `kubectl druid component-protection add <resources>` - enable protection
 //   - `kubectl druid component-protection remove <resources>` - disable protection
-func NewComponentProtectionCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewComponentProtectionCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "component-protection",
 		Short: "Manage component protection for etcd resources",
@@ -52,14 +52,14 @@ NOTE: This will only have effect if resource protection webhook has been enabled
 	}
 
 	// Add subcommands
-	cmd.AddCommand(NewAddCommand(options))
-	cmd.AddCommand(NewRemoveCommand(options))
+	cmd.AddCommand(NewAddCommand(cmdCtx))
+	cmd.AddCommand(NewRemoveCommand(cmdCtx))
 
 	return cmd
 }
 
 // NewAddCommand creates the 'component-protection add' subcommand
-func NewAddCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewAddCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	return &cobra.Command{
 		Use:     "add [resources] [flags]",
 		Short:   "Enable component protection for etcd resources",
@@ -67,25 +67,27 @@ func NewAddCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Example: addExample,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resourceProtectionOptions := newResourceProtectionOptions(options)
+			resourceProtectionOptions := newResourceProtectionOptions(cmdCtx.Options)
+			resourceProtectionRuntime := newResourceProtectionRuntime(cmdCtx.Runtime)
 			ctx := &resourceProtectionCmdCtx{
 				resourceProtectionOptions: resourceProtectionOptions,
+				resourceProtectionRuntime: resourceProtectionRuntime,
 			}
 
 			if err := ctx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Add component protection validation failed", err)
+				ctx.Logger.Error(ctx.IOStreams.ErrOut, "Add component protection validation failed", err)
 				if err := cmd.Help(); err != nil {
-					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+					ctx.Logger.Warning(ctx.IOStreams.ErrOut, "Failed to show help: ", err.Error())
 				}
 				return err
 			}
 
-			if err := ctx.complete(options); err != nil {
+			if err := ctx.complete(); err != nil {
 				return err
 			}
 
 			if err := ctx.removeDisableProtectionAnnotation(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Add component protection failed", err)
+				ctx.Logger.Error(ctx.IOStreams.ErrOut, "Add component protection failed", err)
 				return err
 			}
 
@@ -95,7 +97,7 @@ func NewAddCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 }
 
 // NewRemoveCommand creates the 'component-protection remove' subcommand
-func NewRemoveCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewRemoveCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	return &cobra.Command{
 		Use:     "remove [resources] [flags]",
 		Short:   "Disable component protection for etcd resources",
@@ -103,25 +105,27 @@ func NewRemoveCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Example: removeExample,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resourceProtectionOptions := newResourceProtectionOptions(options)
+			resourceProtectionOptions := newResourceProtectionOptions(cmdCtx.Options)
+			resourceProtectionRuntime := newResourceProtectionRuntime(cmdCtx.Runtime)
 			ctx := &resourceProtectionCmdCtx{
 				resourceProtectionOptions: resourceProtectionOptions,
+				resourceProtectionRuntime: resourceProtectionRuntime,
 			}
 
 			if err := ctx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Remove component protection validation failed", err)
+				ctx.Logger.Error(ctx.IOStreams.ErrOut, "Remove component protection validation failed", err)
 				if err := cmd.Help(); err != nil {
-					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", err.Error())
+					ctx.Logger.Warning(ctx.IOStreams.ErrOut, "Failed to show help: ", err.Error())
 				}
 				return err
 			}
 
-			if err := ctx.complete(options); err != nil {
+			if err := ctx.complete(); err != nil {
 				return err
 			}
 
 			if err := ctx.addDisableProtectionAnnotation(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Remove component protection failed", err)
+				ctx.Logger.Error(ctx.IOStreams.ErrOut, "Remove component protection failed", err)
 				return err
 			}
 

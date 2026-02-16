@@ -28,14 +28,14 @@ type resourceMeta struct {
 	Namespaced bool
 }
 
-func (l *listResourcesCmdCtx) complete(options *cmdutils.GlobalOptions) error {
-	etcdClient, err := options.Clients.EtcdClient()
+func (l *listResourcesCmdCtx) complete() error {
+	etcdClient, err := l.Clients.EtcdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	l.EtcdClient = etcdClient
 
-	genericClient, err := options.Clients.GenericClient()
+	genericClient, err := l.Clients.GenericClient()
 	if err != nil {
 		return fmt.Errorf("unable to create generic kube clients: %w", err)
 	}
@@ -47,7 +47,7 @@ func (l *listResourcesCmdCtx) complete(options *cmdutils.GlobalOptions) error {
 	}
 
 	// Build etcd reference list from resource args using kubectl-compatible parsing
-	l.etcdRefList = options.BuildEtcdRefList()
+	l.etcdRefList = l.GlobalOptions.BuildEtcdRefList()
 	return nil
 }
 
