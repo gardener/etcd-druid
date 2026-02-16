@@ -14,13 +14,13 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 
-func (r *resourceProtectionCmdCtx) complete(options *cmdutils.GlobalOptions) error {
-	etcdClient, err := options.Clients.EtcdClient()
+func (r *resourceProtectionCmdCtx) complete() error {
+	etcdClient, err := r.Clients.EtcdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = options.BuildEtcdRefList()
+	r.etcdRefList = r.GlobalOptions.BuildEtcdRefList()
 	return nil
 }
 

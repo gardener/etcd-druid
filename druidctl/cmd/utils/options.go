@@ -6,46 +6,35 @@ package utils
 
 import (
 	"fmt"
-	"os"
 	"strings"
-
-	"github.com/gardener/etcd-druid/druidctl/internal/client"
-	"github.com/gardener/etcd-druid/druidctl/internal/log"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/cli-runtime/pkg/genericiooptions"
 )
 
-// GlobalOptions holds all global options and configuration for the CLI
+// GlobalOptions holds all user-configurable CLI options and flags.
+// Runtime dependencies (Logger, IOStreams, Clients) are in RuntimeEnv.
 type GlobalOptions struct {
-	// Common options
-	Verbose       bool
+	// Verbose enables verbose output
+	Verbose bool
+	// AllNamespaces lists resources across all namespaces
 	AllNamespaces bool
-	ResourceArgs  []string // positional args (can be "name" or "ns/name")
+	// ResourceArgs holds positional args (can be "name" or "ns/name")
+	ResourceArgs []string
+	// DisableBanner disables the CLI banner
 	DisableBanner bool
-	LabelSelector string // from -l flag for filtering resources by labels
-
-	// IO options
-	LoggerKind log.LoggerKind
-	Logger     log.Logger
-	IOStreams  genericiooptions.IOStreams
-
-	// client options
+	// LabelSelector filters resources by labels (-l flag)
+	LabelSelector string
+	// ConfigFlags holds kubectl-compatible flags (kubeconfig, namespace, context, etc.)
 	ConfigFlags *genericclioptions.ConfigFlags
-	Clients     *ClientBundle
 }
 
-// NewOptions returns a new Options instance with default values
-func NewOptions() *GlobalOptions {
-	configFlags := genericclioptions.NewConfigFlags(true)
-	factory := client.NewClientFactory(configFlags)
+// newGlobalOptions creates a new GlobalOptions with the given ConfigFlags.
+// This is internal - use NewCommandContext() to create the full context.
+func newGlobalOptions(configFlags *genericclioptions.ConfigFlags) *GlobalOptions {
 	return &GlobalOptions{
-		LoggerKind:  log.LoggerKindCharm,
 		ConfigFlags: configFlags,
-		Clients:     NewClientBundle(factory),
-		IOStreams:   genericiooptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
 	}
 }
 
@@ -62,8 +51,6 @@ func (o *GlobalOptions) AddFlags(cmd *cobra.Command) {
 
 // Complete fills in the GlobalOptions based on command line args and flags.
 func (o *GlobalOptions) Complete(_ *cobra.Command, args []string) error {
-	o.Logger = log.NewLogger(o.LoggerKind)
-	o.Logger.SetVerbose(o.Verbose)
 	o.ResourceArgs = args
 	return nil
 }

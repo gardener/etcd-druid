@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// reconcileOptions holds state and functionality specific to the reconcile command
+// reconcileOptions holds command-specific options for the reconcile trigger command
 type reconcileOptions struct {
 	*cmdutils.GlobalOptions
 	waitTillReady bool
@@ -21,10 +21,17 @@ type reconcileOptions struct {
 	timeout       time.Duration
 }
 
-type reconcileCmdCtx struct {
-	*reconcileOptions
+// reconcileRuntime holds runtime state for the reconcile trigger command
+type reconcileRuntime struct {
+	*cmdutils.RuntimeEnv
 	etcdRefList []types.NamespacedName
 	etcdClient  client.EtcdClientInterface
+}
+
+// reconcileCmdCtx composes options and runtime for the reconcile trigger command
+type reconcileCmdCtx struct {
+	*reconcileOptions
+	*reconcileRuntime
 }
 
 func newReconcileOptions(options *cmdutils.GlobalOptions, waitTillReady bool, watch bool, timeout time.Duration) *reconcileOptions {
@@ -36,15 +43,28 @@ func newReconcileOptions(options *cmdutils.GlobalOptions, waitTillReady bool, wa
 	}
 }
 
-// suspendReconcileOptions holds state and functionality specific to the reconcile suspend command
+func newReconcileRuntime(runtime *cmdutils.RuntimeEnv) *reconcileRuntime {
+	return &reconcileRuntime{
+		RuntimeEnv: runtime,
+	}
+}
+
+// suspendReconcileOptions holds command-specific options for the reconcile suspend command
 type suspendReconcileOptions struct {
 	*cmdutils.GlobalOptions
 }
 
-type suspendReconcileCmdCtx struct {
-	*suspendReconcileOptions
+// suspendReconcileRuntime holds runtime state for the reconcile suspend command
+type suspendReconcileRuntime struct {
+	*cmdutils.RuntimeEnv
 	etcdRefList []types.NamespacedName
 	etcdClient  client.EtcdClientInterface
+}
+
+// suspendReconcileCmdCtx composes options and runtime for the reconcile suspend command
+type suspendReconcileCmdCtx struct {
+	*suspendReconcileOptions
+	*suspendReconcileRuntime
 }
 
 func newSuspendReconcileOptions(options *cmdutils.GlobalOptions) *suspendReconcileOptions {
@@ -53,19 +73,38 @@ func newSuspendReconcileOptions(options *cmdutils.GlobalOptions) *suspendReconci
 	}
 }
 
-// resumeReconcileOptions holds state and functionality specific to the reconcile resume command
+func newSuspendReconcileRuntime(runtime *cmdutils.RuntimeEnv) *suspendReconcileRuntime {
+	return &suspendReconcileRuntime{
+		RuntimeEnv: runtime,
+	}
+}
+
+// resumeReconcileOptions holds command-specific options for the reconcile resume command
 type resumeReconcileOptions struct {
 	*cmdutils.GlobalOptions
 }
 
-type resumeReconcileCmdCtx struct {
-	*resumeReconcileOptions
+// resumeReconcileRuntime holds runtime state for the reconcile resume command
+type resumeReconcileRuntime struct {
+	*cmdutils.RuntimeEnv
 	etcdRefList []types.NamespacedName
 	etcdClient  client.EtcdClientInterface
+}
+
+// resumeReconcileCmdCtx composes options and runtime for the reconcile resume command
+type resumeReconcileCmdCtx struct {
+	*resumeReconcileOptions
+	*resumeReconcileRuntime
 }
 
 func newResumeReconcileOptions(options *cmdutils.GlobalOptions) *resumeReconcileOptions {
 	return &resumeReconcileOptions{
 		GlobalOptions: options,
+	}
+}
+
+func newResumeReconcileRuntime(runtime *cmdutils.RuntimeEnv) *resumeReconcileRuntime {
+	return &resumeReconcileRuntime{
+		RuntimeEnv: runtime,
 	}
 }

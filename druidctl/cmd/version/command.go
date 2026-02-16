@@ -28,8 +28,9 @@ kubectl druid version --short`
 )
 
 // NewVersionCommand creates the version command
-func NewVersionCommand(globalOpts *cmdutils.GlobalOptions) *cobra.Command {
-	opts := newVersionOptions(globalOpts, "", false)
+func NewVersionCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
+	opts := newVersionOptions(cmdCtx.Options, "", false)
+	runtime := newVersionRuntime(cmdCtx.Runtime)
 
 	cmd := &cobra.Command{
 		Use:     "version",
@@ -44,7 +45,7 @@ func NewVersionCommand(globalOpts *cmdutils.GlobalOptions) *cobra.Command {
 			return nil
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runVersion(globalOpts, opts)
+			return runVersion(runtime, opts)
 		},
 	}
 
@@ -54,11 +55,11 @@ func NewVersionCommand(globalOpts *cmdutils.GlobalOptions) *cobra.Command {
 	return cmd
 }
 
-func runVersion(globalOpts *cmdutils.GlobalOptions, opts *versionOptions) error {
+func runVersion(runtime *versionRuntime, opts *versionOptions) error {
 	versionInfo := version.Get()
 
 	if opts.short {
-		_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, versionInfo.GitVersion)
+		_, _ = fmt.Fprintln(runtime.IOStreams.Out, versionInfo.GitVersion)
 		return nil
 	}
 
@@ -68,29 +69,29 @@ func runVersion(globalOpts *cmdutils.GlobalOptions, opts *versionOptions) error 
 		if err != nil {
 			return fmt.Errorf("failed to marshal version info to JSON: %w", err)
 		}
-		_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, string(data))
+		_, _ = fmt.Fprintln(runtime.IOStreams.Out, string(data))
 		return nil
 	case "yaml":
 		data, err := yaml.Marshal(versionInfo)
 		if err != nil {
 			return fmt.Errorf("failed to marshal version info to YAML: %w", err)
 		}
-		fmt.Fprint(globalOpts.IOStreams.Out, string(data))
+		fmt.Fprint(runtime.IOStreams.Out, string(data))
 		return nil
 	case "":
-		fmt.Fprintf(globalOpts.IOStreams.Out, "druidctl version: %s\n", versionInfo.GitVersion)
-		fmt.Fprintf(globalOpts.IOStreams.Out, "  Git commit:     %s\n", versionInfo.GitCommit)
-		fmt.Fprintf(globalOpts.IOStreams.Out, "  Git tree state: %s\n", versionInfo.GitTreeState)
-		fmt.Fprintf(globalOpts.IOStreams.Out, "  Build date:     %s\n", versionInfo.BuildDate)
-		fmt.Fprintf(globalOpts.IOStreams.Out, "  Go version:     %s\n", versionInfo.GoVersion)
-		fmt.Fprintf(globalOpts.IOStreams.Out, "  Compiler:       %s\n", versionInfo.Compiler)
-		fmt.Fprintf(globalOpts.IOStreams.Out, "  Platform:       %s\n", versionInfo.Platform)
+		fmt.Fprintf(runtime.IOStreams.Out, "druidctl version: %s\n", versionInfo.GitVersion)
+		fmt.Fprintf(runtime.IOStreams.Out, "  Git commit:     %s\n", versionInfo.GitCommit)
+		fmt.Fprintf(runtime.IOStreams.Out, "  Git tree state: %s\n", versionInfo.GitTreeState)
+		fmt.Fprintf(runtime.IOStreams.Out, "  Build date:     %s\n", versionInfo.BuildDate)
+		fmt.Fprintf(runtime.IOStreams.Out, "  Go version:     %s\n", versionInfo.GoVersion)
+		fmt.Fprintf(runtime.IOStreams.Out, "  Compiler:       %s\n", versionInfo.Compiler)
+		fmt.Fprintf(runtime.IOStreams.Out, "  Platform:       %s\n", versionInfo.Platform)
 
 		if !versionInfo.IsRelease() {
-			_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, "\n ⚠️  This is a development build and not an official release.")
+			_, _ = fmt.Fprintln(runtime.IOStreams.Out, "\n ⚠️  This is a development build and not an official release.")
 		}
 		if versionInfo.IsDirty() {
-			_, _ = fmt.Fprintln(globalOpts.IOStreams.Out, " ⚠️  Built from modified source (dirty git tree).")
+			_, _ = fmt.Fprintln(runtime.IOStreams.Out, " ⚠️  Built from modified source (dirty git tree).")
 		}
 		return nil
 	default:

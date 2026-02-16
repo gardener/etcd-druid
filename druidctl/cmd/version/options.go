@@ -14,10 +14,25 @@ type versionOptions struct {
 	short  bool
 }
 
+type versionRuntime struct {
+	*cmdutils.RuntimeEnv
+}
+
+type versionCmdCtx struct {
+	*versionOptions
+	*versionRuntime
+}
+
 func newVersionOptions(globalOpts *cmdutils.GlobalOptions, output string, short bool) *versionOptions {
 	return &versionOptions{
 		GlobalOptions: globalOpts,
 		output:        output,
 		short:         short,
+	}
+}
+
+func newVersionRuntime(runtime *cmdutils.RuntimeEnv) *versionRuntime {
+	return &versionRuntime{
+		RuntimeEnv: runtime,
 	}
 }

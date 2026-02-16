@@ -60,7 +60,7 @@ kubectl druid reconciliation resume -A
 //   - `kubectl druid reconciliation trigger <resources>` - trigger reconciliation
 //   - `kubectl druid reconciliation suspend <resources>` - suspend reconciliation
 //   - `kubectl druid reconciliation resume <resources>` - resume reconciliation
-func NewReconciliationCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewReconciliationCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	reconciliationCmd := &cobra.Command{
 		Use:   "reconciliation",
 		Short: "Manage etcd resource reconciliation",
@@ -69,15 +69,15 @@ Use subcommands 'trigger', 'suspend', and 'resume' to control reconciliation sta
 	}
 
 	// Add subcommands
-	reconciliationCmd.AddCommand(NewTriggerCommand(options))
-	reconciliationCmd.AddCommand(NewSuspendCommand(options))
-	reconciliationCmd.AddCommand(NewResumeCommand(options))
+	reconciliationCmd.AddCommand(NewTriggerCommand(cmdCtx))
+	reconciliationCmd.AddCommand(NewSuspendCommand(cmdCtx))
+	reconciliationCmd.AddCommand(NewResumeCommand(cmdCtx))
 
 	return reconciliationCmd
 }
 
 // NewTriggerCommand creates the 'reconciliation trigger' subcommand
-func NewTriggerCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewTriggerCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	var waitTillReady bool
 	var watch bool
 	var timeout time.Duration = defaultTimeout
@@ -89,37 +89,44 @@ func NewTriggerCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Example: triggerExample,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			opts := cmdCtx.Options
+			runtime := cmdCtx.Runtime
+
 			// If no args and no -A flag, show help
-			if len(options.ResourceArgs) == 0 && !options.AllNamespaces {
+			if len(opts.ResourceArgs) == 0 && !opts.AllNamespaces {
 				return cmd.Help()
 			}
 
 			// Create reconcile context
-			reconcileOpts := newReconcileOptions(options, waitTillReady, watch, timeout)
-			ctx := &reconcileCmdCtx{reconcileOptions: reconcileOpts}
+			reconcileOpts := newReconcileOptions(opts, waitTillReady, watch, timeout)
+			reconcileRuntime := newReconcileRuntime(runtime)
+			ctx := &reconcileCmdCtx{
+				reconcileOptions: reconcileOpts,
+				reconcileRuntime: reconcileRuntime,
+			}
 
 			if err := ctx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Trigger reconciliation validation failed", err)
+				runtime.Logger.Error(runtime.IOStreams.ErrOut, "Trigger reconciliation validation failed", err)
 				if herr := cmd.Help(); herr != nil {
-					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+					runtime.Logger.Warning(runtime.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
 				}
 				return err
 			}
 
-			if err := ctx.complete(options); err != nil {
+			if err := ctx.complete(); err != nil {
 				return err
 			}
 
-			if options.Verbose {
-				if options.AllNamespaces {
-					options.Logger.Info(options.IOStreams.Out, "Triggering reconciliation for Etcd resources across all namespaces")
+			if opts.Verbose {
+				if opts.AllNamespaces {
+					runtime.Logger.Info(runtime.IOStreams.Out, "Triggering reconciliation for Etcd resources across all namespaces")
 				} else {
-					options.Logger.Info(options.IOStreams.Out, "Triggering reconciliation for selected Etcd resources")
+					runtime.Logger.Info(runtime.IOStreams.Out, "Triggering reconciliation for selected Etcd resources")
 				}
 			}
 
 			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Trigger reconciliation failed", err)
+				runtime.Logger.Error(runtime.IOStreams.ErrOut, "Trigger reconciliation failed", err)
 				return err
 			}
 			return nil
@@ -138,7 +145,7 @@ func NewTriggerCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 }
 
 // NewSuspendCommand creates the 'reconciliation suspend' subcommand
-func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewSuspendCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "suspend [resources] [flags]",
 		Short:   "Suspend reconciliation for etcd resources",
@@ -146,31 +153,38 @@ func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Example: suspendExample,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			suspendOpts := newSuspendReconcileOptions(options)
-			ctx := &suspendReconcileCmdCtx{suspendReconcileOptions: suspendOpts}
+			opts := cmdCtx.Options
+			runtime := cmdCtx.Runtime
+
+			suspendOpts := newSuspendReconcileOptions(opts)
+			suspendRuntime := newSuspendReconcileRuntime(runtime)
+			ctx := &suspendReconcileCmdCtx{
+				suspendReconcileOptions: suspendOpts,
+				suspendReconcileRuntime: suspendRuntime,
+			}
 
 			if err := ctx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Suspending reconciliation validation failed", err)
+				runtime.Logger.Error(runtime.IOStreams.ErrOut, "Suspending reconciliation validation failed", err)
 				if herr := cmd.Help(); herr != nil {
-					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+					runtime.Logger.Warning(runtime.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
 				}
 				return err
 			}
 
-			if err := ctx.complete(options); err != nil {
+			if err := ctx.complete(); err != nil {
 				return err
 			}
 
-			if options.Verbose {
-				if options.AllNamespaces {
-					options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for Etcd resources across all namespaces")
+			if opts.Verbose {
+				if opts.AllNamespaces {
+					runtime.Logger.Info(runtime.IOStreams.Out, "Suspending reconciliation for Etcd resources across all namespaces")
 				} else {
-					options.Logger.Info(options.IOStreams.Out, "Suspending reconciliation for selected Etcd resources")
+					runtime.Logger.Info(runtime.IOStreams.Out, "Suspending reconciliation for selected Etcd resources")
 				}
 			}
 
 			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Suspending reconciliation failed", err)
+				runtime.Logger.Error(runtime.IOStreams.ErrOut, "Suspending reconciliation failed", err)
 				return err
 			}
 			return nil
@@ -181,7 +195,7 @@ func NewSuspendCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 }
 
 // NewResumeCommand creates the 'reconciliation resume' subcommand
-func NewResumeCommand(options *cmdutils.GlobalOptions) *cobra.Command {
+func NewResumeCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "resume [resources] [flags]",
 		Short:   "Resume reconciliation for etcd resources",
@@ -189,31 +203,38 @@ func NewResumeCommand(options *cmdutils.GlobalOptions) *cobra.Command {
 		Example: resumeExample,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resumeOpts := newResumeReconcileOptions(options)
-			ctx := &resumeReconcileCmdCtx{resumeReconcileOptions: resumeOpts}
+			opts := cmdCtx.Options
+			runtime := cmdCtx.Runtime
+
+			resumeOpts := newResumeReconcileOptions(opts)
+			resumeRuntime := newResumeReconcileRuntime(runtime)
+			ctx := &resumeReconcileCmdCtx{
+				resumeReconcileOptions: resumeOpts,
+				resumeReconcileRuntime: resumeRuntime,
+			}
 
 			if err := ctx.validate(); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Resuming reconciliation validation failed", err)
+				runtime.Logger.Error(runtime.IOStreams.ErrOut, "Resuming reconciliation validation failed", err)
 				if herr := cmd.Help(); herr != nil {
-					options.Logger.Warning(options.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
+					runtime.Logger.Warning(runtime.IOStreams.ErrOut, "Failed to show help: ", herr.Error())
 				}
 				return err
 			}
 
-			if err := ctx.complete(options); err != nil {
+			if err := ctx.complete(); err != nil {
 				return err
 			}
 
-			if options.Verbose {
-				if options.AllNamespaces {
-					options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for Etcd resources across all namespaces")
+			if opts.Verbose {
+				if opts.AllNamespaces {
+					runtime.Logger.Info(runtime.IOStreams.Out, "Resuming reconciliation for Etcd resources across all namespaces")
 				} else {
-					options.Logger.Info(options.IOStreams.Out, "Resuming reconciliation for selected Etcd resources")
+					runtime.Logger.Info(runtime.IOStreams.Out, "Resuming reconciliation for selected Etcd resources")
 				}
 			}
 
 			if err := ctx.execute(cmdutils.CmdContext(cmd)); err != nil {
-				options.Logger.Error(options.IOStreams.ErrOut, "Resuming reconciliation failed", err)
+				runtime.Logger.Error(runtime.IOStreams.ErrOut, "Resuming reconciliation failed", err)
 				return err
 			}
 			return nil

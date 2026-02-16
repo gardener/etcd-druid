@@ -41,14 +41,14 @@ func extractJSON(output string) string {
 func TestListResourcesCommand(t *testing.T) {
 	// Create test helper with single etcd scenario
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Create the list-resources command
-	cmd := NewListResourcesCommand(globalOpts)
+	cmd := NewListResourcesCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -58,11 +58,11 @@ func TestListResourcesCommand(t *testing.T) {
 	}
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -120,14 +120,14 @@ func TestListResourcesCommand(t *testing.T) {
 func TestListResourcesAllNamespaces(t *testing.T) {
 	// Create test helper with multiple etcd scenario
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Verify initial state - should have multiple etcds
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestListResourcesAllNamespaces(t *testing.T) {
 	}
 
 	// Create the command
-	cmd := NewListResourcesCommand(globalOpts)
+	cmd := NewListResourcesCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -154,15 +154,15 @@ func TestListResourcesAllNamespaces(t *testing.T) {
 
 	// Set all-namespaces
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
-	globalOpts.AllNamespaces = true
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.AllNamespaces = true
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -198,14 +198,14 @@ func TestListResourcesAllNamespaces(t *testing.T) {
 func TestListResourcesWithFilter(t *testing.T) {
 	// Test list-resources command with filter
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Create the command
-	cmd := NewListResourcesCommand(globalOpts)
+	cmd := NewListResourcesCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -220,11 +220,11 @@ func TestListResourcesWithFilter(t *testing.T) {
 	}
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -281,14 +281,14 @@ func TestListResourcesOutputFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			globalOpts := helper.CreateTestOptions()
+			cmdCtx := helper.CreateTestCommandContext()
 
 			// Create test IO streams to capture output
 			streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-			globalOpts.IOStreams = streams
+			cmdCtx.Runtime.IOStreams = streams
 
 			// Create the command
-			cmd := NewListResourcesCommand(globalOpts)
+			cmd := NewListResourcesCommand(cmdCtx)
 			cmd.SetOut(buf)
 			cmd.SetErr(errBuf)
 
@@ -298,11 +298,11 @@ func TestListResourcesOutputFormats(t *testing.T) {
 			}
 
 			// Complete and validate options
-			if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+			if err := cmdCtx.Complete(cmd, []string{"test-etcd"}); err != nil {
 				t.Fatalf("Failed to complete options: %v", err)
 			}
 
-			if err := globalOpts.ValidateResourceSelection(); err != nil {
+			if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 				t.Fatalf("Failed to validate options: %v", err)
 			}
 
@@ -324,14 +324,14 @@ func TestListResourcesOutputFormats(t *testing.T) {
 func TestListResourcesErrorHandling(t *testing.T) {
 	// Test error cases with empty scenario
 	helper := fake.NewTestHelper() // No test data
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Verify no etcds exist in the fake client
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -346,16 +346,16 @@ func TestListResourcesErrorHandling(t *testing.T) {
 	}
 
 	// Create the command
-	cmd := NewListResourcesCommand(globalOpts)
+	cmd := NewListResourcesCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"non-existent-etcd"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"non-existent-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -375,20 +375,20 @@ func TestListResourcesErrorHandling(t *testing.T) {
 func TestListResourcesNamespaceFlag(t *testing.T) {
 	// Test -n namespace flag with resource name (kubectl pattern)
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Create the command
-	cmd := NewListResourcesCommand(globalOpts)
+	cmd := NewListResourcesCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Set namespace to shoot-ns1
 	shootNs1 := "shoot-ns1"
-	globalOpts.ConfigFlags.Namespace = &shootNs1
+	cmdCtx.Options.ConfigFlags.Namespace = &shootNs1
 
 	// Use JSON output
 	if err := cmd.Flags().Set("output", "json"); err != nil {
@@ -396,11 +396,11 @@ func TestListResourcesNamespaceFlag(t *testing.T) {
 	}
 
 	// Complete and validate options - request etcd-main in shoot-ns1
-	if err := globalOpts.Complete(cmd, []string{"etcd-main"}); err != nil {
+	if err := cmdCtx.Complete(cmd, []string{"etcd-main"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -435,14 +435,14 @@ func TestListResourcesNamespaceFlag(t *testing.T) {
 func TestListResourcesCrossNamespace(t *testing.T) {
 	// Test cross-namespace selection: ns1/etcd1 ns2/etcd2
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Create the command
-	cmd := NewListResourcesCommand(globalOpts)
+	cmd := NewListResourcesCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
@@ -453,15 +453,15 @@ func TestListResourcesCrossNamespace(t *testing.T) {
 
 	// IMPORTANT: Clear namespace flag for cross-namespace references
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
 
 	// Request resources from different namespaces using ns/name format
 	args := []string{"shoot-ns1/etcd-main", "shoot-ns2/etcd-main"}
-	if err := globalOpts.Complete(cmd, args); err != nil {
+	if err := cmdCtx.Complete(cmd, args); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 

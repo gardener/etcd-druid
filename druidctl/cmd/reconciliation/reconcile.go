@@ -23,13 +23,13 @@ type reconcileResult struct {
 	Duration time.Duration
 }
 
-func (r *reconcileCmdCtx) complete(options *cmdutils.GlobalOptions) error {
-	etcdClient, err := options.Clients.EtcdClient()
+func (r *reconcileCmdCtx) complete() error {
+	etcdClient, err := r.Clients.EtcdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = options.BuildEtcdRefList()
+	r.etcdRefList = r.GlobalOptions.BuildEtcdRefList()
 	return nil
 }
 
@@ -47,7 +47,6 @@ func (r *reconcileCmdCtx) validate() error {
 	}
 	return nil
 }
-
 // There are two types of reconciles, one where you add the reconcile annotation and exit.
 // Another where you wait till all the changes done to the Etcd resource have successfully reconciled and post reconciliation
 // all the etcd cluster members are Ready
@@ -147,7 +146,7 @@ func (r *reconcileCmdCtx) processReconcile(ctx context.Context, etcd *druidv1alp
 	}
 	sm.setReconcileTriggered(types.NamespacedName{Namespace: etcd.Namespace, Name: etcd.Name})
 
-	//  check if the reconciliation is suspended, if yes, then return error as we cannot proceed
+	//  return error if the reconciliation is suspended as we cannot proceed
 	if _, suspended := etcd.Annotations[druidv1alpha1.SuspendEtcdSpecReconcileAnnotation]; suspended {
 		return fmt.Errorf("reconciliation triggered, but is suspended for Etcd, cannot proceed")
 	}
@@ -203,7 +202,18 @@ func (r *reconcileCmdCtx) waitForEtcdReady(ctx context.Context, etcd *druidv1alp
 			}
 			if ready {
 				key := types.NamespacedName{Namespace: etcd.Namespace, Name: etcd.Name}
-				sm.setComplete(key)
+				endTime := time.Now()
+				// Fetch the latest etcd to get the accurate LastTransitionTime
+				latestEtcd, err := r.etcdClient.GetEtcd(ctx, etcd.Namespace, etcd.Name)
+				if err == nil {
+					// Use LastTransitionTime only if it's after our startTime (i.e., the condition transitioned during this reconciliation)
+					if readyTime := getConditionLastTransitionTime(latestEtcd, druidv1alpha1.ConditionTypeAllMembersReady); readyTime != nil {
+						if startTime := sm.getStartTime(key); startTime == nil || readyTime.After(*startTime) {
+							endTime = *readyTime
+						}
+					}
+				}
+				sm.setComplete(key, endTime)
 				if r.Verbose {
 					r.Logger.Success(r.IOStreams.Out, "Etcd is now ready", etcd.Name, etcd.Namespace)
 				}
@@ -248,4 +258,14 @@ func isEtcdConditionTrue(etcd *druidv1alpha1.Etcd, condition druidv1alpha1.Condi
 		}
 	}
 	return false
+}
+
+func getConditionLastTransitionTime(etcd *druidv1alpha1.Etcd, conditionType druidv1alpha1.ConditionType) *time.Time {
+	for _, cond := range etcd.Status.Conditions {
+		if cond.Type == conditionType {
+			t := cond.LastTransitionTime.Time
+			return &t
+		}
+	}
+	return nil
 }

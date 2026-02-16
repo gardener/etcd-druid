@@ -15,14 +15,25 @@ type resourceProtectionOptions struct {
 	*cmdutils.GlobalOptions
 }
 
-type resourceProtectionCmdCtx struct {
-	*resourceProtectionOptions
+type resourceProtectionRuntime struct {
+	*cmdutils.RuntimeEnv
 	etcdRefList []types.NamespacedName
 	etcdClient  client.EtcdClientInterface
+}
+
+type resourceProtectionCmdCtx struct {
+	*resourceProtectionOptions
+	*resourceProtectionRuntime
 }
 
 func newResourceProtectionOptions(options *cmdutils.GlobalOptions) *resourceProtectionOptions {
 	return &resourceProtectionOptions{
 		GlobalOptions: options,
+	}
+}
+
+func newResourceProtectionRuntime(runtime *cmdutils.RuntimeEnv) *resourceProtectionRuntime {
+	return &resourceProtectionRuntime{
+		RuntimeEnv: runtime,
 	}
 }

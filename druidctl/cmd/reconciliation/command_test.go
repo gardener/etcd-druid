@@ -18,28 +18,28 @@ import (
 func TestReconcileCommand(t *testing.T) {
 	// Test the reconcile command adds "druid.gardener.cloud/operation: reconcile" annotation
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the reconcile command
-	cmd := NewTriggerCommand(globalOpts)
+	cmd := NewTriggerCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -73,35 +73,35 @@ func TestReconcileCommand(t *testing.T) {
 func TestReconcileCommandAllNamespaces(t *testing.T) {
 	// Test reconcile command with --all-namespaces flag
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
 	// Provide 'y' confirmation for --all-namespaces prompt
 	streams.In = strings.NewReader("y\n")
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the reconcile command
-	cmd := NewTriggerCommand(globalOpts)
+	cmd := NewTriggerCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Set all-namespaces
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
-	globalOpts.AllNamespaces = true
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.AllNamespaces = true
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{}); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, []string{}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -143,28 +143,28 @@ func TestReconcileCommandAllNamespaces(t *testing.T) {
 func TestSuspendReconcileCommand(t *testing.T) {
 	// Test the reconcile suspend command adds SuspendEtcdSpecReconcileAnnotation
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the reconcile suspend command
-	cmd := NewSuspendCommand(globalOpts)
+	cmd := NewSuspendCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -198,13 +198,13 @@ func TestSuspendReconcileCommand(t *testing.T) {
 func TestResumeReconcileCommand(t *testing.T) {
 	// Test the reconcile resume command removes SuspendEtcdSpecReconcileAnnotation
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -226,16 +226,16 @@ func TestResumeReconcileCommand(t *testing.T) {
 	}
 
 	// Create the reconcile resume command
-	cmd := NewResumeCommand(globalOpts)
+	cmd := NewResumeCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -274,18 +274,18 @@ func TestResumeReconcileCommand(t *testing.T) {
 func TestReconcileErrorHandling(t *testing.T) {
 	// Test with empty client (no etcd resources)
 	helper := fake.NewTestHelper()
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
 	// Test reconcile command with non-existent etcd
-	reconcileCmd := NewTriggerCommand(globalOpts)
+	reconcileCmd := NewTriggerCommand(cmdCtx)
 	reconcileCmd.SetOut(buf)
 	reconcileCmd.SetErr(errBuf)
 
-	if err := globalOpts.Complete(reconcileCmd, []string{"non-existent-etcd"}); err != nil {
+	if err := cmdCtx.Options.Complete(reconcileCmd, []string{"non-existent-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
@@ -305,24 +305,24 @@ func TestReconcileErrorHandling(t *testing.T) {
 func TestResumeReconcileWithoutAnnotation(t *testing.T) {
 	// Test resume command when etcd has no suspend annotation
 	helper := fake.NewTestHelper().WithTestScenario(fake.SingleEtcdWithResources())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the reconcile resume command
-	cmd := NewResumeCommand(globalOpts)
+	cmd := NewResumeCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Complete and validate options
-	if err := globalOpts.Complete(cmd, []string{"test-etcd"}); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, []string{"test-etcd"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
@@ -352,32 +352,32 @@ func TestResumeReconcileWithoutAnnotation(t *testing.T) {
 func TestReconcileNamespaceFlag(t *testing.T) {
 	// Test reconcile command with -n namespace flag (kubectl pattern: -n ns resourcename)
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the reconcile command
-	cmd := NewTriggerCommand(globalOpts)
+	cmd := NewTriggerCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Set namespace to shoot-ns1
 	shootNs1 := "shoot-ns1"
-	globalOpts.ConfigFlags.Namespace = &shootNs1
+	cmdCtx.Options.ConfigFlags.Namespace = &shootNs1
 
 	// Complete with just the resource name (namespace from -n flag)
-	if err := globalOpts.Complete(cmd, []string{"etcd-main"}); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, []string{"etcd-main"}); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -419,33 +419,33 @@ func TestReconcileNamespaceFlag(t *testing.T) {
 func TestReconcileCrossNamespace(t *testing.T) {
 	// Test reconcile command with cross-namespace references: ns1/etcd1 ns2/etcd2
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the reconcile command
-	cmd := NewTriggerCommand(globalOpts)
+	cmd := NewTriggerCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Clear namespace flag for cross-namespace selection
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
 
 	// Use cross-namespace format: ns/name
 	args := []string{"shoot-ns1/etcd-main", "shoot-ns2/etcd-main"}
-	if err := globalOpts.Complete(cmd, args); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, args); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -477,33 +477,33 @@ func TestReconcileCrossNamespace(t *testing.T) {
 func TestSuspendCrossNamespace(t *testing.T) {
 	// Test suspend command with cross-namespace references
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
 
 	// Create the suspend command
-	cmd := NewSuspendCommand(globalOpts)
+	cmd := NewSuspendCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Clear namespace flag for cross-namespace selection
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
 
 	// Use cross-namespace format
 	args := []string{"shoot-ns1/etcd-main", "shoot-ns2/etcd-main"}
-	if err := globalOpts.Complete(cmd, args); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, args); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
@@ -535,13 +535,13 @@ func TestSuspendCrossNamespace(t *testing.T) {
 func TestResumeCrossNamespace(t *testing.T) {
 	// Test resume command with cross-namespace references
 	helper := fake.NewTestHelper().WithTestScenario(fake.MultipleEtcdsScenario())
-	globalOpts := helper.CreateTestOptions()
+	cmdCtx := helper.CreateTestCommandContext()
 
 	// Create test IO streams to capture output
 	streams, _, buf, errBuf := genericiooptions.NewTestIOStreams()
-	globalOpts.IOStreams = streams
+	cmdCtx.Runtime.IOStreams = streams
 
-	etcdClient, err := globalOpts.Clients.EtcdClient()
+	etcdClient, err := cmdCtx.Runtime.Clients.EtcdClient()
 	if err != nil {
 		t.Fatalf("Failed to create etcd client: %v", err)
 	}
@@ -564,21 +564,21 @@ func TestResumeCrossNamespace(t *testing.T) {
 	})
 
 	// Create the resume command
-	cmd := NewResumeCommand(globalOpts)
+	cmd := NewResumeCommand(cmdCtx)
 	cmd.SetOut(buf)
 	cmd.SetErr(errBuf)
 
 	// Clear namespace flag for cross-namespace selection
 	emptyNs := ""
-	globalOpts.ConfigFlags.Namespace = &emptyNs
+	cmdCtx.Options.ConfigFlags.Namespace = &emptyNs
 
 	// Use cross-namespace format
 	args := []string{"shoot-ns1/etcd-main", "shoot-ns2/etcd-main"}
-	if err := globalOpts.Complete(cmd, args); err != nil {
+	if err := cmdCtx.Options.Complete(cmd, args); err != nil {
 		t.Fatalf("Failed to complete options: %v", err)
 	}
 
-	if err := globalOpts.ValidateResourceSelection(); err != nil {
+	if err := cmdCtx.Options.ValidateResourceSelection(); err != nil {
 		t.Fatalf("Failed to validate options: %v", err)
 	}
 
