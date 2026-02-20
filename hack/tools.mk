@@ -31,6 +31,7 @@ KUSTOMIZE_VERSION := v4.5.7
 GOLANGCI_LINT_VERSION ?= v1.64.8
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
 CODE_GENERATOR_VERSION ?= $(call version_gomod,k8s.io/api)
+CONTROLLER_RUNTIME_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-runtime)
 GINKGO_VERSION ?= $(call version_gomod,github.com/onsi/ginkgo/v2)
 GOSEC_VERSION ?= v2.22.2
 MOCKGEN_VERSION ?= $(call version_gomod,go.uber.org/mock)
@@ -90,7 +91,8 @@ $(MOCKGEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
 
 $(SETUP_ENVTEST):
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-runtime/tools/setup-envtest
+	curl -Lo $(SETUP_ENVTEST) https://github.com/kubernetes-sigs/controller-runtime/releases/download/$(CONTROLLER_RUNTIME_VERSION)/setup-envtest-$(SYSTEM_NAME)-$(SYSTEM_ARCH)
+	chmod +x $(SETUP_ENVTEST)
 
 $(SKAFFOLD):
 	curl -Lo $(SKAFFOLD) https://storage.googleapis.com/skaffold/releases/$(SKAFFOLD_VERSION)/skaffold-$(SYSTEM_NAME)-$(SYSTEM_ARCH)
