@@ -12,8 +12,8 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/base.yaml
+    secrets: inherit
     permissions:
-      pull-requests: write
       contents: read
       id-token: write
       packages: write
@@ -36,7 +36,6 @@ jobs:
         api/${version}
         client/${version}
       next-version: ${{ inputs.next-version }}
-      next-version-callback-action-path:
       slack-channel-id: C0177NLL8V9 # #gardener-etcd
       social-release-notes-recursion-depth: -1
       github-release-notes-recursion-depth: -1
