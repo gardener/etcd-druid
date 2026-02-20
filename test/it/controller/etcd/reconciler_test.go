@@ -82,8 +82,7 @@ func TestEtcdReconcileSpecWithNoAutoReconcile(t *testing.T) {
 	}{
 		{"should add finalizer to etcd when etcd resource is created", testAddFinalizerToEtcd},
 		{"should create all managed resources when etcd resource is created", testAllManagedResourcesAreCreated},
-		{"should create necessary managed resources when `disable-etcd-runtime-component-creation` annotation is set", testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeComponentCreationAnnotationIsSet},
-		{"should clean up unnecessary managed resources when `disable-etcd-runtime-component-creation` annotation is set", testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentCreationAnnotationIsSet},
+		{"should create necessary managed resources when externally managed members are present", testNecessaryManagedResourcesAreCorrectlyCreatedWhenExternallyManagedMembersArePresent},
 		{"should succeed only in creation of some resources and not all and should record error in lastErrors and lastOperation", testFailureToCreateAllResources},
 		{"should not reconcile spec when reconciliation is suspended", testWhenReconciliationIsSuspended},
 		{"should not reconcile upon etcd spec update when no reconcile operation annotation is set", testEtcdSpecUpdateWhenNoReconcileOperationAnnotationIsSet},
@@ -152,7 +151,7 @@ func testAllManagedResourcesAreCreated(t *testing.T, testNs string, reconcilerTe
 	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
 }
 
-func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeComponentCreationAnnotationIsSet(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+func testNecessaryManagedResourcesAreCorrectlyCreatedWhenExternallyManagedMembersArePresent(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
 	const (
 		timeout         = time.Minute * 2
 		pollingInterval = time.Second * 2
@@ -163,9 +162,7 @@ func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeCompo
 		WithClientTLS().
 		WithPeerTLS().
 		WithReplicas(3).
-		WithAnnotations(map[string]string{
-			druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
-		}).
+		WithExternallyManagedMembers([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}).
 		Build()
 	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
 	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
@@ -179,86 +176,20 @@ func testNecessaryManagedResourcesAreCorrectlyCreatedWhenDisableEtcdRuntimeCompo
 	componentKindCreated := []component.Kind{
 		component.ConfigMapKind,
 		component.StatefulSetKind,
-	}
-	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindCreated, timeout, pollingInterval)
-	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 0, 30*time.Second, 2*time.Second)
-	componentKindNotCreated := []component.Kind{
 		component.ServiceAccountKind,
 		component.RoleKind,
 		component.RoleBindingKind,
 		component.MemberLeaseKind,
 		component.SnapshotLeaseKind,
+	}
+	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindCreated, timeout, pollingInterval)
+	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 0, 30*time.Second, 2*time.Second)
+	componentKindNotCreated := []component.Kind{
 		component.PodDisruptionBudgetKind,
 		component.ClientServiceKind,
 		component.PeerServiceKind,
 	}
 	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindNotCreated, timeout, pollingInterval)
-	expectedLastOperation := &druidapicommon.LastOperation{
-		Type:  druidv1alpha1.LastOperationTypeReconcile,
-		State: druidv1alpha1.LastOperationStateSucceeded,
-	}
-	assertETCDLastOperationAndLastErrorsUpdatedSuccessfully(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), expectedLastOperation, nil, 5*time.Second, 1*time.Second)
-	assertETCDObservedGeneration(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), ptr.To[int64](1), 30*time.Second, 1*time.Second)
-	assertETCDOperationAnnotation(t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), false, 5*time.Second, 1*time.Second)
-}
-
-func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentCreationAnnotationIsSet(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
-	const (
-		timeout         = time.Minute * 2
-		pollingInterval = time.Second * 2
-	)
-	// ***************** setup *****************
-	g := NewWithT(t)
-	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
-		WithClientTLS().
-		WithPeerTLS().
-		WithReplicas(3).
-		Build()
-	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
-	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
-	cl := reconcilerTestEnv.itTestEnv.GetClient()
-	ctx := context.Background()
-	// create backup secrets
-	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
-	// create etcdInstance resource and assert successful reconciliation, and ensure that sts generation is 1
-	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
-	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 3, 30*time.Second, 2*time.Second)
-	// update member leases with peer-tls-enabled annotation set to true
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
-	t.Log("updating member leases with peer-tls-enabled annotation set to true")
-	mlcs := []etcdMemberLeaseConfig{
-		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
-	}
-	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
-	// get latest version of etcdInstance
-	g.Expect(cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance)).To(Succeed())
-	// add `disable-etcd-runtime-component-creation` annotation and operation reconcile annotation to etcdInstance
-	etcdInstance.Annotations = map[string]string{
-		druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
-		druidv1alpha1.DruidOperationAnnotation:                      druidv1alpha1.DruidOperationReconcile,
-	}
-	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-
-	// ***************** test etcd spec reconciliation  *****************
-	componentKindAbsent := []component.Kind{
-		component.ServiceAccountKind,
-		component.RoleKind,
-		component.RoleBindingKind,
-		component.MemberLeaseKind,
-		component.SnapshotLeaseKind,
-		component.PodDisruptionBudgetKind,
-		component.ClientServiceKind,
-		component.PeerServiceKind,
-	}
-	assertComponentsDoNotExist(ctx, t, reconcilerTestEnv, etcdInstance, componentKindAbsent, timeout, pollingInterval)
-	componentKindPresent := []component.Kind{
-		component.ConfigMapKind,
-		component.StatefulSetKind,
-	}
-	assertSelectedComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, componentKindPresent, timeout, pollingInterval)
-	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 0, 30*time.Second, 2*time.Second)
 	expectedLastOperation := &druidapicommon.LastOperation{
 		Type:  druidv1alpha1.LastOperationTypeReconcile,
 		State: druidv1alpha1.LastOperationStateSucceeded,
@@ -380,7 +311,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
 	// update member leases with peer-tls-enabled annotation set to true
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
 		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
@@ -641,7 +572,7 @@ func TestScaleSubresource(t *testing.T) {
 }
 
 func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	testNs := etcd.Namespace
 	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
 	g := NewWithT(t)

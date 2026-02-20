@@ -117,12 +117,20 @@ func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serv
 }
 
 func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
-	domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
-	for i := range int(etcd.Spec.Replicas) {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
+	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
+		domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
+		for i := range int(etcd.Spec.Replicas) {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
+		}
+	} else {
+		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd.ObjectMeta, memberAddress)
+			builder.WriteString(fmt.Sprintf("%s=%s://%s:%s,", memberName, peerScheme, memberAddress, serverPort))
+		}
 	}
 	return strings.Trim(builder.String(), ",")
 }
@@ -138,9 +146,18 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 		return nil
 	}
 	advUrlsMap := make(map[string][]string)
-	for i := range int(etcd.Spec.Replicas) {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
+	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
+		domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
+		for i := range int(etcd.Spec.Replicas) {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
+		}
+	} else {
+		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd.ObjectMeta, memberAddress)
+			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}
+		}
 	}
 	return advUrlsMap
 }
