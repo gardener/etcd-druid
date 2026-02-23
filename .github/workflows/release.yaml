@@ -17,6 +17,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
+      pull-requests: write
     with:
       mode: release
 
