@@ -20,6 +20,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      pull-requests: write
 
   component-descriptor:
     uses: gardener/cc-utils/.github/workflows/post-build.yaml@master
