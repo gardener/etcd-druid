@@ -312,6 +312,9 @@ type SchedulingConstraints struct {
 // EtcdSpec defines the desired state of Etcd
 // +kubebuilder:validation:XValidation:message="etcd.spec.storageClass is an immutable field.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate is an immutable field.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.replicas must be equal to length of etcd.spec.externallyManagedMemberAddresses when etcd.spec.externallyManagedMemberAddresses is specified.",rule="has(self.externallyManagedMemberAddresses) ? self.replicas == self.externallyManagedMemberAddresses.size() : true"
+// +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field cannot be added or removed dynamically.",rule="has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field cannot be empty when specified.",rule="has(self.externallyManagedMemberAddresses) ? self.externallyManagedMemberAddresses.size() > 0 : true"
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
@@ -358,6 +361,12 @@ type EtcdSpec struct {
 	// run as root. By default, they run as non-root with user 'nobody'.
 	// +optional
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
+	// ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
+	// will disable components that are involved in management of etcd members like Pods, Services and PDBs.
+	// +optional
+	// +kubebuilder:validation:items:Format=ipv4
+	// +listType=set
+	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.

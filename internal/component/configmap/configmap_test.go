@@ -86,12 +86,13 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	testCases := []struct {
-		name             string
-		etcdReplicas     int32
-		createErr        *apierrors.StatusError
-		clientTLSEnabled bool
-		peerTLSEnabled   bool
-		expectedErr      *druiderr.DruidError
+		name                             string
+		etcdReplicas                     int32
+		createErr                        *apierrors.StatusError
+		clientTLSEnabled                 bool
+		peerTLSEnabled                   bool
+		externallyManagedMemberAddresses []string
+		expectedErr                      *druiderr.DruidError
 	}{
 		{
 			name:             "should create when no configmap exists for single node etcd cluster",
@@ -104,6 +105,13 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 			clientTLSEnabled: true,
 			peerTLSEnabled:   true,
 			etcdReplicas:     3,
+		},
+		{
+			name:                             "should create when no configmap exists for multi-node etcd cluster with externally managed members",
+			clientTLSEnabled:                 true,
+			peerTLSEnabled:                   true,
+			etcdReplicas:                     3,
+			externallyManagedMemberAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
 		},
 		{
 			name:             "return error when create client request fails",
@@ -123,7 +131,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
+			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled, tc.externallyManagedMemberAddresses)
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -143,11 +151,12 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 
 func TestPrepareInitialCluster(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		peerTLSEnabled         bool
-		etcdReplicas           int32
-		etcdSpecServerPort     *int32
-		expectedInitialCluster string
+		name                             string
+		peerTLSEnabled                   bool
+		externallyManagedMemberAddresses []string
+		etcdReplicas                     int32
+		etcdSpecServerPort               *int32
+		expectedInitialCluster           string
 	}{
 		{
 			name:                   "should create initial cluster for single node etcd cluster when peer TLS is enabled",
@@ -169,13 +178,21 @@ func TestPrepareInitialCluster(t *testing.T) {
 			etcdSpecServerPort:     ptr.To[int32](2333),
 			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
 		},
+		{
+			name:                             "should create initial cluster for multi node etcd cluster when externally managed members are present",
+			etcdReplicas:                     3,
+			peerTLSEnabled:                   true,
+			externallyManagedMemberAddresses: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			etcdSpecServerPort:               ptr.To[int32](2333),
+			expectedInitialCluster:           "etcd-test-1.1.1.1=https://1.1.1.1:2333,etcd-test-1.1.1.2=https://1.1.1.2:2333,etcd-test-1.1.1.3=https://1.1.1.3:2333",
+		},
 	}
 	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
+			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled, tc.externallyManagedMemberAddresses)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
 			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
@@ -184,13 +201,16 @@ func TestPrepareInitialCluster(t *testing.T) {
 	}
 }
 
-func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool) *druidv1alpha1.Etcd {
+func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool, externallyManagedMemberAddresses []string) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
 	if clientTLSEnabled {
 		etcdBuilder.WithClientTLS()
 	}
 	if peerTLSEnabled {
 		etcdBuilder.WithPeerTLS()
+	}
+	if len(externallyManagedMemberAddresses) > 0 {
+		etcdBuilder.WithExternallyManagedMembers(externallyManagedMemberAddresses)
 	}
 	return etcdBuilder.Build()
 }
@@ -381,9 +401,16 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 		return nil
 	}
 	advUrlsMap := make(map[string][]string)
-	for i := 0; i < int(etcd.Spec.Replicas); i++ {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+		for i := 0; i < int(etcd.Spec.Replicas); i++ {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+		}
+	} else {
+		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd.ObjectMeta, memberAddress)
+			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}
+		}
 	}
 	return advUrlsMap
 }

@@ -7,7 +7,6 @@ package memberlease
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -98,7 +97,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 			} else {
 				g.Expect(err).To(BeNil())
-				expectedLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)[:tc.numExistingLeases]
+				expectedLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)[:tc.numExistingLeases]
 				g.Expect(memberLeaseNames).To(Equal(expectedLeaseNames))
 			}
 		})
@@ -108,13 +107,15 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSync(t *testing.T) {
 	testCases := []struct {
-		name              string
-		etcdReplicas      int32 // original replicas
-		deltaEtcdReplicas int32 // change in etcd replicas if any
-		numExistingLeases int
-		createErr         *apierrors.StatusError
-		getErr            *apierrors.StatusError
-		expectedErr       *druiderr.DruidError
+		name                    string
+		etcdReplicas            int32 // original replicas
+		deltaEtcdReplicas       int32 // change in etcd replicas if any
+		numExistingLeases       int
+		existingExternalMembers []string
+		newExternalMembers      []string
+		createErr               *apierrors.StatusError
+		getErr                  *apierrors.StatusError
+		expectedErr             *druiderr.DruidError
 	}{
 		{
 			name:              "create member leases for a single node etcd cluster",
@@ -126,6 +127,21 @@ func TestSync(t *testing.T) {
 			etcdReplicas:      1,
 			numExistingLeases: 1,
 			deltaEtcdReplicas: 2,
+		},
+		{
+			name:                    "create member leases when new externally managed members are added",
+			etcdReplicas:            2,
+			existingExternalMembers: []string{"1.1.1.1", "1.1.1.2"},
+			newExternalMembers:      []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			numExistingLeases:       2,
+			deltaEtcdReplicas:       1,
+		},
+		{
+			name:                    "delete excess member leases when externally managed member is replaced",
+			etcdReplicas:            3,
+			existingExternalMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			newExternalMembers:      []string{"1.1.1.1", "1.1.1.2", "1.1.1.4"},
+			numExistingLeases:       3,
 		},
 		{
 			name:              "should return error when client create fails",
@@ -158,6 +174,9 @@ func TestSync(t *testing.T) {
 			t.Parallel()
 			// *************** set up existing environment *****************
 			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
+			if len(tc.existingExternalMembers) > 0 {
+				etcdBuilder = etcdBuilder.WithExternallyManagedMembers(tc.existingExternalMembers)
+			}
 			etcd := etcdBuilder.WithReplicas(tc.etcdReplicas).Build()
 			var existingObjects []client.Object
 			if tc.numExistingLeases > 0 {
@@ -170,13 +189,14 @@ func TestSync(t *testing.T) {
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, tc.createErr, nil, nil, existingObjects, getObjectKeys(etcd)...)
 
 			// ***************** Setup updated etcd to be passed to the Sync method *****************
-			var updatedEtcd *druidv1alpha1.Etcd
 			// Currently we only support up-scaling. If and when down-scaling is supported, this condition will have to change.
 			if tc.deltaEtcdReplicas > 0 {
-				updatedEtcd = etcdBuilder.WithReplicas(tc.etcdReplicas + tc.deltaEtcdReplicas).Build()
-			} else {
-				updatedEtcd = etcd
+				etcdBuilder = etcdBuilder.WithReplicas(tc.etcdReplicas + tc.deltaEtcdReplicas)
 			}
+			if len(tc.newExternalMembers) > 0 {
+				etcdBuilder = etcdBuilder.WithExternallyManagedMembers(tc.newExternalMembers)
+			}
+			updatedEtcd := etcdBuilder.Build()
 			// ***************** Setup component operator and test *****************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -186,7 +206,7 @@ func TestSync(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 				g.Expect(memberLeasesPostSync).Should(HaveLen(tc.numExistingLeases))
 			} else {
-				g.Expect(memberLeasesPostSync).To(ConsistOf(memberLeases(updatedEtcd.Name, updatedEtcd.UID, updatedEtcd.Spec.Replicas)))
+				g.Expect(memberLeasesPostSync).To(ConsistOf(memberLeases(updatedEtcd, updatedEtcd.UID, updatedEtcd.Spec.Replicas)))
 			}
 		})
 	}
@@ -236,7 +256,7 @@ func TestTriggerDelete(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testutils.TestNamespace).Build()
+	nonTargetEtcd := testutils.EtcdBuilderWithDefaults(nonTargetEtcdName, testutils.TestNamespace).WithReplicas(2).Build()
 	nonTargetLeaseNames := []string{"another-etcd-0", "another-etcd-1"}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -267,7 +287,8 @@ func TestTriggerDelete(t *testing.T) {
 				g.Expect(memberLeasesPostDelete).Should(HaveLen(0))
 				nonTargetMemberLeases := getLatestMemberLeases(g, cl, nonTargetEtcd)
 				g.Expect(nonTargetMemberLeases).To(HaveLen(len(nonTargetLeaseNames)))
-				g.Expect(nonTargetMemberLeases).To(ConsistOf(memberLeases(nonTargetEtcd.Name, nonTargetEtcd.UID, int32(len(nonTargetLeaseNames)))))
+				g.Expect(nonTargetMemberLeases).To(ConsistOf(memberLeases(nonTargetEtcd, nonTargetEtcd.UID, int32(len(nonTargetLeaseNames)))))
+
 			}
 		})
 	}
@@ -292,11 +313,10 @@ func doGetLatestLeases(g *WithT, cl client.Client, etcd *druidv1alpha1.Etcd, mat
 	return leases.Items
 }
 
-func memberLeases(etcdName string, etcdUID types.UID, numLeases int32) []any {
+func memberLeases(etcd *druidv1alpha1.Etcd, etcdUID types.UID, numLeases int32) []interface{} {
 	var elements []any
-	for i := 0; i < int(numLeases); i++ {
-		leaseName := fmt.Sprintf("%s-%d", etcdName, i)
-		elements = append(elements, matchLeaseElement(leaseName, etcdName, etcdUID))
+	for _, leaseName := range druidv1alpha1.GetMemberLeaseNames(etcd)[:numLeases] {
+		elements = append(elements, matchLeaseElement(leaseName, etcd.Name, etcdUID))
 	}
 	return elements
 }
@@ -314,7 +334,7 @@ func newMemberLeases(etcd *druidv1alpha1.Etcd, numLeases int) ([]*coordinationv1
 	if numLeases > int(etcd.Spec.Replicas) {
 		return nil, errors.New("number of requested leases is greater than the etcd replicas")
 	}
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	leases := make([]*coordinationv1.Lease, 0, numLeases)
 	for i := range numLeases {
 		lease := &coordinationv1.Lease{
