@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -274,6 +275,187 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 			reason, lastTransitionTime := getPodFailureReasonAndLastTransitionTime(pod)
 			g.Expect(reason).To(Equal(test.expectedReason))
 			g.Expect(lastTransitionTime).To(BeTemporally("~", test.expectedTransitionTime, time.Second))
+		})
+	}
+}
+
+func TestGetCompactionJobArgs(t *testing.T) {
+	const (
+		testEtcdName      = "test-etcd"
+		testNamespace     = "test-ns"
+		testMetricsScrape = "10s"
+		testPrefix        = "test-prefix"
+		testContainer     = "test-bucket"
+		testEndpoint      = "http://localhost:4566"
+	)
+
+	s3Provider := druidv1alpha1.StorageProvider("aws")
+	absProvider := druidv1alpha1.StorageProvider("azure")
+	gcsProvider := druidv1alpha1.StorageProvider("gcp")
+
+	tests := []struct {
+		name                    string
+		etcdName                string
+		namespace               string
+		metricsScrapeWait       string
+		storeProvider           *druidv1alpha1.StorageProvider
+		storePrefix             string
+		storeContainer          *string
+		storeEndpointOverride   *string
+		etcdDefragTimeout       *metav1.Duration
+		etcdSnapshotTimeout     *metav1.Duration
+		expectedArgsContains    []string
+		expectedArgsNotContains []string
+	}{
+		{
+			name:              "basic args with S3 provider without endpoint override",
+			etcdName:          testEtcdName,
+			namespace:         testNamespace,
+			metricsScrapeWait: testMetricsScrape,
+			storeProvider:     &s3Provider,
+			storePrefix:       testPrefix,
+			storeContainer:    ptr.To(testContainer),
+			expectedArgsContains: []string{
+				"compact",
+				"--data-dir=/var/etcd/data/compaction.etcd",
+				"--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp",
+				"--snapstore-temp-directory=/var/etcd/data/tmp",
+				"--metrics-scrape-wait-duration=" + testMetricsScrape,
+				"--enable-snapshot-lease-renewal=true",
+				"--full-snapshot-lease-name=" + testEtcdName + "-full-snap",
+				"--delta-snapshot-lease-name=" + testEtcdName + "-delta-snap",
+				"--embedded-etcd-quota-bytes=8589934592",
+				"--storage-provider=S3",
+				"--store-prefix=" + testPrefix,
+				"--store-container=" + testContainer,
+			},
+			expectedArgsNotContains: []string{
+				"--store-endpoint-override",
+			},
+		},
+		{
+			name:                  "args with S3 provider and endpoint override for localstack",
+			etcdName:              testEtcdName,
+			namespace:             testNamespace,
+			metricsScrapeWait:     testMetricsScrape,
+			storeProvider:         &s3Provider,
+			storePrefix:           testPrefix,
+			storeContainer:        ptr.To(testContainer),
+			storeEndpointOverride: ptr.To(testEndpoint),
+			expectedArgsContains: []string{
+				"compact",
+				"--storage-provider=S3",
+				"--store-prefix=" + testPrefix,
+				"--store-container=" + testContainer,
+				"--store-endpoint-override=" + testEndpoint,
+			},
+		},
+		{
+			name:                  "args with ABS provider and endpoint override for azurite",
+			etcdName:              testEtcdName,
+			namespace:             testNamespace,
+			metricsScrapeWait:     testMetricsScrape,
+			storeProvider:         &absProvider,
+			storePrefix:           testPrefix,
+			storeContainer:        ptr.To(testContainer),
+			storeEndpointOverride: ptr.To("http://localhost:10000/devstoreaccount1/"),
+			expectedArgsContains: []string{
+				"--storage-provider=ABS",
+				"--store-endpoint-override=http://localhost:10000/devstoreaccount1/",
+			},
+		},
+		{
+			name:                  "args with GCS provider and endpoint override for fake-gcs",
+			etcdName:              testEtcdName,
+			namespace:             testNamespace,
+			metricsScrapeWait:     testMetricsScrape,
+			storeProvider:         &gcsProvider,
+			storePrefix:           testPrefix,
+			storeContainer:        ptr.To(testContainer),
+			storeEndpointOverride: ptr.To("http://localhost:8000/storage/v1/"),
+			expectedArgsContains: []string{
+				"--storage-provider=GCS",
+				"--store-endpoint-override=http://localhost:8000/storage/v1/",
+			},
+		},
+		{
+			name:                "args with optional etcd defrag and snapshot timeouts",
+			etcdName:            testEtcdName,
+			namespace:           testNamespace,
+			metricsScrapeWait:   testMetricsScrape,
+			storeProvider:       &s3Provider,
+			storePrefix:         testPrefix,
+			storeContainer:      ptr.To(testContainer),
+			etcdDefragTimeout:   &metav1.Duration{Duration: 15 * time.Minute},
+			etcdSnapshotTimeout: &metav1.Duration{Duration: 20 * time.Minute},
+			expectedArgsContains: []string{
+				"--etcd-defrag-timeout=15m0s",
+				"--etcd-snapshot-timeout=20m0s",
+			},
+		},
+		{
+			name:              "args without store values",
+			etcdName:          testEtcdName,
+			namespace:         testNamespace,
+			metricsScrapeWait: testMetricsScrape,
+			storeProvider:     nil,
+			expectedArgsContains: []string{
+				"compact",
+				"--data-dir=/var/etcd/data/compaction.etcd",
+				"--enable-snapshot-lease-renewal=true",
+			},
+			expectedArgsNotContains: []string{
+				"--storage-provider",
+				"--store-prefix",
+				"--store-container",
+				"--store-endpoint-override",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			etcd := &druidv1alpha1.Etcd{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.etcdName,
+					Namespace: tc.namespace,
+				},
+				Spec: druidv1alpha1.EtcdSpec{
+					Etcd:   druidv1alpha1.EtcdConfig{},
+					Backup: druidv1alpha1.BackupSpec{},
+				},
+			}
+
+			if tc.etcdDefragTimeout != nil {
+				etcd.Spec.Etcd.EtcdDefragTimeout = tc.etcdDefragTimeout
+			}
+			if tc.etcdSnapshotTimeout != nil {
+				etcd.Spec.Backup.EtcdSnapshotTimeout = tc.etcdSnapshotTimeout
+			}
+
+			if tc.storeProvider != nil {
+				etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+					Provider:         tc.storeProvider,
+					Prefix:           tc.storePrefix,
+					Container:        tc.storeContainer,
+					EndpointOverride: tc.storeEndpointOverride,
+				}
+			}
+
+			args := getCompactionJobArgs(etcd, tc.metricsScrapeWait)
+
+			for _, expectedArg := range tc.expectedArgsContains {
+				g.Expect(args).To(ContainElement(expectedArg), "Expected arg %q to be present", expectedArg)
+			}
+
+			for _, notExpectedArg := range tc.expectedArgsNotContains {
+				for _, arg := range args {
+					g.Expect(arg).NotTo(HavePrefix(notExpectedArg), "Arg with prefix %q should not be present", notExpectedArg)
+				}
+			}
 		})
 	}
 }
