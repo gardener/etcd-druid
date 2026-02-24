@@ -18,6 +18,7 @@ jobs:
       mode: ${{ inputs.mode }}
     permissions:
       id-token: write
+      pull-requests: write # required until https://github.com/gardener/cc-utils/pull/1529 is merged
 
   oci-images:
     name: Build OCI-Images
