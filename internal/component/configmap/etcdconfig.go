@@ -32,24 +32,26 @@ var (
 )
 
 type etcdConfig struct {
-	Name                    string                       `json:"name"`
-	DataDir                 string                       `json:"data-dir"`
-	Metrics                 druidv1alpha1.MetricsLevel   `json:"metrics"`
-	SnapshotCount           int64                        `json:"snapshot-count"`
-	EnableV2                bool                         `json:"enable-v2"`
-	EnableGRPCGateway       bool                         `json:"enable-grpc-gateway"`
-	QuotaBackendBytes       int64                        `json:"quota-backend-bytes"`
-	InitialClusterToken     string                       `json:"initial-cluster-token"`
-	InitialClusterState     string                       `json:"initial-cluster-state"`
-	InitialCluster          string                       `json:"initial-cluster"`
-	AutoCompactionMode      druidv1alpha1.CompactionMode `json:"auto-compaction-mode"`
-	AutoCompactionRetention string                       `json:"auto-compaction-retention"`
-	ListenPeerUrls          string                       `json:"listen-peer-urls"`
-	ListenClientUrls        string                       `json:"listen-client-urls"`
-	AdvertisePeerUrls       map[string][]string          `json:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
-	ClientSecurity          *securityConfig              `json:"client-transport-security,omitempty"`
-	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
+	Name                         string                       `json:"name"`
+	DataDir                      string                       `json:"data-dir"`
+	Metrics                      druidv1alpha1.MetricsLevel   `json:"metrics"`
+	SnapshotCount                int64                        `json:"snapshot-count"`
+	EnableV2                     bool                         `json:"enable-v2"`
+	EnableGRPCGateway            bool                         `json:"enable-grpc-gateway"`
+	QuotaBackendBytes            int64                        `json:"quota-backend-bytes"`
+	InitialClusterToken          string                       `json:"initial-cluster-token"`
+	InitialClusterState          string                       `json:"initial-cluster-state"`
+	InitialCluster               string                       `json:"initial-cluster"`
+	AutoCompactionMode           druidv1alpha1.CompactionMode `json:"auto-compaction-mode"`
+	AutoCompactionRetention      string                       `json:"auto-compaction-retention"`
+	ListenPeerUrls               string                       `json:"listen-peer-urls"`
+	ListenClientUrls             string                       `json:"listen-client-urls"`
+	AdvertisePeerUrls            map[string][]string          `json:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls          map[string][]string          `json:"advertise-client-urls"`
+	ClientSecurity               *securityConfig              `json:"client-transport-security,omitempty"`
+	PeerSecurity                 *securityConfig              `json:"peer-transport-security,omitempty"`
+	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
+	NextClusterVersionCompatible bool                         `json:"next-cluster-version-compatible,omitempty"`
 }
 
 type securityConfig struct {
@@ -65,22 +67,23 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, common.VolumeMountPathEtcdPeerCA, common.VolumeMountPathEtcdPeerServerTLS)
 	peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)
 	cfg := &etcdConfig{
-		Name:                    "etcd-config",
-		DataDir:                 defaultDataDir,
-		Metrics:                 ptr.Deref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
-		SnapshotCount:           getSnapshotCount(etcd),
-		EnableV2:                false,
-		EnableGRPCGateway:       ptr.Deref(etcd.Spec.Etcd.EnableGRPCGateway, false),
-		QuotaBackendBytes:       getDBQuotaBytes(etcd),
-		InitialClusterToken:     defaultInitialClusterToken,
-		InitialClusterState:     defaultInitialClusterState,
-		InitialCluster:          prepareInitialCluster(etcd, peerScheme),
-		AutoCompactionMode:      ptr.Deref(etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic),
-		AutoCompactionRetention: ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
-		ListenPeerUrls:          fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
-		ListenClientUrls:        fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
-		AdvertisePeerUrls:       getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
-		AdvertiseClientUrls:     getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
+		Name:                         "etcd-config",
+		DataDir:                      defaultDataDir,
+		Metrics:                      ptr.Deref(etcd.Spec.Etcd.Metrics, druidv1alpha1.Basic),
+		SnapshotCount:                getSnapshotCount(etcd),
+		EnableV2:                     false,
+		EnableGRPCGateway:            ptr.Deref(etcd.Spec.Etcd.EnableGRPCGateway, false),
+		QuotaBackendBytes:            getDBQuotaBytes(etcd),
+		InitialClusterToken:          defaultInitialClusterToken,
+		InitialClusterState:          defaultInitialClusterState,
+		InitialCluster:               prepareInitialCluster(etcd, peerScheme),
+		AutoCompactionMode:           ptr.Deref(etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic),
+		AutoCompactionRetention:      ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
+		ListenPeerUrls:               fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
+		ListenClientUrls:             fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
+		AdvertisePeerUrls:            getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
+		AdvertiseClientUrls:          getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
+		NextClusterVersionCompatible: true,
 	}
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig
