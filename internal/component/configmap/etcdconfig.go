@@ -32,26 +32,26 @@ var (
 )
 
 type etcdConfig struct {
-	Name                         string                       `json:"name"`
-	DataDir                      string                       `json:"data-dir"`
-	Metrics                      druidv1alpha1.MetricsLevel   `json:"metrics"`
-	SnapshotCount                int64                        `json:"snapshot-count"`
-	EnableV2                     bool                         `json:"enable-v2"`
-	EnableGRPCGateway            bool                         `json:"enable-grpc-gateway"`
-	QuotaBackendBytes            int64                        `json:"quota-backend-bytes"`
-	InitialClusterToken          string                       `json:"initial-cluster-token"`
-	InitialClusterState          string                       `json:"initial-cluster-state"`
-	InitialCluster               string                       `json:"initial-cluster"`
-	AutoCompactionMode           druidv1alpha1.CompactionMode `json:"auto-compaction-mode"`
-	AutoCompactionRetention      string                       `json:"auto-compaction-retention"`
-	ListenPeerUrls               string                       `json:"listen-peer-urls"`
-	ListenClientUrls             string                       `json:"listen-client-urls"`
-	AdvertisePeerUrls            map[string][]string          `json:"initial-advertise-peer-urls"`
-	AdvertiseClientUrls          map[string][]string          `json:"advertise-client-urls"`
-	ClientSecurity               *securityConfig              `json:"client-transport-security,omitempty"`
-	PeerSecurity                 *securityConfig              `json:"peer-transport-security,omitempty"`
+	Name                    string                       `json:"name"`
+	DataDir                 string                       `json:"data-dir"`
+	Metrics                 druidv1alpha1.MetricsLevel   `json:"metrics"`
+	SnapshotCount           int64                        `json:"snapshot-count"`
+	EnableV2                bool                         `json:"enable-v2"`
+	EnableGRPCGateway       bool                         `json:"enable-grpc-gateway"`
+	QuotaBackendBytes       int64                        `json:"quota-backend-bytes"`
+	InitialClusterToken     string                       `json:"initial-cluster-token"`
+	InitialClusterState     string                       `json:"initial-cluster-state"`
+	InitialCluster          string                       `json:"initial-cluster"`
+	AutoCompactionMode      druidv1alpha1.CompactionMode `json:"auto-compaction-mode"`
+	AutoCompactionRetention string                       `json:"auto-compaction-retention"`
+	ListenPeerUrls          string                       `json:"listen-peer-urls"`
+	ListenClientUrls        string                       `json:"listen-client-urls"`
+	AdvertisePeerUrls       map[string][]string          `json:"initial-advertise-peer-urls"`
+	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
+	ClientSecurity          *securityConfig              `json:"client-transport-security,omitempty"`
+	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
 	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
-	NextClusterVersionCompatible bool                         `json:"next-cluster-version-compatible,omitempty"`
+	NextClusterVersionCompatible bool `json:"next-cluster-version-compatible,omitempty"`
 }
 
 type securityConfig struct {
