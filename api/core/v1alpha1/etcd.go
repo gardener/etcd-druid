@@ -281,7 +281,7 @@ type ClientService struct {
 	// TrafficDistribution defines the traffic distribution preference that should be added to the client service.
 	// More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution
 	// +optional
-	// +kubebuilder:validation:Enum=PreferClose
+	// +kubebuilder:validation:Enum=PreferSameZone;PreferSameNode;PreferClose
 	TrafficDistribution *string `json:"trafficDistribution,omitempty"`
 }
 
