@@ -17,7 +17,6 @@ jobs:
     secrets: inherit
     if: ${{ github.event.action != 'labeled' || (github.event.label.name == vars.DEFAULT_LABEL_OK_TO_TEST && vars.DEFAULT_LABEL_OK_TO_TEST != '') }}
     permissions:
-      pull-requests: write
       contents: read
       packages: write
       id-token: write
@@ -26,7 +25,6 @@ jobs:
     uses: gardener/cc-utils/.github/workflows/post-build.yaml@master
     needs:
       - build
-    secrets: inherit
     if: ${{ github.event.action != 'labeled' || (github.event.label.name == vars.DEFAULT_LABEL_OK_TO_TEST && vars.DEFAULT_LABEL_OK_TO_TEST != '') }}
     permissions:
       id-token: write

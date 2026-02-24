@@ -16,10 +16,8 @@ jobs:
     uses: gardener/cc-utils/.github/workflows/prepare.yaml@master
     with:
       mode: ${{ inputs.mode }}
-      version-commit-callback-action-path:
     permissions:
-      contents: read
-      pull-requests: write # Required for trusted-checkout to remove trusted label
+      id-token: write
 
   oci-images:
     name: Build OCI-Images
