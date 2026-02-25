@@ -810,38 +810,42 @@ func getCompactionJobArgs(etcd *druidv1alpha1.Etcd, metricsScrapeWaitDuration st
 	command = append(command, "--data-dir=/var/etcd/data/compaction.etcd")
 	command = append(command, "--restoration-temp-snapshots-dir=/var/etcd/data/compaction.restoration.temp")
 	command = append(command, "--snapstore-temp-directory=/var/etcd/data/tmp")
-	command = append(command, "--metrics-scrape-wait-duration="+metricsScrapeWaitDuration)
+	command = append(command, fmt.Sprintf("--metrics-scrape-wait-duration=%s", metricsScrapeWaitDuration))
 	command = append(command, "--enable-snapshot-lease-renewal=true")
-	command = append(command, "--full-snapshot-lease-name="+druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta))
-	command = append(command, "--delta-snapshot-lease-name="+druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta))
+	command = append(command, fmt.Sprintf("--full-snapshot-lease-name=%s", druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta)))
+	command = append(command, fmt.Sprintf("--delta-snapshot-lease-name=%s", druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta)))
 
 	var quota int64 = DefaultETCDQuota
 	if etcd.Spec.Etcd.Quota != nil {
 		quota = etcd.Spec.Etcd.Quota.Value()
 	}
-	command = append(command, "--embedded-etcd-quota-bytes="+fmt.Sprint(quota))
+	command = append(command, fmt.Sprintf("--embedded-etcd-quota-bytes=%d", quota))
 
 	if etcd.Spec.Etcd.EtcdDefragTimeout != nil {
-		command = append(command, "--etcd-defrag-timeout="+etcd.Spec.Etcd.EtcdDefragTimeout.Duration.String())
+		command = append(command, fmt.Sprintf("--etcd-defrag-timeout=%s", etcd.Spec.Etcd.EtcdDefragTimeout.Duration.String()))
 	}
 
 	backupValues := etcd.Spec.Backup
 	if backupValues.EtcdSnapshotTimeout != nil {
-		command = append(command, "--etcd-snapshot-timeout="+backupValues.EtcdSnapshotTimeout.Duration.String())
+		command = append(command, fmt.Sprintf("--etcd-snapshot-timeout=%s", backupValues.EtcdSnapshotTimeout.Duration.String()))
 	}
 	storeValues := etcd.Spec.Backup.Store
 	if storeValues != nil {
 		provider, err := druidstore.StorageProviderFromInfraProvider(etcd.Spec.Backup.Store.Provider)
 		if err == nil {
-			command = append(command, "--storage-provider="+provider)
+			command = append(command, fmt.Sprintf("--storage-provider=%s", provider))
 		}
 
 		if storeValues.Prefix != "" {
-			command = append(command, "--store-prefix="+storeValues.Prefix)
+			command = append(command, fmt.Sprintf("--store-prefix=%s", storeValues.Prefix))
 		}
 
 		if storeValues.Container != nil {
-			command = append(command, "--store-container="+*(storeValues.Container))
+			command = append(command, fmt.Sprintf("--store-container=%s", *storeValues.Container))
+		}
+
+		if storeValues.EndpointOverride != nil {
+			command = append(command, fmt.Sprintf("--store-endpoint-override=%s", *storeValues.EndpointOverride))
 		}
 	}
 
