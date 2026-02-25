@@ -28,7 +28,7 @@ CRD_REF_DOCS			   := $(TOOLS_BIN_DIR)/crd-ref-docs
 # default tool versions
 SKAFFOLD_VERSION := v2.15.0
 KUSTOMIZE_VERSION := v4.5.7
-GOLANGCI_LINT_VERSION ?= v1.64.8
+GOLANGCI_LINT_VERSION ?= v2.8.0
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
 CODE_GENERATOR_VERSION ?= $(call version_gomod,k8s.io/api)
 CONTROLLER_RUNTIME_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-runtime)
@@ -70,7 +70,7 @@ $(GOIMPORTS):
 $(GOLANGCI_LINT):
 	@# CGO_ENABLED has to be set to 1 in order for golangci-lint to be able to load plugins
 	@# see https://github.com/golangci/golangci-lint/issues/1276
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) CGO_ENABLED=1 go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) CGO_ENABLED=1 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(CONTROLLER_GEN):
 	GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
