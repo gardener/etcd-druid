@@ -841,7 +841,7 @@ func getCompactionJobArgs(etcd *druidv1alpha1.Etcd, metricsScrapeWaitDuration st
 		}
 
 		if storeValues.Container != nil {
-			command = append(command, fmt.Sprintf("--store-container=%s", *(storeValues.Container)))
+			command = append(command, fmt.Sprintf("--store-container=%s", *storeValues.Container))
 		}
 
 		if storeValues.EndpointOverride != nil {

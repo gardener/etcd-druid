@@ -294,18 +294,18 @@ func TestGetCompactionJobArgs(t *testing.T) {
 	gcsProvider := druidv1alpha1.StorageProvider("gcp")
 
 	tests := []struct {
-		name                    string
-		etcdName                string
-		namespace               string
-		metricsScrapeWait       string
-		storeProvider           *druidv1alpha1.StorageProvider
-		storePrefix             string
-		storeContainer          *string
-		storeEndpointOverride   *string
-		etcdDefragTimeout       *metav1.Duration
-		etcdSnapshotTimeout     *metav1.Duration
-		expectedArgsContains    []string
-		expectedArgsNotContains []string
+		name                        string
+		etcdName                    string
+		namespace                   string
+		metricsScrapeWait           string
+		storeProvider               *druidv1alpha1.StorageProvider
+		storePrefix                 string
+		storeContainer              *string
+		storeEndpointOverride       *string
+		etcdDefragTimeout           *metav1.Duration
+		etcdSnapshotTimeout         *metav1.Duration
+		expectedArgsContains        []string
+		expectedArgsNotContainFlags []string
 	}{
 		{
 			name:              "basic args with S3 provider without endpoint override",
@@ -329,7 +329,7 @@ func TestGetCompactionJobArgs(t *testing.T) {
 				"--store-prefix=" + testPrefix,
 				"--store-container=" + testContainer,
 			},
-			expectedArgsNotContains: []string{
+			expectedArgsNotContainFlags: []string{
 				"--store-endpoint-override",
 			},
 		},
@@ -404,7 +404,7 @@ func TestGetCompactionJobArgs(t *testing.T) {
 				"--data-dir=/var/etcd/data/compaction.etcd",
 				"--enable-snapshot-lease-renewal=true",
 			},
-			expectedArgsNotContains: []string{
+			expectedArgsNotContainFlags: []string{
 				"--storage-provider",
 				"--store-prefix",
 				"--store-container",
@@ -451,7 +451,7 @@ func TestGetCompactionJobArgs(t *testing.T) {
 				g.Expect(args).To(ContainElement(expectedArg), "Expected arg %q to be present", expectedArg)
 			}
 
-			for _, notExpectedArg := range tc.expectedArgsNotContains {
+			for _, notExpectedArg := range tc.expectedArgsNotContainFlags {
 				for _, arg := range args {
 					g.Expect(arg).NotTo(HavePrefix(notExpectedArg), "Arg with prefix %q should not be present", notExpectedArg)
 				}
