@@ -71,7 +71,6 @@ func GenerateBackupSecretData(provider druidv1alpha1.StorageProvider) (map[strin
 			"region":          []byte(awsRegion),
 		}
 		if localstackHost != "" {
-			data["endpoint"] = []byte("http://" + localstackHost)
 			data["s3ForcePathStyle"] = []byte("true")
 		}
 		return data, nil
@@ -85,15 +84,10 @@ func GenerateBackupSecretData(provider druidv1alpha1.StorageProvider) (map[strin
 		if err != nil {
 			return nil, err
 		}
-		azuriteDomain := GetEnvOrDefault("AZURITE_DOMAIN", "")
 
 		data := map[string][]byte{
 			"storageAccountName": []byte(azureStorageAccountName),
 			"storageAccountKey":  []byte(azureStorageAccountKey),
-		}
-		if azuriteDomain != "" {
-			data["domain"] = []byte(azuriteDomain)
-			data["emulatorEnabled"] = []byte("true")
 		}
 		return data, nil
 
@@ -102,19 +96,14 @@ func GenerateBackupSecretData(provider druidv1alpha1.StorageProvider) (map[strin
 		if err != nil {
 			return nil, err
 		}
-		fakegcsHost := GetEnvOrDefault("FAKEGCS_HOST", "")
 
 		gcsSA, err := os.ReadFile(gcpServiceAccountJSONPath) // #nosec: G304 -- test code reading local file
 		if err != nil {
 			return nil, fmt.Errorf("failed to read GCP service account JSON file: %w", err)
 		}
-		data := map[string][]byte{
+		return map[string][]byte{
 			"serviceaccount.json": gcsSA,
-		}
-		if fakegcsHost != "" {
-			data["storageAPIEndpoint"] = []byte("http://" + fakegcsHost + "/storage/v1/")
-			data["emulatorEnabled"] = []byte("true")
-		}
+		}, nil
 	}
 	return nil, fmt.Errorf("unsupported backup provider")
 }
