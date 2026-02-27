@@ -660,8 +660,9 @@ func getBackupSpec() druidv1alpha1.BackupSpec {
 }
 
 // getBackupStore returns a StoreSpec for the given provider and prefix.
+// If an emulator environment variable is set for the provider, EndpointOverride is automatically configured.
 func getBackupStore(provider druidv1alpha1.StorageProvider, prefix string) *druidv1alpha1.StoreSpec {
-	return &druidv1alpha1.StoreSpec{
+	storeSpec := &druidv1alpha1.StoreSpec{
 		Container: &container,
 		Prefix:    prefix,
 		Provider:  &provider,
@@ -669,6 +670,11 @@ func getBackupStore(provider druidv1alpha1.StorageProvider, prefix string) *drui
 			Name: BackupStoreSecretName,
 		},
 	}
+	// Set EndpointOverride if emulator env var is set
+	if endpoint := GetEmulatorEndpoint(provider); endpoint != nil {
+		storeSpec.EndpointOverride = endpoint
+	}
+	return storeSpec
 }
 
 // CheckEtcdOwnerReference checks if one of the owner references points to etcd owner UID.
