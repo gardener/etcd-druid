@@ -7,12 +7,16 @@ package statefulset
 import (
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
@@ -22,6 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -33,6 +38,16 @@ const (
 	ErrSyncStatefulSet druidapicommon.ErrorCode = "ERR_SYNC_STATEFULSET"
 	// ErrDeleteStatefulSet indicates an error in deleting the statefulset resource.
 	ErrDeleteStatefulSet druidapicommon.ErrorCode = "ERR_DELETE_STATEFULSET"
+	// ErrGetEtcdOpsTask indicates an error in getting the EtcdOpsTask resource.
+	ErrGetEtcdOpsTask druidapicommon.ErrorCode = "ERR_GET_ETCDOPSTASK"
+
+	// Pre-sync snapshot task constants
+	preSyncTaskPrefixHibernation = "presync-snapshots-hibernation-"
+	preSyncTaskPrefixUpgrade     = "presync-snapshots-upgrade-"
+	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the upgrade.
+	maxPreSyncRetries = 3
+	// labelKeyTaskType is the label key used to identify the type of EtcdOpsTask.
+	labelKeyEtcdName = "druid.gardener.cloud/etcd-name"
 )
 
 type _resource struct {
@@ -70,9 +85,138 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	return resourceNames, nil
 }
 
-// PreSync is a no-op for the statefulset component.
-func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error {
+// PreSync performs pre-sync operations for the statefulset component.
+func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	if !etcd.IsBackupStoreEnabled() {
+		return nil
+	}
+
+	existingSts, err := r.getExistingStatefulSet(ctx, etcd.ObjectMeta)
+	if err != nil {
+		return druiderr.WrapError(err, ErrGetStatefulSet, component.OperationPreSync,
+			fmt.Sprintf("Error getting StatefulSet for pre-sync for etcd: %v", client.ObjectKeyFromObject(etcd)))
+	}
+
+	if existingSts == nil {
+		return nil
+	}
+
+	currentReplicas := ptr.Deref(existingSts.Spec.Replicas, 0)
+
+	if currentReplicas != 0 && etcd.Spec.Replicas == 0 {
+		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixHibernation)
+	}
+
+	if !druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		return nil
+	}
+
+	etcdWrapperImage, _, _, err := utils.GetEtcdImages(etcd, r.imageVector)
+	if err != nil {
+		return druiderr.WrapError(err, ErrGetStatefulSet, component.OperationPreSync,
+			fmt.Sprintf("Error getting etcd images for etcd: %v", client.ObjectKeyFromObject(etcd)))
+	}
+
+	if currentReplicas != 0 && etcdWrapperImage != existingSts.Spec.Template.Spec.Containers[0].Image {
+		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixUpgrade)
+	}
+
 	return nil
+}
+
+// ensurePreSyncSnapshot ensures a pre-sync snapshot is taken via an etcdopstask with retry logic up to maxPreSyncRetries attempts.
+func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, prefix string) error {
+	latestTask, latestIndex, err := r.getLatestPreSyncTask(ctx, etcd, prefix)
+	if err != nil {
+		return druiderr.WrapError(err, ErrGetEtcdOpsTask, component.OperationPreSync,
+			fmt.Sprintf("Error listing EtcdOpsTasks for etcd: %v", client.ObjectKeyFromObject(etcd)))
+	}
+
+	if latestTask == nil {
+		return r.createPreSyncTask(ctx, etcd, prefix, 0)
+	}
+
+	if latestTask.Status.State == nil {
+		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
+			fmt.Sprintf("Pre-sync snapshot task %s is initializing", latestTask.Name))
+	}
+
+	switch *latestTask.Status.State {
+	case druidv1alpha1.TaskStateSucceeded:
+		r.logger.Info("Pre-sync snapshot completed successfully", "taskName", latestTask.Name)
+		return nil
+
+	case druidv1alpha1.TaskStateFailed, druidv1alpha1.TaskStateRejected:
+		if latestIndex >= maxPreSyncRetries-1 {
+			r.logger.Error(fmt.Errorf("max retries exceeded"), "Pre-sync snapshot failed after max attempts",
+				"etcd", client.ObjectKeyFromObject(etcd), "lastTask", latestTask.Name, "lastState", *latestTask.Status.State)
+			return nil
+		}
+		return r.createPreSyncTask(ctx, etcd, prefix, latestIndex+1)
+
+	default:
+		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
+			fmt.Sprintf("Pre-sync snapshot task %s is %s", latestTask.Name, *latestTask.Status.State))
+	}
+}
+
+// getLatestPreSyncTask returns the latest pre-sync EtcdOpsTask for the given etcd and prefix.
+func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, prefix string) (*druidv1alpha1.EtcdOpsTask, int, error) {
+	taskList := &druidv1alpha1.EtcdOpsTaskList{}
+	if err := r.client.List(ctx, taskList,
+		client.InNamespace(etcd.Namespace),
+		client.MatchingLabels{
+			labelKeyEtcdName: etcd.Name,
+		},
+	); err != nil {
+		return nil, -1, err
+	}
+
+	latestIndex := -1
+	var latestTask *druidv1alpha1.EtcdOpsTask
+	for i := range taskList.Items {
+		task := &taskList.Items[i]
+		indexStr, found := strings.CutPrefix(task.Name, prefix)
+		if !found {
+			continue
+		}
+		if idx, err := strconv.Atoi(indexStr); err == nil && idx > latestIndex {
+			latestIndex = idx
+			latestTask = task
+		}
+	}
+
+	return latestTask, latestIndex, nil
+}
+
+// createPreSyncTask creates a new presync EtcdOpsTask.
+func (r _resource) createPreSyncTask(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, prefix string, index int) error {
+	taskName := fmt.Sprintf("%s%d", prefix, index)
+	task := &druidv1alpha1.EtcdOpsTask{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      taskName,
+			Namespace: etcd.Namespace,
+			Labels: map[string]string{
+				labelKeyEtcdName: etcd.Name,
+			},
+		},
+		Spec: druidv1alpha1.EtcdOpsTaskSpec{
+			EtcdName: ptr.To(etcd.Name),
+			Config: druidv1alpha1.EtcdOpsTaskConfig{
+				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull},
+			},
+			TTLSecondsAfterFinished: ptr.To(int32(172800)), // 48 hours
+		},
+	}
+
+	if err := r.client.Create(ctx, task); err != nil {
+		return druiderr.WrapError(err, ErrSyncStatefulSet, component.OperationPreSync,
+			fmt.Sprintf("Failed to create pre-sync snapshot EtcdOpsTask %s for etcd: %v", taskName, client.ObjectKeyFromObject(etcd)))
+	}
+
+	r.logger.Info("Created pre-sync snapshot task", "taskName", taskName, "index", index)
+	return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
+		fmt.Sprintf("Waiting for pre-sync snapshot task %s to complete", taskName))
 }
 
 // Sync creates or updates the statefulset for the given Etcd.

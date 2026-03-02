@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -474,4 +475,27 @@ func findMatchingMemberStatus(actualMembers []druidv1alpha1.EtcdMemberStatus, me
 		}
 	}
 	return nil, fmt.Errorf("member with id: %s not found", logPointerTypeToString(memberStatusToMatch.ID))
+}
+
+// assertPreSyncTaskCreated asserts that a pre-sync task with the given name is created for the etcd resource eventually.
+func assertPreSyncTaskCreated(ctx context.Context, t *testing.T, cl client.Client, namespace, taskName string, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		task := &druidv1alpha1.EtcdOpsTask{}
+		if err := cl.Get(ctx, client.ObjectKey{Name: taskName, Namespace: namespace}, task); err != nil {
+			return err
+		}
+		return nil
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(BeNil())
+}
+
+// simulatePreSyncTaskCompletion simulates the completion of a pre-sync task by updating its status to the given state.
+func simulatePreSyncTaskCompletion(ctx context.Context, t *testing.T, cl client.Client, namespace, taskName string, state druidv1alpha1.TaskState) {
+	g := NewWithT(t)
+	task := &druidv1alpha1.EtcdOpsTask{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: taskName, Namespace: namespace}, task)).To(Succeed())
+	task.Status.State = &state
+	task.Status.LastTransitionTime = ptr.To(metav1.Now())
+	g.Expect(cl.Status().Update(ctx, task)).To(Succeed())
 }

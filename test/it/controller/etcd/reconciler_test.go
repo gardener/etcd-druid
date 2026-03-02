@@ -546,6 +546,114 @@ func testPartialDeletionFailureOfEtcdResourcesWhenEtcdMarkedForDeletion(t *testi
 	assertETCDFinalizer(t, cl, client.ObjectKeyFromObject(etcdInstance), true, 10*time.Second, 2*time.Second)
 }
 
+// ------------------------------ presync hibernation tests ------------------------------
+
+func TestPreSyncHibernation(t *testing.T) {
+	g := NewWithT(t)
+
+	// A different IT test environment is required since an additional CRD for the EtcdOpsTask needs to be installed.
+	k8sVersion, err := assets.GetK8sVersionFromEnv()
+	g.Expect(err).ToNot(HaveOccurred())
+	etcdCrd, err := assets.GetEtcdCrd(k8sVersion)
+	g.Expect(err).ToNot(HaveOccurred())
+	etcdOpsTaskCrd, err := assets.GetEtcdOpsTaskCrd(k8sVersion)
+	g.Expect(err).ToNot(HaveOccurred())
+	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-presync-hibernation", []*apiextensionsv1.CustomResourceDefinition{etcdCrd, etcdOpsTaskCrd})
+	g.Expect(err).ToNot(HaveOccurred())
+	defer itTestEnvCloser()
+
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-presync-hibernation", itTestEnv, false, testutils.NewTestClientBuilder())
+	tests := []struct {
+		name string
+		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
+	}{
+		{"should succeed with hibernation after presync task completes", testPreSyncHibernationSucceeds},
+		{"should proceed with hibernation after max retries exceeded", testPreSyncHibernationProceedsAfterMaxRetries},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
+			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+			g.Expect(itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
+			test.fn(t, testNs, reconcilerTestEnv)
+		})
+	}
+}
+
+func testPreSyncHibernationSucceeds(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 3
+		pollingInterval = time.Second * 2
+	)
+
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		Build()
+	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
+	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	etcdInstance.Spec.Replicas = 0
+	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	t.Log("triggered hibernation by setting replicas to 0")
+
+	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshots-hibernation-0", timeout, pollingInterval)
+	t.Log("presync etcdopstask created")
+
+	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshots-hibernation-0", druidv1alpha1.TaskStateSucceeded)
+	t.Log("simulated presync task completion with Succeeded state")
+
+	assertStatefulSetReplicas(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), 0, timeout, pollingInterval)
+	t.Log("StatefulSet replicas successfully scaled to 0")
+}
+
+func testPreSyncHibernationProceedsAfterMaxRetries(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 5
+		pollingInterval = time.Second * 2
+	)
+
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		Build()
+	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
+	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+
+	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	etcdInstance.Spec.Replicas = 0
+	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	t.Log("triggered hibernation by setting replicas to 0")
+
+	for i := range 3 {
+		taskName := fmt.Sprintf("presync-snapshots-hibernation-%d", i)
+		assertPreSyncTaskCreated(ctx, t, cl, testNs, taskName, timeout, pollingInterval)
+		t.Logf("presync etcdopstask  created")
+
+		simulatePreSyncTaskCompletion(ctx, t, cl, testNs, taskName, druidv1alpha1.TaskStateFailed)
+		t.Logf("simulated presync task %s completion with Failed state", taskName)
+	}
+
+	assertStatefulSetReplicas(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), 0, timeout, pollingInterval)
+	t.Log("StatefulSet replicas successfully scaled to 0 after max retries exceeded")
+}
+
 // ------------------------------ reconcile status tests ------------------------------
 
 func TestEtcdStatusReconciliation(t *testing.T) {

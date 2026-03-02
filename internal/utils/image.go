@@ -5,6 +5,7 @@
 package utils
 
 import (
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
@@ -36,6 +37,9 @@ func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector) (string
 }
 
 func getEtcdImageKeys() (string, string, string) {
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		return common.ImageKeyEtcdWrapperV3_5, common.ImageKeyEtcdBackupRestoreV3_5, common.ImageKeyAlpine
+	}
 	return common.ImageKeyEtcdWrapper, common.ImageKeyEtcdBackupRestore, common.ImageKeyAlpine
 }
 
