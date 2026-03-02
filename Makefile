@@ -18,6 +18,7 @@ BUCKET_NAME         := "e2e-test"
 IMG                 ?= ${IMAGE_REPOSITORY}:${IMAGE_BUILD_TAG}
 TEST_COVER          := "true"
 KUBECONFIG_PATH     := $(HACK_DIR)/kind/kubeconfig
+CI_K8S_VERSION      ?= 1.34
 
 # Tools
 # -------------------------------------------------------------------------
@@ -67,13 +68,30 @@ check-license-headers: $(GO_ADD_LICENSE)
 .PHONY: check-git-status
 check-git-status:
 	@if [[ -n $$(git status --porcelain) ]]; then \
-		echo "Repository is dirty. Please commit or stash changes."; \
+		echo ""; \
+		echo "⚠️  WARNING: Repository has uncommitted changes."; \
+		echo "Please fix/commit these changes before pushing to a PR/upstream."; \
+		echo ""; \
 		git status; \
-		git diff; \
+		git --no-pager diff; \
 		exit 1; \
 	else \
-		echo "Repository is clean ✓"; \
+		echo ""; \
+		echo "✅ Repository is clean."; \
 	fi
+
+# Run all CI checks and verify git tree is clean
+.PHONY: ci-checks
+ci-checks:
+	@echo "Running CI checks..."
+	@$(MAKE) tidy
+	@$(MAKE) check
+	@$(MAKE) check-license-headers
+	@$(MAKE) --directory=api tidy
+	@$(MAKE) --directory=api check
+	@$(MAKE) --directory=api check-generate
+	@K8S_VERSION=$(CI_K8S_VERSION) $(MAKE) prepare-helm-charts
+	@$(MAKE) check-git-status
 
 .PHONY: sast
 sast: $(GOSEC)
