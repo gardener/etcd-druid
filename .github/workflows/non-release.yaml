@@ -5,9 +5,7 @@ on:
       - master
       - 'hotfix-**'
       - 'release-**'
-  pull_request_target:
-    types:
-      - labeled
+  pull_request:
 
 jobs:
   build:
@@ -15,18 +13,15 @@ jobs:
     with:
       mode: snapshot
     secrets: inherit
-    if: ${{ github.event.action != 'labeled' || (github.event.label.name == vars.DEFAULT_LABEL_OK_TO_TEST && vars.DEFAULT_LABEL_OK_TO_TEST != '') }}
     permissions:
       contents: read
       packages: write
       id-token: write
-      pull-requests: write
 
   component-descriptor:
     uses: gardener/cc-utils/.github/workflows/post-build.yaml@master
     needs:
       - build
-    if: ${{ github.event.action != 'labeled' || (github.event.label.name == vars.DEFAULT_LABEL_OK_TO_TEST && vars.DEFAULT_LABEL_OK_TO_TEST != '') }}
     permissions:
       id-token: write
       contents: write
