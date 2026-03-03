@@ -140,10 +140,7 @@ func assertResourceCreation(ctx component.OperatorContext, t *testing.T, opRegis
 }
 
 func assertMemberLeasesCreated(ctx component.OperatorContext, t *testing.T, opRegistry component.Registry, etcd *druidv1alpha1.Etcd, timeout, pollInterval time.Duration) {
-	expectedMemberLeaseNames := make([]string, 0, etcd.Spec.Replicas)
-	for i := 0; i < int(etcd.Spec.Replicas); i++ {
-		expectedMemberLeaseNames = append(expectedMemberLeaseNames, fmt.Sprintf("%s-%d", etcd.Name, i))
-	}
+	expectedMemberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	assertResourceCreation(ctx, t, opRegistry, component.MemberLeaseKind, etcd, expectedMemberLeaseNames, timeout, pollInterval)
 }
 

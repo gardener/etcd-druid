@@ -43,6 +43,37 @@ func TestGetClientServiceName(t *testing.T) {
 	g.Expect(clientServiceName).To(Equal("etcd-test-client"))
 }
 
+func TestGetClientHostnameWithDruidManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+		},
+	}
+	clientHostname := GetClientHostname(etcd)
+	g.Expect(clientHostname).To(Equal("etcd-test-client.etcd-test-namespace.svc"))
+}
+
+func TestGetClientHostnameWithExternallyManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+			ExternallyManagedMemberAddresses: []string{
+				"1.1.1.1",
+				"1.1.1.2",
+				"1.1.1.3",
+			},
+		},
+	}
+	clientHostname := GetClientHostname(etcd)
+	g.Expect(clientHostname).Should(BeElementOf([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}))
+}
+
 func TestGetServiceAccountName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
@@ -86,11 +117,42 @@ func TestGetFullSnapshotLeaseName(t *testing.T) {
 	g.Expect(fullSnapshotLeaseName).To(Equal("etcd-test-full-snap"))
 }
 
-func TestGetMemberLeaseNames(t *testing.T) {
+func TestGetMemberNameFromAddress(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
-	leaseNames := GetMemberLeaseNames(etcdObjMeta, 3)
+	memberName := GetMemberNameFromAddress(etcdObjMeta, "1.1.1.1")
+	g.Expect(memberName).To(Equal("etcd-test-1.1.1.1"))
+}
+
+func TestGetMemberLeaseNamesWithDruidManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+		},
+	}
+	leaseNames := GetMemberLeaseNames(etcd)
 	g.Expect(leaseNames).To(Equal([]string{"etcd-test-0", "etcd-test-1", "etcd-test-2"}))
+}
+
+func TestGetMemberLeaseNamesWithExternallyManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+			ExternallyManagedMemberAddresses: []string{
+				"1.1.1.1",
+				"1.1.1.2",
+				"1.1.1.3",
+			},
+		},
+	}
+	leaseNames := GetMemberLeaseNames(etcd)
+	g.Expect(leaseNames).To(Equal([]string{"etcd-test-1.1.1.1", "etcd-test-1.1.1.2", "etcd-test-1.1.1.3"}))
 }
 
 func TestGetPodDisruptionBudgetName(t *testing.T) {
@@ -422,22 +484,21 @@ func TestGetReconcileOperationAnnotationKey(t *testing.T) {
 	}
 }
 
-func TestIsEtcdRuntimeComponentCreationEnabled(t *testing.T) {
+func TestIsPodManagementEnabled(t *testing.T) {
 	tests := []struct {
-		name        string
-		annotations map[string]string
-		expected    bool
+		name                        string
+		hasExternallyManagedMembers bool
+		expected                    bool
 	}{
 		{
-			name:     "Runtime component creation is enabled",
-			expected: true,
+			name:                        "Pod management is enabled",
+			hasExternallyManagedMembers: false,
+			expected:                    true,
 		},
 		{
-			name: "Runtime component creation is disabled",
-			annotations: map[string]string{
-				DisableEtcdRuntimeComponentCreationAnnotation: "",
-			},
-			expected: false,
+			name:                        "Pod management is disabled",
+			hasExternallyManagedMembers: true,
+			expected:                    false,
 		},
 	}
 
@@ -446,8 +507,20 @@ func TestIsEtcdRuntimeComponentCreationEnabled(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
-			actual := IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta)
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+			etcd := &Etcd{
+				ObjectMeta: etcdObjMeta,
+				Spec: EtcdSpec{
+					Replicas: 3,
+					ExternallyManagedMemberAddresses: func() []string {
+						if test.hasExternallyManagedMembers {
+							return []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}
+						}
+						return nil
+					}(),
+				},
+			}
+			actual := IsPodManagementEnabled(etcd)
 			g.Expect(actual).To(Equal(test.expected))
 		})
 	}
