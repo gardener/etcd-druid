@@ -24,6 +24,7 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	testclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -232,14 +233,20 @@ func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentC
 		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
-	// get latest version of etcdInstance
-	g.Expect(cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance)).To(Succeed())
-	// add `disable-etcd-runtime-component-creation` annotation and operation reconcile annotation to etcdInstance
-	etcdInstance.Annotations = map[string]string{
-		druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
-		druidv1alpha1.DruidOperationAnnotation:                      druidv1alpha1.DruidOperationReconcile,
-	}
-	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	// update etcd with annotations, retrying on conflict since reconciler may be updating status concurrently
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// get latest version of etcdInstance
+		if err := cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance); err != nil {
+			return err
+		}
+		// add `disable-etcd-runtime-component-creation` annotation and operation reconcile annotation to etcdInstance
+		etcdInstance.Annotations = map[string]string{
+			druidv1alpha1.DisableEtcdRuntimeComponentCreationAnnotation: "",
+			druidv1alpha1.DruidOperationAnnotation:                      druidv1alpha1.DruidOperationReconcile,
+		}
+		return cl.Update(ctx, etcdInstance)
+	})
+	g.Expect(err).To(Succeed())
 
 	// ***************** test etcd spec reconciliation  *****************
 	componentKindAbsent := []component.Kind{
@@ -388,16 +395,22 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
 	}
 	updateMemberLeases(context.Background(), t, reconcilerTestEnv.itTestEnv.GetClient(), testNs, mlcs)
-	// get latest version of etcdInstance
-	g.Expect(cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance)).To(Succeed())
-	// update etcdInstance spec with reconcile operation annotation also set
-	originalEtcdInstance := etcdInstance.DeepCopy()
-	metricsLevelExtensive := druidv1alpha1.Extensive
-	etcdInstance.Spec.Etcd.Metrics = &metricsLevelExtensive
-	etcdInstance.Annotations = map[string]string{
-		druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
-	}
-	g.Expect(cl.Patch(ctx, etcdInstance, client.MergeFrom(originalEtcdInstance))).To(Succeed())
+	// update etcdInstance spec with reconcile operation annotation, retrying on conflict since reconciler may be updating status concurrently
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// get latest version of etcdInstance
+		if err := cl.Get(ctx, druidv1alpha1.GetNamespaceName(etcdInstance.ObjectMeta), etcdInstance); err != nil {
+			return err
+		}
+		// update etcdInstance spec with reconcile operation annotation also set
+		originalEtcdInstance := etcdInstance.DeepCopy()
+		metricsLevelExtensive := druidv1alpha1.Extensive
+		etcdInstance.Spec.Etcd.Metrics = &metricsLevelExtensive
+		etcdInstance.Annotations = map[string]string{
+			druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile,
+		}
+		return cl.Patch(ctx, etcdInstance, client.MergeFrom(originalEtcdInstance))
+	})
+	g.Expect(err).To(Succeed())
 
 	// ***************** test etcd spec reconciliation  *****************
 	assertAllComponentsExists(ctx, t, reconcilerTestEnv, etcdInstance, 30*time.Minute, 2*time.Second)
