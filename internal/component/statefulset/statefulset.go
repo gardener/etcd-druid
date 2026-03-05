@@ -42,8 +42,8 @@ const (
 	ErrGetEtcdOpsTask druidapicommon.ErrorCode = "ERR_GET_ETCDOPSTASK"
 
 	// Pre-sync snapshot task constants
-	preSyncTaskPrefixHibernation = "presync-snapshots-hibernation-"
-	preSyncTaskPrefixUpgrade     = "presync-snapshots-upgrade-"
+	preSyncTaskPrefixHibernation = "presync-snapshot-hibernation-"
+	preSyncTaskPrefixUpgrade     = "presync-snapshot-upgrade-"
 	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the upgrade.
 	maxPreSyncRetries = 3
 	// labelKeyTaskType is the label key used to identify the type of EtcdOpsTask.
@@ -97,13 +97,11 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error getting StatefulSet for pre-sync for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 
-	if existingSts == nil {
+	if existingSts == nil || ptr.Deref(existingSts.Spec.Replicas, 0) == 0 {
 		return nil
 	}
 
-	currentReplicas := ptr.Deref(existingSts.Spec.Replicas, 0)
-
-	if currentReplicas != 0 && etcd.Spec.Replicas == 0 {
+	if etcd.Spec.Replicas == 0 {
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixHibernation)
 	}
 
@@ -117,7 +115,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error getting etcd images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 
-	if currentReplicas != 0 && etcdWrapperImage != existingSts.Spec.Template.Spec.Containers[0].Image {
+	if etcdWrapperImage != existingSts.Spec.Template.Spec.Containers[0].Image {
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixUpgrade)
 	}
 
@@ -174,15 +172,14 @@ func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *dru
 
 	latestIndex := -1
 	var latestTask *druidv1alpha1.EtcdOpsTask
-	for i := range taskList.Items {
-		task := &taskList.Items[i]
+	for _, task := range taskList.Items {
 		indexStr, found := strings.CutPrefix(task.Name, prefix)
 		if !found {
 			continue
 		}
 		if idx, err := strconv.Atoi(indexStr); err == nil && idx > latestIndex {
 			latestIndex = idx
-			latestTask = task
+			latestTask = &task
 		}
 	}
 

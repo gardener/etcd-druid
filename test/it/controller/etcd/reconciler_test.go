@@ -605,10 +605,10 @@ func testPreSyncHibernationSucceeds(t *testing.T, testNs string, reconcilerTestE
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
 	t.Log("triggered hibernation by setting replicas to 0")
 
-	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshots-hibernation-0", timeout, pollingInterval)
+	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshot-hibernation-0", timeout, pollingInterval)
 	t.Log("presync etcdopstask created")
 
-	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshots-hibernation-0", druidv1alpha1.TaskStateSucceeded)
+	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshot-hibernation-0", druidv1alpha1.TaskStateSucceeded)
 	t.Log("simulated presync task completion with Succeeded state")
 
 	assertStatefulSetReplicas(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), 0, timeout, pollingInterval)
@@ -642,7 +642,7 @@ func testPreSyncHibernationProceedsAfterMaxRetries(t *testing.T, testNs string, 
 	t.Log("triggered hibernation by setting replicas to 0")
 
 	for i := range 3 {
-		taskName := fmt.Sprintf("presync-snapshots-hibernation-%d", i)
+		taskName := fmt.Sprintf("presync-snapshot-hibernation-%d", i)
 		assertPreSyncTaskCreated(ctx, t, cl, testNs, taskName, timeout, pollingInterval)
 		t.Logf("presync etcdopstask  created")
 
