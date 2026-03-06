@@ -542,7 +542,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(volumes).To(HaveLen(1))
 				Expect(volumes[0].Name).To(Equal("source-host-storage"))
 
-				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
+				hostPathVolumeSource := volumes[0].HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
 				Expect(hostPathVolumeSource.Path).To(Equal("/test/hostPath/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectoryOrCreate))
@@ -557,7 +557,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(volumes).To(HaveLen(1))
 				Expect(volumes[0].Name).To(Equal("source-host-storage"))
 
-				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
+				hostPathVolumeSource := volumes[0].HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
 				Expect(hostPathVolumeSource.Path).To(Equal(druidstore.LocalProviderDefaultMountPath + "/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectoryOrCreate))
@@ -572,7 +572,7 @@ var _ = Describe("EtcdCopyBackupsTaskController", func() {
 				Expect(volumes).To(HaveLen(1))
 				Expect(volumes[0].Name).To(Equal("source-host-storage"))
 
-				hostPathVolumeSource := volumes[0].VolumeSource.HostPath
+				hostPathVolumeSource := volumes[0].HostPath
 				Expect(hostPathVolumeSource).NotTo(BeNil())
 				Expect(hostPathVolumeSource.Path).To(Equal(druidstore.LocalProviderDefaultMountPath + "/" + *store.Container))
 				Expect(*hostPathVolumeSource.Type).To(Equal(corev1.HostPathDirectoryOrCreate))
