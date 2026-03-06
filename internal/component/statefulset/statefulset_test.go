@@ -100,7 +100,7 @@ func TestPreSync(t *testing.T) {
 		featureGateEnabled bool
 		stsReplicas        int32
 		etcdReplicas       int32
-		stsImage           string
+		etcdWrapperImage   string
 		existingTasks      []*druidv1alpha1.EtcdOpsTask
 		expectedRequeue    bool
 		expectedNil        bool
@@ -127,7 +127,7 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: true,
 			stsReplicas:        3,
 			etcdReplicas:       3,
-			stsImage:           currentImage,
+			etcdWrapperImage:   currentImage,
 			expectedNil:        true,
 		},
 		{
@@ -137,7 +137,7 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: false,
 			stsReplicas:        3,
 			etcdReplicas:       0,
-			stsImage:           currentImage,
+			etcdWrapperImage:   currentImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 			expectedNil:        true,
 		},
@@ -148,7 +148,7 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: false,
 			stsReplicas:        3,
 			etcdReplicas:       0,
-			stsImage:           currentImage,
+			etcdWrapperImage:   currentImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 2, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectedNil:        true,
 		},
@@ -159,7 +159,7 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: true,
 			stsReplicas:        3,
 			etcdReplicas:       0,
-			stsImage:           oldImage,
+			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 			expectedNil:        true,
 		},
@@ -170,7 +170,7 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: true,
 			stsReplicas:        3,
 			etcdReplicas:       0,
-			stsImage:           oldImage,
+			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 2, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectedNil:        true,
 		},
@@ -181,7 +181,7 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: true,
 			stsReplicas:        3,
 			etcdReplicas:       3,
-			stsImage:           oldImage,
+			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 			expectedNil:        true,
 		},
@@ -192,15 +192,15 @@ func TestPreSync(t *testing.T) {
 			featureGateEnabled: true,
 			stsReplicas:        3,
 			etcdReplicas:       3,
-			stsImage:           oldImage,
+			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 2, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectedNil:        true,
 		},
 	}
 
-	g := NewWithT(t)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 			t.Parallel()
 			err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
 				map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: tc.featureGateEnabled},
@@ -216,15 +216,15 @@ func TestPreSync(t *testing.T) {
 
 			iv := testutils.CreateImageVector(true, true)
 
-			stsImage := tc.stsImage
-			if stsImage == currentImage {
-				stsImage, _, _, err = utils.GetEtcdImages(etcd, iv)
+			etcdWrapperImage := tc.etcdWrapperImage
+			if etcdWrapperImage == currentImage {
+				etcdWrapperImage, _, _, err = utils.GetEtcdImages(etcd, iv)
 				g.Expect(err).ToNot(HaveOccurred())
 			}
 
 			var existingObjects []client.Object
 			if tc.stsExists {
-				existingObjects = append(existingObjects, buildStatefulSetWithImage(etcd.ObjectMeta, tc.stsReplicas, stsImage))
+				existingObjects = append(existingObjects, buildStatefulSetWithImage(etcd.ObjectMeta, tc.stsReplicas, etcdWrapperImage))
 			}
 			for _, task := range tc.existingTasks {
 				existingObjects = append(existingObjects, task)
@@ -363,7 +363,6 @@ func buildPreSyncTask(prefix string, index int, state *druidv1alpha1.TaskState) 
 		builder = builder.WithState(*state)
 	}
 	task := builder.Build()
-	task.Labels = map[string]string{labelKeyEtcdName: testutils.TestEtcdName}
 	return task
 }
 
@@ -385,7 +384,7 @@ func buildStatefulSetWithImage(objMeta metav1.ObjectMeta, replicas int32, image 
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  "etcd-wrapper",
+							Name:  common.ContainerNameEtcd,
 							Image: image,
 						},
 					},
