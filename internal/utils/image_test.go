@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/images"
@@ -26,9 +27,11 @@ func TestGetEtcdImages(t *testing.T) {
 	}{
 		{"etcd spec defines etcd and etcdBR images", testWithEtcdWrapperAndEtcdBRImagesInSpec},
 		{"etcd spec has no image defined and image vector has etcd and etcdBR images set", testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages},
-		{"", testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage},
-		{"", testSpecAndIVWithoutEtcdBRImage},
-		{"", testWithSpecAndIVNotHavingAnyImages},
+		{"etcd spec has etcdBR image and image vector has etcd image", testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage},
+		{"etcd spec and image vector both missing etcdBR image returns error", testSpecAndIVWithoutEtcdBRImage},
+		{"etcd spec and image vector have no images returns error", testWithSpecAndIVNotHavingAnyImages},
+		{"featuregate UpgradeEtcdVersion enabled returns v3.5 images from image vector", testWithUpgradeEtcdVersionFeatureGateEnabled},
+		{"featuregate UpgradeEtcdVersion disabled returns older images from image vector", testWithUpgradeEtcdVersionFeatureGateDisabled},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -120,4 +123,48 @@ func testWithSpecAndIVNotHavingAnyImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 	g.Expect(etcdImage).To(BeEmpty())
 	g.Expect(etcdBackupRestoreImage).To(BeEmpty())
 	g.Expect(initContainerImage).To(BeEmpty())
+}
+
+func testWithUpgradeEtcdVersionFeatureGateEnabled(g *WithT, etcd *druidv1alpha1.Etcd) {
+	err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: true},
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	etcd.Spec.Etcd.Image = nil
+	etcd.Spec.Backup.Image = nil
+
+	iv := testutils.CreateImageVector(true, true)
+	etcdImage, etcdBackupRestoreImage, _, err := utils.GetEtcdImages(etcd, iv)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).ToNot(BeEmpty())
+	expectedEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperV3_5)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).To(Equal(expectedEtcdImage.String()))
+	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
+	expectedBRImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestoreV3_5)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdBackupRestoreImage).To(Equal(expectedBRImage.String()))
+}
+
+func testWithUpgradeEtcdVersionFeatureGateDisabled(g *WithT, etcd *druidv1alpha1.Etcd) {
+	err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: false},
+	)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	etcd.Spec.Etcd.Image = nil
+	etcd.Spec.Backup.Image = nil
+
+	iv := testutils.CreateImageVector(true, true)
+	etcdImage, etcdBackupRestoreImage, _, err := utils.GetEtcdImages(etcd, iv)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).ToNot(BeEmpty())
+	expectedEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdImage).To(Equal(expectedEtcdImage.String()))
+	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
+	expectedBRImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestore)
+	g.Expect(err).To(BeNil())
+	g.Expect(etcdBackupRestoreImage).To(Equal(expectedBRImage.String()))
 }

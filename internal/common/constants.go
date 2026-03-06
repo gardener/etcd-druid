@@ -28,6 +28,10 @@ const (
 	ImageKeyEtcdBackupRestoreDistroless = "etcd-backup-restore-distroless"
 	// ImageKeyAlpine is the key for the alpine image in the image vector.
 	ImageKeyAlpine = "alpine"
+	// ImageKeyEtcdV3_5 is the key for the etcd v3.5 image in the image vector.
+	ImageKeyEtcdWrapperV3_5 = "etcd-wrapper-3_5"
+	// ImageKeyEtcdBackupRestoreV3_5 is the key for the etcd-backup-restore v3.5 image in the image vector.
+	ImageKeyEtcdBackupRestoreV3_5 = "etcd-backup-restore-3_5"
 )
 
 // Constants for container names
