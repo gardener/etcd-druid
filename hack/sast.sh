@@ -35,7 +35,8 @@ if [[ "$gosec_report" != "false" ]]; then
   gosec_report_parse_flags="-track-suppressions -fmt=sarif -out=gosec-report.sarif -stdout"
 fi
 
-# exclude generated code, hack directory (where hack scripts reside)
-# and tmp directory (where temporary mod files are downloaded)
+# exclude generated code, hack directory (where hack scripts reside),
+# tmp directory (where temporary mod files are downloaded),
+# and druidctl directory (which is an independent module with its own build/test pipeline)
 # shellcheck disable=SC2086
-gosec -exclude-generated -exclude-dir=hack -exclude-dir=tmp $gosec_report_parse_flags ./...
+gosec -exclude-generated -exclude-dir=hack -exclude-dir=tmp -exclude-dir=druidctl $gosec_report_parse_flags ./...
