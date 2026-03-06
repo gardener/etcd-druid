@@ -48,7 +48,7 @@ spec:
     deltaSnapshotPeriod: 300s
     deltaSnapshotMemoryLimit: 1Gi
     store:
-      endpointOverride: http://fake-gcs.default:8000/storage/v1/b
+      endpointOverride: http://fake-gcs-service.default:8000/storage/v1/b
       container: etcd-bucket
       prefix: etcd-test
       provider: gcp
