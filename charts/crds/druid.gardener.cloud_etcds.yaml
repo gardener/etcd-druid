@@ -681,6 +681,11 @@ spec:
                 description: Labels defines the labels to be applied to the etcd pods
                   backing the etcd cluster.
                 type: object
+              memberNamePrefix:
+                description: MemberNamePrefix defines the prefix for the name of each
+                  etcd member. When set, the member name is "<prefix>-<pod-name>",
+                  otherwise it defaults to the pod name.
+                type: string
               priorityClassName:
                 description: PriorityClassName is the name of a priority class that
                   shall be used for the etcd pods.
@@ -1905,6 +1910,8 @@ spec:
               rule: has(oldSelf.storageClass) ==  has(self.storageClass)
             - message: etcd.spec.volumeClaimTemplate is an immutable field.
               rule: has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)
+            - message: etcd.spec.memberNamePrefix is an immutable field.
+              rule: has(oldSelf.memberNamePrefix) == has(self.memberNamePrefix)
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
@@ -2090,8 +2097,9 @@ spec:
                       format: date-time
                       type: string
                     name:
-                      description: Name is the name of the etcd member. It is the
-                        name of the backing `Pod`.
+                      description: |-
+                        Name is the name of the etcd member. It matches the member lease name.
+                        When MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`.
                       type: string
                     reason:
                       description: The reason for the condition's last transition.

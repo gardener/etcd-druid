@@ -312,7 +312,11 @@ type SchedulingConstraints struct {
 // EtcdSpec defines the desired state of Etcd
 // +kubebuilder:validation:XValidation:message="etcd.spec.storageClass is an immutable field.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate is an immutable field.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field.",rule="has(oldSelf.memberNamePrefix) == has(self.memberNamePrefix)"
 type EtcdSpec struct {
+	// MemberNamePrefix defines the prefix for the name of each etcd member. When set, the member name is "<prefix>-<pod-name>", otherwise it defaults to the pod name.
+	// +optional
+	MemberNamePrefix *string `json:"memberNamePrefix,omitempty"`
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
@@ -417,7 +421,8 @@ const (
 
 // EtcdMemberStatus holds information about etcd cluster membership.
 type EtcdMemberStatus struct {
-	// Name is the name of the etcd member. It is the name of the backing `Pod`.
+	// Name is the name of the etcd member. It matches the member lease name.
+	// When MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`.
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
 	// +optional
