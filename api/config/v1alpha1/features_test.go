@@ -60,11 +60,9 @@ func TestDefaultFeatureGate(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
-
-	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
 			t.Parallel()
 			err := DefaultFeatureGates.SetEnabledFeaturesFromMap(test.enabledFeatures)
 			if test.expectedError {
