@@ -209,7 +209,7 @@ func (r _resource) createPreSyncTask(ctx component.OperatorContext, etcd *druidv
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull},
 			},
-			TTLSecondsAfterFinished: ptr.To(int32(36)), // 48 hours
+			TTLSecondsAfterFinished: ptr.To(int32(172800)), // 48 hours
 		},
 	}
 

@@ -15,7 +15,7 @@ const (
 	// This is now GA. Any attempt to disable this feature will be an error.
 	UseEtcdWrapper = "UseEtcdWrapper"
 
-	// UpgradeEtcdVersionTo is the name of the feature which enables upgrade of etcd version to v3.5.
+	// UpgradeEtcdVersion is the name of the feature which enables upgrade of etcd version to v3.5.
 	UpgradeEtcdVersion = "UpgradeEtcdVersion"
 )
 

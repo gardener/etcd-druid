@@ -487,7 +487,7 @@ func assertPreSyncTaskCreated(ctx context.Context, t *testing.T, cl client.Clien
 		}
 		return nil
 	}
-	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(BeNil())
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(Succeed())
 }
 
 // simulatePreSyncTaskCompletion simulates the completion of a pre-sync task by updating its status to the given state.

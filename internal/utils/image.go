@@ -38,7 +38,7 @@ func GetEtcdImages(etcd *druidv1alpha1.Etcd, iv imagevector.ImageVector) (string
 
 func getEtcdImageKeys() (string, string, string) {
 	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
-		return common.ImageKeyEtcdWrapperV3_5, common.ImageKeyEtcdBackupRestoreV3_5, common.ImageKeyAlpine
+		return common.ImageKeyEtcdWrapperNext, common.ImageKeyEtcdBackupRestoreNext, common.ImageKeyAlpine
 	}
 	return common.ImageKeyEtcdWrapper, common.ImageKeyEtcdBackupRestore, common.ImageKeyAlpine
 }

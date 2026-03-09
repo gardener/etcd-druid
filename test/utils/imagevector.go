@@ -22,9 +22,9 @@ func CreateImageVector(withEtcdWrapperImage, withBackupRestoreImage bool) imagev
 				Tag:        ptr.To(ETCDWrapperImageTag),
 			},
 			&imagevector.ImageSource{
-				Name:       common.ImageKeyEtcdWrapperV3_5,
+				Name:       common.ImageKeyEtcdWrapperNext,
 				Repository: ptr.To(TestImageRepo),
-				Tag:        ptr.To(ETCDWrapperV3_5ImageTag),
+				Tag:        ptr.To(ETCDWrapperNextImageTag),
 			},
 		)
 
@@ -37,9 +37,9 @@ func CreateImageVector(withEtcdWrapperImage, withBackupRestoreImage bool) imagev
 				Tag:        ptr.To(ETCDBRImageTag),
 			},
 			&imagevector.ImageSource{
-				Name:       common.ImageKeyEtcdBackupRestoreV3_5,
+				Name:       common.ImageKeyEtcdBackupRestoreNext,
 				Repository: ptr.To(TestImageRepo),
-				Tag:        ptr.To(ETCDBRV3_5ImageTag),
+				Tag:        ptr.To(ETCDBRNextImageTag),
 			},
 		)
 	}

@@ -22,6 +22,7 @@ The following tables are a summary of the feature gates that you can set on etcd
 
 | Feature | Default | Stage | Since | Until |
 |---------|---------|-------|-------|-------|
+| `UpgradeEtcdVersion` | `false` | `Alpha` | `0.36` |       |
 
 ## Feature Gates for Graduated or Deprecated Features
 
@@ -71,6 +72,7 @@ This is also referred to as a *stable* feature which should have the following c
 
 ## List of Feature Gates
 
-| Feature          | Description                                                                                                                                                                                   |
-|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `UseEtcdWrapper` | Enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore, along with component-specific configuration changes necessary for the usage of the etcd-wrapper image. |
+| Feature               | Description                                                                                                                                                                                   |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `UpgradeEtcdVersion`  | Enables automatic in-place upgrade of the etcd version by taking a pre-sync on-demand snapshot via an `EtcdOpsTask` before applying the new etcd-wrapper and etcd-backup-restore images.                           |
+| `UseEtcdWrapper`      | Enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore, along with component-specific configuration changes necessary for the usage of the etcd-wrapper image. |

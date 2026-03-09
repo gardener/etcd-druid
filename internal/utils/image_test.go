@@ -138,11 +138,11 @@ func testWithUpgradeEtcdVersionFeatureGateEnabled(g *WithT, etcd *druidv1alpha1.
 	etcdImage, etcdBackupRestoreImage, _, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
-	expectedEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperV3_5)
+	expectedEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).To(Equal(expectedEtcdImage.String()))
 	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
-	expectedBRImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestoreV3_5)
+	expectedBRImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestoreNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdBackupRestoreImage).To(Equal(expectedBRImage.String()))
 }

@@ -11,6 +11,7 @@ import (
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -102,8 +103,7 @@ func TestPreSync(t *testing.T) {
 		etcdReplicas       int32
 		etcdWrapperImage   string
 		existingTasks      []*druidv1alpha1.EtcdOpsTask
-		expectedRequeue    bool
-		expectedNil        bool
+		expectedErrCode    *druidapicommon.ErrorCode
 	}{
 		{
 			name:          "returns nil when backup is disabled",
@@ -111,14 +111,12 @@ func TestPreSync(t *testing.T) {
 			stsExists:     true,
 			stsReplicas:   3,
 			etcdReplicas:  3,
-			expectedNil:   true,
 		},
 		{
 			name:          "returns nil when no STS exists",
 			backupEnabled: true,
 			stsExists:     false,
 			etcdReplicas:  3,
-			expectedNil:   true,
 		},
 		{
 			name:               "returns nil when no hibernation and no upgrade",
@@ -128,7 +126,6 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       3,
 			etcdWrapperImage:   currentImage,
-			expectedNil:        true,
 		},
 		{
 			name:               "hibernation succeeds when task completed",
@@ -139,7 +136,6 @@ func TestPreSync(t *testing.T) {
 			etcdReplicas:       0,
 			etcdWrapperImage:   currentImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
-			expectedNil:        true,
 		},
 		{
 			name:               "hibernation proceeds after max retries exceeded",
@@ -149,8 +145,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       0,
 			etcdWrapperImage:   currentImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 2, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectedNil:        true,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 		},
 		{
 			name:               "hibernation with upgrade succeeds when task completed",
@@ -161,7 +156,6 @@ func TestPreSync(t *testing.T) {
 			etcdReplicas:       0,
 			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
-			expectedNil:        true,
 		},
 		{
 			name:               "hibernation with upgrade proceeds after max retries exceeded",
@@ -171,8 +165,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       0,
 			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 2, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectedNil:        true,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 		},
 		{
 			name:               "upgrade succeeds when task completed",
@@ -183,7 +176,6 @@ func TestPreSync(t *testing.T) {
 			etcdReplicas:       3,
 			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
-			expectedNil:        true,
 		},
 		{
 			name:               "upgrade proceeds after max retries exceeded",
@@ -193,8 +185,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       3,
 			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 2, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectedNil:        true,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 		},
 	}
 
@@ -239,13 +230,13 @@ func TestPreSync(t *testing.T) {
 
 			syncErr := operator.PreSync(opCtx, etcd)
 
-			if tc.expectedNil {
+			if tc.expectedErrCode == nil {
 				g.Expect(syncErr).ToNot(HaveOccurred())
-			} else if tc.expectedRequeue {
+			} else {
 				g.Expect(syncErr).To(HaveOccurred())
 				druidErr := druiderr.AsDruidError(syncErr)
 				g.Expect(druidErr).ToNot(BeNil())
-				g.Expect(druidErr.Code).To(Equal(druiderr.ErrRequeueAfter))
+				g.Expect(druidErr.Code).To(Equal(*tc.expectedErrCode))
 			}
 		})
 	}
