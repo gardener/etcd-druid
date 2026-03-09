@@ -187,12 +187,75 @@ func TestPreSync(t *testing.T) {
 			etcdWrapperImage:   oldImage,
 			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 		},
+		{
+			name:               "hibernation requeues when no task exists",
+			backupEnabled:      true,
+			stsExists:          true,
+			featureGateEnabled: false,
+			stsReplicas:        3,
+			etcdReplicas:       0,
+			etcdWrapperImage:   currentImage,
+			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		{
+			name:               "hibernation requeues when task is in progress",
+			backupEnabled:      true,
+			stsExists:          true,
+			featureGateEnabled: false,
+			stsReplicas:        3,
+			etcdReplicas:       0,
+			etcdWrapperImage:   currentImage,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
+			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		{
+			name:               "hibernation requeues when task failed and retries remain",
+			backupEnabled:      true,
+			stsExists:          true,
+			featureGateEnabled: false,
+			stsReplicas:        3,
+			etcdReplicas:       0,
+			etcdWrapperImage:   currentImage,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		{
+			name:               "upgrade requeues when no task exists",
+			backupEnabled:      true,
+			stsExists:          true,
+			featureGateEnabled: true,
+			stsReplicas:        3,
+			etcdReplicas:       3,
+			etcdWrapperImage:   oldImage,
+			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		{
+			name:               "upgrade requeues when task is in progress",
+			backupEnabled:      true,
+			stsExists:          true,
+			featureGateEnabled: true,
+			stsReplicas:        3,
+			etcdReplicas:       3,
+			etcdWrapperImage:   oldImage,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
+			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		{
+			name:               "upgrade requeues when task failed and retries remain",
+			backupEnabled:      true,
+			stsExists:          true,
+			featureGateEnabled: true,
+			stsReplicas:        3,
+			etcdReplicas:       3,
+			etcdWrapperImage:   oldImage,
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			t.Parallel()
 			err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
 				map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: tc.featureGateEnabled},
 			)
