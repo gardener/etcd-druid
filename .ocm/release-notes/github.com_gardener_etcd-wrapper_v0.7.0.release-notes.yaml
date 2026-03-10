@@ -1,3 +1,4 @@
+reference_version: v0.36.0
 ocm:
   component_name: github.com/gardener/etcd-wrapper
   component_version: v0.7.0
