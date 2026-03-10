@@ -40,13 +40,29 @@ func TestDefaultFeatureGate(t *testing.T) {
 			},
 			expectedError: true,
 		},
+		{
+			name: "UpgradeEtcdVersion can be enabled",
+			enabledFeatures: map[string]bool{
+				UpgradeEtcdVersion: true,
+			},
+			expectedEnabledFeatures: map[string]bool{
+				UpgradeEtcdVersion: true,
+			},
+		},
+		{
+			name: "UpgradeEtcdVersion can be disabled (alpha feature)",
+			enabledFeatures: map[string]bool{
+				UpgradeEtcdVersion: false,
+			},
+			expectedEnabledFeatures: map[string]bool{
+				UpgradeEtcdVersion: false,
+			},
+		},
 	}
 
-	g := NewWithT(t)
-
-	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
 			t.Parallel()
 			err := DefaultFeatureGates.SetEnabledFeaturesFromMap(test.enabledFeatures)
 			if test.expectedError {

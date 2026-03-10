@@ -6,6 +6,7 @@ package opts
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ type deprecatedOperatorConfiguration struct {
 	etcdComponentProtectionEnabled                  bool
 	etcdComponentProtectionReconcilerServiceAccount string
 	etcdComponentProtectionExemptServiceAccounts    []string
+	featureGates                                    string
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
@@ -55,6 +57,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
 	d.addDeprecatedEtcdOpsTaskControllerFlags(fs)
 	d.addDeprecatedSecretControllerFlags(fs)
 	d.addDeprecatedEtcdComponentProtectionWebhookFlags(fs)
+	fs.StringVar(&d.featureGates, "feature-gates", "", "A set of key-value pairs that describe feature gates for alpha/beta features. Options are: UpgradeEtcdVersion=true|false")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedControllerManagerFlags(fs *flag.FlagSet) {
@@ -148,5 +151,25 @@ func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfig
 		config.Webhooks.EtcdComponentProtection.ReconcilerServiceAccountFQDN = &d.etcdComponentProtectionReconcilerServiceAccount
 	}
 	config.Webhooks.EtcdComponentProtection.ExemptServiceAccounts = d.etcdComponentProtectionExemptServiceAccounts
+	config.FeatureGates = d.parseFeatureGates()
 	return config
+}
+
+func (d *deprecatedOperatorConfiguration) parseFeatureGates() map[string]bool {
+	if len(strings.TrimSpace(d.featureGates)) == 0 {
+		return nil
+	}
+	result := make(map[string]bool)
+	for _, pair := range strings.Split(d.featureGates, ",") {
+		parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		value, err := strconv.ParseBool(strings.TrimSpace(parts[1]))
+		if err != nil {
+			continue
+		}
+		result[strings.TrimSpace(parts[0])] = value
+	}
+	return result
 }

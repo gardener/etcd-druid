@@ -16,8 +16,12 @@ const (
 	TestImageRepo = "test-repo"
 	// ETCDWrapperImageTag is the ImageSource tag for etcd-wrapper image.
 	ETCDWrapperImageTag = "etcd-wrapper-test-tag"
+	// ETCDWrapperNextImageTag is the ImageSource tag for the next etcd-wrapper image (etcd 3.5).
+	ETCDWrapperNextImageTag = "etcd-wrapper-next-test-tag"
 	// ETCDBRImageTag is the ImageSource tag for etcd-backup-restore image.
 	ETCDBRImageTag = "backup-restore-test-tag"
+	// ETCDBRNextImageTag is the ImageSource tag for the next etcd-backup-restore image (etcd 3.5).
+	ETCDBRNextImageTag = "backup-restore-next-test-tag"
 	// InitContainerTag is the ImageSource tag for the init container image.
 	InitContainerTag = "init-container-test-tag"
 )

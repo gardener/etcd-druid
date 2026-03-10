@@ -19,7 +19,9 @@ tolerations: [ ]
 
 topologySpreadConstraints: [ ]
 
-featureGates: { }
+featureGates: { 
+  UpgradeEtcdVersion: false
+}
 
 webhookPKI:
   caPath: pki-resources/ca.crt
@@ -82,7 +84,9 @@ operatorConfig:
       enabled: false
       exemptServiceAccounts:
         - system:serviceaccount:kube-system:generic-garbage-collector
-  featureGates: { }
+  featureGates: { 
+    UpgradeEtcdVersion: false
+  }
   logConfiguration:
     logLevel: info
     logFormat: json

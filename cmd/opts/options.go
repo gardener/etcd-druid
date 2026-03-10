@@ -53,7 +53,7 @@ func (o *CLIOptions) Complete() error {
 		// setting captured deprecated worker flags to OperatorConfiguration.
 		o.Config = o.deprecatedConfig.ToOperatorConfiguration()
 		druidconfigv1alpha1.SetObjectDefaults_OperatorConfiguration(o.Config)
-		return nil
+		return druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(o.Config.FeatureGates)
 	}
 	if err := o.initializeOperatorConfigurationFromFile(); err != nil {
 		return fmt.Errorf("error initializing operator configuration from file: %w", err)
