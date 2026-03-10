@@ -74,5 +74,5 @@ This is also referred to as a *stable* feature which should have the following c
 
 | Feature               | Description                                                                                                                                                                                   |
 |-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `UpgradeEtcdVersion`  | Enables automatic in-place upgrade of the etcd version by taking a pre-sync on-demand snapshot via an `EtcdOpsTask` before applying the new etcd-wrapper and etcd-backup-restore images.                           |
+| `UpgradeEtcdVersion`  | Enables automatic in-place upgrade to etcd version 3.5.27 , ensuring a full on-demand snapshot is taken before the process begins.                      |
 | `UseEtcdWrapper`      | Enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore, along with component-specific configuration changes necessary for the usage of the etcd-wrapper image. |
