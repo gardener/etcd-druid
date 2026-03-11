@@ -19,7 +19,7 @@ spec:
       containers:
         - name: fake-gcs-server
           image: fsouza/fake-gcs-server
-          args: ["-scheme", "both", "-public-host" , "fake-gcs.default:8000", "-backend", "memory"]
+          args: ["-scheme", "both", "-public-host" , "fake-gcs-service.default:8000", "-backend", "memory"]
           ports:
             - containerPort: 4443
               hostPort: 4443
@@ -31,8 +31,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: fake-gcs
-  name: fake-gcs
+    app: fake-gcs-service
+  name: fake-gcs-service
 spec:
   ports:
     - name: "4443-https"
