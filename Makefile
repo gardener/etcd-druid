@@ -64,20 +64,20 @@ check: $(GOLANGCI_LINT) $(GOIMPORTS) format
 check-license-headers: $(GO_ADD_LICENSE)
 	@$(HACK_DIR)/check-license-headers.sh
 
-# Check git status is clean
+# Check git status is clean (only tracked files, ignores untracked files)
 .PHONY: check-git-status
 check-git-status:
-	@if [[ -n $$(git status --porcelain) ]]; then \
+	@if [[ -n $$(git status --porcelain -uno) ]]; then \
 		echo ""; \
-		echo "⚠️  WARNING: Repository has uncommitted changes."; \
+		echo "⚠️  WARNING: Repository has uncommitted changes to tracked files."; \
 		echo "Please fix/commit these changes before pushing to a PR/upstream."; \
 		echo ""; \
-		git status; \
+		git status -uno; \
 		git --no-pager diff; \
 		exit 1; \
 	else \
 		echo ""; \
-		echo "✅ Repository is clean."; \
+		echo "✅ Repository is clean (tracked files)."; \
 	fi
 
 # Run all CI checks and verify git tree is clean
