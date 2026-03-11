@@ -70,3 +70,18 @@ go.work.sum
 # generated pki resources for e2e tests
 test/e2e/pki-resources/*
 test/e2e/controller/pki-resources/*
+
+# AI coding agents
+# Claude Code
+.claude/
+.agents/
+CLAUDE.md
+skills-lock.json
+
+# Cursor
+.cursor/
+.cursorrules
+
+# GitHub Copilot
+.copilot/
+.github/copilot-instructions.md
