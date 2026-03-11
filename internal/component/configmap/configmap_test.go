@@ -91,6 +91,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 		createErr        *apierrors.StatusError
 		clientTLSEnabled bool
 		peerTLSEnabled   bool
+		memberNamePrefix *string
 		expectedErr      *druiderr.DruidError
 	}{
 		{
@@ -104,6 +105,13 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 			clientTLSEnabled: true,
 			peerTLSEnabled:   true,
 			etcdReplicas:     3,
+		},
+		{
+			name:             "should create configmap with member-name-prefix when set",
+			clientTLSEnabled: true,
+			peerTLSEnabled:   false,
+			etcdReplicas:     1,
+			memberNamePrefix: ptr.To("test-prefix"),
 		},
 		{
 			name:             "return error when create client request fails",
@@ -124,6 +132,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
+			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -347,6 +356,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	}))
 	matchClientTLSRelatedConfiguration(g, etcd, actualETCDConfig)
 	matchPeerTLSRelatedConfiguration(g, etcd, actualETCDConfig)
+	matchMemberNamePrefixConfiguration(g, etcd, actualETCDConfig)
 }
 
 func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
@@ -399,6 +409,16 @@ func expectedAdvertiseURLsAsInterface(etcd *druidv1alpha1.Etcd, advertiseURLType
 		advertiseUrlsInterface[podName] = urlsListInterface
 	}
 	return advertiseUrlsInterface
+}
+
+func matchMemberNamePrefixConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
+	if etcd.Spec.MemberNamePrefix != nil {
+		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
+			"member-name-prefix": Equal(*etcd.Spec.MemberNamePrefix),
+		}))
+	} else {
+		g.Expect(actualETCDConfig).ToNot(HaveKey("member-name-prefix"))
+	}
 }
 
 func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
