@@ -36,6 +36,11 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	)
 
 	leaseNames := druidv1alpha1.GetMemberLeaseNames(&etcd)
+	podNames := druidv1alpha1.GetAllPodNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leaseToPod := make(map[string]string, len(leaseNames))
+	for i, ln := range leaseNames {
+		leaseToPod[ln] = podNames[i]
+	}
 	leases := make([]*coordinationv1.Lease, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		lease := &coordinationv1.Lease{}
@@ -87,7 +92,8 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		// Check if member state must be considered as unknown
 		if renew.Add(r.etcdMemberUnknownThreshold).Before(checkTime) {
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
-			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
+			podName := leaseToPod[lease.Name]
+			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, podName)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {
 				res.status = druidv1alpha1.EtcdMemberStatusNotReady
 				res.reason = "ContainersNotReady"
