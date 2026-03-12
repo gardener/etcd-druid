@@ -87,10 +87,43 @@ func TestGetFullSnapshotLeaseName(t *testing.T) {
 }
 
 func TestGetMemberLeaseNames(t *testing.T) {
-	g := NewWithT(t)
-	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
-	leaseNames := GetMemberLeaseNames(etcdObjMeta, 3)
-	g.Expect(leaseNames).To(Equal([]string{"etcd-test-0", "etcd-test-1", "etcd-test-2"}))
+	tests := []struct {
+		name             string
+		memberNamePrefix *string
+		expectedLeases   func(etcdName string) []string
+	}{
+		{
+			name:             "no member name prefix",
+			memberNamePrefix: nil,
+			expectedLeases: func(etcdName string) []string {
+				return []string{etcdName + "-0", etcdName + "-1", etcdName + "-2"}
+			},
+		},
+		{
+			name:             "with member name prefix",
+			memberNamePrefix: ptr.To("myprefix"),
+			expectedLeases: func(etcdName string) []string {
+				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1", "myprefix-" + etcdName + "-2"}
+			},
+		},
+	}
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+			etcd := &Etcd{
+				ObjectMeta: etcdObjMeta,
+				Spec: EtcdSpec{
+					Replicas:         3,
+					MemberNamePrefix: test.memberNamePrefix,
+				},
+			}
+			leaseNames := GetMemberLeaseNames(etcd)
+			g.Expect(leaseNames).To(Equal(test.expectedLeases(etcdObjMeta.Name)))
+		})
+	}
 }
 
 func TestGetPodDisruptionBudgetName(t *testing.T) {

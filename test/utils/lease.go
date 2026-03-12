@@ -88,7 +88,7 @@ func verifyPeerTLSEnabledOnMemberLease(ctx context.Context, c client.Client, nam
 // VerifyPeerTLSEnabledOnAllMemberLeases checks if peer TLS is enabled on all member leases of the given Etcd cluster.
 func VerifyPeerTLSEnabledOnAllMemberLeases(ctx context.Context, c client.Client, etcd *druidv1alpha1.Etcd) error {
 	var errs error
-	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	for _, leaseName := range leaseNames {
 		err := verifyPeerTLSEnabledOnMemberLease(ctx, c, leaseName, etcd.Namespace)
 		if err != nil {
