@@ -127,7 +127,8 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	builder := strings.Builder{}
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort))
 	}
 	return strings.Trim(builder.String(), ",")
 }
@@ -145,7 +146,8 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	advUrlsMap := make(map[string][]string)
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+		advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
 	}
 	return advUrlsMap
 }
