@@ -44,6 +44,11 @@ func GetOrdinalPodName(etcdObjMeta metav1.ObjectMeta, ordinal int) string {
 	return fmt.Sprintf("%s-%d", etcdObjMeta.Name, ordinal)
 }
 
+// GetMemberNameFromAddress returns the name of the etcd member based on the address.
+func GetMemberNameFromAddress(etcdObjMeta metav1.ObjectMeta, memberAddress string) string {
+	return fmt.Sprintf("%s-%s", etcdObjMeta.Name, memberAddress)
+}
+
 // GetAllPodNames returns the names of all pods for the Etcd.
 func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	podNames := make([]string, replicas)
@@ -54,12 +59,22 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 }
 
 // GetMemberLeaseNames returns the name of member leases for the Etcd.
-func GetMemberLeaseNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
-	leaseNames := make([]string, replicas)
-	for i := range int(replicas) {
-		leaseNames[i] = fmt.Sprintf("%s-%d", etcdObjMeta.Name, i)
+func GetMemberLeaseNames(etcd *Etcd) []string {
+	if IsPodManagementEnabled(etcd) {
+		replicas := etcd.Spec.Replicas
+		podNames := make([]string, replicas)
+		for i := range int(replicas) {
+			podNames[i] = GetOrdinalPodName(etcd.ObjectMeta, i)
+		}
+		return podNames
+	} else {
+		memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
+		memberNames := make([]string, len(memberAddresses))
+		for i, memberAddress := range memberAddresses {
+			memberNames[i] = GetMemberNameFromAddress(etcd.ObjectMeta, memberAddress)
+		}
+		return memberNames
 	}
-	return leaseNames
 }
 
 // GetPodDisruptionBudgetName returns the name of the pod disruption budget for the Etcd.
@@ -166,7 +181,7 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 	delete(etcdObjMeta.Annotations, GardenerOperationAnnotation)
 }
 
-// IsEtcdRuntimeComponentCreationEnabled checks if the creation of runtime components is enabled for an Etcd resource.
-func IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta metav1.ObjectMeta) bool {
-	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdRuntimeComponentCreationAnnotation)
+// IsPodManagementEnabled checks if the management of pods is handled by etcd-druid for an Etcd resource.
+func IsPodManagementEnabled(etcd *Etcd) bool {
+	return len(etcd.Spec.ExternallyManagedMemberAddresses) == 0
 }

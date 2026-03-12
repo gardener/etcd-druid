@@ -19,7 +19,6 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -92,9 +91,9 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 		return admission.Allowed(fmt.Sprintf("changes allowed, since Etcd %s has annotation %s", etcd.Name, druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
 	}
 
-	if isRuntimeComponent(requestGK) {
-		if !druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcd.ObjectMeta) {
-			return admission.Allowed(fmt.Sprintf("Etcd %s has runtime component creation disabled, skipping validations for resource %v", etcd.Name, utils.CreateObjectKey(partialObjMeta)))
+	if isComponentInvolvedInPodManagement(requestGK) {
+		if !druidv1alpha1.IsPodManagementEnabled(etcd) {
+			return admission.Allowed(fmt.Sprintf("Etcd %s has pod management disabled, skipping validations for resource %v", etcd.Name, utils.CreateObjectKey(partialObjMeta)))
 		}
 	}
 
@@ -174,13 +173,9 @@ func isObjManagedByDruid(objMeta metav1.ObjectMeta) bool {
 	return hasLabel && managedBy == druidv1alpha1.LabelManagedByValue
 }
 
-// isRuntimeComponent checks if the request is for a runtime component for the etcd cluster, such as lease, RBAC, etc.
-func isRuntimeComponent(requestGK schema.GroupKind) bool {
-	return requestGK == corev1.SchemeGroupVersion.WithKind("ServiceAccount").GroupKind() ||
-		requestGK == rbacv1.SchemeGroupVersion.WithKind("Role").GroupKind() ||
-		requestGK == rbacv1.SchemeGroupVersion.WithKind("RoleBinding").GroupKind() ||
-		requestGK == coordinationv1.SchemeGroupVersion.WithKind("Lease").GroupKind() ||
-		requestGK == policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind() ||
+// isComponentInvolvedInPodManagement checks if the request is for a component that is involved in pod management like PodDisruptionBudgets and Services.
+func isComponentInvolvedInPodManagement(requestGK schema.GroupKind) bool {
+	return requestGK == policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget").GroupKind() ||
 		requestGK == corev1.SchemeGroupVersion.WithKind("Service").GroupKind()
 }
 

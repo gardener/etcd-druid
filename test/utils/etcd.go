@@ -515,6 +515,12 @@ func (eb *EtcdBuilder) WithGRPCGatewayEnabled() *EtcdBuilder {
 	return eb
 }
 
+// WithExternallyManagedMembers sets the externally managed member addresses in the etcd spec.
+func (eb *EtcdBuilder) WithExternallyManagedMembers(addresses []string) *EtcdBuilder {
+	eb.etcd.Spec.ExternallyManagedMemberAddresses = addresses
+	return eb
+}
+
 // WithDefaultBackup creates a default backup spec and initializes etcd with it.
 func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	eb.etcd.Spec.Backup = getBackupSpec()
