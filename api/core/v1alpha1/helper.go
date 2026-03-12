@@ -44,6 +44,16 @@ func GetOrdinalPodName(etcdObjMeta metav1.ObjectMeta, ordinal int) string {
 	return fmt.Sprintf("%s-%d", etcdObjMeta.Name, ordinal)
 }
 
+// GetMemberName returns the etcd member name for a given pod name and optional prefix.
+// If memberNamePrefix is non-nil and non-empty, the member name is "<prefix>-<podName>".
+// Otherwise, the member name is the name of the backing `Pod`.
+func GetMemberName(memberNamePrefix *string, podName string) string {
+	if memberNamePrefix != nil && *memberNamePrefix != "" {
+		return *memberNamePrefix + "-" + podName
+	}
+	return podName
+}
+
 // GetAllPodNames returns the names of all pods for the Etcd.
 func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	podNames := make([]string, replicas)
@@ -54,10 +64,11 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 }
 
 // GetMemberLeaseNames returns the name of member leases for the Etcd.
-func GetMemberLeaseNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
+func GetMemberLeaseNames(etcdObjMeta metav1.ObjectMeta, replicas int32, memberNamePrefix *string) []string {
 	leaseNames := make([]string, replicas)
 	for i := range int(replicas) {
-		leaseNames[i] = fmt.Sprintf("%s-%d", etcdObjMeta.Name, i)
+		podName := GetOrdinalPodName(etcdObjMeta, i)
+		leaseNames[i] = GetMemberName(memberNamePrefix, podName)
 	}
 	return leaseNames
 }

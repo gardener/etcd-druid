@@ -768,7 +768,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name is the name of the etcd member. It is the name of the backing `Pod`. |  |  |
+| `name` _string_ | Name is the name of the etcd member. It matches the member lease name.<br />When MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`. |  |  |
 | `id` _string_ | ID is the ID of the etcd member. |  |  |
 | `role` _[EtcdRole](#etcdrole)_ | Role is the role in the etcd cluster, either `Leader` or `Member`. |  |  |
 | `status` _[EtcdMemberConditionStatus](#etcdmemberconditionstatus)_ | Status of the condition, one of True, False, Unknown. |  |  |
@@ -883,6 +883,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `memberNamePrefix` _string_ | MemberNamePrefix defines the prefix for the name of each etcd member. When set, the member name is "<prefix>-<pod-name>", otherwise it defaults to the pod name. |  |  |
 | `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors<br />Deprecated: this field will be removed in the future. |  |  |
 | `labels` _object (keys:string, values:string)_ | Labels defines the labels to be applied to the etcd pods backing the etcd cluster. |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines the annotations to be applied to the etcd pods backing the etcd cluster. |  |  |

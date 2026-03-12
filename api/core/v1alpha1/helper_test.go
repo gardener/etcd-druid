@@ -89,7 +89,7 @@ func TestGetFullSnapshotLeaseName(t *testing.T) {
 func TestGetMemberLeaseNames(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
-	leaseNames := GetMemberLeaseNames(etcdObjMeta, 3)
+	leaseNames := GetMemberLeaseNames(etcdObjMeta, 3, nil)
 	g.Expect(leaseNames).To(Equal([]string{"etcd-test-0", "etcd-test-1", "etcd-test-2"}))
 }
 
