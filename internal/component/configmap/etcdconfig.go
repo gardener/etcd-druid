@@ -125,15 +125,12 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
-	// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, replace `podName`
-	// with `druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)` for both the
-	// initial-cluster key and the AdditionalAdvertisePeerURLs lookup. Today memberName ==
-	// podName, so we use podName for both; this assumption breaks when a prefix is configured.
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 
 		// Start with internal service DNS URL
-		peerURLs := []string{fmt.Sprintf("%s://%s.%s:%s", peerScheme, podName, domainName, serverPort)}
+		peerURLs := []string{fmt.Sprintf("%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)}
 
 		// Find and append additional peer URLs if configured for this member
 		for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
@@ -164,12 +161,9 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	advUrlsMap := make(map[string][]string)
 	// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 	domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
-	// TODO(@seshachalam-yv): Same as in prepareInitialCluster — once spec.memberNamePrefix
-	// (PR #1309) is merged, replace `podName` with
-	// `druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)` for both the map key
-	// and the AdditionalAdvertisePeerURLs lookup.
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 
 		// Start with internal service DNS URL
 		urls := []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
@@ -184,7 +178,7 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 			}
 		}
 
-		advUrlsMap[podName] = urls
+		advUrlsMap[memberName] = urls
 	}
 	return advUrlsMap
 }
