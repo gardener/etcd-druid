@@ -144,10 +144,9 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		if additionalURLs, exists := etcd.Spec.Etcd.AdditionalAdvertisePeerURLs[podName]; exists && len(additionalURLs) > 0 {
 			// Use only the additional URLs (override internal URL)
 			builder.WriteString(fmt.Sprintf("%s=%s,", podName, strings.Join(additionalURLs, ",")))
-		} else {
-			// Fall back to internal service URL
-			builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
 		}
+		// Fall back to internal service URL
+		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
 	}
 
 	if etcd.Spec.Etcd.BootstrapWithExistingCluster != nil {
