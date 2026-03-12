@@ -113,6 +113,12 @@ While etcd-backup-restore generally expects a storage bucket from a real infrast
 
 Port mappings for the services deployed for these emulators are defined in the [KinD cluster configuration file](../../hack/kind-up.sh), which allows developers to use the storage providers' respective CLIs to access and inspect the storage buckets created when deploying these emulators.
 
+> [!IMPORTANT]
+> **For e2e tests with emulators:**
+> - The e2e tests expect a bucket/container named **`default.bkp`** to exist in the emulator before running tests.
+> - The backup secret is **automatically generated** by the test framework with the name `etcd-backup`. You do **not** need to manually create or apply the secret.
+> - When following the emulator setup guides linked below, complete the setup **only up to and including the bucket/container creation step**. Skip the "Configure Secret" section as it is not needed for e2e tests.
+
 ### Running tests against backup provider AWS S3
 
 To run e2e tests against AWS S3, set the following environment variables when running `make test-e2e`:
@@ -126,17 +132,32 @@ export AWS_REGION=your-aws-region
 
 #### Running tests against Localstack S3 emulator
 
-Please refer to the [Localstack S3 emulator documentation](../deployment/getting-started-locally/manage-s3-emulator.md) for detailed instructions on deploying and configuring Localstack for S3 emulation.
+Please refer to the [Localstack S3 emulator documentation](../deployment/getting-started-locally/manage-s3-emulator.md) for detailed instructions on deploying Localstack.
 
-Once Localstack is deployed and running, set the following environment variables when running `make test-e2e`:
+**Setup steps for e2e tests:**
+
+1. Deploy Localstack: `make deploy-localstack`
+2. Create the test bucket `default.bkp`:
+   ```bash
+   export AWS_ENDPOINT_URL_S3="http://localhost:4566"
+   export AWS_ACCESS_KEY_ID=ACCESSKEYAWSUSER
+   export AWS_SECRET_ACCESS_KEY=sEcreTKey
+   export AWS_DEFAULT_REGION=us-east-2
+   aws s3api create-bucket --bucket default.bkp --region us-east-2 --create-bucket-configuration LocationConstraint=us-east-2 --acl private
+   ```
+
+Once Localstack is deployed and the bucket is created, set the following environment variables when running `make test-e2e`:
 
 ```sh
 export PROVIDERS="aws"
 export AWS_ACCESS_KEY_ID=ACCESSKEYAWSUSER
 export AWS_SECRET_ACCESS_KEY=sEcreTKey
 export AWS_REGION=us-east-2
-export LOCALSTACK_HOST="localhost:4566"
+export LOCALSTACK_HOST="localstack.default:4566"
 ```
+
+> [!NOTE]
+> The `LOCALSTACK_HOST` must be set to the in-cluster service address `localstack.default:4566` because the etcd-backup-restore sidecar running inside the cluster needs to reach the Localstack service.
 
 ### Running tests against backup provider Azure ABS
 
@@ -144,22 +165,35 @@ To run e2e tests against Azure ABS, set the following environment variables when
 
 ```sh
 export PROVIDERS="azure"
-export AZ_STORAGE_ACCOUNT=your-storage-account
-export AZ_STORAGE_KEY=your-storage-key
+export AZ_STORAGE_ACCOUNT_NAME=your-storage-account
+export AZ_STORAGE_ACCOUNT_KEY=your-storage-key
 ```
 
 #### Running tests against Azurite emulator
 
-Please refer to the [Azurite emulator documentation](../deployment/getting-started-locally/manage-azurite-emulator.md) for detailed instructions on deploying and configuring Azurite for ABS emulation.
+Please refer to the [Azurite emulator documentation](../deployment/getting-started-locally/manage-azurite-emulator.md) for detailed instructions on deploying Azurite.
 
-Once Azurite is deployed and running, set the following environment variables when running `make test-e2e`:
+**Setup steps for e2e tests:**
+
+1. Deploy Azurite: `make deploy-azurite`
+2. Create the test container `default.bkp`:
+
+   ```bash
+   export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+   az storage container create -n default.bkp
+   ```
+
+Once Azurite is deployed and the container is created, set the following environment variables when running `make test-e2e`:
 
 ```sh
 export PROVIDERS="azure"
-export AZ_STORAGE_ACCOUNT=your-storage-account
-export AZ_STORAGE_KEY=your-storage-key
-export AZURITE_DOMAIN="localhost:10000"
+export AZ_STORAGE_ACCOUNT_NAME=devstoreaccount1
+export AZ_STORAGE_ACCOUNT_KEY="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+export AZURITE_DOMAIN="azurite-service.default:10000"
 ```
+
+> [!NOTE]
+> The `AZURITE_DOMAIN` must be set to the in-cluster service address `azurite-service.default:10000` because the etcd-backup-restore sidecar running inside the cluster needs to reach the Azurite service.
 
 ### Running tests against backup provider GCP GCS
 
@@ -172,15 +206,38 @@ export GCP_SERVICEACCOUNT_JSON_PATH=/path/to/your/service-account.json
 
 #### Running tests against Fake GCS Server emulator
 
-Please refer to the [fake-gcs-server documentation](../deployment/getting-started-locally/manage-gcs-emulator.md) for detailed instructions on deploying and configuring fake-gcs-server for GCS emulation.
+Please refer to the [fake-gcs-server documentation](../deployment/getting-started-locally/manage-gcs-emulator.md) for detailed instructions on deploying fake-gcs-server.
 
-Once fake-gcs-server is deployed and running, set the following environment variables when running `make test-e2e`:
+**Setup steps for e2e tests:**
+
+1. Deploy FakeGCS: `make deploy-fakegcs`
+2. Create the test bucket `default.bkp`:
+   
+   ```bash
+   gsutil -o "Credentials:gs_json_host=127.0.0.1" -o "Credentials:gs_json_port=4443" -o "Boto:https_validate_certificates=False" mb "gs://default.bkp"
+   ```
+
+3. Create a dummy service account JSON file (FakeGCS doesn't validate credentials):
+   
+   ```bash
+   cat > /tmp/fake-gcs-sa.json << 'EOF'
+   {
+     "type": "service_account",
+     "project_id": "test-project"
+   }
+   EOF
+   ```
+
+Once fake-gcs-server is deployed and the bucket is created, set the following environment variables when running `make test-e2e`:
 
 ```sh
 export PROVIDERS="gcp"
-export GCP_SERVICEACCOUNT_JSON_PATH=/path/to/your/service-account.json
-export FAKEGCS_HOST="localhost:4443"
+export GCP_SERVICEACCOUNT_JSON_PATH=/tmp/fake-gcs-sa.json
+export FAKEGCS_HOST="fake-gcs-service.default:8000"
 ```
+
+> [!NOTE]
+> The `FAKEGCS_HOST` must be set to the in-cluster service address `fake-gcs-service.default:8000` because the etcd-backup-restore sidecar running inside the cluster needs to reach the FakeGCS service. Port 8000 is used for HTTP access.
 
 ## Cleaning up e2e test resources
 
