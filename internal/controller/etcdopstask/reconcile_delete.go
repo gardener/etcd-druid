@@ -25,13 +25,14 @@ func (r *Reconciler) triggerDeletionFlow(ctx context.Context, logger logr.Logger
 	logger = logger.WithValues("op", "triggerDeletionFlow")
 	logger.Info("Triggering deletion flow", "completed", task.IsCompleted(), "markedForDeletion", druidv1alpha1.IsResourceMarkedForDeletion(task.ObjectMeta))
 
-	if task.IsCompleted() && !task.HasTTLExpired() {
-		timeToExpiry := task.GetTimeToExpiry()
-		logger.Info("Task completed but TTL not expired yet, will requeue after TTL", "ttlSeconds", timeToExpiry.Seconds())
-		return ctrlutils.ReconcileAfter(timeToExpiry, "Task completed, waiting for TTL to expire")
+	if !druidv1alpha1.IsResourceMarkedForDeletion(task.ObjectMeta) {
+		if task.IsCompleted() && !task.HasTTLExpired() {
+			timeToExpiry := task.GetTimeToExpiry()
+			logger.Info("Task completed but TTL not expired yet, will requeue after TTL", "ttlSeconds", timeToExpiry.Seconds())
+			return ctrlutils.ReconcileAfter(timeToExpiry, "Task completed, waiting for TTL to expire")
+		}
+		logger.Info("Task TTL expired, proceeding with deletion")
 	}
-
-	logger.Info("Task TTL expired, proceeding with deletion")
 
 	deletionStepFns := []reconcileFn{
 		r.cleanupTaskResources,

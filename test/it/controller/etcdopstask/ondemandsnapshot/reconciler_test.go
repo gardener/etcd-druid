@@ -331,6 +331,20 @@ func TestEtcdOpsTaskLifecycle(t *testing.T) {
 				},
 			},
 		},
+		{
+			"Explicit delete bypasses TTL deletion flow.",
+			testEtcdOpsTaskDeletedBeforeTTLExpires,
+			&http.Client{
+				Transport: &testutils.MockRoundTripper{
+					Response: &http.Response{
+						StatusCode: http.StatusOK,
+						Status:     "200 OK",
+						Body:       io.NopCloser(strings.NewReader("OK")),
+					},
+					Err: nil,
+				},
+			},
+		},
 	}
 
 	g := NewWithT(t)
@@ -426,4 +440,45 @@ func testEtcdOpsTaskUnsuccessfulLifecycle(t *testing.T, namespace string, reconc
 	etcdopstasktest.AssertEtcdOpsTaskDeletedAfterTTL(ctx, g, t, cl, etcdOpsTaskInstance, druidv1alpha1.LastOperationTypeExecution)
 
 	t.Logf("test completed: etcdopstask failed as expected and was deleted after TTL")
+}
+
+// testEtcdOpsTaskDeletedBeforeTTLExpires tests the deletion flow when the task is explicitly deleted before TTL expires.
+func testEtcdOpsTaskDeletedBeforeTTLExpires(t *testing.T, namespace string, reconcilerTestEnv etcdopstasktest.ReconcilerTestEnv) {
+	g := NewWithT(t)
+
+	cl := reconcilerTestEnv.ItTestEnv.GetClient()
+	ctx := context.Background()
+
+	_ = etcdopstasktest.DeployReadyEtcd(ctx, g, t, cl, namespace)
+
+	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task-force-delete", namespace).
+		WithEtcdName("test-etcd").
+		WithTTLSecondsAfterFinished(3600).
+		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
+			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
+			TimeoutSecondsFull: ptr.To(int32(150)),
+			IsFinal:            ptr.To(false),
+		}).Build()
+
+	g.Expect(cl.Create(ctx, etcdOpsTaskInstance)).To(Succeed())
+
+	etcdopstasktest.AssertEtcdOpsTaskStateAndErrorCode(ctx, g, t, cl, etcdOpsTaskInstance,
+		druidv1alpha1.TaskStateSucceeded,
+		druidv1alpha1.LastOperationTypeExecution,
+		druidv1alpha1.LastOperationStateCompleted, nil)
+
+	g.Expect(cl.Delete(ctx, etcdOpsTaskInstance)).To(Succeed())
+	t.Logf("delete called for etcdopstask %s/%s", etcdOpsTaskInstance.Namespace, etcdOpsTaskInstance.Name)
+
+	g.Eventually(func() bool {
+		err := cl.Get(ctx, client.ObjectKeyFromObject(etcdOpsTaskInstance), etcdOpsTaskInstance)
+		if err != nil && client.IgnoreNotFound(err) == nil {
+			t.Logf("task %s/%s deleted successfully after explicit delete", etcdOpsTaskInstance.Namespace, etcdOpsTaskInstance.Name)
+			return true
+		}
+		return false
+	}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(),
+		"task should be deleted on delete call, not after TTL")
+
+	t.Logf("test completed: task was deleted immediately on explicit delete when TLL was not expired")
 }
