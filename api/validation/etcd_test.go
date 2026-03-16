@@ -156,7 +156,7 @@ func TestPreventStorePrefixUpdate(t *testing.T) {
 	g := NewWithT(t)
 	newUUID := "8047c75b-6b97-44ad-a389-84a9bedc2063"
 	newEtcd := oldEtcd.DeepCopy()
-	newEtcd.ObjectMeta.ResourceVersion = "2"
+	newEtcd.ResourceVersion = "2"
 	newEtcd.Spec.Backup.Store.Prefix = fmt.Sprintf("%s--%s/%s", etcdTestNamespace, newUUID, etcdTestName)
 	errs := ValidateEtcdUpdate(newEtcd, oldEtcd)
 	g.Expect(errs).To(HaveLen(1))
@@ -183,7 +183,7 @@ func TestAllowValidUpdatesToEtcd(t *testing.T) {
 
 	g := NewWithT(t)
 	newEtcd := oldEtcd.DeepCopy()
-	newEtcd.ObjectMeta.ResourceVersion = "2"
+	newEtcd.ResourceVersion = "2"
 	newEtcd.Spec.Replicas = 3
 	newEtcd.Spec.Backup.Store.Provider = ptr.To(druidv1alpha1.StorageProvider("GCS"))
 	errs := ValidateEtcdUpdate(newEtcd, oldEtcd)
