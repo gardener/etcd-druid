@@ -90,7 +90,7 @@ ci-checks:
 	@$(MAKE) --directory=api tidy
 	@$(MAKE) --directory=api check
 	@$(MAKE) --directory=api check-generate
-	@K8S_VERSION=$(CI_K8S_VERSION) $(MAKE) prepare-helm-charts
+	@$(MAKE) ci-prepare-helm-charts
 	@$(MAKE) check-git-status
 
 .PHONY: sast
@@ -233,6 +233,10 @@ ifeq ($(strip $(K8S_VERSION)),)
 else
 	@$(HACK_DIR)/prepare-chart-resources.sh --namespace $(NAMESPACE) --cert-expiry $(CERT_EXPIRY_DAYS) --k8s-version $(K8S_VERSION)
 endif
+
+.PHONY: ci-prepare-helm-charts
+ci-prepare-helm-charts: $(KUBECTL)
+	@K8S_VERSION=$(CI_K8S_VERSION) $(MAKE) prepare-helm-charts
 
 .PHONY: deploy
 deploy: $(SKAFFOLD) $(HELM) prepare-helm-charts

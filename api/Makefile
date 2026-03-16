@@ -26,6 +26,7 @@ check-apidiff: $(GO_APIDIFF)
 .PHONY: generate 
 generate: $(CONTROLLER_GEN) $(YQ) tidy generate-api-docs
 	@$(HACK_DIR)/generate.sh
+	@$(MAKE) --directory=$(REPO_ROOT) ci-prepare-helm-charts
 
 .PHONY: clean-generated-code
 clean-generated-code:
