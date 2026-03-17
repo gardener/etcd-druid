@@ -608,6 +608,12 @@ func testPreSyncHibernationSucceeds(t *testing.T, testNs string, reconcilerTestE
 	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshot-hibernation-0", timeout, pollingInterval)
 	t.Log("presync etcdopstask created")
 
+	task := &druidv1alpha1.EtcdOpsTask{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: "presync-snapshot-hibernation-0", Namespace: testNs}, task)).To(Succeed())
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Expect(task.OwnerReferences).To(ContainElement(druidv1alpha1.GetAsOwnerReference(etcdInstance.ObjectMeta)))
+	t.Log("presync etcdopstask has correct owner reference to etcd instance")
+
 	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshot-hibernation-0", druidv1alpha1.TaskStateSucceeded)
 	t.Log("simulated presync task completion with Succeeded state")
 
