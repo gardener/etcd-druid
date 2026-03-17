@@ -449,10 +449,10 @@ func testEtcdOpsTaskDeletedBeforeTTLExpires(t *testing.T, namespace string, reco
 	cl := reconcilerTestEnv.ItTestEnv.GetClient()
 	ctx := context.Background()
 
-	_ = etcdopstasktest.DeployReadyEtcd(ctx, g, t, cl, namespace)
+	etcdInstance := etcdopstasktest.DeployReadyEtcd(ctx, g, t, cl, namespace)
 
 	etcdOpsTaskInstance := testutils.EtcdOpsTaskBuilderWithoutDefaults("test-task-force-delete", namespace).
-		WithEtcdName("test-etcd").
+		WithEtcdName(etcdInstance.Name).
 		WithTTLSecondsAfterFinished(3600).
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type:               druidv1alpha1.OnDemandSnapshotTypeFull,
@@ -477,8 +477,7 @@ func testEtcdOpsTaskDeletedBeforeTTLExpires(t *testing.T, namespace string, reco
 			return true
 		}
 		return false
-	}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(),
-		"task should be deleted on delete call, not after TTL")
+	}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "task should be deleted on delete call, not after TTL")
 
 	t.Logf("test completed: task was deleted immediately on explicit delete when TLL was not expired")
 }
