@@ -201,15 +201,15 @@ func (r _resource) createPreSyncTask(ctx component.OperatorContext, etcd *druidv
 	taskName := fmt.Sprintf("%s%d", prefix, index)
 	task := &druidv1alpha1.EtcdOpsTask{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      taskName,
-			Namespace: etcd.Namespace,
+			Name:            taskName,
+			Namespace:       etcd.Namespace,
+			OwnerReferences: []metav1.OwnerReference{druidv1alpha1.GetAsOwnerReference(etcd.ObjectMeta)},
 		},
 		Spec: druidv1alpha1.EtcdOpsTaskSpec{
 			EtcdName: ptr.To(etcd.Name),
 			Config: druidv1alpha1.EtcdOpsTaskConfig{
 				OnDemandSnapshot: &druidv1alpha1.OnDemandSnapshotConfig{Type: druidv1alpha1.OnDemandSnapshotTypeFull},
 			},
-			TTLSecondsAfterFinished: ptr.To(int32(172800)), // 48 hours
 		},
 	}
 
