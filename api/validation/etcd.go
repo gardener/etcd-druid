@@ -66,7 +66,7 @@ func ValidateEtcdSpecUpdate(new, old *druidv1alpha1.EtcdSpec, deletionTimestampS
 func validateStore(store *druidv1alpha1.StoreSpec, name, namespace string, path *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
 
-	if !(strings.Contains(store.Prefix, namespace) && strings.Contains(store.Prefix, name)) {
+	if !strings.Contains(store.Prefix, namespace) || !strings.Contains(store.Prefix, name) {
 		allErrs = append(allErrs, field.Invalid(path.Child("prefix"), store.Prefix, "must contain object name and namespace"))
 	}
 

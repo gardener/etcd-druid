@@ -53,8 +53,8 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 		fullSnapshotInterval          = 24 * time.Hour
 		deltaSnapLease                = &coordinationv1.Lease{}
 	)
-	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta), Namespace: etcd.ObjectMeta.Namespace}, fullSnapLease)
-	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta), Namespace: etcd.ObjectMeta.Namespace}, deltaSnapLease)
+	fullSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetFullSnapshotLeaseName(etcd.ObjectMeta), Namespace: etcd.Namespace}, fullSnapLease)
+	incrSnapErr = a.cl.Get(ctx, types.NamespacedName{Name: druidv1alpha1.GetDeltaSnapshotLeaseName(etcd.ObjectMeta), Namespace: etcd.Namespace}, deltaSnapLease)
 
 	// Compute the full snapshot interval if full snapshot schedule is set
 	if etcd.Spec.Backup.FullSnapshotSchedule != nil {
@@ -70,7 +70,7 @@ func (a *backupReadyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) R
 
 	deltaLeaseRenewTime := deltaSnapLease.Spec.RenewTime
 	fullLeaseRenewTime := fullSnapLease.Spec.RenewTime
-	fullLeaseCreateTime := &fullSnapLease.ObjectMeta.CreationTimestamp
+	fullLeaseCreateTime := &fullSnapLease.CreationTimestamp
 
 	if fullLeaseRenewTime == nil && deltaLeaseRenewTime != nil {
 		// Most probable during reconcile of existing clusters if fresh leases are created
