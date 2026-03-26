@@ -368,6 +368,45 @@ spec:
                 etcd:
                   description: EtcdConfig defines the configuration for the etcd cluster to be deployed.
                   properties:
+                    additionalAdvertisePeerUrls:
+                      description: |-
+                        AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
+                        to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
+                        The member name should match the etcd member name pattern: {etcd-cr-name}-{index}
+                        where index is 0 to (replicas-1). For example, for an Etcd resource named "etcd-main"
+                        with 3 replicas, valid member names are: etcd-main-0, etcd-main-1, etcd-main-2.
+                        Non-matching entries are silently ignored at runtime.
+                        Note: Max 10 replicas supported for this feature.
+                      items:
+                        description: AdditionalPeerURL specifies additional peer URLs for a specific etcd member.
+                        properties:
+                          memberName:
+                            description: |-
+                              MemberName is the etcd member name.
+                              Should match the etcd member name of the cluster (e.g., etcd-main-0) to take effect.
+                              Non-matching names are silently ignored.
+                            maxLength: 253
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
+                            type: string
+                          urls:
+                            description: |-
+                              URLs is a list of additional peer URLs for this member.
+                              These will be appended to the default internal service URL.
+                              A maximum of 5 URLs can be specified per member.
+                              Must be valid HTTP(S) URLs with scheme, host, and port (e.g., https://10.0.0.1:2380).
+                            items:
+                              type: string
+                            maxItems: 5
+                            minItems: 1
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - memberName
+                          - urls
+                        type: object
+                      maxItems: 10
+                      type: array
                     authSecretRef:
                       description: |-
                         SecretReference represents a Secret Reference. It has enough information to retrieve secret
