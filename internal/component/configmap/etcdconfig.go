@@ -125,7 +125,22 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 		for i := range int(etcd.Spec.Replicas) {
 			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-			builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
+
+			// Start with internal service DNS URL
+			peerURLs := []string{fmt.Sprintf("%s://%s.%s:%s", peerScheme, podName, domainName, serverPort)}
+
+			// Find and append additional peer URLs if configured for this member
+			for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+				if memberURLs.MemberName == podName {
+					peerURLs = append(peerURLs, memberURLs.URLs...)
+					break
+				}
+			}
+
+			// Output member=url for EACH URL (not member=url1,url2)
+			for _, url := range peerURLs {
+				fmt.Fprintf(&builder, "%s=%s,", podName, url)
+			}
 		}
 	} else {
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
@@ -146,13 +161,28 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	default:
 		return nil
 	}
+
 	advUrlsMap := make(map[string][]string)
 	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 		domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
 		for i := range int(etcd.Spec.Replicas) {
 			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-			advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
+
+			// Start with internal service DNS URL
+			urls := []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
+
+			// Append additional peer URLs only for peer advertise URLs
+			if advertiseURLType == advertiseURLTypePeer {
+				for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
+					if memberURLs.MemberName == podName {
+						urls = append(urls, memberURLs.URLs...)
+						break
+					}
+				}
+			}
+
+			advUrlsMap[podName] = urls
 		}
 	} else {
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
