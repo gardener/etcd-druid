@@ -56,7 +56,7 @@ const (
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerUrls) || self.spec.etcd.additionalAdvertisePeerUrls.all(m, m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerUrls member names must start with the Etcd resource name followed by a dash"
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerUrls) || self.spec.etcd.additionalAdvertisePeerUrls.all(m, m.memberName.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$') && int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerUrls member name index must be less than replicas"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerUrls) || self.spec.etcd.additionalAdvertisePeerUrls.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerUrls member name index must be less than replicas"
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -217,8 +217,8 @@ type SnapshotCompactionSpec struct {
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || !has(self.peerUrlTls) || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith('https://') && !u.startsWith('http://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || has(self.peerUrlTls) || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith('http://') && !u.startsWith('https://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || !has(self.peerUrlTls) || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerUrls) || has(self.peerUrlTls) || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -256,12 +256,9 @@ type EtcdConfig struct {
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
 	// AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
-	// to initial-advertise-peer-urls. Each entry specifies a member name and its additional URLs.
-	// The member name should match the etcd member name pattern: {etcd-cr-name}-{index}
-	// where index is 0 to (replicas-1). For example, for an Etcd resource named "etcd-main"
-	// with 3 replicas, valid member names are: etcd-main-0, etcd-main-1, etcd-main-2.
-	// Non-matching entries are silently ignored at runtime.
-	// Note: Max 10 replicas supported for this feature.
+	// to initial-advertise-peer-urls. Each entry maps a member name to its
+	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
+	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []AdditionalPeerURL `json:"additionalAdvertisePeerUrls,omitempty"`
@@ -302,11 +299,9 @@ type ClientService struct {
 // AdditionalPeerURL specifies additional peer URLs for a specific etcd member.
 type AdditionalPeerURL struct {
 	// MemberName is the etcd member name.
-	// Should match the etcd member name of the cluster (e.g., etcd-main-0) to take effect.
-	// Non-matching names are silently ignored.
+	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
 	// +required
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$`
 	MemberName string `json:"memberName"`

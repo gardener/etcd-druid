@@ -161,7 +161,6 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	default:
 		return nil
 	}
-
 	advUrlsMap := make(map[string][]string)
 	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
