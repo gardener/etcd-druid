@@ -79,12 +79,7 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 // GetMemberLeaseNames returns the name of member leases for the Etcd.
 func GetMemberLeaseNames(etcd *Etcd) []string {
 	if IsPodManagementEnabled(etcd) {
-		replicas := etcd.Spec.Replicas
-		podNames := make([]string, replicas)
-		for i := range int(replicas) {
-			podNames[i] = GetOrdinalPodName(etcd.ObjectMeta, i)
-		}
-		return podNames
+		return GetAllPodNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	} else {
 		memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
 		memberNames := make([]string, len(memberAddresses))

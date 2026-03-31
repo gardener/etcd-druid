@@ -22,7 +22,7 @@ func TestSpecExternallyManagedMemberAddresses(t *testing.T) {
 		expectErr                      bool
 	}{
 		{
-			name:                           "Valid externallyManagedMemberAddresses #1: no addresses with non-zero replicas",
+			name:                           "Valid externallyManagedMemberAddresses #1: druid-managed setup - no addresses with non-zero replicas",
 			etcdName:                       "etcd-valid-1",
 			replicas:                       3,
 			externallyManagedMemberAddress: []string{},
@@ -62,8 +62,10 @@ func TestSpecExternallyManagedMemberAddresses(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(test.replicas).Build()
-			etcd.Spec.ExternallyManagedMemberAddresses = test.externallyManagedMemberAddress
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).
+				WithReplicas(test.replicas).
+				WithExternallyManagedMembers(test.externallyManagedMemberAddress).
+				Build()
 
 			validateEtcdCreation(g, etcd, test.expectErr)
 		})
