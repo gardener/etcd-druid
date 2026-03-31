@@ -138,7 +138,7 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 
 		// Output member=url for EACH URL (not member=url1,url2)
 		for _, url := range peerURLs {
-			builder.WriteString(fmt.Sprintf("%s=%s,", podName, url))
+			fmt.Fprintf(&builder, "%s=%s,", podName, url)
 		}
 	}
 
