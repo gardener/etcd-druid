@@ -399,4 +399,3 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 		})
 	}
 }
-
