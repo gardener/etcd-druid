@@ -601,7 +601,7 @@ spec:
                     snapshotCount:
                       description: |-
                         SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.
-                        More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
+                        More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention
                       format: int64
                       type: integer
                     wrapperPort:
