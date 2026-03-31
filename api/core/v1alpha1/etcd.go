@@ -220,7 +220,7 @@ type EtcdConfig struct {
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
 	// SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.
-	// More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
+	// More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention
 	// +optional
 	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
 	// EnableGRPCGateway enables the gRPC-Gateway proxy for etcd.
