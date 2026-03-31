@@ -1918,13 +1918,9 @@ spec:
                 when etcd.spec.externallyManagedMemberAddresses is specified.
               rule: 'has(self.externallyManagedMemberAddresses) ? self.replicas ==
                 self.externallyManagedMemberAddresses.size() : true'
-            - message: etcd.spec.externallyManagedMemberAddresses field cannot be
-                added or removed dynamically.
+            - message: etcd.spec.externallyManagedMemberAddresses is an immutable
+                field.
               rule: has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)
-            - message: etcd.spec.externallyManagedMemberAddresses field cannot be
-                empty when specified.
-              rule: 'has(self.externallyManagedMemberAddresses) ? self.externallyManagedMemberAddresses.size()
-                > 0 : true'
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:

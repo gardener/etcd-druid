@@ -30,7 +30,7 @@ func GetClientServiceName(etcdObjMeta metav1.ObjectMeta) string {
 // are managed by etcd-druid, else it is a random member address from the externally managed member addresses.
 func GetClientHostname(etcd *Etcd) string {
 	if IsPodManagementEnabled(etcd) {
-		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.ObjectMeta.Namespace)
+		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.Namespace)
 	} else {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
 		if err != nil {
