@@ -103,6 +103,20 @@ func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 		*out = new(LeaderElectionSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.EnvVar != nil {
+		in, out := &in.EnvVar, &out.EnvVar
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.VolumeMounts != nil {
+		in, out := &in.VolumeMounts, &out.VolumeMounts
+		*out = make([]v1.VolumeMount, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 
@@ -432,6 +446,20 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		in, out := &in.BootstrapWithExistingCluster, &out.BootstrapWithExistingCluster
 		*out = new(BootstrapWithExistingCluster)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.EnvVar != nil {
+		in, out := &in.EnvVar, &out.EnvVar
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.VolumeMounts != nil {
+		in, out := &in.VolumeMounts, &out.VolumeMounts
+		*out = make([]v1.VolumeMount, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }
@@ -850,6 +878,13 @@ func (in *EtcdSpec) DeepCopyInto(out *EtcdSpec) {
 		in, out := &in.ExternallyManagedMemberAddresses, &out.ExternallyManagedMemberAddresses
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.Volumes != nil {
+		in, out := &in.Volumes, &out.Volumes
+		*out = make([]v1.Volume, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }

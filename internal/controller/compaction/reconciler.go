@@ -546,7 +546,9 @@ func (r *Reconciler) createCompactionJob(ctx context.Context, logger logr.Logger
 			etcd.Name,
 			err)
 	}
-	job.Spec.Template.Spec.Containers[0].Env = append(env, providerEnv...)
+	env = append(env, providerEnv...)
+	env = append(env, etcd.Spec.Backup.EnvVar...)
+	job.Spec.Template.Spec.Containers[0].Env = env
 
 	if vm, err := getCompactionJobVolumes(ctx, r.Client, r.logger, etcd); err != nil {
 		return nil, fmt.Errorf("error creating compaction job in %v for %v : %w",
@@ -752,6 +754,7 @@ func getCompactionJobVolumeMounts(etcd *druidv1alpha1.Etcd) ([]v1.VolumeMount, e
 		})
 	}
 
+	vms = append(vms, etcd.Spec.Backup.VolumeMounts...)
 	return vms, nil
 }
 
@@ -802,6 +805,7 @@ func getCompactionJobVolumes(ctx context.Context, cl client.Client, logger logr.
 		})
 	}
 
+	vs = append(vs, etcd.Spec.Volumes...)
 	return vs, nil
 }
 
