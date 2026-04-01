@@ -470,6 +470,8 @@ _Appears in:_
 | `enableProfiling` _boolean_ | EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar |  |  |
 | `etcdSnapshotTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  |  |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the backup-restore container. |  |  |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the backup-restore container. |  |  |
 
 
 #### ClientService
@@ -677,6 +679,8 @@ _Appears in:_
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the etcd container. |  |  |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the etcd container. |  |  |
 
 
 #### EtcdCopyBackupsTask
@@ -897,6 +901,7 @@ _Appears in:_
 | `volumeClaimTemplate` _string_ | VolumeClaimTemplate defines the volume claim template to be created |  |  |
 | `runAsRoot` _boolean_ | RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall<br />run as root. By default, they run as non-root with user 'nobody'. |  |  |
 | `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified. |  |  |
+| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volume-v1-core) array_ | Volumes specifies additional volumes for the pod. |  |  |
 
 
 #### EtcdStatus

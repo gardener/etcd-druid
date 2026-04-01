@@ -277,14 +277,15 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 }
 
 func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
-	etcdVolumeMounts := make([]corev1.VolumeMount, 0, 7)
+	etcdVolumeMounts := make([]corev1.VolumeMount, 0, 7+len(b.etcd.Spec.Etcd.VolumeMounts))
 	etcdVolumeMounts = append(etcdVolumeMounts, b.getEtcdDataVolumeMount())
 	etcdVolumeMounts = append(etcdVolumeMounts, getEtcdContainerSecretVolumeMounts(b.etcd)...)
+	etcdVolumeMounts = append(etcdVolumeMounts, b.etcd.Spec.Etcd.VolumeMounts...)
 	return etcdVolumeMounts
 }
 
 func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMount {
-	brVolumeMounts := make([]corev1.VolumeMount, 0, 6)
+	brVolumeMounts := make([]corev1.VolumeMount, 0, 6+len(b.etcd.Spec.Backup.VolumeMounts))
 	brVolumeMounts = append(brVolumeMounts,
 		b.getEtcdDataVolumeMount(),
 		corev1.VolumeMount{
@@ -300,6 +301,7 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 			brVolumeMounts = append(brVolumeMounts, *etcdBackupVolumeMount)
 		}
 	}
+	brVolumeMounts = append(brVolumeMounts, b.etcd.Spec.Backup.VolumeMounts...)
 	return brVolumeMounts
 }
 
@@ -398,6 +400,7 @@ func (b *stsBuilder) getBackupRestoreContainer() (corev1.Container, error) {
 		return corev1.Container{}, err
 	}
 	env = append(env, providerEnv...)
+	env = append(env, b.etcd.Spec.Backup.EnvVar...)
 
 	return corev1.Container{
 		Name:            common.ContainerNameEtcdBackupRestore,
@@ -629,7 +632,7 @@ func (b *stsBuilder) getEtcdContainerCommandArgs() []string {
 }
 
 func (b *stsBuilder) getEtcdContainerEnvVars() []corev1.EnvVar {
-	return []corev1.EnvVar{}
+	return b.etcd.Spec.Etcd.EnvVar
 }
 
 func (b *stsBuilder) getPodSecurityContext() *corev1.PodSecurityContext {
@@ -738,6 +741,7 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 			volumes = append(volumes, *backupVolume)
 		}
 	}
+	volumes = append(volumes, b.etcd.Spec.Volumes...)
 	return volumes, nil
 }
 
