@@ -200,9 +200,11 @@ type BackupSpec struct {
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
 	// EnvVar specifies additional environment variables for the backup-restore container.
 	// +optional
+	// +kubebuilder:validation:XValidation:message="backup.env is an immutable field",rule="self == oldSelf"
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
 	// VolumeMounts specifies additional volume mounts for the backup-restore container.
 	// +optional
+	// +kubebuilder:validation:XValidation:message="backup.volumeMounts is an immutable field",rule="self == oldSelf"
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
@@ -276,9 +278,11 @@ type EtcdConfig struct {
 	ClientService *ClientService `json:"clientService,omitempty"`
 	// EnvVar specifies additional environment variables for the etcd container.
 	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.env is an immutable field",rule="self == oldSelf"
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
 	// VolumeMounts specifies additional volume mounts for the etcd container.
 	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.volumeMounts is an immutable field",rule="self == oldSelf"
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
@@ -372,6 +376,7 @@ type EtcdSpec struct {
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
 	// Volumes specifies additional volumes for the pod.
 	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.spec.volumes is an immutable field",rule="self == oldSelf"
 	Volumes []corev1.Volume `json:"volumes,omitempty"`
 }
 

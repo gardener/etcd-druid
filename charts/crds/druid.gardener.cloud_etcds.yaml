@@ -277,6 +277,9 @@ spec:
                       - name
                       type: object
                     type: array
+                    x-kubernetes-validations:
+                    - message: backup.env is an immutable field
+                      rule: self == oldSelf
                   etcdSnapshotTimeout:
                     description: EtcdSnapshotTimeout defines the timeout duration
                       for etcd FullSnapshot operation
@@ -624,6 +627,9 @@ spec:
                       - name
                       type: object
                     type: array
+                    x-kubernetes-validations:
+                    - message: backup.volumeMounts is an immutable field
+                      rule: self == oldSelf
                 type: object
                 x-kubernetes-validations:
                 - message: etcd.spec.backup.garbageCollectionPeriod must be greater
@@ -901,6 +907,9 @@ spec:
                       - name
                       type: object
                     type: array
+                    x-kubernetes-validations:
+                    - message: etcd.env is an immutable field
+                      rule: self == oldSelf
                   etcdDefragTimeout:
                     description: EtcdDefragTimeout defines the timeout duration for
                       etcd defrag call
@@ -1119,6 +1128,9 @@ spec:
                       - name
                       type: object
                     type: array
+                    x-kubernetes-validations:
+                    - message: etcd.volumeMounts is an immutable field
+                      rule: self == oldSelf
                   wrapperPort:
                     format: int32
                     type: integer
@@ -4226,6 +4238,9 @@ spec:
                   - name
                   type: object
                 type: array
+                x-kubernetes-validations:
+                - message: etcd.spec.volumes is an immutable field
+                  rule: self == oldSelf
             required:
             - backup
             - etcd
