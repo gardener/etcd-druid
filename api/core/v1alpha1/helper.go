@@ -27,9 +27,9 @@ func GetClientServiceName(etcdObjMeta metav1.ObjectMeta) string {
 }
 
 // GetClientHostname returns the hostname of the client endpoint for the Etcd cluster. This is the client service hostname when the Etcd members
-// are managed by etcd-druid, else it is a random member address from the externally managed member addresses.
+// are managed by etcd-druid, else it is a randomly selected member address out of the externally managed member addresses.
 func GetClientHostname(etcd *Etcd) string {
-	if IsPodManagementEnabled(etcd) {
+	if ArePodsManagedByEtcdDruid(etcd) {
 		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.Namespace)
 	} else {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
@@ -78,7 +78,7 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 
 // GetMemberLeaseNames returns the name of member leases for the Etcd.
 func GetMemberLeaseNames(etcd *Etcd) []string {
-	if IsPodManagementEnabled(etcd) {
+	if ArePodsManagedByEtcdDruid(etcd) {
 		return GetAllPodNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	} else {
 		memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
@@ -194,7 +194,7 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 	delete(etcdObjMeta.Annotations, GardenerOperationAnnotation)
 }
 
-// IsPodManagementEnabled checks if the management of pods is handled by etcd-druid for an Etcd resource.
-func IsPodManagementEnabled(etcd *Etcd) bool {
+// ArePodsManagedByEtcdDruid checks if the management of pods is handled by etcd-druid for an Etcd resource.
+func ArePodsManagedByEtcdDruid(etcd *Etcd) bool {
 	return len(etcd.Spec.ExternallyManagedMemberAddresses) == 0
 }

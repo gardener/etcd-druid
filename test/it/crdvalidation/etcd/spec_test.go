@@ -43,15 +43,8 @@ func TestSpecExternallyManagedMemberAddresses(t *testing.T) {
 			expectErr:                      true,
 		},
 		{
-			name:                           "Invalid externallyManagedMemberAddresses #2: invalid address format",
+			name:                           "Invalid externallyManagedMemberAddresses #2: non-unique addresses",
 			etcdName:                       "etcd-invalid-2",
-			replicas:                       3,
-			externallyManagedMemberAddress: []string{"http://1.1.1.1", "http://1.1.1.2"},
-			expectErr:                      true,
-		},
-		{
-			name:                           "Invalid externallyManagedMemberAddresses #3: non-unique addresses",
-			etcdName:                       "etcd-invalid-3",
 			replicas:                       3,
 			externallyManagedMemberAddress: []string{"1.1.1.1", "1.1.1.1", "1.1.1.1"},
 			expectErr:                      true,

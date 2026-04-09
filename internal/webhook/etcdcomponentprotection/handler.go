@@ -92,7 +92,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 	}
 
 	if isComponentInvolvedInPodManagement(requestGK) {
-		if !druidv1alpha1.IsPodManagementEnabled(etcd) {
+		if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 			return admission.Allowed(fmt.Sprintf("Etcd %s has pod management disabled, skipping validations for resource %v", etcd.Name, utils.CreateObjectKey(partialObjMeta)))
 		}
 	}

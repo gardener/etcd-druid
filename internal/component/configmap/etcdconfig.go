@@ -120,7 +120,7 @@ func getSchemeAndSecurityConfig(tlsConfig *druidv1alpha1.TLSConfig, caPath, serv
 func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
-	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 		domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 		for i := range int(etcd.Spec.Replicas) {
@@ -147,7 +147,7 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 		return nil
 	}
 	advUrlsMap := make(map[string][]string)
-	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 		domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
 		for i := range int(etcd.Spec.Replicas) {

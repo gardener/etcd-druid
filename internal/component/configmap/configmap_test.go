@@ -401,7 +401,7 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 		return nil
 	}
 	advUrlsMap := make(map[string][]string)
-	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		for i := 0; i < int(etcd.Spec.Replicas); i++ {
 			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 			advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}

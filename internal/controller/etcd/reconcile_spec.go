@@ -170,7 +170,7 @@ func (r *Reconciler) getOrderedOperatorsForSync(etcd *druidv1alpha1.Etcd) []comp
 		component.MemberLeaseKind,
 		component.SnapshotLeaseKind,
 	}
-	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		operators = append(operators,
 			component.PodDisruptionBudgetKind,
 			component.ClientServiceKind,

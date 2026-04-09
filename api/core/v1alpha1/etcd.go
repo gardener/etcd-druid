@@ -362,8 +362,8 @@ type EtcdSpec struct {
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
 	// ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
 	// will disable components that are involved in management of etcd members like Pods, Services and PDBs.
+	// Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.
 	// +optional
-	// +kubebuilder:validation:items:Format=ipv4
 	// +listType=set
 	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`
 }

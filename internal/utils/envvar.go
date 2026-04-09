@@ -54,7 +54,7 @@ func GetEnvVarFromSecret(name, secretName, secretKey string, optional bool) core
 func GetBackupRestoreContainerEnvVars(etcd *druidv1alpha1.Etcd, store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 
-	if druidv1alpha1.IsPodManagementEnabled(etcd) {
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		envVars = append(envVars, getEnvVarFromFieldPath(common.EnvPodName, "metadata.name"))
 	} else {
 		// Populate the POD_NAME as <etcd-name>-<pod-ip> in case of externally managed members.
