@@ -13,7 +13,7 @@ on:
 
 jobs:
   prepare:
-    uses: gardener/cc-utils/.github/workflows/prepare.yaml@master
+    uses: gardener/cc-utils/.github/workflows/prepare.yaml@v1
     with:
       mode: ${{ inputs.mode }}
     permissions:
@@ -31,7 +31,7 @@ jobs:
       packages: write
       id-token: write
     secrets: inherit
-    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@master
+    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@v1
     strategy:
       matrix:
         args:
@@ -66,7 +66,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
-    uses: gardener/cc-utils/.github/workflows/helmchart-ocm.yaml@master
+    uses: gardener/cc-utils/.github/workflows/helmchart-ocm.yaml@v1
     strategy:
       matrix:
         args:
@@ -92,7 +92,7 @@ jobs:
     needs:
       - prepare
     steps:
-      - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
@@ -134,7 +134,7 @@ jobs:
           - name: test-integration
             run: make test-integration
     steps:
-      - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
@@ -146,7 +146,7 @@ jobs:
           ${{ matrix.args.run }} |& tee /tmp/blobs.d/test-log.txt
           tar czf /tmp/blobs.d/test-log.tar.gz -C /tmp/blobs.d test-log.txt
       - name: add-test-results-to-component-descriptor
-        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@v1
         with:
           blobs-directory: /tmp/blobs.d
           ocm-resources: |
@@ -162,7 +162,7 @@ jobs:
                   value:
                     - test
   sast-lint:
-    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
+    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@v1
     permissions:
       contents: read
     needs:

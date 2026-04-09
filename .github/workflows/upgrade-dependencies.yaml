@@ -6,7 +6,7 @@ on:
 
 jobs:
   upgrade-pullrequests:
-    uses: gardener/cc-utils/.github/workflows/upgrade-dependencies.yaml@master
+    uses: gardener/cc-utils/.github/workflows/upgrade-dependencies.yaml@v1
     permissions:
       contents: read
       id-token: write
