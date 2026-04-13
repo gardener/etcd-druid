@@ -90,6 +90,8 @@ ci-checks:
 	@$(MAKE) --directory=api tidy
 	@$(MAKE) --directory=api check
 	@$(MAKE) --directory=api check-generate
+	@$(MAKE) --directory=druidctl tidy
+	@$(MAKE) --directory=druidctl check
 	@$(MAKE) ci-prepare-helm-charts
 	@$(MAKE) check-git-status
 

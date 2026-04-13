@@ -26,12 +26,12 @@ func (r *resumeReconcileCmdCtx) complete() error {
 		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = r.GlobalOptions.BuildEtcdRefList()
+	r.etcdRefList = r.BuildEtcdRefList()
 	return nil
 }
 
 func (r *resumeReconcileCmdCtx) validate() error {
-	return r.GlobalOptions.ValidateResourceSelection()
+	return r.ValidateResourceSelection()
 }
 
 // execute removes the suspend reconcile annotation from the Etcd resource.

@@ -20,12 +20,12 @@ func (r *resourceProtectionCmdCtx) complete() error {
 		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = r.GlobalOptions.BuildEtcdRefList()
+	r.etcdRefList = r.BuildEtcdRefList()
 	return nil
 }
 
 func (r *resourceProtectionCmdCtx) validate() error {
-	return r.GlobalOptions.ValidateResourceSelection()
+	return r.ValidateResourceSelection()
 }
 
 // addDisableProtectionAnnotation adds the disable protection annotation to the Etcd resource. It makes the resources vulnerable
