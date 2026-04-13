@@ -22,10 +22,6 @@ type mutateEtcdStatusFn func(ctx component.OperatorContext, etcd *druidv1alpha1.
 
 func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	sLog := r.logger.WithValues("etcd", client.ObjectKeyFromObject(etcd), "operation", "reconcileStatus").WithValues("runID", ctx.RunID)
-	if !druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(etcd.ObjectMeta) {
-		sLog.Info("Skipping status checks since etcd runtime component creation is disabled")
-		return ctrlutils.ContinueReconcile()
-	}
 	originalEtcd := etcd.DeepCopy()
 
 	var mutateETCDStatusStepFns = []mutateEtcdStatusFn{
@@ -71,11 +67,22 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		if etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation {
 			expectedReplicas = *sts.Spec.Replicas
 		}
-		ready, _ := kubernetes.IsStatefulSetReady(expectedReplicas, sts)
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.Replicas = sts.Status.CurrentReplicas
-		etcd.Status.Ready = &ready
+		if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+			ready, _ := kubernetes.IsStatefulSetReady(expectedReplicas, sts)
+			etcd.Status.Ready = &ready
+		} else {
+			allMembersReady := false
+			for _, condition := range etcd.Status.Conditions {
+				if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady {
+					allMembersReady = condition.Status == druidv1alpha1.ConditionTrue
+					break
+				}
+			}
+			etcd.Status.Ready = &allMembersReady
+		}
 	} else {
 		etcd.Status.CurrentReplicas = 0
 		etcd.Status.ReadyReplicas = 0

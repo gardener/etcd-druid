@@ -117,10 +117,9 @@ func newHTTPClient(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Et
 // fullSnapshot makes an HTTP GET request to the etcd client service for a full snapshot.
 func fullSnapshot(ctx context.Context, etcd *druidv1alpha1.Etcd, httpClient httpClientInterface, httpScheme string) error {
 	fullSnapshotURL := fmt.Sprintf(
-		"%s://%s.%s.svc.cluster.local:%d/snapshot/full",
+		"%s://%s:%d/snapshot/full",
 		httpScheme,
-		druidv1alpha1.GetClientServiceName(etcd.ObjectMeta),
-		etcd.Namespace,
+		druidv1alpha1.GetClientHostname(etcd),
 		ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullSnapshotURL, nil)

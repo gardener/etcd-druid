@@ -601,13 +601,22 @@ spec:
                     snapshotCount:
                       description: |-
                         SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.
-                        More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
+                        More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention
                       format: int64
                       type: integer
                     wrapperPort:
                       format: int32
                       type: integer
                   type: object
+                externallyManagedMemberAddresses:
+                  description: |-
+                    ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
+                    will disable components that are involved in management of etcd members like Pods, Services and PDBs.
+                    Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.
+                  items:
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: set
                 labels:
                   additionalProperties:
                     type: string

@@ -220,7 +220,7 @@ type EtcdConfig struct {
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
 	// SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.
-	// More info: https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
+	// More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention
 	// +optional
 	SnapshotCount *int64 `json:"snapshotCount,omitempty"`
 	// EnableGRPCGateway enables the gRPC-Gateway proxy for etcd.
@@ -310,8 +310,10 @@ type SchedulingConstraints struct {
 }
 
 // EtcdSpec defines the desired state of Etcd
-// +kubebuilder:validation:XValidation:message="etcd.spec.storageClass is an immutable field.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
-// +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate is an immutable field.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.storageClass field cannot be added or removed dynamically.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate field cannot be added or removed dynamically.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.replicas must be equal to length of etcd.spec.externallyManagedMemberAddresses when etcd.spec.externallyManagedMemberAddresses is specified.",rule="has(self.externallyManagedMemberAddresses) ? self.replicas == self.externallyManagedMemberAddresses.size() : true"
+// +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field cannot be added or removed dynamically.",rule="has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)"
 type EtcdSpec struct {
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
@@ -358,6 +360,12 @@ type EtcdSpec struct {
 	// run as root. By default, they run as non-root with user 'nobody'.
 	// +optional
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
+	// ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
+	// will disable components that are involved in management of etcd members like Pods, Services and PDBs.
+	// Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.
+	// +optional
+	// +listType=set
+	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.
