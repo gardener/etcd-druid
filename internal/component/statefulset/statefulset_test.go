@@ -316,6 +316,11 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		expectedReplicas       *int32
 		expectNoServiceAccount bool
 		expectNoService        bool
+		etcdEnv                []corev1.EnvVar
+		etcdVolumeMounts       []corev1.VolumeMount
+		volumes                []corev1.Volume
+		backupEnv              []corev1.EnvVar
+		backupVolumeMounts     []corev1.VolumeMount
 	}{
 		{
 			name:             "creates a single replica sts for a single node etcd cluster",
@@ -348,6 +353,27 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			expectNoServiceAccount: true,
 			expectNoService:        true,
 		},
+		{
+			name:             "creates sts with additional env, volumes and volume mounts",
+			replicas:         1,
+			expectedReplicas: ptr.To[int32](1),
+			etcdEnv: []corev1.EnvVar{
+				{Name: "CUSTOM_ETCD_VAR", Value: "etcd-value"},
+			},
+			etcdVolumeMounts: []corev1.VolumeMount{
+				{Name: "custom-etcd-vol", MountPath: "/custom/etcd"},
+			},
+			volumes: []corev1.Volume{
+				{Name: "custom-etcd-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "custom-br-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			backupEnv: []corev1.EnvVar{
+				{Name: "CUSTOM_BR_VAR", Value: "br-value"},
+			},
+			backupVolumeMounts: []corev1.VolumeMount{
+				{Name: "custom-br-vol", MountPath: "/custom/br"},
+			},
+		},
 	}
 
 	g := NewWithT(t)
@@ -357,10 +383,25 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// *************** Build test environment ***************
-			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
 				WithReplicas(tc.replicas).
-				WithAnnotations(tc.annotations).
-				Build()
+				WithAnnotations(tc.annotations)
+			if tc.etcdEnv != nil {
+				etcdBuilder = etcdBuilder.WithEtcdEnv(tc.etcdEnv)
+			}
+			if tc.etcdVolumeMounts != nil {
+				etcdBuilder = etcdBuilder.WithEtcdVolumeMounts(tc.etcdVolumeMounts)
+			}
+			if tc.volumes != nil {
+				etcdBuilder = etcdBuilder.WithVolumes(tc.volumes)
+			}
+			if tc.backupEnv != nil {
+				etcdBuilder = etcdBuilder.WithBackupEnv(tc.backupEnv)
+			}
+			if tc.backupVolumeMounts != nil {
+				etcdBuilder = etcdBuilder.WithBackupVolumeMounts(tc.backupVolumeMounts)
+			}
+			etcd := etcdBuilder.Build()
 
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
 			etcdImage, etcdBRImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)

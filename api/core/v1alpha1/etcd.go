@@ -198,6 +198,14 @@ type BackupSpec struct {
 	// LeaderElection defines parameters related to the LeaderElection configuration.
 	// +optional
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
+	// EnvVar specifies additional environment variables for the backup-restore container.
+	// +optional
+	// +kubebuilder:validation:XValidation:message="backup.env is an immutable field",rule="self == oldSelf"
+	EnvVar []corev1.EnvVar `json:"env,omitempty"`
+	// VolumeMounts specifies additional volume mounts for the backup-restore container.
+	// +optional
+	// +kubebuilder:validation:XValidation:message="backup.volumeMounts is an immutable field",rule="self == oldSelf"
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // SnapshotCompactionSpec defines parameters related to the compaction job configuration.
@@ -268,6 +276,14 @@ type EtcdConfig struct {
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
 	ClientService *ClientService `json:"clientService,omitempty"`
+	// EnvVar specifies additional environment variables for the etcd container.
+	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.env is an immutable field",rule="self == oldSelf"
+	EnvVar []corev1.EnvVar `json:"env,omitempty"`
+	// VolumeMounts specifies additional volume mounts for the etcd container.
+	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.volumeMounts is an immutable field",rule="self == oldSelf"
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // ClientService defines the parameters of the client service that a user can specify
@@ -358,6 +374,10 @@ type EtcdSpec struct {
 	// run as root. By default, they run as non-root with user 'nobody'.
 	// +optional
 	RunAsRoot *bool `json:"runAsRoot,omitempty"`
+	// Volumes specifies additional volumes for the pod.
+	// +optional
+	// +kubebuilder:validation:XValidation:message="etcd.spec.volumes is an immutable field",rule="self == oldSelf"
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
 }
 
 // CrossVersionObjectReference contains enough information to let you identify the referred resource.
