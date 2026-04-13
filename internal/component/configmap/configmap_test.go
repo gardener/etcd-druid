@@ -91,6 +91,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 		createErr        *apierrors.StatusError
 		clientTLSEnabled bool
 		peerTLSEnabled   bool
+		memberNamePrefix *string
 		expectedErr      *druiderr.DruidError
 	}{
 		{
@@ -104,6 +105,13 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 			clientTLSEnabled: true,
 			peerTLSEnabled:   true,
 			etcdReplicas:     3,
+		},
+		{
+			name:             "should create configmap with member-name-prefix when set",
+			clientTLSEnabled: true,
+			peerTLSEnabled:   false,
+			etcdReplicas:     1,
+			memberNamePrefix: ptr.To("test-prefix"),
 		},
 		{
 			name:             "return error when create client request fails",
@@ -124,6 +132,7 @@ func TestSyncWhenNoConfigMapExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, tc.clientTLSEnabled, tc.peerTLSEnabled)
+			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -147,6 +156,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 		peerTLSEnabled         bool
 		etcdReplicas           int32
 		etcdSpecServerPort     *int32
+		memberNamePrefix       *string
 		expectedInitialCluster string
 	}{
 		{
@@ -169,6 +179,14 @@ func TestPrepareInitialCluster(t *testing.T) {
 			etcdSpecServerPort:     ptr.To[int32](2333),
 			expectedInitialCluster: "etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
 		},
+		{
+			name:                   "should create initial cluster with member name prefix for multi node etcd cluster",
+			etcdReplicas:           3,
+			peerTLSEnabled:         true,
+			etcdSpecServerPort:     ptr.To[int32](2333),
+			memberNamePrefix:       ptr.To("test-prefix"),
+			expectedInitialCluster: "test-prefix-etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,test-prefix-etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,test-prefix-etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
+		},
 	}
 	g := NewWithT(t)
 	t.Parallel()
@@ -177,9 +195,81 @@ func TestPrepareInitialCluster(t *testing.T) {
 			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
+			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
 			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
 			g.Expect(actualInitialCluster).To(Equal(tc.expectedInitialCluster))
+		})
+	}
+}
+
+func TestGetAdvertiseURLs(t *testing.T) {
+	testCases := []struct {
+		name             string
+		etcdReplicas     int32
+		advertiseURLType string
+		scheme           string
+		serverPort       *int32
+		clientPort       *int32
+		memberNamePrefix *string
+		expectedURLs     map[string][]string
+	}{
+		{
+			name:             "should return peer advertise URLs without prefix",
+			etcdReplicas:     3,
+			advertiseURLType: advertiseURLTypePeer,
+			scheme:           "https",
+			serverPort:       ptr.To[int32](2380),
+			expectedURLs: map[string][]string{
+				"etcd-test-0": {"https://etcd-test-0.etcd-test-peer.test-ns.svc:2380"},
+				"etcd-test-1": {"https://etcd-test-1.etcd-test-peer.test-ns.svc:2380"},
+				"etcd-test-2": {"https://etcd-test-2.etcd-test-peer.test-ns.svc:2380"},
+			},
+		},
+		{
+			name:             "should return peer advertise URLs with member name prefix",
+			etcdReplicas:     3,
+			advertiseURLType: advertiseURLTypePeer,
+			scheme:           "https",
+			serverPort:       ptr.To[int32](2380),
+			memberNamePrefix: ptr.To("test-prefix"),
+			expectedURLs: map[string][]string{
+				"test-prefix-etcd-test-0": {"https://etcd-test-0.etcd-test-peer.test-ns.svc:2380"},
+				"test-prefix-etcd-test-1": {"https://etcd-test-1.etcd-test-peer.test-ns.svc:2380"},
+				"test-prefix-etcd-test-2": {"https://etcd-test-2.etcd-test-peer.test-ns.svc:2380"},
+			},
+		},
+		{
+			name:             "should return client advertise URLs with member name prefix",
+			etcdReplicas:     1,
+			advertiseURLType: advertiseURLTypeClient,
+			scheme:           "https",
+			clientPort:       ptr.To[int32](2379),
+			memberNamePrefix: ptr.To("test-prefix"),
+			expectedURLs: map[string][]string{
+				"test-prefix-etcd-test-0": {"https://etcd-test-0.etcd-test-peer.test-ns.svc:2379"},
+			},
+		},
+		{
+			name:             "should return nil for unknown advertise URL type",
+			etcdReplicas:     1,
+			advertiseURLType: "unknown",
+			scheme:           "https",
+			expectedURLs:     nil,
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := buildEtcd(tc.etcdReplicas, true, false)
+			etcd.Spec.Etcd.ServerPort = tc.serverPort
+			etcd.Spec.Etcd.ClientPort = tc.clientPort
+			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
+			peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)
+			actualURLs := getAdvertiseURLs(etcd, tc.advertiseURLType, tc.scheme, peerSvcName)
+			g.Expect(actualURLs).To(Equal(tc.expectedURLs))
 		})
 	}
 }
@@ -347,6 +437,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 	}))
 	matchClientTLSRelatedConfiguration(g, etcd, actualETCDConfig)
 	matchPeerTLSRelatedConfiguration(g, etcd, actualETCDConfig)
+	matchMemberNamePrefixConfiguration(g, etcd, actualETCDConfig)
 }
 
 func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
@@ -383,7 +474,8 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 	advUrlsMap := make(map[string][]string)
 	for i := 0; i < int(etcd.Spec.Replicas); i++ {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+		advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, port)}
 	}
 	return advUrlsMap
 }
@@ -399,6 +491,16 @@ func expectedAdvertiseURLsAsInterface(etcd *druidv1alpha1.Etcd, advertiseURLType
 		advertiseUrlsInterface[podName] = urlsListInterface
 	}
 	return advertiseUrlsInterface
+}
+
+func matchMemberNamePrefixConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
+	if etcd.Spec.MemberNamePrefix != nil {
+		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
+			"member-name-prefix": Equal(*etcd.Spec.MemberNamePrefix),
+		}))
+	} else {
+		g.Expect(actualETCDConfig).ToNot(HaveKey("member-name-prefix"))
+	}
 }
 
 func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {

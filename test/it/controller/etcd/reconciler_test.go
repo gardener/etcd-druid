@@ -225,7 +225,7 @@ func testUnnecessaryManagedResourcesAreCleanedUpWhenDisableEtcdRuntimeComponentC
 	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
 	assertStatefulSetReplicas(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 3, 30*time.Second, 2*time.Second)
 	// update member leases with peer-tls-enabled annotation set to true
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas, etcdInstance.Spec.MemberNamePrefix)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
 		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
@@ -387,7 +387,7 @@ func testEtcdSpecUpdateWhenReconcileOperationAnnotationIsSet(t *testing.T, testN
 	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
 	assertStatefulSetGeneration(ctx, t, reconcilerTestEnv.itTestEnv.GetClient(), client.ObjectKeyFromObject(etcdInstance), 1, 30*time.Second, 2*time.Second)
 	// update member leases with peer-tls-enabled annotation set to true
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas)
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance.ObjectMeta, etcdInstance.Spec.Replicas, etcdInstance.Spec.MemberNamePrefix)
 	t.Log("updating member leases with peer-tls-enabled annotation set to true")
 	mlcs := []etcdMemberLeaseConfig{
 		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
@@ -768,7 +768,7 @@ func TestScaleSubresource(t *testing.T) {
 }
 
 func testConditionsAndMembersWhenAllMemberLeasesAreActive(t *testing.T, etcd *druidv1alpha1.Etcd, reconcilerTestEnv ReconcilerTestEnv) {
-	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas, etcd.Spec.MemberNamePrefix)
 	testNs := etcd.Namespace
 	clock := testclock.NewFakeClock(time.Now().Round(time.Second))
 	g := NewWithT(t)

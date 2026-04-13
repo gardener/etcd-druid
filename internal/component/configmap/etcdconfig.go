@@ -49,6 +49,7 @@ type etcdConfig struct {
 	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
 	ClientSecurity          *securityConfig              `json:"client-transport-security,omitempty"`
 	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
+	MemberNamePrefix        string                       `json:"member-name-prefix,omitempty"`
 	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
 	NextClusterVersionCompatible bool `json:"next-cluster-version-compatible,omitempty"`
 }
@@ -85,6 +86,9 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig
+	if etcd.Spec.MemberNamePrefix != nil {
+		cfg.MemberNamePrefix = *etcd.Spec.MemberNamePrefix
+	}
 
 	return cfg
 }
@@ -123,7 +127,8 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	builder := strings.Builder{}
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", podName, peerScheme, podName, domainName, serverPort))
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+		builder.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort))
 	}
 	return strings.Trim(builder.String(), ",")
 }
@@ -141,7 +146,8 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	advUrlsMap := make(map[string][]string)
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		advUrlsMap[podName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+		advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s.%s.%s.svc:%d", scheme, podName, peerSvcName, etcd.Namespace, port)}
 	}
 	return advUrlsMap
 }
