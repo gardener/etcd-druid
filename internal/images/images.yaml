@@ -12,7 +12,7 @@ images:
     name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl
-  tag: "v0.41.2"
+  tag: "v0.42.0"
 - name: etcd-backup-restore-next
   resourceId:
     name: 'etcdbrctl-next'
