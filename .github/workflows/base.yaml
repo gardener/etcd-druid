@@ -175,5 +175,7 @@ jobs:
       - prepare
     with:
       linter: gosec
-      run: make sast-report
+      run: |
+        make sast-report
+        make --directory=druidctl sast-report
       go-version: '1.25'
