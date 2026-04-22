@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -203,7 +204,7 @@ const (
 
 // generateTLSKeyCertToDirectory generates TLS key and certificate for either server or client, specified by certType parameter
 // using the given CA directory, and writes them to the specified output directory.
-func generateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType, caDir, outputDir, name, namespace string) (err error) {
+func generateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType, caDir, outputDir, name, namespace string, ipAddresses []net.IP) (err error) {
 	logger.Info("generating TLS key", "type", certType, "name", name, "caDir", caDir, "outputDir", outputDir)
 
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
@@ -253,6 +254,7 @@ func generateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType,
 		certTemplate.SerialNumber = big.NewInt(2)
 		certTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 		certTemplate.DNSNames = getDNSNames(name, namespace)
+		certTemplate.IPAddresses = ipAddresses
 	case certTypeClient:
 		certTemplate.SerialNumber = big.NewInt(3)
 		certTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
@@ -308,11 +310,29 @@ func GeneratePKIResourcesToDirectory(logger logr.Logger, tlsDir, name, namespace
 		return err
 	}
 
-	if err := generateTLSKeyCertToDirectory(logger, certTypeServer, tlsDir, tlsDir, name, namespace); err != nil {
+	if err := generateTLSKeyCertToDirectory(logger, certTypeServer, tlsDir, tlsDir, name, namespace, nil); err != nil {
 		return err
 	}
 
-	if err := generateTLSKeyCertToDirectory(logger, certTypeClient, tlsDir, tlsDir, name, namespace); err != nil {
+	if err := generateTLSKeyCertToDirectory(logger, certTypeClient, tlsDir, tlsDir, name, namespace, nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GeneratePKIResourcesWithIPSANs generates CA, server, and client TLS key and certificate files
+// like GeneratePKIResourcesToDirectory but includes the given IPs as SANs on server certificates.
+func GeneratePKIResourcesWithIPSANs(logger logr.Logger, tlsDir, name, namespace string, ipAddresses []net.IP) error {
+	if err := GenerateCAKeyCertToDirectory(logger, tlsDir, name); err != nil {
+		return err
+	}
+
+	if err := generateTLSKeyCertToDirectory(logger, certTypeServer, tlsDir, tlsDir, name, namespace, ipAddresses); err != nil {
+		return err
+	}
+
+	if err := generateTLSKeyCertToDirectory(logger, certTypeClient, tlsDir, tlsDir, name, namespace, nil); err != nil {
 		return err
 	}
 
