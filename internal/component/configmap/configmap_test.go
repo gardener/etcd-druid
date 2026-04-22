@@ -239,7 +239,6 @@ func TestPrepareInitialCluster(t *testing.T) {
 			},
 			expectedInitialCluster: "etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380",
 		},
-		},
 	}
 	g := NewWithT(t)
 	t.Parallel()
@@ -606,7 +605,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
+			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled, nil)
 			if tc.additionalAdvertisePeerUrls != nil {
 				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerUrls
 			}
