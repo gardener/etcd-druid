@@ -80,6 +80,11 @@ sast: $(GOSEC)
 	@echo "> Running gosec for druidctl module"
 	@$(GOSEC) -exclude-generated ./...
 
+.PHONY: sast-report
+sast-report: $(GOSEC)
+	@echo "> Running gosec report for druidctl module"
+	@$(GOSEC) -exclude-generated -track-suppressions -fmt=sarif -out=gosec-report.sarif -stdout ./...
+
 .PHONY: clean clean-all
 clean:
 	rm -rf $(BIN_DIR) coverage.out

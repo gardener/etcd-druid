@@ -29,12 +29,12 @@ func (r *reconcileCmdCtx) complete() error {
 		return fmt.Errorf("unable to create etcd client: %w", err)
 	}
 	r.etcdClient = etcdClient
-	r.etcdRefList = r.GlobalOptions.BuildEtcdRefList()
+	r.etcdRefList = r.BuildEtcdRefList()
 	return nil
 }
 
 func (r *reconcileCmdCtx) validate() error {
-	if err := r.GlobalOptions.ValidateResourceSelection(); err != nil {
+	if err := r.ValidateResourceSelection(); err != nil {
 		return err
 	}
 	// timeout is only valid if wait-till-ready is set
@@ -47,6 +47,7 @@ func (r *reconcileCmdCtx) validate() error {
 	}
 	return nil
 }
+
 // There are two types of reconciles, one where you add the reconcile annotation and exit.
 // Another where you wait till all the changes done to the Etcd resource have successfully reconciled and post reconciliation
 // all the etcd cluster members are Ready

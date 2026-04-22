@@ -80,7 +80,7 @@ Use subcommands 'trigger', 'suspend', and 'resume' to control reconciliation sta
 func NewTriggerCommand(cmdCtx *cmdutils.CommandContext) *cobra.Command {
 	var waitTillReady bool
 	var watch bool
-	var timeout time.Duration = defaultTimeout
+	var timeout = defaultTimeout
 
 	cmd := &cobra.Command{
 		Use:     "trigger [resources] [flags]",

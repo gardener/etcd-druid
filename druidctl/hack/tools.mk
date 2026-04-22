@@ -9,7 +9,7 @@ GOIMPORTS_REVISER			:= $(TOOLS_BIN_DIR)/goimports-reviser
 GOSEC						:= $(TOOLS_BIN_DIR)/gosec
 
 # Tool versions
-GOLANGCI_LINT_VERSION ?= v1.64.8
+GOLANGCI_LINT_VERSION ?= v2.8.0
 GOIMPORTS_REVISER_VERSION ?= v3.9.1
 GOIMPORTS_VERSION ?= latest
 GOSEC_VERSION ?= v2.22.2
@@ -26,7 +26,7 @@ tools: $(GOLANGCI_LINT) $(GOIMPORTS) $(GOIMPORTS_REVISER) $(GOSEC)
 $(GOLANGCI_LINT):
 	@# CGO_ENABLED has to be set to 1 in order for golangci-lint to be able to load plugins
 	@# see https://github.com/golangci/golangci-lint/issues/1276
-	GOBIN=$(abspath $(TOOLS_BIN_DIR)) CGO_ENABLED=1 go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	GOBIN=$(abspath $(TOOLS_BIN_DIR)) CGO_ENABLED=1 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(GOIMPORTS):
 	@# Install goimports without mutating this module's go.mod to avoid tidy/build race.

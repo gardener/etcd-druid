@@ -111,6 +111,10 @@ jobs:
           git config --global user.email "gardener@sap.com"
           git config --global user.name "Gardener CI/CD"
           make --directory=api check-generate
+      - name: druidctl-tidy
+        run: make --directory=druidctl tidy
+      - name: druidctl-check
+        run: make --directory=druidctl check
       - name: prepare helm charts
         run: make prepare-helm-charts
         env:
@@ -129,6 +133,8 @@ jobs:
         args:
           - name: api-test-unit
             run: make --directory=api test-unit
+          - name: druidctl-test-unit
+            run: make --directory=druidctl test
           - name: test-unit
             run: make test-unit
           - name: test-integration
@@ -169,5 +175,7 @@ jobs:
       - prepare
     with:
       linter: gosec
-      run: make sast-report
+      run: |
+        make sast-report
+        make --directory=druidctl sast-report
       go-version: '1.25'

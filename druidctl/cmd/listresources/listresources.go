@@ -47,12 +47,12 @@ func (l *listResourcesCmdCtx) complete() error {
 	}
 
 	// Build etcd reference list from resource args using kubectl-compatible parsing
-	l.etcdRefList = l.GlobalOptions.BuildEtcdRefList()
+	l.etcdRefList = l.BuildEtcdRefList()
 	return nil
 }
 
 func (l *listResourcesCmdCtx) validate() error {
-	return l.GlobalOptions.ValidateResourceSelection()
+	return l.ValidateResourceSelection()
 }
 
 // execute lists the managed resources for the selected etcd resources based on the filter.
