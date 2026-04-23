@@ -1,9 +1,13 @@
 images:
 - name: etcd-wrapper
+  resourceId:
+    name: 'etcd-wrapper'
   sourceRepository: github.com/gardener/etcd-wrapper
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper
   tag: "v0.6.2"
 - name: etcd-wrapper-next
+  resourceId:
+    name: 'etcd-wrapper'
   sourceRepository: github.com/gardener/etcd-wrapper
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper
   tag: "v0.7.0"
@@ -15,7 +19,7 @@ images:
   tag: "v0.41.2"
 - name: etcd-backup-restore-next
   resourceId:
-    name: 'etcdbrctl-next'
+    name: 'etcdbrctl'
   sourceRepository: github.com/gardener/etcd-backup-restore
   repository: europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl
   tag: "v0.42.0"
