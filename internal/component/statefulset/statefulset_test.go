@@ -314,7 +314,13 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		createErr                   *apierrors.StatusError
 		expectedErr                 *druiderr.DruidError
 		expectedReplicas            *int32
+		expectNoServiceAccount      bool
 		expectNoService             bool
+		etcdEnv                     []corev1.EnvVar
+		etcdVolumeMounts            []corev1.VolumeMount
+		volumes                     []corev1.Volume
+		backupEnv                   []corev1.EnvVar
+		backupVolumeMounts          []corev1.VolumeMount
 	}{
 		{
 			name:             "creates a single replica sts for a single node etcd cluster",
@@ -344,6 +350,27 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			expectedReplicas:            ptr.To[int32](0),
 			expectNoService:             true,
 		},
+		{
+			name:             "creates sts with additional env, volumes and volume mounts",
+			replicas:         1,
+			expectedReplicas: ptr.To[int32](1),
+			etcdEnv: []corev1.EnvVar{
+				{Name: "CUSTOM_ETCD_VAR", Value: "etcd-value"},
+			},
+			etcdVolumeMounts: []corev1.VolumeMount{
+				{Name: "custom-etcd-vol", MountPath: "/custom/etcd"},
+			},
+			volumes: []corev1.Volume{
+				{Name: "custom-etcd-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "custom-br-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			backupEnv: []corev1.EnvVar{
+				{Name: "CUSTOM_BR_VAR", Value: "br-value"},
+			},
+			backupVolumeMounts: []corev1.VolumeMount{
+				{Name: "custom-br-vol", MountPath: "/custom/br"},
+			},
+		},
 	}
 
 	g := NewWithT(t)
@@ -357,6 +384,21 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 				WithReplicas(tc.replicas)
 			if tc.hasExternallyManagedMembers {
 				etcdBuilder = etcdBuilder.WithExternallyManagedMembers([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+			}
+			if tc.etcdEnv != nil {
+				etcdBuilder = etcdBuilder.WithEtcdEnv(tc.etcdEnv)
+			}
+			if tc.etcdVolumeMounts != nil {
+				etcdBuilder = etcdBuilder.WithEtcdVolumeMounts(tc.etcdVolumeMounts)
+			}
+			if tc.volumes != nil {
+				etcdBuilder = etcdBuilder.WithVolumes(tc.volumes)
+			}
+			if tc.backupEnv != nil {
+				etcdBuilder = etcdBuilder.WithBackupEnv(tc.backupEnv)
+			}
+			if tc.backupVolumeMounts != nil {
+				etcdBuilder = etcdBuilder.WithBackupVolumeMounts(tc.backupVolumeMounts)
 			}
 			etcd := etcdBuilder.Build()
 

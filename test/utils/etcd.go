@@ -550,6 +550,51 @@ func (eb *EtcdBuilder) WithGarbageCollection(period time.Duration, policy druidv
 	return eb
 }
 
+// WithEtcdEnv sets additional environment variables on the etcd container.
+func (eb *EtcdBuilder) WithEtcdEnv(env []corev1.EnvVar) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.EnvVar = env
+	return eb
+}
+
+// WithEtcdVolumeMounts sets additional volume mounts on the etcd container.
+func (eb *EtcdBuilder) WithEtcdVolumeMounts(volumeMounts []corev1.VolumeMount) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.VolumeMounts = volumeMounts
+	return eb
+}
+
+// WithVolumes sets additional volumes for the pod.
+func (eb *EtcdBuilder) WithVolumes(volumes []corev1.Volume) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Volumes = volumes
+	return eb
+}
+
+// WithBackupEnv sets additional environment variables on the backup-restore container.
+func (eb *EtcdBuilder) WithBackupEnv(env []corev1.EnvVar) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.EnvVar = env
+	return eb
+}
+
+// WithBackupVolumeMounts sets additional volume mounts on the backup-restore container.
+func (eb *EtcdBuilder) WithBackupVolumeMounts(volumeMounts []corev1.VolumeMount) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Backup.VolumeMounts = volumeMounts
+	return eb
+}
+
 // Build returns the built Etcd resource.
 func (eb *EtcdBuilder) Build() *druidv1alpha1.Etcd {
 	if eb == nil {

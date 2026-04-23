@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
+	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -277,6 +278,48 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 			g.Expect(lastTransitionTime).To(BeTemporally("~", test.expectedTransitionTime, time.Second))
 		})
 	}
+}
+
+func TestGetCompactionJobVolumeMountsAppendsBackupVolumeMounts(t *testing.T) {
+	g := NewWithT(t)
+	s3Provider := druidv1alpha1.StorageProvider("aws")
+	etcd := &druidv1alpha1.Etcd{
+		Spec: druidv1alpha1.EtcdSpec{
+			Backup: druidv1alpha1.BackupSpec{
+				Store: &druidv1alpha1.StoreSpec{
+					Provider:  &s3Provider,
+					SecretRef: &corev1.SecretReference{Name: "test-secret"},
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "custom-br-vol", MountPath: "/custom/br"},
+				},
+			},
+		},
+	}
+	vms, err := getCompactionJobVolumeMounts(etcd)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(vms).To(ContainElement(corev1.VolumeMount{Name: "custom-br-vol", MountPath: "/custom/br"}))
+}
+
+func TestGetCompactionJobVolumesAppendsSpecVolumes(t *testing.T) {
+	g := NewWithT(t)
+	s3Provider := druidv1alpha1.StorageProvider("aws")
+	etcd := &druidv1alpha1.Etcd{
+		Spec: druidv1alpha1.EtcdSpec{
+			Backup: druidv1alpha1.BackupSpec{
+				Store: &druidv1alpha1.StoreSpec{
+					Provider:  &s3Provider,
+					SecretRef: &corev1.SecretReference{Name: "test-secret"},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{Name: "custom-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+		},
+	}
+	vs, err := getCompactionJobVolumes(context.Background(), nil, logr.Discard(), etcd)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(vs).To(ContainElement(corev1.Volume{Name: "custom-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}))
 }
 
 func TestGetCompactionJobArgs(t *testing.T) {
