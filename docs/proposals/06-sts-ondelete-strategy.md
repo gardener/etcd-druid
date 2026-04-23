@@ -2,7 +2,7 @@
 title: StatefulSet OnDelete Update Strategy
 dep-number: 06
 creation-date: 2024-09-20
-status: draft
+status: implementable
 authors:
 - "@anveshreddy18"
 reviewers:
@@ -30,6 +30,14 @@ This proposal recommends changing the StatefulSet update strategy used by etcd-d
 etcd-druid deploys etcd clusters as StatefulSets with `RollingUpdate` strategy. The StatefulSet controller rolls pods from the highest ordinal to the lowest, without considering the health or role of individual etcd members. This creates a risk of unintended quorum loss.
 
 Consider a 3-member etcd cluster with pods `P-0`, `P-1`, and `P-2`. If `P-0` becomes unhealthy (due to network issues, node failure, or an internal error), the cluster still has quorum with `P-1` and `P-2`. Now, if a StatefulSet template update is triggered (for example, an image version bump), the StatefulSet controller starts rolling from `P-2`. It deletes `P-2` and waits for it to come back. During this window, only `P-1` is healthy and participating, which is below quorum (2 out of 3). The cluster experiences a quorum loss that could have been entirely avoided if the update had started with the already-unhealthy `P-0` instead.
+
+The following diagram illustrates how the `RollingUpdate` strategy can lead to quorum loss in this scenario:
+
+<div align="center">
+<img src="assets/06-rolling-update-state-diagram.png" alt="RollingUpdate state diagram showing quorum loss when an unhealthy pod exists" width="500">
+</div>
+
+The StatefulSet controller starts from Pod N (the highest ordinal), terminates it, and waits for the new pod to become ready. If the terminated pod is not the originally unhealthy one, quorum is lost with 2 members down.
 
 For a single-node etcd cluster, both `RollingUpdate` and `OnDelete` produce the same outcome since there is only one pod to update. The benefit of `OnDelete` is specific to multi-node clusters where update ordering matters.
 
@@ -126,6 +134,12 @@ Delete the selected pod and requeue. Wait for it to come back before proceeding 
 
 **Step 5: Repeat** until all pods are up to date.
 
+The following diagram summarizes the OnDelete update procedure:
+
+<div align="center">
+<img src="assets/06-OnDelete-StateDiagram.png" alt="OnDelete state diagram showing the simplified pod update procedure" width="700">
+</div>
+
 ### Pod Deletion Method
 
 The controller uses direct `Delete` calls for all pod deletions, rather than using the eviction API.
@@ -215,7 +229,12 @@ The OnDelete controller exposes the following metrics:
 
 ### Future Scope
 
-- **Backup-restore container health in update ordering**: The current design does not consider the health of the backup-restore sidecar container when deciding which pod to update next. The rationale is that backup-restore health does not affect quorum, and prioritizing it could lead to unnecessary leader elections (for example, if a pod with an unhealthy backup-restore happens to be the leader). If future operational experience shows value in considering backup-restore health as a secondary sorting criterion, the priority order can be extended. The state diagram for a backup-restore-aware ordering is preserved in `assets/06-OnDelete-StateDiagram.excalidraw` for reference.
+- **Backup-restore container health in update ordering**: The current design does not consider the health of the backup-restore sidecar container when deciding which pod to update next. The rationale is that backup-restore health does not affect quorum, and prioritizing it could lead to unnecessary leader elections (for example, if a pod with an unhealthy backup-restore happens to be the leader). If future operational experience shows value in considering backup-restore health as a secondary sorting criterion, the priority order can be extended. The following state diagram illustrates what a backup-restore-aware ordering would look like:
+
+  <div align="center">
+  <img src="assets/06-OnDelete-StateDiagram-With-Etcdbr-Health.png" alt="OnDelete state diagram with backup-restore health awareness (future scope)" width="700">
+  </div>
+
 - **Concurrent pod updates for larger clusters**: For clusters with more than 3 replicas, it is possible to update multiple pods concurrently while maintaining quorum. For example, in a 5-member cluster, 2 pods can be updated simultaneously. This optimization is left for a future iteration.
 - **Liveness probe integration**: When a liveness probe using etcd's `/livez` endpoint is added ([etcd-wrapper#7](https://github.com/gardener/etcd-wrapper/issues/7), [etcd-druid#280](https://github.com/gardener/etcd-druid/issues/280)), the OnDelete controller can use the probe's signal directly instead of inferring liveness from container status.
 
