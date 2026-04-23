@@ -17,8 +17,7 @@ import (
 )
 
 var (
-	timeout         = time.Minute * 2
-	pollingInterval = time.Second * 2
+	timeout = time.Minute * 2
 )
 
 // TestSecretFinalizers tests addition and removal of finalizer on referred secrets in Etcd resources.

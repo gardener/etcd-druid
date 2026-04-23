@@ -168,6 +168,12 @@ ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 .PHONY: clean-e2e-test-resources
 clean-e2e-test-resources: $(KUBECTL)
 	@rm -rf $(REPO_ROOT)/test/e2e/controller/pki-resources/*
+	@rm -rf $(REPO_ROOT)/test/e2e/controller/ext-members-resources/*
+	@KIND_CLUSTER_NAME=$${KIND_CLUSTER_NAME:-etcd-druid-e2e}; \
+	for node in $$(docker ps --filter "name=$${KIND_CLUSTER_NAME}-worker" --format '{{.Names}}' 2>/dev/null); do \
+		docker exec $$node bash -c 'rm -f /etc/kubernetes/manifests/etcd-e2e-*.yaml' 2>/dev/null || true; \
+		docker exec $$node bash -c 'rm -rf /var/lib/etcd-e2e-*' 2>/dev/null || true; \
+	done
 	@kubectl get ns -o custom-columns=":metadata.name" --no-headers | grep '^etcd-e2e-' |  xargs --no-run-if-empty kubectl delete ns
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
