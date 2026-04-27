@@ -132,6 +132,13 @@ export AWS_REGION=your-aws-region
 
 #### Running tests against Localstack S3 emulator
 
+> [!NOTE]
+> Running the AWS e2e tests requires a `LOCALSTACK_AUTH_TOKEN` environment variable to be set.
+> The project has a [LocalStack for Open Source](https://localstack.cloud/open-source) license. Ask a
+> maintainer for the token, or apply for your own. Alternatively, the frozen community archive image
+> `localstack/localstack:s3-community-archive` can be used without a token, but it will not receive
+> updates or security patches.
+
 Please refer to the [Localstack S3 emulator documentation](../deployment/getting-started-locally/manage-s3-emulator.md) for detailed instructions on deploying Localstack.
 
 **Setup steps for e2e tests:**
