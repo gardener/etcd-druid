@@ -8,6 +8,13 @@ Ensure that you have setup the development environment as per the [documentation
 
 > **Note:** It is assumed that you have already created kind cluster and the `KUBECONFIG` is pointing to this Kubernetes cluster.
 
+> [!NOTE]
+> Deploying LocalStack requires a `LOCALSTACK_AUTH_TOKEN` environment variable to be set.
+> The project has a [LocalStack for Open Source](https://localstack.cloud/open-source) license. Ask a
+> maintainer for the token, or apply for your own. Alternatively, the frozen community archive image
+> `localstack/localstack:s3-community-archive` can be used without a token, but it will not receive
+> updates or security patches.
+
 ### Installing AWS CLI
 
 To interact with `LocalStack` you must also install the AWS CLI `(version >=1.29.0 or version >=2.13.0)`
