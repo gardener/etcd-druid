@@ -156,7 +156,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 		externallyManagedMemberAddresses []string
 		etcdReplicas                     int32
 		etcdSpecServerPort               *int32
-		additionalAdvertisePeerUrls      []druidv1alpha1.AdditionalPeerURL
+		additionalAdvertisePeerURLs      []druidv1alpha1.MemberPeerURLs
 		expectedInitialCluster           string
 	}{
 		{
@@ -191,7 +191,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			name:           "should append additional peer URLs for matching member",
 			etcdReplicas:   2,
 			peerTLSEnabled: false,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-test-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -203,7 +203,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			name:           "should append multiple additional peer URLs for single member",
 			etcdReplicas:   2,
 			peerTLSEnabled: true,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-test-1",
 					URLs:       []string{"https://lb-1.example.com:2380", "https://lb-1-backup.example.com:2380"},
@@ -215,7 +215,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			name:           "should append additional URLs for multiple members",
 			etcdReplicas:   3,
 			peerTLSEnabled: false,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-test-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -231,7 +231,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			name:           "should ignore non-matching member names",
 			etcdReplicas:   2,
 			peerTLSEnabled: false,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "non-existing-member",
 					URLs:       []string{"http://10.0.0.99:2380"},
@@ -247,8 +247,8 @@ func TestPrepareInitialCluster(t *testing.T) {
 			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled, tc.externallyManagedMemberAddresses)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
-			if tc.additionalAdvertisePeerUrls != nil {
-				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerUrls
+			if tc.additionalAdvertisePeerURLs != nil {
+				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerURLs
 			}
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
 			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
@@ -512,7 +512,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 		peerTLSEnabled              bool
 		etcdReplicas                int32
 		advertiseURLType            string
-		additionalAdvertisePeerUrls []druidv1alpha1.AdditionalPeerURL
+		additionalAdvertisePeerURLs []druidv1alpha1.MemberPeerURLs
 		expectedURLs                map[string][]string
 	}{
 		{
@@ -540,7 +540,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypePeer,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-test-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -556,7 +556,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-test-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -572,7 +572,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   true,
 			advertiseURLType: advertiseURLTypePeer,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-test-1",
 					URLs:       []string{"https://lb-1.example.com:2380", "https://lb-1-backup.example.com:2380"},
@@ -588,7 +588,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypePeer,
-			additionalAdvertisePeerUrls: []druidv1alpha1.AdditionalPeerURL{
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "non-existing-member",
 					URLs:       []string{"http://10.0.0.99:2380"},
@@ -606,8 +606,8 @@ func TestGetAdvertiseURLs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled, nil)
-			if tc.additionalAdvertisePeerUrls != nil {
-				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerUrls
+			if tc.additionalAdvertisePeerURLs != nil {
+				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerURLs
 			}
 			scheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
 			peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)

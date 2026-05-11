@@ -1,6 +1,6 @@
 # Using Additional Advertise Peer URLs
 
-This guide explains how to configure `spec.etcd.additionalAdvertisePeerUrls` to advertise extra peer URLs for etcd members managed by `etcd-druid`. This enables scenarios where etcd members hosted in Kubernetes need to participate in peer communication across network boundaries — for example, between an on-premises environment and a cloud-hosted Kubernetes cluster.
+This guide explains how to configure `spec.etcd.additionalAdvertisePeerURLs` to advertise extra peer URLs for etcd members managed by `etcd-druid`. This enables scenarios where etcd members hosted in Kubernetes need to participate in peer communication across network boundaries — for example, between an on-premises environment and a cloud-hosted Kubernetes cluster.
 
 > [!NOTE]
 > This feature was introduced in etcd-druid `v0.37.0`. Support for bootstrapping etcd clusters with external members (once [#1239](https://github.com/gardener/etcd-druid/issues/1239) is implemented) will build on this field.
@@ -27,7 +27,7 @@ By default, `etcd-druid` configures each etcd member's `--initial-advertise-peer
   No external access — peers communicate only via internal DNS.
 ```
 
-When `additionalAdvertisePeerUrls` is configured, `etcd-druid` appends the specified URLs to these flags for matching members. Each member then advertises both its internal DNS URL **and** the additional external URLs (e.g., LoadBalancer IPs), making it reachable from outside the cluster. Client advertise URLs are **not** affected — only peer URLs are extended.
+When `additionalAdvertisePeerURLs` is configured, `etcd-druid` appends the specified URLs to these flags for matching members. Each member then advertises both its internal DNS URL **and** the additional external URLs (e.g., LoadBalancer IPs), making it reachable from outside the cluster. Client advertise URLs are **not** affected — only peer URLs are extended.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -55,7 +55,7 @@ When `additionalAdvertisePeerUrls` is configured, `etcd-druid` appends the speci
 │                        External Network                          │
 │                                                                  │
 │  External peers can reach K8s-hosted etcd members via the        │
-│  LoadBalancer IPs advertised in additionalAdvertisePeerUrls.     │
+│  LoadBalancer IPs advertised in additionalAdvertisePeerURLs.     │
 │  Communication is bidirectional over port 2380.                  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -64,11 +64,11 @@ When `additionalAdvertisePeerUrls` is configured, `etcd-druid` appends the speci
 Each member has two communication paths:
 
 - **Internal (right line):** Peers within the cluster communicate via the headless Service DNS names as before.
-- **External (left line):** The same member is also reachable from outside via a LoadBalancer IP, which is advertised in `--initial-advertise-peer-urls` thanks to `additionalAdvertisePeerUrls`.
+- **External (left line):** The same member is also reachable from outside via a LoadBalancer IP, which is advertised in `--initial-advertise-peer-urls` thanks to `additionalAdvertisePeerURLs`.
 
 ### Affected ConfigMap Fields
 
-When `additionalAdvertisePeerUrls` is set, `etcd-druid` appends the additional URLs to two fields in the generated etcd ConfigMap:
+When `additionalAdvertisePeerURLs` is set, `etcd-druid` appends the additional URLs to two fields in the generated etcd ConfigMap:
 
 | ConfigMap Field | Effect |
 |---|---|
@@ -77,7 +77,7 @@ When `additionalAdvertisePeerUrls` is set, `etcd-druid` appends the additional U
 
 The `advertise-client-urls` field is **not** affected — only peer URLs are extended.
 
-For example, given a 3-replica cluster named `etcd-main` with `additionalAdvertisePeerUrls` configured for `etcd-main-0` with `https://10.0.1.10:2380`:
+For example, given a 3-replica cluster named `etcd-main` with `additionalAdvertisePeerURLs` configured for `etcd-main-0` with `https://10.0.1.10:2380`:
 
 **`initial-advertise-peer-urls`** for `etcd-main-0`:
 
@@ -96,13 +96,13 @@ Note that each additional URL produces a separate `member=url` entry in `initial
 ## Prerequisites
 
 1. **Network connectivity** between the Kubernetes cluster and external etcd members.
-2. **DNS or IP routing** configured so that the addresses specified in `additionalAdvertisePeerUrls` are reachable from outside the cluster.
+2. **DNS or IP routing** configured so that the addresses specified in `additionalAdvertisePeerURLs` are reachable from outside the cluster.
 3. **TLS certificates** with SANs covering the external IPs/hostnames, if peer TLS is enabled.
 4. Familiarity with [etcd clustering concepts](https://etcd.io/docs/v3.5/op-guide/clustering/).
 
 ## Field Reference
 
-`spec.etcd.additionalAdvertisePeerUrls` is a list of `AdditionalPeerURL` entries:
+`spec.etcd.additionalAdvertisePeerURLs` is a list of `MemberPeerURLs` entries:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -145,7 +145,7 @@ spec:
       requests:
         cpu: 100m
         memory: 200Mi
-    additionalAdvertisePeerUrls:
+    additionalAdvertisePeerURLs:
       - memberName: etcd-main-0
         urls:
           - http://10.0.0.1:2380
@@ -176,7 +176,7 @@ When `spec.etcd.peerUrlTls` is configured, all additional peer URLs must use `ht
       serverTLSSecretRef:
         name: etcd-peer-server-tls
         namespace: default
-    additionalAdvertisePeerUrls:
+    additionalAdvertisePeerURLs:
       - memberName: etcd-main-0
         urls:
           - https://10.0.0.1:2380
@@ -196,7 +196,7 @@ When `spec.etcd.peerUrlTls` is configured, all additional peer URLs must use `ht
 Each member supports up to 5 additional URLs. This is useful when a member needs to be reachable via more than one external address (e.g., multiple load balancers or a failover IP):
 
 ```yaml
-    additionalAdvertisePeerUrls:
+    additionalAdvertisePeerURLs:
       - memberName: etcd-main-0
         urls:
           - https://10.0.0.1:2380
@@ -211,7 +211,7 @@ Each member supports up to 5 additional URLs. This is useful when a member needs
 You do not need to configure additional URLs for every member. Only members that need external reachability require an entry:
 
 ```yaml
-    additionalAdvertisePeerUrls:
+    additionalAdvertisePeerURLs:
       - memberName: etcd-main-0
         urls:
           - https://10.0.0.1:2380
@@ -254,7 +254,7 @@ for i in 0 1 2; do
 done
 ```
 
-Use the assigned IPs in `additionalAdvertisePeerUrls`.
+Use the assigned IPs in `additionalAdvertisePeerURLs`.
 
 > [!NOTE]
 > If the cloud provider assigns a DNS hostname instead of an IP (`.status.loadBalancer.ingress[0].hostname`), use the hostname in the URL. The URL must still include the port.
@@ -264,13 +264,13 @@ Use the assigned IPs in `additionalAdvertisePeerUrls`.
 
 ## Applying Changes
 
-To add or update `additionalAdvertisePeerUrls` on an existing `Etcd` resource:
+To add or update `additionalAdvertisePeerURLs` on an existing `Etcd` resource:
 
 ```bash
 kubectl patch etcd etcd-main -n default --type merge -p '{
   "spec": {
     "etcd": {
-      "additionalAdvertisePeerUrls": [
+      "additionalAdvertisePeerURLs": [
         {"memberName": "etcd-main-0", "urls": ["http://10.0.0.1:2380"]},
         {"memberName": "etcd-main-1", "urls": ["http://10.0.0.2:2380"]},
         {"memberName": "etcd-main-2", "urls": ["http://10.0.0.3:2380"]}
@@ -294,4 +294,4 @@ Reconciliation is triggered automatically on `Etcd` resource updates (post `v0.2
 : URL schemes must be consistent with `spec.etcd.peerUrlTls`. If TLS is configured, use `https://`. If not, use `http://`.
 
 **External members cannot reach Kubernetes-hosted peers**
-: Verify that the addresses in `additionalAdvertisePeerUrls` are reachable from the external network, firewall rules allow traffic on port 2380, and DNS/IP routes are correctly configured.
+: Verify that the addresses in `additionalAdvertisePeerURLs` are reachable from the external network, firewall rules allow traffic on port 2380, and DNS/IP routes are correctly configured.

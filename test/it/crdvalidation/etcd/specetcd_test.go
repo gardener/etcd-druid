@@ -184,7 +184,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMemberName(t *testing.T) {
 				WithReplicas(test.replicas).
 				Build()
 
-			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.AdditionalPeerURL{
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: test.memberName,
 					URLs:       test.urls,
@@ -291,7 +291,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsTLSScheme(t *testing.T) {
 
 			etcd := builder.Build()
 
-			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.AdditionalPeerURL{
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: test.memberName,
 					URLs:       test.urls,
@@ -312,14 +312,14 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 		name      string
 		etcdName  string
 		replicas  int32
-		peerURLs  []druidv1alpha1.AdditionalPeerURL
+		peerURLs  []druidv1alpha1.MemberPeerURLs
 		expectErr bool
 	}{
 		{
 			name:     "Valid: multiple members with valid names and URLs",
 			etcdName: "etcd-multi",
 			replicas: 3,
-			peerURLs: []druidv1alpha1.AdditionalPeerURL{
+			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-multi-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -339,7 +339,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			name:     "Valid: subset of members configured",
 			etcdName: "etcd-subset",
 			replicas: 5,
-			peerURLs: []druidv1alpha1.AdditionalPeerURL{
+			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-subset-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -355,7 +355,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			name:     "Invalid: one member with wrong prefix",
 			etcdName: "etcd-mixed",
 			replicas: 3,
-			peerURLs: []druidv1alpha1.AdditionalPeerURL{
+			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-mixed-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
@@ -371,7 +371,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			name:     "Invalid: one member with index out of bounds",
 			etcdName: "etcd-bounds",
 			replicas: 3,
-			peerURLs: []druidv1alpha1.AdditionalPeerURL{
+			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: "etcd-bounds-0",
 					URLs:       []string{"http://10.0.0.1:2380"},
