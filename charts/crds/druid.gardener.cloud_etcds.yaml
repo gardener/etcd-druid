@@ -410,15 +410,17 @@ spec:
                 description: EtcdConfig defines the configuration for the etcd cluster
                   to be deployed.
                 properties:
-                  additionalAdvertisePeerUrls:
+                  additionalAdvertisePeerURLs:
                     description: |-
                       AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
                       to initial-advertise-peer-urls. Each entry maps a member name to its
                       additional URLs. The member name must follow the pattern {etcd-name}-{index}
                       where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
+                      Updating this field on a running cluster triggers a ConfigMap update
+                      and a rolling restart of the StatefulSet.
                     items:
-                      description: AdditionalPeerURL specifies additional peer URLs
-                        for a specific etcd member.
+                      description: MemberPeerURLs specifies additional peer URLs for
+                        a specific etcd member.
                       properties:
                         memberName:
                           description: |-
@@ -431,8 +433,8 @@ spec:
                           description: |-
                             URLs is a list of additional peer URLs for this member.
                             These will be appended to the default internal service URL.
-                            A maximum of 5 URLs can be specified per member.
-                            Must be valid HTTP(S) URLs with scheme, host, and port (e.g., https://10.0.0.1:2380).
+                            A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
+                            Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380).
                           items:
                             type: string
                           maxItems: 5
@@ -713,12 +715,12 @@ spec:
                 x-kubernetes-validations:
                 - message: when peerUrlTls is enabled, all additional advertise peer
                     URLs must use https://
-                  rule: '!has(self.additionalAdvertisePeerUrls) || !has(self.peerUrlTls)
-                    || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith(''https://'')))'
+                  rule: '!has(self.additionalAdvertisePeerURLs) || !has(self.peerUrlTls)
+                    || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith(''https://'')))'
                 - message: when peerUrlTls is not enabled, all additional advertise
                     peer URLs must use http://
-                  rule: '!has(self.additionalAdvertisePeerUrls) || has(self.peerUrlTls)
-                    || self.additionalAdvertisePeerUrls.all(m, m.urls.all(u, u.startsWith(''http://'')))'
+                  rule: '!has(self.additionalAdvertisePeerURLs) || has(self.peerUrlTls)
+                    || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith(''http://'')))'
               externallyManagedMemberAddresses:
                 description: |-
                   ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
@@ -2200,13 +2202,13 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: additionalAdvertisePeerUrls member names must start with the Etcd
+        - message: additionalAdvertisePeerURLs member names must start with the Etcd
             resource name followed by a dash
-          rule: '!has(self.spec.etcd.additionalAdvertisePeerUrls) || self.spec.etcd.additionalAdvertisePeerUrls.all(m,
+          rule: '!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m,
             m.memberName.startsWith(self.metadata.name + ''-''))'
-        - message: additionalAdvertisePeerUrls member name index must be less than
+        - message: additionalAdvertisePeerURLs member name index must be less than
             replicas
-          rule: '!has(self.spec.etcd.additionalAdvertisePeerUrls) || self.spec.etcd.additionalAdvertisePeerUrls.all(m,
+          rule: '!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m,
             int(m.memberName.substring(m.memberName.lastIndexOf(''-'')+1)) < self.spec.replicas)'
     served: true
     storage: true
