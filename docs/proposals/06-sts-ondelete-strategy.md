@@ -73,7 +73,7 @@ The default is set to `RollingUpdate` to preserve the existing behaviour for cur
 
 This is a per-cluster choice. Operators can set different strategies for different Etcd clusters. Changing the field on a live cluster is supported and triggers a seamless transition (see [Transitioning Between Strategies](#transitioning-between-strategies)).
 
-The decision to use a spec field instead of a feature gate is documented in [Decision Record 003](../decisions/003-ondelete-as-spec-field-not-feature-gate.md). The key reasons are: per-cluster control, no forced migration at maturity, and both strategies remaining available indefinitely.
+A spec field is preferred over a feature gate for this choice because the decision between `RollingUpdate` and `OnDelete` is intended to remain a per-cluster, long-lived setting rather than a global, transitional one. A feature gate would graduate and eventually disappear, forcing every cluster onto the new default; a spec field lets each cluster opt in or out by editing the Etcd resource, without an operator restart or coordinated migration.
 
 ### The OnDelete Controller
 
