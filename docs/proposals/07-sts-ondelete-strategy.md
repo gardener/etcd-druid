@@ -1,6 +1,6 @@
 ---
 title: StatefulSet OnDelete Update Strategy
-dep-number: 06
+dep-number: 07
 creation-date: 2024-09-20
 status: implementable
 authors:
@@ -9,7 +9,7 @@ reviewers:
 - "etcd-druid-maintainers"
 ---
 
-# DEP-06: Druid Controlled Pod Updates via StatefulSet OnDelete Strategy
+# DEP-07: Druid Controlled Pod Updates via StatefulSet OnDelete Strategy
 
 ## Summary
 
@@ -27,14 +27,14 @@ This proposal recommends supporting the `OnDelete` update strategy to be used by
 
 ## Motivation
 
-etcd-druid deploys etcd clusters as StatefulSets with `RollingUpdate` strategy. The StatefulSet controller rolls pods from the highest ordinal to the lowest, without considering the health or role of individual etcd members. This creates a risk of unintended quorum loss.
+Currently etcd-druid deploys etcd clusters as StatefulSets with `RollingUpdate` strategy. The StatefulSet controller rolls pods from the highest ordinal to the lowest, without considering the health or role of individual etcd members. This creates a risk of unintended quorum loss.
 
 Consider a 3-member etcd cluster with pods `P-0`, `P-1`, and `P-2`. If `P-0` becomes unhealthy (due to network issues, node failure, or an internal error), the cluster still has quorum with `P-1` and `P-2`. Now, if a StatefulSet template update is triggered (for example, an image version bump), the StatefulSet controller starts rolling from `P-2`. It deletes `P-2` and waits for it to come back. During this window, only `P-1` is healthy and participating, which is below quorum (2 out of 3). The cluster experiences a transient quorum loss that could have been entirely avoided if the update had started with the already-unhealthy `P-0` instead.
 
 The following diagram illustrates how the `RollingUpdate` strategy can lead to quorum loss in this scenario:
 
 <div align="center">
-<img src="assets/06-rolling-update-state-diagram.png" alt="RollingUpdate state diagram showing quorum loss when an unhealthy pod exists" width="500">
+<img src="assets/07-rolling-update-state-diagram.png" alt="RollingUpdate state diagram showing quorum loss when an unhealthy pod exists" width="500">
 </div>
 
 The StatefulSet controller starts from Pod N (the highest ordinal), terminates it, and waits for the new pod to become ready. If the terminated pod is not the originally unhealthy one, cluster goes into a transient quorum loss with 2 members down.
@@ -153,7 +153,7 @@ Delete the selected pod and requeue. Wait for it to come back before proceeding 
 The following diagram summarizes the OnDelete update procedure:
 
 <div align="center">
-<img src="assets/06-OnDelete-StateDiagram.png" alt="OnDelete state diagram showing the simplified pod update procedure" width="700">
+<img src="assets/07-OnDelete-StateDiagram.png" alt="OnDelete state diagram showing the simplified pod update procedure" width="700">
 </div>
 
 ### Pod Deletion Method
