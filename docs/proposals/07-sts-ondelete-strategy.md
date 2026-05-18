@@ -133,7 +133,11 @@ The OnDelete controller needs to understand two things about each pod:
 
 2. **Is the local etcd process alive?** This is a separate question from quorum participation. A pod may fail readiness (because quorum is lost) while its local etcd process is perfectly healthy. Distinguishing between "process is dead" and "process is alive but quorum is lost" allows the controller to make better decisions about which non-participating pod to update first.
 
-   The controller determines local process liveness by inspecting the pod's container status from the Kubernetes API. If the etcd container is in `CrashLoopBackOff`, `Error`, or is not running, the process is considered dead. If the container is `Running` but the readiness probe is failing, the process is alive but quorum is lost.
+   The controller determines local process liveness by inspecting the etcd container's state under `pod.status.containerStatuses[]`. The container's process is considered:
+
+   - **Dead** when `state.Terminated` is set (the container has exited), or `state.Waiting` is set with a failure reason such as `CrashLoopBackOff`, `RunContainerError`, `ImagePullBackOff`, `ErrImagePull`, or `CreateContainerConfigError`.
+   - **Alive** when `state.Running` is set, regardless of readiness.
+   - **Transient/starting** when `state.Waiting` is set with `ContainerCreating` or `PodInitializing`. These are not classified as dead and the controller leaves them untouched until they progress to one of the above states.
 
    In the future, adding a liveness probe to the etcd container using etcd's native `/livez` endpoint (available since etcd 3.5.x, performs a serializable/local-only health check) would provide a more reliable signal. This is tracked in [etcd-wrapper#7](https://github.com/gardener/etcd-wrapper/issues/7) and [etcd-druid#280](https://github.com/gardener/etcd-druid/issues/280). The OnDelete controller is designed to work without this probe (using container status as described above) and to benefit from it when available.
 
@@ -149,8 +153,8 @@ The procedure in each reconciliation cycle:
 
 | Priority | Container Status | Rationale |
 |----------|-----------------|-----------|
-| First | etcd process is dead (CrashLoopBackOff, Error, not running) | Already broken. Restarting the pod may fix the issue. |
-| Second | etcd process is alive but readiness fails (quorum loss) | Process is healthy. Restarting the pod gets the new spec without making things worse. |
+| First | etcd process is dead (`state.Terminated` set, or `state.Waiting.Reason` is a failure reason such as `CrashLoopBackOff`) | Already broken. Restarting the pod may fix the issue. |
+| Second | etcd process is alive (`state.Running`) but readiness fails (quorum loss) | Process is healthy. Restarting the pod gets the new spec without making things worse. |
 
 Delete the selected pod and requeue.
 
