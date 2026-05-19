@@ -55,6 +55,7 @@ const (
 // +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
+// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update both rules below to derive the expected name from the configured prefix instead of self.metadata.name, and revisit the lastIndexOf('-')-based index check.
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
 
@@ -261,6 +262,7 @@ type EtcdConfig struct {
 	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
 	// Updating this field on a running cluster triggers a ConfigMap update
 	// and a rolling restart of the StatefulSet.
+	// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update this godoc and the consumers in internal/component/configmap/etcdconfig.go to look up entries by the derived member name instead of the bare pod name.
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []MemberPeerURLs `json:"additionalAdvertisePeerURLs,omitempty"`
@@ -302,6 +304,7 @@ type ClientService struct {
 type MemberPeerURLs struct {
 	// MemberName is the etcd member name.
 	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
+	// TODO(@seshachalam-yv): When spec.memberNamePrefix (PR #1309) is introduced, the member name becomes "<memberNamePrefix>-<podName>" — re-anchor the top-level CEL rules on Etcd to incorporate the prefix in the startsWith check and revisit the index-derivation logic.
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253

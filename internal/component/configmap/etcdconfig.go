@@ -123,6 +123,10 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 		domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
+		// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, replace `podName`
+		// with `druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)` for both the
+		// initial-cluster key and the AdditionalAdvertisePeerURLs lookup. Today memberName ==
+		// podName, so we use podName for both; this assumption breaks when a prefix is configured.
 		for i := range int(etcd.Spec.Replicas) {
 			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 
@@ -137,7 +141,7 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 				}
 			}
 
-			// Output member=url for EACH URL (not member=url1,url2)
+			// Output memberName=url for EACH URL (not memberName=url1,url2)
 			for _, url := range peerURLs {
 				fmt.Fprintf(&builder, "%s=%s,", podName, url)
 			}
@@ -165,6 +169,10 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 		domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
+		// TODO(@seshachalam-yv): Same as in prepareInitialCluster — once spec.memberNamePrefix
+		// (PR #1309) is merged, replace `podName` with
+		// `druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)` for both the map key
+		// and the AdditionalAdvertisePeerURLs lookup.
 		for i := range int(etcd.Spec.Replicas) {
 			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 
