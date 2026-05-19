@@ -12,7 +12,7 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/e2e/testenv"
-	druide2etestutils "github.com/gardener/etcd-druid/test/e2e/utils"
+	e2eutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr/testr"
@@ -23,12 +23,12 @@ import (
 
 // TestMain sets up the test environment.
 func TestMain(m *testing.M) {
-	kubeconfigPath, err := testutils.GetEnvOrError(envKubeconfigPath)
+	kubeconfigPath, err := testutils.GetEnvOrError(e2eutils.EnvKubeconfigPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "KUBECONFIG not provided: %v\n", err)
 		os.Exit(1)
 	}
-	cl, err := druide2etestutils.GetKubernetesClient(kubeconfigPath)
+	cl, err := e2eutils.GetKubernetesClient(kubeconfigPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to create Kubernetes client: %v\n", err)
 		os.Exit(1)
@@ -42,19 +42,18 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	val, err := testutils.GetEnvOrError(envRetainTestArtifacts)
-	switch retainTestArtifactsMode(val) {
-	case retainTestArtifactsAll:
-		retainTestArtifacts = retainTestArtifactsAll
-	case retainTestArtifactsFailed:
-		retainTestArtifacts = retainTestArtifactsFailed
+	val, _ := testutils.GetEnvOrError(e2eutils.EnvRetainTestArtifacts)
+	switch e2eutils.RetainTestArtifactsMode(val) {
+	case e2eutils.RetainTestArtifactsAll:
+		retainTestArtifacts = e2eutils.RetainTestArtifactsAll
+	case e2eutils.RetainTestArtifactsFailed:
+		retainTestArtifacts = e2eutils.RetainTestArtifactsFailed
 	default:
-		retainTestArtifacts = retainTestArtifactsNone
+		retainTestArtifacts = e2eutils.RetainTestArtifactsNone
 	}
 
-	// default to {"none"} if no providers are specified
-	backupProviders := testutils.GetEnvOrDefault(envBackupProviders, "none,local")
-	providers, err = druide2etestutils.ParseBackupProviders(backupProviders)
+	backupProviders := testutils.GetEnvOrDefault(e2eutils.EnvBackupProviders, "none,local")
+	providers, err = e2eutils.ParseBackupProviders(backupProviders)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to parse backup providers: %v\n", err)
 		os.Exit(1)
@@ -117,24 +116,24 @@ func TestBasic(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("basic-%s-%s", tc.name, getProviderSuffix(provider))
+			tcName := fmt.Sprintf("basic-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
 				var testSucceeded bool // cannot use t.Failed() in deferred functions since it is evaluated at the end of the test
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 				defer func() {
-					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 				}()
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
 					WithDefaultBackup().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
 
 				if tc.tlsEnabled {
 					etcdBuilder = etcdBuilder.WithClientTLS().
@@ -340,26 +339,26 @@ func TestScaleOut(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("scaleout-%s-%s", tc.name, getProviderSuffix(provider))
+			tcName := fmt.Sprintf("scaleout-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
 				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 				defer func() {
-					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 				}()
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(1).
 					WithClientTLS().
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
 
 				if tc.peerTLSEnabledBeforeScaleOut {
 					etcdBuilder = etcdBuilder.WithPeerTLS()
@@ -445,24 +444,24 @@ func TestTLSAndLabelUpdates(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("update1-%s-%s", tc.name, getProviderSuffix(provider))
+			tcName := fmt.Sprintf("update1-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
 				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 				defer func() {
-					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 				}()
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(3).
 					WithDefaultBackup().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
 
 				if tc.clientTLSEnabledBeforeUpdate {
 					etcdBuilder = etcdBuilder.WithClientTLS()
@@ -571,21 +570,21 @@ func TestRecovery(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("recovery-%s-%s", tc.name, getProviderSuffix(provider))
+			tcName := fmt.Sprintf("recovery-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
 				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 				defer func() {
-					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 				}()
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
@@ -593,7 +592,7 @@ func TestRecovery(t *testing.T) {
 					WithGRPCGatewayEnabled().
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName)).
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName)).
 					WithComponentProtectionDisabled()
 				etcd := etcdBuilder.Build()
 
@@ -664,21 +663,21 @@ func TestClusterUpdate(t *testing.T) {
 
 	for _, provider := range providers {
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("update2-%s-%s", tc.name, getProviderSuffix(provider))
+			tcName := fmt.Sprintf("update2-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
 				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 				defer func() {
-					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 				}()
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(tc.replicas).
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
@@ -686,7 +685,7 @@ func TestClusterUpdate(t *testing.T) {
 					WithGRPCGatewayEnabled().
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
 				etcd := etcdBuilder.Build()
 
 				logger.Info("creating Etcd")

@@ -637,7 +637,7 @@ func getSnapshotterJob(g *WithT, etcd *druidv1alpha1.Etcd, snapshotType string) 
 // EnsureCompaction checks if compaction has succeeded by verifying the snapshot revisions.
 func (t *TestEnvironment) EnsureCompaction(g *WithT, etcdObjectMeta metav1.ObjectMeta, expectedFullSnapshotRevision, expectedDeltaSnapshotRevision int64, timeout time.Duration) {
 	g.Eventually(func() error {
-		fullSnapshotRevision, deltaSnapshotRevision, err := t.getSnapshotRevisions(etcdObjectMeta)
+		fullSnapshotRevision, deltaSnapshotRevision, err := t.GetSnapshotRevisions(etcdObjectMeta)
 		if err != nil {
 			return err
 		}
@@ -658,7 +658,7 @@ func (t *TestEnvironment) EnsureCompaction(g *WithT, etcdObjectMeta metav1.Objec
 func (t *TestEnvironment) EnsureNoCompaction(g *WithT, etcdObjectMeta metav1.ObjectMeta, expectedFullSnapshotRevision, expectedDeltaSnapshotRevision int64, duration time.Duration) {
 	t.waitForMinimumDuration(duration)
 
-	fullSnapshotRevision, deltaSnapshotRevision, err := t.getSnapshotRevisions(etcdObjectMeta)
+	fullSnapshotRevision, deltaSnapshotRevision, err := t.GetSnapshotRevisions(etcdObjectMeta)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(fullSnapshotRevision).To(Equal(expectedFullSnapshotRevision))
@@ -675,8 +675,60 @@ func (t *TestEnvironment) waitForMinimumDuration(minDuration time.Duration) {
 	}
 }
 
-// getSnapshotRevisions fetches the full and delta snapshot revisions from the snapshot leases of the Etcd resource.
-func (t *TestEnvironment) getSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta) (int64, int64, error) {
+// CreateEtcdOpsTask creates an EtcdOpsTask resource in the cluster.
+func (t *TestEnvironment) CreateEtcdOpsTask(g *WithT, task *druidv1alpha1.EtcdOpsTask) {
+	g.Expect(t.cl.Create(t.ctx, task)).To(Succeed())
+}
+
+// DeleteEtcdOpsTask deletes the given EtcdOpsTask resource.
+func (t *TestEnvironment) DeleteEtcdOpsTask(g *WithT, task *druidv1alpha1.EtcdOpsTask) {
+	g.Expect(t.cl.Delete(t.ctx, task)).To(Succeed())
+}
+
+// GetEtcdOpsTask returns the EtcdOpsTask object with the given name and namespace.
+func (t *TestEnvironment) GetEtcdOpsTask(name, namespace string) (*druidv1alpha1.EtcdOpsTask, error) {
+	task := &druidv1alpha1.EtcdOpsTask{}
+	err := t.cl.Get(t.ctx, types.NamespacedName{Name: name, Namespace: namespace}, task)
+	if err != nil {
+		return nil, err
+	}
+	return task, nil
+}
+
+// CheckEtcdOpsTaskState polls until the EtcdOpsTask reaches the expected state or times out.
+func (t *TestEnvironment) CheckEtcdOpsTaskState(g *WithT, task *druidv1alpha1.EtcdOpsTask, expectedState druidv1alpha1.TaskState, timeout time.Duration) {
+	g.Eventually(func() error {
+		current := &druidv1alpha1.EtcdOpsTask{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(task), current); err != nil {
+			return fmt.Errorf("failed to get EtcdOpsTask %s: %w", task.Name, err)
+		}
+		if current.Status.State == nil {
+			return fmt.Errorf("EtcdOpsTask %s state is nil", task.Name)
+		}
+		if *current.Status.State != expectedState {
+			return fmt.Errorf("EtcdOpsTask %s state is %s, expected %s", task.Name, *current.Status.State, expectedState)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// CheckEtcdOpsTaskDeleted polls until the EtcdOpsTask resource no longer exists.
+func (t *TestEnvironment) CheckEtcdOpsTaskDeleted(g *WithT, task *druidv1alpha1.EtcdOpsTask, timeout time.Duration) {
+	g.Eventually(func() error {
+		current := &druidv1alpha1.EtcdOpsTask{}
+		err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(task), current)
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get EtcdOpsTask %s: %w", task.Name, err)
+		}
+		return fmt.Errorf("EtcdOpsTask %s still exists", task.Name)
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// GetSnapshotRevisions fetches the full and delta snapshot revisions from the snapshot leases of the Etcd resource.
+func (t *TestEnvironment) GetSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta) (int64, int64, error) {
 	fullSnapshotLease := &coordinationv1.Lease{}
 	deltaSnapshotLease := &coordinationv1.Lease{}
 
