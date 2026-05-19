@@ -55,6 +55,9 @@ const (
 // +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
+// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update both rules below to derive the expected name from the configured prefix instead of self.metadata.name, and revisit the lastIndexOf('-')-based index check.
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -215,6 +218,8 @@ type SnapshotCompactionSpec struct {
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerURLs) || !has(self.peerUrlTls) || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerURLs) || has(self.peerUrlTls) || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -251,6 +256,16 @@ type EtcdConfig struct {
 	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
+	// AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
+	// to initial-advertise-peer-urls. Each entry maps a member name to its
+	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
+	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
+	// Updating this field on a running cluster triggers a ConfigMap update
+	// and a rolling restart of the StatefulSet.
+	// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update this godoc and the consumers in internal/component/configmap/etcdconfig.go to look up entries by the derived member name instead of the bare pod name.
+	// +optional
+	// +kubebuilder:validation:MaxItems=10
+	AdditionalAdvertisePeerURLs []MemberPeerURLs `json:"additionalAdvertisePeerURLs,omitempty"`
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster
 	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
 	// +optional
@@ -283,6 +298,29 @@ type ClientService struct {
 	// +optional
 	// +kubebuilder:validation:Enum=PreferSameZone;PreferSameNode;PreferClose
 	TrafficDistribution *string `json:"trafficDistribution,omitempty"`
+}
+
+// MemberPeerURLs specifies additional peer URLs for a specific etcd member.
+type MemberPeerURLs struct {
+	// MemberName is the etcd member name.
+	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
+	// TODO(@seshachalam-yv): When spec.memberNamePrefix (PR #1309) is introduced, the member name becomes "<memberNamePrefix>-<podName>" — re-anchor the top-level CEL rules on Etcd to incorporate the prefix in the startsWith check and revisit the index-derivation logic.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$`
+	MemberName string `json:"memberName"`
+
+	// URLs is a list of additional peer URLs for this member.
+	// These will be appended to the default internal service URL.
+	// A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
+	// Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380).
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=5
+	// +listType=atomic
+	URLs []string `json:"urls"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.

@@ -79,6 +79,7 @@ nav:
       - Managing Etcd clusters: usage/managing-etcd-clusters.md
       - Recovering Etcd clusters: usage/recovering-etcd-clusters.md
       - Securing Etcd clusters: usage/securing-etcd-clusters.md
+      - Using Additional Advertise Peer URLs: usage/using-additional-advertise-peer-urls.md
   - Concepts:
       - Components in an Etcd cluster: concepts/etcd-cluster-components.md
       - Protecting resources in Etcd cluster: concepts/etcd-cluster-resource-protection.md
