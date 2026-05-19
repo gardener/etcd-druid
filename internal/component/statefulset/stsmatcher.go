@@ -224,18 +224,21 @@ func (s StatefulSetMatcher) matchEtcdContainer() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerVolMounts() gomegatypes.GomegaMatcher {
-	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6)
+	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6+len(s.etcd.Spec.Etcd.VolumeMounts))
 	volMountMatchers = append(volMountMatchers, s.matchEtcdDataVolMount())
 	secretVolMountMatchers := s.getEtcdSecretVolMountsMatchers()
 	if len(secretVolMountMatchers) > 0 {
 		volMountMatchers = append(volMountMatchers, secretVolMountMatchers...)
+	}
+	for _, vm := range s.etcd.Spec.Etcd.VolumeMounts {
+		volMountMatchers = append(volMountMatchers, matchVolMount(vm.Name, vm.MountPath))
 	}
 	return ConsistOf(volMountMatchers)
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatcher {
 	containerResources := ptr.Deref(s.etcd.Spec.Backup.Resources, defaultTestContainerResources)
-	return MatchFields(IgnoreExtras, Fields{
+	fields := Fields{
 		"Name":            Equal("backup-restore"),
 		"Image":           Equal(s.etcdBRImage),
 		"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
@@ -250,7 +253,11 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 		),
 		"Resources":    Equal(containerResources),
 		"VolumeMounts": s.matchBackupRestoreContainerVolMounts(),
-	})
+	}
+	if len(s.etcd.Spec.Backup.EnvVar) > 0 {
+		fields["Env"] = s.matchBackupRestoreContainerEnvVars()
+	}
+	return MatchFields(IgnoreExtras, fields)
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerReadinessHandler() gomegatypes.GomegaMatcher {
@@ -296,7 +303,7 @@ func (s StatefulSetMatcher) matchEtcdDataVolMount() gomegatypes.GomegaMatcher {
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.GomegaMatcher {
-	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6)
+	volMountMatchers := make([]gomegatypes.GomegaMatcher, 0, 6+len(s.etcd.Spec.Backup.VolumeMounts))
 	volMountMatchers = append(volMountMatchers, s.matchEtcdDataVolMount())
 	volMountMatchers = append(volMountMatchers, matchVolMount(common.VolumeNameEtcdConfig, etcdConfigFileMountPath))
 	volMountMatchers = append(volMountMatchers, s.getBackupRestoreSecretVolMountMatchers()...)
@@ -305,6 +312,9 @@ func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.G
 		if etcdBackupVolMountMatcher != nil {
 			volMountMatchers = append(volMountMatchers, etcdBackupVolMountMatcher)
 		}
+	}
+	for _, vm := range s.etcd.Spec.Backup.VolumeMounts {
+		volMountMatchers = append(volMountMatchers, matchVolMount(vm.Name, vm.MountPath))
 	}
 	return ConsistOf(volMountMatchers)
 }
@@ -351,7 +361,22 @@ func (s StatefulSetMatcher) getEtcdBackupVolumeMountMatcher() gomegatypes.Gomega
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerEnvVars() gomegatypes.GomegaMatcher {
-	return BeEmpty()
+	if len(s.etcd.Spec.Etcd.EnvVar) == 0 {
+		return BeEmpty()
+	}
+	envMatchers := make([]gomegatypes.GomegaMatcher, 0, len(s.etcd.Spec.Etcd.EnvVar))
+	for _, ev := range s.etcd.Spec.Etcd.EnvVar {
+		envMatchers = append(envMatchers, Equal(ev))
+	}
+	return ConsistOf(envMatchers)
+}
+
+func (s StatefulSetMatcher) matchBackupRestoreContainerEnvVars() gomegatypes.GomegaMatcher {
+	envMatchers := make([]gomegatypes.GomegaMatcher, 0, len(s.etcd.Spec.Backup.EnvVar))
+	for _, ev := range s.etcd.Spec.Backup.EnvVar {
+		envMatchers = append(envMatchers, Equal(ev))
+	}
+	return ContainElements(envMatchers)
 }
 
 func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatcher {
@@ -374,7 +399,7 @@ func (s StatefulSetMatcher) matchEtcdPodSecurityContext() gomegatypes.GomegaMatc
 }
 
 func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
-	volMatchers := make([]gomegatypes.GomegaMatcher, 0, 7)
+	volMatchers := make([]gomegatypes.GomegaMatcher, 0, 7+len(s.etcd.Spec.Volumes))
 	etcdConfigFileVolMountMatcher := MatchFields(IgnoreExtras, Fields{
 		"Name": Equal(common.VolumeNameEtcdConfig),
 		"VolumeSource": MatchFields(IgnoreExtras|IgnoreMissing, Fields{
@@ -400,6 +425,11 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 		if backupVolMatcher != nil {
 			volMatchers = append(volMatchers, backupVolMatcher)
 		}
+	}
+	for _, vol := range s.etcd.Spec.Volumes {
+		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
+			"Name": Equal(vol.Name),
+		}))
 	}
 	return ConsistOf(volMatchers)
 }
