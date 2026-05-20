@@ -1,0 +1,39 @@
+---
+# SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Example EtcdOpsTask for recovering from a permanent quorum loss in a multi-member etcd cluster.
+#
+# Prerequisites:
+#   - The target Etcd cluster must be a multi-member cluster (spec.replicas > 1).
+#   - The cluster must currently NOT be in a ready state (quorum loss has occurred).
+#   - No other EtcdOpsTask should be in progress for the same Etcd cluster.
+#
+# The task automates the recovery steps described in docs/usage/recovering-etcd-clusters.md:
+#   1. Suspend etcd-druid reconciliation.
+#   2. Disable etcd component protection.
+#   3. Scale the StatefulSet down to 0.
+#   4. Delete all PVCs.
+#   5. Delete all member leases.
+#   6. Patch the ConfigMap to configure a single-member cluster (member-0 only).
+#   7. Scale up the StatefulSet to 1.
+#   8. Wait for the single-member etcd pod to become ready.
+#   9. Re-enable etcd-druid reconciliation (triggers scale-out to original replica count).
+#  10. Re-enable etcd component protection.
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: EtcdOpsTask
+metadata:
+  name: recover-from-quorum-loss
+  namespace: default
+spec:
+  etcdName: etcd-main
+  ttlSecondsAfterFinished: 3600
+  config:
+    recoverFromQuorumLoss:
+      # scaleDownTimeout: how long to wait for the StatefulSet to scale down to 0.
+      # Defaults to 60s. Accepts Go duration strings (e.g. 30s, 2m).
+      scaleDownTimeout: 60s
+      # podReadyTimeout: how long to wait for the single-member etcd pod (ordinal 0) to become ready after scale-up.
+      # Defaults to 180s. Accepts Go duration strings (e.g. 2m, 5m).
+      podReadyTimeout: 3m

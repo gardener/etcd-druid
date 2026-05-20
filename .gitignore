@@ -87,3 +87,4 @@ skills-lock.json
 # GitHub Copilot
 .copilot/
 .github/copilot-instructions.md
+.worktrees/
