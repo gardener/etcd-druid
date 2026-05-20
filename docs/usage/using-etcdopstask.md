@@ -7,8 +7,6 @@
 `EtcdOpsTask` allows operators to execute one-time operational tasks on an Etcd cluster. This includes operations like triggering on-demand snapshots (full or delta). The controller manages the task lifecycle, executing the operation and updating the task status to reflect success or failure.
 
 ## How Operators Can Use EtcdOpsTask
-> [!NOTE] 
-> As of v0.34.0, `EtcdOpsTask` primarily supports on-demand snapshot operations. Future versions may introduce additional task types.
 
 ### Creating an EtcdOpsTask
 
@@ -129,7 +127,65 @@ Triggers an on-demand snapshot outside the regular snapshot schedule.
 - `timeoutSecondsDelta`: Timeout in seconds for delta snapshot operations (default: 60)
 
 
-### Best Practices
+#### RecoverFromQuorumLoss
+
+Automates recovery of a multi-member etcd cluster that has permanently lost quorum. This task
+implements the manual recovery steps documented in [Recovering Etcd Clusters](recovering-etcd-clusters.md):
+suspend reconciliation → disable component protection → scale STS to 0 → delete PVCs →
+delete member Leases → patch ConfigMap to single-member → scale STS to 1 → wait for pod
+ready → re-enable reconciliation (triggers scale-out) → re-enable component protection.
+
+> [!WARNING]
+> This task deletes all PersistentVolumeClaims for the etcd cluster. All etcd data on those
+> volumes is permanently lost. A backup must be available for the cluster to restore from; the
+> backup-restore sidecar will automatically restore from the latest snapshot when the
+> single-member pod starts. Do **not** use this task unless the cluster has truly lost quorum
+> and cannot recover on its own.
+
+**Prerequisites:**
+- The target etcd cluster must be a multi-member cluster (`spec.replicas > 1`). For single-member
+  clusters the backup-restore sidecar handles recovery automatically.
+- Backup must be enabled for the target etcd cluster (`spec.backup.store` must be configured).
+  Recovery relies on the backup-restore sidecar restoring from the latest snapshot; without a
+  backup store there is nothing to restore from and the task will be rejected.
+- The cluster must currently **not** be in a ready state (quorum loss has occurred).
+- No other `EtcdOpsTask` should be in progress for the same etcd cluster.
+
+**Configuration options:**
+- `scaleDownTimeout`: Maximum time to wait for the StatefulSet to reach 0 replicas (default: `60s`). Accepts Go duration strings (e.g. `30s`, `2m`).
+- `podReadyTimeout`: Maximum time to wait for the single-member pod (`<etcd-name>-0`) to become ready after scale-up (default: `3m`). Accepts Go duration strings.
+
+**Example:**
+
+```yaml
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: EtcdOpsTask
+metadata:
+  name: recover-from-quorum-loss
+  namespace: default
+spec:
+  etcdName: etcd-main
+  ttlSecondsAfterFinished: 3600
+  config:
+    recoverFromQuorumLoss:
+      scaleDownTimeout: 60s
+      podReadyTimeout: 5m
+```
+
+**Expected behaviour:**
+1. The task suspends etcd-druid reconciliation and disables component protection on the target Etcd resource.
+2. The StatefulSet is scaled to 0 and all PVCs and member leases are deleted.
+3. The etcd ConfigMap is patched to configure a single-member cluster using member-0 only.
+4. The StatefulSet is scaled to 1 and the task waits for the pod to become ready.
+5. The backup-restore sidecar restores etcd data from the latest available snapshot.
+6. Once the pod is ready, etcd-druid reconciliation is re-enabled and component protection is restored.
+7. etcd-druid scales the cluster back to the original replica count.
+
+If the task fails mid-execution, the `Cleanup` phase removes the suspend and disable-protection
+annotations so the operator is not permanently locked out.
+
+
+
 
 1. **Unique Names**: Use descriptive, unique names for tasks to avoid conflicts
 2. **Monitor Status**: Check task status before creating duplicate operations. This will help avoid duplicate tasks.

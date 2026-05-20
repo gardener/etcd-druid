@@ -12,6 +12,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler/ondemandsnapshot"
+	"github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler/recoverfromquorumloss"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 
 	"github.com/go-logr/logr"
@@ -94,6 +95,8 @@ func (r *Reconciler) getTaskHandler(task *druidv1alpha1.EtcdOpsTask) (handler.Ha
 	switch {
 	case config.OnDemandSnapshot != nil:
 		return r.taskHandlerRegistry.GetHandler("OnDemandSnapshot", r.client, task, nil)
+	case config.RecoverFromQuorumLoss != nil:
+		return r.taskHandlerRegistry.GetHandler("RecoverFromQuorumLoss", r.client, task, nil)
 	default:
 		return nil, fmt.Errorf("unsupported task configuration: no valid task type found")
 	}
@@ -109,6 +112,8 @@ func DefaultTaskHandlerRegistry() handler.TaskHandlerRegistry {
 
 	// Register OnDemandSnapshot handler
 	registry.Register("OnDemandSnapshot", ondemandsnapshot.New)
+	// Register RecoverFromQuorumLoss handler
+	registry.Register("RecoverFromQuorumLoss", recoverfromquorumloss.New)
 	return registry
 }
 
