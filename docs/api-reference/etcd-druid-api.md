@@ -813,6 +813,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `onDemandSnapshot` _[OnDemandSnapshotConfig](#ondemandsnapshotconfig)_ | OnDemandSnapshot defines the configuration for an on-demand snapshot task. |  |  |
+| `recoverFromQuorumLoss` _[RecoverFromQuorumLossConfig](#recoverfromquorumlossconfig)_ | RecoverFromQuorumLoss defines the configuration for a task that recovers<br />a multi-member etcd cluster from a permanent quorum loss. |  |  |
 
 
 #### EtcdOpsTaskSpec
@@ -1010,6 +1011,24 @@ _Appears in:_
 | --- | --- |
 | `full` | OnDemandSnapshotTypeFull indicates a full snapshot, capturing the entire etcd database state.<br /> |
 | `delta` | OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.<br /> |
+
+
+#### RecoverFromQuorumLossConfig
+
+
+
+RecoverFromQuorumLossConfig defines the configuration for the RecoverFromQuorumLoss task.
+This task automates the recovery of a multi-member etcd cluster from a permanent quorum loss.
+
+
+
+_Appears in:_
+- [EtcdOpsTaskConfig](#etcdopstaskconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `scaleDownTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ScaleDownTimeout is the timeout to wait for the StatefulSet to fully scale down to 0 replicas<br />during quorum loss recovery. Defaults to 60 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `podReadyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become<br />ready after the StatefulSet is scaled up to 1 during quorum loss recovery.<br />Defaults to 180 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 
 
 #### SchedulingConstraints
