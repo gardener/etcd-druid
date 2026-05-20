@@ -47,7 +47,7 @@ const (
 	// Pre-sync snapshot task constants
 	preSyncTaskPrefixHibernation = "presync-snapshot-hibernation-"
 	preSyncTaskPrefixUpdate      = "presync-snapshot-update-"
-	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the upgrade.
+	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the sync.
 	maxPreSyncRetries = 3
 )
 
