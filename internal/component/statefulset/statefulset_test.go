@@ -133,7 +133,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:   3,
 			etcdReplicas:  3,
 		},
-		// ---------------- Hibernation rows (regression) ----------------
+		// ---------------- Hibernation rows ----------------
 		{
 			name:            "hibernation requeues when no task exists",
 			backupEnabled:   true,
