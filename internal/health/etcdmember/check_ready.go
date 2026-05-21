@@ -35,7 +35,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		checkTime = TimeNow().UTC()
 	)
 
-	leaseNames := druidv1alpha1.GetMemberLeaseNames(&etcd)
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
 	leases := make([]*coordinationv1.Lease, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		lease := &coordinationv1.Lease{}

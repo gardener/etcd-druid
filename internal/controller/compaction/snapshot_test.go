@@ -46,7 +46,7 @@ func TestFullSnapshot(t *testing.T) {
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if req.URL.String() != fmt.Sprintf(
-						"http://%s.%s.svc:%d/snapshot/full",
+						"http://%s.%s.svc.cluster.local:%d/snapshot/full",
 						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
 						testutils.TestNamespace,
 						backupPort,
@@ -68,35 +68,11 @@ func TestFullSnapshot(t *testing.T) {
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if req.URL.String() != fmt.Sprintf(
-						"https://%s.%s.svc:%d/snapshot/full",
+						"https://%s.%s.svc.cluster.local:%d/snapshot/full",
 						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
 						testutils.TestNamespace,
 						backupPort,
 					) {
-						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
-					}
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       http.NoBody,
-					}, nil
-				},
-			},
-			expectError: false,
-		},
-		{
-			name:       "should trigger full snapshot with externally managed member addresses (success)",
-			httpScheme: "http",
-			etcd: testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace).
-				WithExternallyManagedMembers([]string{"1.1.1.1"}).
-				WithBackupPort(&backupPort).
-				Build(),
-			httpClient: &mockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
-					expectedURL := fmt.Sprintf(
-						"http://1.1.1.1:%d/snapshot/full",
-						backupPort,
-					)
-					if req.URL.String() != expectedURL {
 						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
 					}
 					return &http.Response{
@@ -114,7 +90,7 @@ func TestFullSnapshot(t *testing.T) {
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if req.URL.String() != fmt.Sprintf(
-						"http://%s.%s.svc:%d/snapshot/full",
+						"http://%s.%s.svc.cluster.local:%d/snapshot/full",
 						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
 						testutils.TestNamespace,
 						backupPort,
@@ -136,7 +112,7 @@ func TestFullSnapshot(t *testing.T) {
 			httpClient: &mockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					if req.URL.String() != fmt.Sprintf(
-						"http://%s.%s.svc:%d/snapshot/full",
+						"http://%s.%s.svc.cluster.local:%d/snapshot/full",
 						druidv1alpha1.GetClientServiceName(eb.Build().ObjectMeta),
 						testutils.TestNamespace,
 						backupPort,
