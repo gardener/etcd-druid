@@ -129,20 +129,15 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 
-		// Start with internal service DNS URL
-		peerURLs := []string{fmt.Sprintf("%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)}
+		fmt.Fprintf(&builder, "%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)
 
-		// Find and append additional peer URLs if configured for this member
 		for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
 			if memberURLs.MemberName == podName {
-				peerURLs = append(peerURLs, memberURLs.URLs...)
+				for _, url := range memberURLs.URLs {
+					fmt.Fprintf(&builder, "%s=%s,", memberName, url)
+				}
 				break
 			}
-		}
-
-		// Output memberName=url for EACH URL (not memberName=url1,url2)
-		for _, url := range peerURLs {
-			fmt.Fprintf(&builder, "%s=%s,", podName, url)
 		}
 	}
 	return strings.Trim(builder.String(), ",")

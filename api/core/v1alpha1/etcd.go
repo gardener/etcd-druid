@@ -353,7 +353,10 @@ type SchedulingConstraints struct {
 // +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field.",rule="has(oldSelf.memberNamePrefix) == has(self.memberNamePrefix)"
 type EtcdSpec struct {
 	// MemberNamePrefix defines the prefix for the name of each etcd member. When set, the member name is "<prefix>-<pod-name>", otherwise it defaults to the pod name.
+	// The combined length of the prefix, pod name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	MemberNamePrefix *string `json:"memberNamePrefix,omitempty"`
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
@@ -460,7 +463,7 @@ const (
 // EtcdMemberStatus holds information about etcd cluster membership.
 type EtcdMemberStatus struct {
 	// Name is the name of the etcd member. It matches the member lease name.
-	// When MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`.
+	// When EtcdSpec.MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`.
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
 	// +optional

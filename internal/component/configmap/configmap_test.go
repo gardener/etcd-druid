@@ -241,14 +241,17 @@ func TestPrepareInitialCluster(t *testing.T) {
 			expectedInitialCluster: "test-prefix-etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,test-prefix-etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,test-prefix-etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
 		},
 	}
-	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled)
 			etcd.Spec.Etcd.ServerPort = tc.etcdSpecServerPort
 			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
+			if tc.additionalAdvertisePeerURLs != nil {
+				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerURLs
+			}
 			peerScheme := utils.IfConditionOr(etcd.Spec.Etcd.PeerUrlTLS != nil, "https", "http")
 			actualInitialCluster := prepareInitialCluster(etcd, peerScheme)
 			g.Expect(actualInitialCluster).To(Equal(tc.expectedInitialCluster))
