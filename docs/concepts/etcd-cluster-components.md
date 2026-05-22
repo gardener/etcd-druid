@@ -49,7 +49,7 @@ To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-
 
 ## Role & RoleBinding
 
-`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [Role]() and [RoleBinding]() is created and linked to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) created per `Etcd` cluster.
+`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [Role](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole) and [RoleBinding](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding) is created and linked to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) created per `Etcd` cluster.
 
 **Code reference:** [Role-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/role) & [RoleBinding-Component](https://github.com/gardener/etcd-druid/tree/master/internal/component/rolebinding)
 
@@ -77,3 +77,19 @@ One of the responsibilities of `etcd-backup-restore` container is to take period
 > In future these leases will be replaced by [EtcdMember resource](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/docs/proposals/04-etcd-member-custom-resource.md).
 
 **Code reference:** [Snapshot-Lease-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/snapshotlease)
+
+## Probes
+
+### ReadinessProbe
+
+Currently a [/readyz](https://github.com/gardener/etcd-wrapper/blob/cf3be92fc03c78941a3275f6ac4b37f54fd9b59a/internal/app/readycheck.go#L143) endpoint provided by [etcd-wrapper](https://github.com/gardener/etcd-wrapper) is being used as readinessProbe. This endpoint performs a linearizable `GET` request, which effectively represents the readiness of the etcd cluster.
+
+### LivenessProbe
+
+Currently `etcd-druid` doesn't configure any [liveness probe](https://kubernetes.io/docs/concepts/workloads/pods/probes/#liveness-probe) for a etcd statefulset. Based on our observations, the introduction of livenessProbe can do more harm then being useful as liveness probe failure simply causes the kubelet to restart the etcd container, which is not helpful in most of the scenarios. Some examples of such scenarios:
+
+1. **Etcd cluster bootstrap**: Determining an appropriate value for `livenessProbe.initialDelaySeconds` is difficult as etcd member(s)may take longer than expected to start for various reasons. If the startup time exceeds initialDelaySeconds, the kubelet will prematurely kills and restart the etcd container.
+
+2. Even if `initialDelaySeconds` is set to some large value (say >200sec) or a startupProbe is introduced, still it won't solve all of the problems, for example: Consider a scenario when etcd cluster member are busy due to high load because of this if any etcd member unable to respond to livenessProbe within the configured time causing livenessProbe to fail, due to that kubelet will kills the etcd container in order to restart the container, this restarting of a member will only worsen the overall situation.
+
+more details can be found here: https://github.com/gardener/etcd-druid/issues/280#issuecomment-4505733020
