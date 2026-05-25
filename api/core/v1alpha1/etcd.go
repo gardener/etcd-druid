@@ -55,8 +55,7 @@ const (
 // +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
-// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update both rules below to derive the expected name from the configured prefix instead of self.metadata.name, and revisit the lastIndexOf('-')-based index check.
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
 
 // Etcd is the Schema for the etcds API

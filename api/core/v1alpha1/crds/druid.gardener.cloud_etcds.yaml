@@ -2201,7 +2201,9 @@ spec:
         - message: additionalAdvertisePeerURLs member names must start with the Etcd
             resource name followed by a dash
           rule: '!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m,
-            m.memberName.startsWith(self.metadata.name + ''-''))'
+            has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix
+            + ''-'' + self.metadata.name + ''-'') : m.memberName.startsWith(self.metadata.name
+            + ''-''))'
         - message: additionalAdvertisePeerURLs member name index must be less than
             replicas
           rule: '!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m,
