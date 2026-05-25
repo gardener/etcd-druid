@@ -16,6 +16,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -113,8 +114,8 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 const memberLeaseHolderIdentitySeparator = ":"
 
 func podNameFromLeaseName(leaseName string, memberNamePrefix *string) string {
-	if memberNamePrefix != nil && *memberNamePrefix != "" {
-		return strings.TrimPrefix(leaseName, *memberNamePrefix+"-")
+	if prefix := ptr.Deref(memberNamePrefix, ""); prefix != "" {
+		return strings.TrimPrefix(leaseName, prefix+"-")
 	}
 	return leaseName
 }

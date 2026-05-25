@@ -357,6 +357,7 @@ type EtcdSpec struct {
 	// +optional
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field",rule="self == oldSelf"
 	MemberNamePrefix *string `json:"memberNamePrefix,omitempty"`
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.

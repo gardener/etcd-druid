@@ -734,6 +734,9 @@ spec:
                 maxLength: 63
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
+                x-kubernetes-validations:
+                - message: etcd.spec.memberNamePrefix is an immutable field
+                  rule: self == oldSelf
               priorityClassName:
                 description: PriorityClassName is the name of a priority class that
                   shall be used for the etcd pods.

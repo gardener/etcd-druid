@@ -240,6 +240,19 @@ func TestPrepareInitialCluster(t *testing.T) {
 			memberNamePrefix:       ptr.To("test-prefix"),
 			expectedInitialCluster: "test-prefix-etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2333,test-prefix-etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2333,test-prefix-etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2333",
 		},
+		{
+			name:             "should use member name prefix in both primary and additional peer URL entries",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			memberNamePrefix: ptr.To("myprefix"),
+			additionalAdvertisePeerURLs: []druidv1alpha1.MemberPeerURLs{
+				{
+					MemberName: "etcd-test-0",
+					URLs:       []string{"http://10.0.0.1:2380"},
+				},
+			},
+			expectedInitialCluster: "myprefix-etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,myprefix-etcd-test-0=http://10.0.0.1:2380,myprefix-etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380",
+		},
 	}
 	t.Parallel()
 	for _, tc := range testCases {
