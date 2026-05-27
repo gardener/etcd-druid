@@ -258,7 +258,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			name:       "Should pass admit check when cluster is multi-member, has backup, and has quorum loss",
 			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, false),
 			expectedResult: taskhandler.Result{
-				Description: "Preconditions for RecoverFromQuorumLoss task are satisfied",
+				Description: "Admit check passed",
 				Requeue:     false,
 			},
 			expectErr: false,
@@ -327,6 +327,7 @@ func TestRecoverFromQuorumLossCleanup(t *testing.T) {
 					druidv1alpha1.SuspendEtcdSpecReconcileAnnotation:       "true",
 					druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "true",
 					recoveryStepAnnotation:                                 string(stepScaleDown),
+					recoveryWaitStartAnnotation:                            time.Now().UTC().Format(time.RFC3339),
 				}
 				return etcd
 			}(),
@@ -356,6 +357,7 @@ func TestRecoverFromQuorumLossCleanup(t *testing.T) {
 				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
 				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
 				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryStepAnnotation))
+				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryWaitStartAnnotation))
 			}
 		})
 	}
@@ -654,7 +656,7 @@ func TestUpdateConfigMapForSingleMember(t *testing.T) {
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
 
-			updateErr := taskHandler.(*Handler).updateConfigMapForSingleMember(context.Background(), etcd)
+			updateErr := taskHandler.(*handler).updateConfigMapForSingleMember(context.Background(), etcd)
 			if tc.expectErr {
 				g.Expect(updateErr).ToNot(BeNil())
 				return
@@ -761,7 +763,7 @@ func TestIsStsScaledDown(t *testing.T) {
 				Name:      druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta),
 				Namespace: namespace,
 			}
-			scaledDown, checkErr := taskHandler.(*Handler).isStsScaledDown(context.Background(), stsKey)
+			scaledDown, checkErr := taskHandler.(*handler).isStsScaledDown(context.Background(), stsKey)
 			g.Expect(checkErr).To(BeNil())
 			g.Expect(scaledDown).To(Equal(tc.expectedScaledDown))
 		})
@@ -802,9 +804,9 @@ func TestNewHandlerTimeoutConfig(t *testing.T) {
 			task := buildEtcdOpsTask("e", "ns", tc.cfg)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			h := taskHandler.(*Handler)
-			g.Expect(h.scaleDownTimeout.Seconds()).To(Equal(tc.expectedScaleDownTimeout))
-			g.Expect(h.podReadyTimeout.Seconds()).To(Equal(tc.expectedPodReadyTimeout))
+			h := taskHandler.(*handler)
+			g.Expect(h.scaleDownTimeout().Seconds()).To(Equal(tc.expectedScaleDownTimeout))
+			g.Expect(h.podReadyTimeout().Seconds()).To(Equal(tc.expectedPodReadyTimeout))
 		})
 	}
 }
@@ -890,7 +892,7 @@ func TestDeleteAllPVCs(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			delErr := taskHandler.(*Handler).deleteAllPVCs(context.Background(), etcd)
+			delErr := taskHandler.(*handler).deleteAllPVCs(context.Background(), etcd)
 			g.Expect(delErr).To(BeNil())
 		})
 	}
@@ -940,7 +942,7 @@ func TestDeleteAllMemberLeases(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			delErr := taskHandler.(*Handler).deleteAllMemberLeases(context.Background(), etcd)
+			delErr := taskHandler.(*handler).deleteAllMemberLeases(context.Background(), etcd)
 			g.Expect(delErr).To(BeNil())
 		})
 	}
@@ -970,7 +972,7 @@ func TestIsPodReady(t *testing.T) {
 			expectedReady: false,
 		},
 		{
-			name: "Pod in Pending phase: should return not ready",
+			name: "Pod with no Ready condition: should return not ready",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{Name: podKey.Name, Namespace: namespace},
 				Status:     corev1.PodStatus{Phase: corev1.PodPending},
@@ -1016,11 +1018,83 @@ func TestIsPodReady(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			ready, checkErr := taskHandler.(*Handler).isPodReady(context.Background(), podKey)
+			ready, checkErr := taskHandler.(*handler).isPodReady(context.Background(), podKey)
 			g.Expect(checkErr).To(BeNil())
 			g.Expect(ready).To(Equal(tc.expectedReady))
 		})
 	}
+}
+
+// TestWaitStepTimeout tests that Execute returns a terminal error when the scaleDown
+// or podReady timeout is exceeded while waiting.
+func TestWaitStepTimeout(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+
+	t.Run("Should fail with timeout error when scale-down does not complete in time", func(t *testing.T) {
+		t.Parallel()
+		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+		// Pre-set the step annotation to WaitScaleDown so Execute enters that step directly,
+		// and set an expired wait-start so the timeout is already exceeded.
+		etcd.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepScaleDown),
+			recoveryWaitStartAnnotation: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cm, err := buildConfigMapWithEtcdConfig(etcd)
+		g.Expect(err).To(BeNil())
+		// STS still has running replicas — scale-down not complete.
+		sts := buildStatefulSet(etcd, 0, 3)
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, sts).Build()
+		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
+			ScaleDownTimeout: &metav1.Duration{Duration: time.Minute},
+		})
+		taskHandler, handlerErr := New(cl, task, nil)
+		g.Expect(handlerErr).To(BeNil())
+
+		result := taskHandler.Execute(context.Background())
+		g.Expect(result.Error).ToNot(BeNil())
+		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for StatefulSet to scale down"))
+	})
+
+	t.Run("Should fail with timeout error when pod does not become ready in time", func(t *testing.T) {
+		t.Parallel()
+		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+		// Pre-set the step annotation to WaitPodReady so Execute enters that step directly,
+		// and set an expired wait-start so the timeout is already exceeded.
+		etcd.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepScaleUp),
+			recoveryWaitStartAnnotation: time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cm, err := buildConfigMapWithEtcdConfig(etcd)
+		g.Expect(err).To(BeNil())
+		// Pod exists but is not ready.
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0),
+				Namespace: namespace,
+			},
+			Status: corev1.PodStatus{
+				Conditions: []corev1.PodCondition{
+					{Type: corev1.PodReady, Status: corev1.ConditionFalse},
+				},
+			},
+		}
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, pod).Build()
+		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
+			PodReadyTimeout: &metav1.Duration{Duration: 3 * time.Minute},
+		})
+		taskHandler, handlerErr := New(cl, task, nil)
+		g.Expect(handlerErr).To(BeNil())
+
+		result := taskHandler.Execute(context.Background())
+		g.Expect(result.Error).ToNot(BeNil())
+		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for single-member etcd pod to become ready"))
+	})
 }
 
 // TestSuspendReconciliation tests the suspendReconciliation method.
@@ -1057,7 +1131,7 @@ func TestSuspendReconciliation(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			g.Expect(taskHandler.(*Handler).suspendReconciliation(context.Background(), etcd)).To(Succeed())
+			g.Expect(taskHandler.(*handler).suspendReconciliation(context.Background(), etcd)).To(Succeed())
 			updated := &druidv1alpha1.Etcd{}
 			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
 			g.Expect(updated.Annotations).To(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
@@ -1099,7 +1173,7 @@ func TestDisableComponentProtection(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			g.Expect(taskHandler.(*Handler).disableComponentProtection(context.Background(), etcd)).To(Succeed())
+			g.Expect(taskHandler.(*handler).disableComponentProtection(context.Background(), etcd)).To(Succeed())
 			updated := &druidv1alpha1.Etcd{}
 			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
 			g.Expect(updated.Annotations).To(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
@@ -1145,7 +1219,7 @@ func TestEnableComponentProtection(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			protErr := taskHandler.(*Handler).enableComponentProtection(context.Background(), etcd)
+			protErr := taskHandler.(*handler).enableComponentProtection(context.Background(), etcd)
 			g.Expect(protErr).To(BeNil())
 			updated := &druidv1alpha1.Etcd{}
 			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
@@ -1196,7 +1270,7 @@ func TestScaleStatefulSetTo(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			scaleErr := taskHandler.(*Handler).scaleStatefulSetTo(context.Background(), etcd, tc.desiredReplicas)
+			scaleErr := taskHandler.(*handler).scaleStatefulSetTo(context.Background(), etcd, tc.desiredReplicas)
 			g.Expect(scaleErr).To(BeNil())
 		})
 	}
@@ -1236,7 +1310,7 @@ func TestEnableReconciliation(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			recErr := taskHandler.(*Handler).enableReconciliation(context.Background(), etcd)
+			recErr := taskHandler.(*handler).enableReconciliation(context.Background(), etcd)
 			g.Expect(recErr).To(BeNil())
 			updated := &druidv1alpha1.Etcd{}
 			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
