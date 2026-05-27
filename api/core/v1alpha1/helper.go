@@ -44,9 +44,9 @@ func GetOrdinalPodName(etcdObjMeta metav1.ObjectMeta, ordinal int) string {
 	return fmt.Sprintf("%s-%d", etcdObjMeta.Name, ordinal)
 }
 
-// GetMemberName returns the etcd member name for a given pod name and optional prefix.
-// If memberNamePrefix is non-nil and non-empty, the member name is "<prefix>-<podName>".
-// Otherwise, the member name is the name of the backing `Pod`.
+// GetMemberName returns the etcd cluster member name for a given member-prefix(optional) and pod-name.
+// If memberNamePrefix is non-nil and non-empty, the member name would be "<prefix>-<podName>".
+// Otherwise, the member name would be the name of the backing `Pod`.
 func GetMemberName(memberNamePrefix *string, podName string) string {
 	if prefix := ptr.Deref(memberNamePrefix, ""); prefix != "" {
 		return prefix + "-" + podName

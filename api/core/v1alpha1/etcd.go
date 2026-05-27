@@ -351,8 +351,8 @@ type SchedulingConstraints struct {
 // +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate is an immutable field.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field.",rule="has(oldSelf.memberNamePrefix) == has(self.memberNamePrefix)"
 type EtcdSpec struct {
-	// MemberNamePrefix defines the prefix for the name of each etcd member. When set, the member name is "<prefix>-<pod-name>", otherwise it defaults to the pod name.
-	// The combined length of the prefix, pod name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
+	// MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be "<prefix>-<pod-name>", otherwise it defaults to the "pod-name".
+	// The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
 	// +optional
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
