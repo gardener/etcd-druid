@@ -304,9 +304,10 @@ type EtcdConfig struct {
 	// to initial-advertise-peer-urls. Each entry maps a member name to its
 	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
 	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
+	// When spec.memberNamePrefix is set, member names become
+	// "<memberNamePrefix>-<etcd-name>-<index>".
 	// Updating this field on a running cluster triggers a ConfigMap update
 	// and a rolling restart of the StatefulSet.
-	// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update this godoc and the consumers in internal/component/configmap/etcdconfig.go to look up entries by the derived member name instead of the bare pod name.
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []MemberPeerURLs `json:"additionalAdvertisePeerURLs,omitempty"`
@@ -338,6 +339,9 @@ type EtcdConfig struct {
 	// Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373
 	// +optional
 	BackendBboltFreelistType *BboltFreelistType `json:"backendBboltFreelistType,omitempty"`
+	// BootstrapWithExistingCluster configures this etcd to join an existing cluster.
+	// +optional
+	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
 }
 
 // ClientService defines the parameters of the client service that a user can specify
@@ -359,7 +363,9 @@ type ClientService struct {
 type MemberPeerURLs struct {
 	// MemberName is the etcd member name.
 	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
-	// TODO(@seshachalam-yv): When spec.memberNamePrefix (PR #1309) is introduced, the member name becomes "<memberNamePrefix>-<podName>" — re-anchor the top-level CEL rules on Etcd to incorporate the prefix in the startsWith check and revisit the index-derivation logic.
+	// When spec.memberNamePrefix is set, the member name becomes
+	// "<memberNamePrefix>-<etcd-name>-<index>". The top-level CEL rules on
+	// Etcd already incorporate the prefix when validating these names.
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
@@ -376,6 +382,39 @@ type MemberPeerURLs struct {
 	// +kubebuilder:validation:MaxItems=5
 	// +listType=atomic
 	URLs []string `json:"urls"`
+}
+
+// BootstrapExistingMember represents an existing etcd member in a source cluster.
+type BootstrapExistingMember struct {
+	// Name is the etcd member name in the source cluster.
+	// +required
+	Name string `json:"name"`
+	// PeerURLs are the peer URLs of this member.
+	// +required
+	// +kubebuilder:validation:MinItems=1
+	PeerURLs []string `json:"peerUrls"`
+}
+
+// BootstrapWithExistingCluster configures bootstrapping by joining an existing etcd cluster.
+type BootstrapWithExistingCluster struct {
+	// Members are the existing etcd members of the source cluster.
+	// +optional
+	Members []BootstrapExistingMember `json:"members,omitempty"`
+	// ClientEndpoints are the client endpoints of the source cluster for member management.
+	// +optional
+	ClientEndpoints []string `json:"clientEndpoints,omitempty"`
+}
+
+// BootstrapJoinedMember records a member that was registered with the source cluster.
+type BootstrapJoinedMember struct {
+	Name               string      `json:"name"`
+	PeerURLs           []string    `json:"peerUrls,omitempty"`
+	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+}
+
+// BootstrapWithExistingClusterStatus tracks bootstrap join state.
+type BootstrapWithExistingClusterStatus struct {
+	JoinedWith []BootstrapJoinedMember `json:"joinedWith,omitempty"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
@@ -492,6 +531,8 @@ const (
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
 	// ConditionTypeClusterIDMismatch is a constant for a condition type indicating that the etcd cluster has multiple cluster IDs.
 	ConditionTypeClusterIDMismatch ConditionType = "ClusterIDMismatch"
+	// ConditionTypeBootstrapWithExistingCluster indicates the bootstrap join state.
+	ConditionTypeBootstrapWithExistingCluster ConditionType = "BootstrapWithExistingCluster"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.
@@ -578,6 +619,9 @@ type EtcdStatus struct {
 	// It must match the pod template's labels.
 	// +optional
 	Selector *string `json:"selector,omitempty"`
+	// BootstrapWithExistingClusterMembers tracks which source members were joined.
+	// +optional
+	BootstrapWithExistingClusterMembers *BootstrapWithExistingClusterStatus `json:"bootstrapWithExistingClusterMembers,omitempty"`
 }
 
 const (
