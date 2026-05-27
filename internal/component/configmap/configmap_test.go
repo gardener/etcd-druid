@@ -437,6 +437,47 @@ func TestGetAdvertiseURLs(t *testing.T) {
 	}
 }
 
+func TestPrepareInitialClusterWithBootstrapMembers(t *testing.T) {
+	g := NewWithT(t)
+	t.Parallel()
+
+	t.Run("should append source cluster members to initial-cluster", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+			Members: []druidv1alpha1.BootstrapExistingMember{
+				{Name: "source-etcd-0", PeerURLs: []string{"https://source-etcd-0.source-etcd-peer.source-ns.svc:2380"}},
+				{Name: "source-etcd-1", PeerURLs: []string{"https://source-etcd-1.source-etcd-peer.source-ns.svc:2380"}},
+				{Name: "source-etcd-2", PeerURLs: []string{"https://source-etcd-2.source-etcd-peer.source-ns.svc:2380"}},
+			},
+		}
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+		g.Expect(actualInitialCluster).To(ContainSubstring("source-etcd-0=https://source-etcd-0.source-etcd-peer.source-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("source-etcd-1=https://source-etcd-1.source-etcd-peer.source-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("source-etcd-2=https://source-etcd-2.source-etcd-peer.source-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2380"))
+	})
+
+	t.Run("should not change initial-cluster-state", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(1).Build()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+			Members: []druidv1alpha1.BootstrapExistingMember{
+				{Name: "source-0", PeerURLs: []string{"http://source-0:2380"}},
+			},
+		}
+		cfg := createEtcdConfig(etcd)
+		g.Expect(cfg.InitialClusterState).To(Equal("new"))
+	})
+
+	t.Run("should not append when bootstrapWithExistingCluster is nil", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+		g.Expect(actualInitialCluster).NotTo(ContainSubstring("source"))
+	})
+}
+
 func TestSyncWhenConfigMapExists(t *testing.T) {
 	testCases := []struct {
 		name        string

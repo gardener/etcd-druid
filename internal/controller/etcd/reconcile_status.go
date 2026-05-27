@@ -32,6 +32,7 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcd *druidv
 		r.mutateETCDStatusWithMemberStatusAndConditions,
 		r.inspectStatefulSetAndMutateETCDStatus,
 		r.setSelector,
+		r.mutateBootstrapWithExistingClusterStatus,
 	}
 
 	for _, fn := range mutateETCDStatusStepFns {
@@ -91,5 +92,44 @@ func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha
 		return ctrlutils.ReconcileWithError(err)
 	}
 	etcd.Status.Selector = ptr.To(selector.String())
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil || len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members) == 0 {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	for _, cond := range etcd.Status.Conditions {
+		if cond.Type == druidv1alpha1.ConditionTypeBootstrapWithExistingCluster && cond.Status == druidv1alpha1.ConditionTrue {
+			if etcd.Status.BootstrapWithExistingClusterMembers == nil {
+				now := metav1.Now()
+				joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members))
+				for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
+					joined = append(joined, druidv1alpha1.BootstrapJoinedMember{
+						Name:               m.Name,
+						PeerURLs:           m.PeerURLs,
+						LastTransitionTime: now,
+					})
+				}
+				etcd.Status.BootstrapWithExistingClusterMembers = &druidv1alpha1.BootstrapWithExistingClusterStatus{
+					JoinedWith: joined,
+				}
+			} else {
+				specMembers := make(map[string][]string, len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members))
+				for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
+					specMembers[m.Name] = m.PeerURLs
+				}
+				for i := range etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith {
+					if len(etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith[i].PeerURLs) == 0 {
+						if peerURLs, ok := specMembers[etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith[i].Name]; ok {
+							etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith[i].PeerURLs = peerURLs
+						}
+					}
+				}
+			}
+			break
+		}
+	}
 	return ctrlutils.ContinueReconcile()
 }
