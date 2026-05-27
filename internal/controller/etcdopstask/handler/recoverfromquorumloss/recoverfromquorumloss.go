@@ -17,6 +17,7 @@ import (
 	taskhandler "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	handlerutils "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	k8sutils "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -36,15 +37,15 @@ const (
 	ErrExecuteRecoverFromQuorumLoss druidapicommon.ErrorCode = "ERR_EXECUTE_RECOVER_FROM_QUORUM_LOSS"
 
 	// defaultScaleDownTimeout is the default timeout for waiting for the StatefulSet to scale down to 0.
-	defaultScaleDownTimeout = 300 * time.Second
+	defaultScaleDownTimeout = 60 * time.Second
 	// defaultPodReadyTimeout is the default timeout for waiting for the single-member etcd pod to become ready.
-	defaultPodReadyTimeout = 600 * time.Second
-	// defaultPollInterval is the interval between successive polls when waiting for a condition.
-	defaultPollInterval = 5 * time.Second
-
+	defaultPodReadyTimeout = 180 * time.Second
 	// recoveryStepAnnotation is written on the Etcd CR after each step completes, recording
 	// the last completed step so Execute can skip already-done work on requeue.
 	recoveryStepAnnotation = "druid.gardener.cloud/quorum-recovery-last-completed-step"
+	// recoveryWaitStartAnnotation records the RFC3339 timestamp when a wait step (WaitScaleDown,
+	// WaitPodReady) was first entered, so the timeout can be enforced across requeueues.
+	recoveryWaitStartAnnotation = "druid.gardener.cloud/quorum-recovery-wait-start"
 )
 
 // recoveryStep identifies an individual step in the quorum-loss recovery sequence.
@@ -95,38 +96,42 @@ func lastCompletedStepIndex(etcd *druidv1alpha1.Etcd) int {
 	return -1
 }
 
-// Handler implements the taskhandler.Handler interface for the RecoverFromQuorumLoss task.
-type Handler struct {
-	k8sClient        client.Client
-	etcdReference    types.NamespacedName
-	scaleDownTimeout time.Duration
-	podReadyTimeout  time.Duration
+// handler implements the taskhandler.Handler interface for the RecoverFromQuorumLoss task.
+type handler struct {
+	k8sClient     client.Client
+	etcdReference types.NamespacedName
+	config        druidv1alpha1.RecoverFromQuorumLossConfig
 }
 
-// New creates a new Handler for the RecoverFromQuorumLoss task.
+// New creates a new handler for the RecoverFromQuorumLoss task.
 func New(k8sClient client.Client, task *druidv1alpha1.EtcdOpsTask, _ *http.Client) (taskhandler.Handler, error) {
 	cfg := task.Spec.Config.RecoverFromQuorumLoss
-
-	scaleDownTimeout := defaultScaleDownTimeout
-	if cfg != nil && cfg.ScaleDownTimeout != nil {
-		scaleDownTimeout = cfg.ScaleDownTimeout.Duration
+	if cfg == nil {
+		cfg = &druidv1alpha1.RecoverFromQuorumLossConfig{}
 	}
-
-	podReadyTimeout := defaultPodReadyTimeout
-	if cfg != nil && cfg.PodReadyTimeout != nil {
-		podReadyTimeout = cfg.PodReadyTimeout.Duration
-	}
-
-	return &Handler{
-		k8sClient:        k8sClient,
-		etcdReference:    task.GetEtcdReference(),
-		scaleDownTimeout: scaleDownTimeout,
-		podReadyTimeout:  podReadyTimeout,
+	return &handler{
+		k8sClient:     k8sClient,
+		etcdReference: task.GetEtcdReference(),
+		config:        *cfg,
 	}, nil
 }
 
+func (h *handler) scaleDownTimeout() time.Duration {
+	if h.config.ScaleDownTimeout != nil {
+		return h.config.ScaleDownTimeout.Duration
+	}
+	return defaultScaleDownTimeout
+}
+
+func (h *handler) podReadyTimeout() time.Duration {
+	if h.config.PodReadyTimeout != nil {
+		return h.config.PodReadyTimeout.Duration
+	}
+	return defaultPodReadyTimeout
+}
+
 // Admit validates the preconditions for the RecoverFromQuorumLoss task.
-func (h *Handler) Admit(ctx context.Context) taskhandler.Result {
+func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeAdmit)
 	if errResult != nil {
 		return *errResult
@@ -134,7 +139,7 @@ func (h *Handler) Admit(ctx context.Context) taskhandler.Result {
 
 	if etcd.Spec.Replicas <= 1 {
 		return taskhandler.Result{
-			Description: "RecoverFromQuorumLoss task is not applicable for a single-member etcd cluster. " +
+			Description: "Task is not applicable for a single-member etcd cluster. " +
 				"The backup-restore sidecar handles automatic recovery for single-member clusters.",
 			Error: druiderr.WrapError(
 				fmt.Errorf("etcd %s/%s has only %d replica(s); this task requires a multi-member cluster",
@@ -149,7 +154,7 @@ func (h *Handler) Admit(ctx context.Context) taskhandler.Result {
 
 	if !etcd.IsBackupStoreEnabled() {
 		return taskhandler.Result{
-			Description: "RecoverFromQuorumLoss requires a configured backup store. " +
+			Description: "Task requires a configured backup store. " +
 				"Recovery restores etcd data from the latest snapshot; without a backup store there is nothing to restore from.",
 			Error: druiderr.WrapError(
 				fmt.Errorf("etcd %s/%s has no backup store configured", etcd.Namespace, etcd.Name),
@@ -164,7 +169,7 @@ func (h *Handler) Admit(ctx context.Context) taskhandler.Result {
 	if etcd.IsReady() {
 		return taskhandler.Result{
 			Description: "The etcd cluster is currently ready; no quorum loss detected. " +
-				"RecoverFromQuorumLoss task is only applicable when the cluster has lost quorum.",
+				"task is only applicable when the cluster has lost quorum.",
 			Error: druiderr.WrapError(
 				fmt.Errorf("etcd %s/%s is in ready state; quorum loss not detected", etcd.Namespace, etcd.Name),
 				ErrAdmitRecoverFromQuorumLoss,
@@ -176,7 +181,7 @@ func (h *Handler) Admit(ctx context.Context) taskhandler.Result {
 	}
 
 	return taskhandler.Result{
-		Description: "Preconditions for RecoverFromQuorumLoss task are satisfied",
+		Description: "Admit check passed",
 	}
 }
 
@@ -196,7 +201,7 @@ func (h *Handler) Admit(ctx context.Context) taskhandler.Result {
 //
 // 10. Re-enable etcd-druid reconciliation (triggers scale-out to original replica count).
 // 11. Re-enable etcd component protection.
-func (h *Handler) Execute(ctx context.Context) taskhandler.Result {
+func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
 	if errResult != nil {
 		return *errResult
@@ -211,7 +216,7 @@ func (h *Handler) Execute(ctx context.Context) taskhandler.Result {
 		// Re-fetch Etcd before steps that patch its annotations to avoid stale-object conflicts.
 		if step == stepReenableReconciliation || step == stepReenableComponentProtect {
 			var r *taskhandler.Result
-			etcd, r = h.refreshEtcd(ctx)
+			etcd, r = handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
 			if r != nil {
 				return *r
 			}
@@ -244,6 +249,24 @@ func (h *Handler) Execute(ctx context.Context) taskhandler.Result {
 				}
 			}
 			if !scaledDown {
+				if timedOut, elapsed := h.isWaitTimedOut(etcd, h.scaleDownTimeout()); timedOut {
+					return taskhandler.Result{
+						Description: fmt.Sprintf("Timed out waiting for StatefulSet to scale down after %s", elapsed.Round(time.Second)),
+						Error: druiderr.WrapError(
+							fmt.Errorf("StatefulSet did not scale down within %s", h.scaleDownTimeout()),
+							ErrExecuteRecoverFromQuorumLoss,
+							string(druidv1alpha1.LastOperationTypeExecution),
+							"scale-down timeout exceeded"),
+					}
+				}
+				if err := h.ensureWaitStartAnnotation(ctx, etcd); err != nil {
+					return taskhandler.Result{
+						Description: "Failed to record wait-start time for scale-down",
+						Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
+							string(druidv1alpha1.LastOperationTypeExecution),
+							"failed to annotate Etcd CR with wait-start time"),
+					}
+				}
 				return taskhandler.Result{
 					Description: "Waiting for StatefulSet to scale down to 0 replicas",
 					Requeue:     true,
@@ -281,6 +304,24 @@ func (h *Handler) Execute(ctx context.Context) taskhandler.Result {
 				}
 			}
 			if !ready {
+				if timedOut, elapsed := h.isWaitTimedOut(etcd, h.podReadyTimeout()); timedOut {
+					return taskhandler.Result{
+						Description: fmt.Sprintf("Timed out waiting for single-member etcd pod to become ready after %s", elapsed.Round(time.Second)),
+						Error: druiderr.WrapError(
+							fmt.Errorf("pod did not become ready within %s", h.podReadyTimeout()),
+							ErrExecuteRecoverFromQuorumLoss,
+							string(druidv1alpha1.LastOperationTypeExecution),
+							"pod-ready timeout exceeded"),
+					}
+				}
+				if err := h.ensureWaitStartAnnotation(ctx, etcd); err != nil {
+					return taskhandler.Result{
+						Description: "Failed to record wait-start time for pod readiness",
+						Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
+							string(druidv1alpha1.LastOperationTypeExecution),
+							"failed to annotate Etcd CR with wait-start time"),
+					}
+				}
 				return taskhandler.Result{
 					Description: "Waiting for single-member etcd pod to become ready",
 					Requeue:     true,
@@ -310,7 +351,7 @@ func (h *Handler) Execute(ctx context.Context) taskhandler.Result {
 
 // Cleanup removes the recovery annotations from the Etcd resource if they are still present.
 // This prevents the operator from being permanently locked out when the task fails mid-execution.
-func (h *Handler) Cleanup(ctx context.Context) taskhandler.Result {
+func (h *handler) Cleanup(ctx context.Context) taskhandler.Result {
 	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeCleanup)
 	if errResult != nil {
 		if errResult.Error != nil {
@@ -323,7 +364,8 @@ func (h *Handler) Cleanup(ctx context.Context) taskhandler.Result {
 	hasSuspend := metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation)
 	hasDisableProtection := metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.DisableEtcdComponentProtectionAnnotation)
 	hasStep := metav1.HasAnnotation(etcd.ObjectMeta, recoveryStepAnnotation)
-	if !hasSuspend && !hasDisableProtection && !hasStep {
+	hasWaitStart := metav1.HasAnnotation(etcd.ObjectMeta, recoveryWaitStartAnnotation)
+	if !hasSuspend && !hasDisableProtection && !hasStep && !hasWaitStart {
 		return taskhandler.Result{
 			Description: "No cleanup required for RecoverFromQuorumLoss task",
 		}
@@ -332,6 +374,7 @@ func (h *Handler) Cleanup(ctx context.Context) taskhandler.Result {
 	delete(etcd.Annotations, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation)
 	delete(etcd.Annotations, druidv1alpha1.DisableEtcdComponentProtectionAnnotation)
 	delete(etcd.Annotations, recoveryStepAnnotation)
+	delete(etcd.Annotations, recoveryWaitStartAnnotation)
 	if err := h.k8sClient.Patch(ctx, etcd, patch); err != nil {
 		return taskhandler.Result{
 			Description: "Failed to remove recovery annotations during cleanup",
@@ -350,58 +393,80 @@ func (h *Handler) Cleanup(ctx context.Context) taskhandler.Result {
 // and returns a Requeue result so the reconciler writes the step description to task status.
 // Returns nil when the caller should continue to the next step in the same call (never happens
 // here — every successful step triggers a requeue except the last, which is handled in Execute).
-func (h *Handler) runStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step recoveryStep, description string, fn func() error) *taskhandler.Result {
+func (h *handler) runStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step recoveryStep, description string, fn func() error) *taskhandler.Result {
 	if err := fn(); err != nil {
-		r := taskhandler.Result{
+		return &taskhandler.Result{
 			Description: fmt.Sprintf("Failed during step %s", step),
 			Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
 				string(druidv1alpha1.LastOperationTypeExecution),
 				fmt.Sprintf("failed to execute step %s", step)),
 		}
-		return &r
 	}
 	if err := h.recordCompletedStep(ctx, etcd, step); err != nil {
-		r := taskhandler.Result{
+		return &taskhandler.Result{
 			Description: fmt.Sprintf("Failed to record completion of step %s", step),
 			Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
 				string(druidv1alpha1.LastOperationTypeExecution),
 				fmt.Sprintf("failed to annotate Etcd CR after step %s", step)),
 		}
-		return &r
 	}
 	// Return nil only for the last step so Execute can return the final success result.
 	if step == stepReenableComponentProtect {
 		return nil
 	}
-	r := taskhandler.Result{
+	return &taskhandler.Result{
 		Description: description,
 		Requeue:     true,
 	}
-	return &r
 }
 
 // recordCompletedStep writes the step name into the Etcd CR annotation so it can be
-// skipped on the next reconcile invocation.
-func (h *Handler) recordCompletedStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step recoveryStep) error {
+// skipped on the next reconcile invocation. It also clears the wait-start annotation
+// when a wait step completes, since the deadline is no longer relevant.
+func (h *handler) recordCompletedStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step recoveryStep) error {
 	patch := client.MergeFrom(etcd.DeepCopy())
 	if etcd.Annotations == nil {
 		etcd.Annotations = make(map[string]string)
 	}
 	etcd.Annotations[recoveryStepAnnotation] = string(step)
+	if step == stepWaitScaleDown || step == stepWaitPodReady {
+		delete(etcd.Annotations, recoveryWaitStartAnnotation)
+	}
 	return h.k8sClient.Patch(ctx, etcd, patch)
 }
 
-// refreshEtcd re-fetches the Etcd object to avoid stale-object patch conflicts.
-func (h *Handler) refreshEtcd(ctx context.Context) (*druidv1alpha1.Etcd, *taskhandler.Result) {
-	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
-	if errResult != nil {
-		return nil, errResult
+// ensureWaitStartAnnotation records the current time on the Etcd CR the first time a wait
+// step is entered, so isWaitTimedOut can enforce the timeout across requeueues.
+func (h *handler) ensureWaitStartAnnotation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+	if metav1.HasAnnotation(etcd.ObjectMeta, recoveryWaitStartAnnotation) {
+		return nil
 	}
-	return etcd, nil
+	patch := client.MergeFrom(etcd.DeepCopy())
+	if etcd.Annotations == nil {
+		etcd.Annotations = make(map[string]string)
+	}
+	etcd.Annotations[recoveryWaitStartAnnotation] = time.Now().UTC().Format(time.RFC3339)
+	return h.k8sClient.Patch(ctx, etcd, patch)
+}
+
+// isWaitTimedOut returns true if more than timeout has elapsed since the wait-start annotation
+// was written, along with the elapsed duration. Returns false if the annotation is absent or
+// cannot be parsed (treated as not yet timed out).
+func (h *handler) isWaitTimedOut(etcd *druidv1alpha1.Etcd, timeout time.Duration) (bool, time.Duration) {
+	val, ok := etcd.Annotations[recoveryWaitStartAnnotation]
+	if !ok {
+		return false, 0
+	}
+	start, err := time.Parse(time.RFC3339, val)
+	if err != nil {
+		return false, 0
+	}
+	elapsed := time.Since(start)
+	return elapsed > timeout, elapsed
 }
 
 // suspendReconciliation adds the suspend-reconciliation annotation if not already present.
-func (h *Handler) suspendReconciliation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) suspendReconciliation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation) {
 		return nil
 	}
@@ -414,7 +479,7 @@ func (h *Handler) suspendReconciliation(ctx context.Context, etcd *druidv1alpha1
 }
 
 // disableComponentProtection adds the disable-component-protection annotation if not already present.
-func (h *Handler) disableComponentProtection(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) disableComponentProtection(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	if metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.DisableEtcdComponentProtectionAnnotation) {
 		return nil
 	}
@@ -427,7 +492,7 @@ func (h *Handler) disableComponentProtection(ctx context.Context, etcd *druidv1a
 }
 
 // scaleStatefulSetTo scales the StatefulSet for the given Etcd to the specified number of replicas.
-func (h *Handler) scaleStatefulSetTo(ctx context.Context, etcd *druidv1alpha1.Etcd, replicas int32) error {
+func (h *handler) scaleStatefulSetTo(ctx context.Context, etcd *druidv1alpha1.Etcd, replicas int32) error {
 	stsKey := types.NamespacedName{
 		Name:      druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta),
 		Namespace: etcd.Namespace,
@@ -448,7 +513,7 @@ func (h *Handler) scaleStatefulSetTo(ctx context.Context, etcd *druidv1alpha1.Et
 }
 
 // isStsScaledDown checks whether the StatefulSet has 0 running replicas.
-func (h *Handler) isStsScaledDown(ctx context.Context, stsKey types.NamespacedName) (bool, error) {
+func (h *handler) isStsScaledDown(ctx context.Context, stsKey types.NamespacedName) (bool, error) {
 	sts := &appsv1.StatefulSet{}
 	if err := h.k8sClient.Get(ctx, stsKey, sts); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -460,7 +525,7 @@ func (h *Handler) isStsScaledDown(ctx context.Context, stsKey types.NamespacedNa
 }
 
 // deleteAllPVCs deletes all PersistentVolumeClaims associated with the etcd cluster.
-func (h *Handler) deleteAllPVCs(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) deleteAllPVCs(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	pvcList := &corev1.PersistentVolumeClaimList{}
 	if err := h.k8sClient.List(ctx, pvcList,
 		client.InNamespace(etcd.Namespace),
@@ -481,7 +546,7 @@ func (h *Handler) deleteAllPVCs(ctx context.Context, etcd *druidv1alpha1.Etcd) e
 }
 
 // deleteAllMemberLeases deletes all member leases for the etcd cluster.
-func (h *Handler) deleteAllMemberLeases(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) deleteAllMemberLeases(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	leaseList := &coordinationv1.LeaseList{}
 	if err := h.k8sClient.List(ctx, leaseList,
 		client.InNamespace(etcd.Namespace),
@@ -510,7 +575,7 @@ func (h *Handler) deleteAllMemberLeases(ctx context.Context, etcd *druidv1alpha1
 //   - initial-cluster-state: set to "new"
 //   - initial-advertise-peer-urls: reduced to member-0 only
 //   - advertise-client-urls: reduced to member-0 only
-func (h *Handler) updateConfigMapForSingleMember(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) updateConfigMapForSingleMember(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	cmKey := types.NamespacedName{
 		Name:      druidv1alpha1.GetConfigMapName(etcd.ObjectMeta),
 		Namespace: etcd.Namespace,
@@ -570,8 +635,8 @@ func (h *Handler) updateConfigMapForSingleMember(ctx context.Context, etcd *drui
 	return h.k8sClient.Patch(ctx, cm, patch)
 }
 
-// isPodReady checks whether the given pod is Running and its Ready condition is True.
-func (h *Handler) isPodReady(ctx context.Context, podKey types.NamespacedName) (bool, error) {
+// isPodReady checks whether the given pod has its Ready condition set to True.
+func (h *handler) isPodReady(ctx context.Context, podKey types.NamespacedName) (bool, error) {
 	pod := &corev1.Pod{}
 	if err := h.k8sClient.Get(ctx, podKey, pod); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -579,20 +644,12 @@ func (h *Handler) isPodReady(ctx context.Context, podKey types.NamespacedName) (
 		}
 		return false, err
 	}
-	if pod.Status.Phase != corev1.PodRunning {
-		return false, nil
-	}
-	for _, cond := range pod.Status.Conditions {
-		if cond.Type == corev1.PodReady {
-			return cond.Status == corev1.ConditionTrue, nil
-		}
-	}
-	return false, nil
+	return k8sutils.HasPodReadyConditionTrue(pod), nil
 }
 
 // enableReconciliation removes the suspend-reconciliation annotation and adds the
 // operation=reconcile annotation to trigger an immediate reconciliation by etcd-druid.
-func (h *Handler) enableReconciliation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) enableReconciliation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	patch := client.MergeFrom(etcd.DeepCopy())
 	if etcd.Annotations == nil {
 		etcd.Annotations = make(map[string]string)
@@ -603,7 +660,7 @@ func (h *Handler) enableReconciliation(ctx context.Context, etcd *druidv1alpha1.
 }
 
 // enableComponentProtection removes the disable-component-protection annotation from the Etcd resource.
-func (h *Handler) enableComponentProtection(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
+func (h *handler) enableComponentProtection(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
 	if !metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.DisableEtcdComponentProtectionAnnotation) {
 		return nil
 	}
