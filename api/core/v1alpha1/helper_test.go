@@ -88,21 +88,21 @@ func TestGetFullSnapshotLeaseName(t *testing.T) {
 
 func TestGetMemberLeaseNames(t *testing.T) {
 	tests := []struct {
-		name             string
-		memberNamePrefix *string
-		expectedLeases   func(etcdName string) []string
+		name                 string
+		memberNamePrefix     *string
+		expectedMemberLeases func(etcdName string) []string
 	}{
 		{
 			name:             "no member name prefix",
 			memberNamePrefix: nil,
-			expectedLeases: func(etcdName string) []string {
+			expectedMemberLeases: func(etcdName string) []string {
 				return []string{etcdName + "-0", etcdName + "-1", etcdName + "-2"}
 			},
 		},
 		{
 			name:             "with member name prefix",
 			memberNamePrefix: ptr.To("myprefix"),
-			expectedLeases: func(etcdName string) []string {
+			expectedMemberLeases: func(etcdName string) []string {
 				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1", "myprefix-" + etcdName + "-2"}
 			},
 		},
@@ -121,7 +121,7 @@ func TestGetMemberLeaseNames(t *testing.T) {
 				},
 			}
 			leaseNames := GetMemberLeaseNames(etcd)
-			g.Expect(leaseNames).To(Equal(test.expectedLeases(etcdObjMeta.Name)))
+			g.Expect(leaseNames).To(Equal(test.expectedMemberLeases(etcdObjMeta.Name)))
 		})
 	}
 }

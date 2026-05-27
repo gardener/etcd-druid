@@ -49,7 +49,7 @@ func GetOrdinalPodName(etcdObjMeta metav1.ObjectMeta, ordinal int) string {
 // Otherwise, the member name would be the name of the backing `Pod`.
 func GetMemberName(memberNamePrefix *string, podName string) string {
 	if prefix := ptr.Deref(memberNamePrefix, ""); prefix != "" {
-		return prefix + "-" + podName
+		return fmt.Sprintf("%s-%s", prefix, podName)
 	}
 	return podName
 }

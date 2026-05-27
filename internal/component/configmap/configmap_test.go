@@ -365,7 +365,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			},
 		},
 		{
-			name:             "should NOT append additional peer URLs for client type",
+			name:             "should not append additional peer URLs for client type",
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
