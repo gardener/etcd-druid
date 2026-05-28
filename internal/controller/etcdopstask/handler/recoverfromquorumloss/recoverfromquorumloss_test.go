@@ -186,6 +186,47 @@ func buildReadyPod(etcd *druidv1alpha1.Etcd) *corev1.Pod {
 	}
 }
 
+// TestNewHandlerTimeoutConfig tests that New() correctly reads timeout values from the task config.
+func TestNewHandlerTimeoutConfig(t *testing.T) {
+	g := NewGomegaWithT(t)
+	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+
+	tests := []struct {
+		name                     string
+		cfg                      *druidv1alpha1.RecoverFromQuorumLossConfig
+		expectedScaleDownTimeout float64
+		expectedPodReadyTimeout  float64
+	}{
+		{
+			name:                     "Should use default timeouts when config is nil",
+			cfg:                      nil,
+			expectedScaleDownTimeout: defaultScaleDownTimeout.Seconds(),
+			expectedPodReadyTimeout:  defaultPodReadyTimeout.Seconds(),
+		},
+		{
+			name: "Should use custom timeouts from config",
+			cfg: &druidv1alpha1.RecoverFromQuorumLossConfig{
+				ScaleDownTimeout: &metav1.Duration{Duration: 60 * time.Second},
+				PodReadyTimeout:  &metav1.Duration{Duration: 120 * time.Second},
+			},
+			expectedScaleDownTimeout: 60,
+			expectedPodReadyTimeout:  120,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			task := buildEtcdOpsTask("e", "ns", tc.cfg)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+			h := taskHandler.(*handler)
+			g.Expect(h.scaleDownTimeout().Seconds()).To(Equal(tc.expectedScaleDownTimeout))
+			g.Expect(h.podReadyTimeout().Seconds()).To(Equal(tc.expectedPodReadyTimeout))
+		})
+	}
+}
+
 // TestRecoverFromQuorumLossAdmit tests the Admit method of the RecoverFromQuorumLoss handler.
 func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 	g := NewGomegaWithT(t)
@@ -292,72 +333,6 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 				}
 			} else {
 				g.Expect(admitResult.Error).To(BeNil())
-			}
-		})
-	}
-}
-
-// TestRecoverFromQuorumLossCleanup tests the Cleanup method of the RecoverFromQuorumLoss handler.
-func TestRecoverFromQuorumLossCleanup(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-	tests := []struct {
-		name                string
-		etcdObject          *druidv1alpha1.Etcd
-		expectedDescription string
-	}{
-		{
-			name:                "Should skip cleanup when Etcd is not found",
-			etcdObject:          nil,
-			expectedDescription: "Etcd object not found during cleanup; skipping annotation removal",
-		},
-		{
-			name:                "Should be a no-op when recovery annotations are absent",
-			etcdObject:          createEtcd(etcdName, namespace, 3, false, false, false),
-			expectedDescription: "No cleanup required for RecoverFromQuorumLoss task",
-		},
-		{
-			name: "Should remove all recovery annotations including step annotation",
-			etcdObject: func() *druidv1alpha1.Etcd {
-				etcd := createEtcd(etcdName, namespace, 3, false, false, false)
-				etcd.Annotations = map[string]string{
-					druidv1alpha1.SuspendEtcdSpecReconcileAnnotation:       "true",
-					druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "true",
-					recoveryStepAnnotation:                                 string(stepScaleDown),
-					recoveryWaitStartAnnotation:                            time.Now().UTC().Format(time.RFC3339),
-				}
-				return etcd
-			}(),
-			expectedDescription: "Cleanup completed: recovery annotations removed from Etcd resource",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var objs []client.Object
-			if tc.etcdObject != nil {
-				objs = append(objs, tc.etcdObject)
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-
-			cleanupResult := taskHandler.Cleanup(context.Background())
-			g.Expect(cleanupResult.Requeue).To(BeFalse())
-			g.Expect(cleanupResult.Description).To(Equal(tc.expectedDescription))
-			g.Expect(cleanupResult.Error).To(BeNil())
-
-			if tc.etcdObject != nil && tc.expectedDescription == "Cleanup completed: recovery annotations removed from Etcd resource" {
-				updated := &druidv1alpha1.Etcd{}
-				g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
-				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
-				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
-				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryStepAnnotation))
-				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryWaitStartAnnotation))
 			}
 		})
 	}
@@ -576,6 +551,493 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 		"etcd-druid will reconcile and bring up the remaining cluster members."))
 }
 
+// TestWaitStepTimeout tests that Execute returns a terminal error when the scaleDown
+// or podReady timeout is exceeded while waiting.
+func TestWaitStepTimeout(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+
+	t.Run("Should fail with timeout error when scale-down does not complete in time", func(t *testing.T) {
+		t.Parallel()
+		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+		// Pre-set the step annotation to WaitScaleDown so Execute enters that step directly,
+		// and set an expired wait-start so the timeout is already exceeded.
+		etcd.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepScaleDown),
+			recoveryWaitStartAnnotation: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cm, err := buildConfigMapWithEtcdConfig(etcd)
+		g.Expect(err).To(BeNil())
+		// STS still has running replicas — scale-down not complete.
+		sts := buildStatefulSet(etcd, 0, 3)
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, sts).Build()
+		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
+			ScaleDownTimeout: &metav1.Duration{Duration: time.Minute},
+		})
+		taskHandler, handlerErr := New(cl, task, nil)
+		g.Expect(handlerErr).To(BeNil())
+
+		result := taskHandler.Execute(context.Background())
+		g.Expect(result.Error).ToNot(BeNil())
+		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for StatefulSet to scale down"))
+	})
+
+	t.Run("Should fail with timeout error when pod does not become ready in time", func(t *testing.T) {
+		t.Parallel()
+		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+		// Pre-set the step annotation to WaitPodReady so Execute enters that step directly,
+		// and set an expired wait-start so the timeout is already exceeded.
+		etcd.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepScaleUp),
+			recoveryWaitStartAnnotation: time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cm, err := buildConfigMapWithEtcdConfig(etcd)
+		g.Expect(err).To(BeNil())
+		// Pod exists but is not ready.
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0),
+				Namespace: namespace,
+			},
+			Status: corev1.PodStatus{
+				Conditions: []corev1.PodCondition{
+					{Type: corev1.PodReady, Status: corev1.ConditionFalse},
+				},
+			},
+		}
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, pod).Build()
+		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
+			PodReadyTimeout: &metav1.Duration{Duration: 3 * time.Minute},
+		})
+		taskHandler, handlerErr := New(cl, task, nil)
+		g.Expect(handlerErr).To(BeNil())
+
+		result := taskHandler.Execute(context.Background())
+		g.Expect(result.Error).ToNot(BeNil())
+		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for single-member etcd pod to become ready"))
+	})
+}
+
+// TestRecoverFromQuorumLossExecuteWithPVCsAndLeases tests Execute when PVCs and leases exist.
+// This exercises the deletion iteration paths in deleteAllPVCs and deleteAllMemberLeases.
+func TestRecoverFromQuorumLossExecuteWithPVCsAndLeases(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+
+	etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+	cm, err := buildConfigMapWithEtcdConfig(etcd)
+	g.Expect(err).To(BeNil())
+
+	// Pre-create STS at 0, a matching PVC, a matching lease, ConfigMap, and a ready pod.
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "etcd-data-test-etcd-0",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "etcd-druid",
+				"app.kubernetes.io/part-of":    etcdName,
+			},
+		},
+	}
+	lease := &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      etcdName + "-0",
+			Namespace: namespace,
+			Labels: map[string]string{
+				druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
+				"app.kubernetes.io/part-of":     etcdName,
+			},
+		},
+	}
+
+	objs := []client.Object{etcd, cm, buildStatefulSet(etcd, 0, 0), buildReadyPod(etcd), pvc, lease}
+	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+
+	task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
+		ScaleDownTimeout: &metav1.Duration{Duration: time.Second},
+		PodReadyTimeout:  &metav1.Duration{Duration: time.Second},
+	})
+	taskHandler, err := New(cl, task, nil)
+	g.Expect(err).To(BeNil())
+
+	t.Run("Should complete recovery and delete PVCs and leases", func(_ *testing.T) {
+		result := runUntilDone(context.Background(), taskHandler, 30)
+		g.Expect(result.Error).To(BeNil())
+		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(result.Description).To(Equal("Recovery from quorum loss completed successfully. " +
+			"etcd-druid will reconcile and bring up the remaining cluster members."))
+
+		// Verify PVC and lease were deleted.
+		pvcList := &corev1.PersistentVolumeClaimList{}
+		g.Expect(cl.List(context.Background(), pvcList, client.InNamespace(namespace))).To(Succeed())
+		g.Expect(pvcList.Items).To(BeEmpty())
+
+		leaseList := &coordinationv1.LeaseList{}
+		g.Expect(cl.List(context.Background(), leaseList, client.InNamespace(namespace))).To(Succeed())
+		g.Expect(leaseList.Items).To(BeEmpty())
+	})
+}
+
+// TestRecoverFromQuorumLossCleanup tests the Cleanup method of the RecoverFromQuorumLoss handler.
+func TestRecoverFromQuorumLossCleanup(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+	tests := []struct {
+		name                string
+		etcdObject          *druidv1alpha1.Etcd
+		expectedDescription string
+	}{
+		{
+			name:                "Should skip cleanup when Etcd is not found",
+			etcdObject:          nil,
+			expectedDescription: "Etcd object not found during cleanup; skipping annotation removal",
+		},
+		{
+			name:                "Should be a no-op when recovery annotations are absent",
+			etcdObject:          createEtcd(etcdName, namespace, 3, false, false, false),
+			expectedDescription: "No cleanup required for RecoverFromQuorumLoss task",
+		},
+		{
+			name: "Should remove all recovery annotations including step annotation",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcd(etcdName, namespace, 3, false, false, false)
+				etcd.Annotations = map[string]string{
+					druidv1alpha1.SuspendEtcdSpecReconcileAnnotation:       "true",
+					druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "true",
+					recoveryStepAnnotation:                                 string(stepScaleDown),
+					recoveryWaitStartAnnotation:                            time.Now().UTC().Format(time.RFC3339),
+				}
+				return etcd
+			}(),
+			expectedDescription: "Cleanup completed: recovery annotations removed from Etcd resource",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			if tc.etcdObject != nil {
+				objs = append(objs, tc.etcdObject)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+
+			cleanupResult := taskHandler.Cleanup(context.Background())
+			g.Expect(cleanupResult.Requeue).To(BeFalse())
+			g.Expect(cleanupResult.Description).To(Equal(tc.expectedDescription))
+			g.Expect(cleanupResult.Error).To(BeNil())
+
+			if tc.etcdObject != nil && tc.expectedDescription == "Cleanup completed: recovery annotations removed from Etcd resource" {
+				updated := &druidv1alpha1.Etcd{}
+				g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
+				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
+				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
+				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryStepAnnotation))
+				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryWaitStartAnnotation))
+			}
+		})
+	}
+}
+
+// TestSuspendReconciliation tests the suspendReconciliation method.
+func TestSuspendReconciliation(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+	}{
+		{
+			name: "Should add suspend annotation when missing",
+		},
+		{
+			name: "Should be a no-op when suspend annotation is already present",
+			annotations: map[string]string{
+				druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := createEtcd(etcdName, namespace, 3, false, false, false)
+			if tc.annotations != nil {
+				etcd.Annotations = tc.annotations
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+			g.Expect(taskHandler.(*handler).suspendReconciliation(context.Background(), etcd)).To(Succeed())
+			updated := &druidv1alpha1.Etcd{}
+			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
+			g.Expect(updated.Annotations).To(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
+		})
+	}
+}
+
+// TestDisableComponentProtection tests the disableComponentProtection method.
+func TestDisableComponentProtection(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+	}{
+		{
+			name: "Should add disable-protection annotation when missing",
+		},
+		{
+			name: "Should be a no-op when disable-protection annotation is already present",
+			annotations: map[string]string{
+				druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "true",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := createEtcd(etcdName, namespace, 3, false, false, false)
+			if tc.annotations != nil {
+				etcd.Annotations = tc.annotations
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+			g.Expect(taskHandler.(*handler).disableComponentProtection(context.Background(), etcd)).To(Succeed())
+			updated := &druidv1alpha1.Etcd{}
+			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
+			g.Expect(updated.Annotations).To(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
+		})
+	}
+}
+
+// TestScaleStatefulSetTo tests the scaleStatefulSetTo helper covering the idempotent case.
+func TestScaleStatefulSetTo(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+	etcd := createEtcd(etcdName, namespace, 3, false, false, false)
+
+	tests := []struct {
+		name            string
+		statefulSet     *appsv1.StatefulSet
+		desiredReplicas int32
+	}{
+		{
+			name:            "STS not found: should be a no-op",
+			statefulSet:     nil,
+			desiredReplicas: 0,
+		},
+		{
+			name:            "STS already at desired replicas: should be a no-op",
+			statefulSet:     buildStatefulSet(etcd, 0, 0),
+			desiredReplicas: 0,
+		},
+		{
+			name:            "STS needs scaling: should update replicas",
+			statefulSet:     buildStatefulSet(etcd, 3, 3),
+			desiredReplicas: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			if tc.statefulSet != nil {
+				objs = append(objs, tc.statefulSet)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+			scaleErr := taskHandler.(*handler).scaleStatefulSetTo(context.Background(), etcd, tc.desiredReplicas)
+			g.Expect(scaleErr).To(BeNil())
+		})
+	}
+}
+
+// TestIsStsScaledDown tests the isStsScaledDown helper.
+func TestIsStsScaledDown(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "etcd-main"
+		namespace = "test-ns"
+	)
+	etcd := utils.EtcdBuilderWithoutDefaults(etcdName, namespace).WithReplicas(3).Build()
+
+	tests := []struct {
+		name               string
+		statefulSet        *appsv1.StatefulSet
+		expectedScaledDown bool
+	}{
+		{
+			name:               "StatefulSet not found: should be considered scaled down",
+			statefulSet:        nil,
+			expectedScaledDown: true,
+		},
+		{
+			name:               "StatefulSet has 3 running replicas: should not be scaled down",
+			statefulSet:        buildStatefulSet(etcd, 3, 3),
+			expectedScaledDown: false,
+		},
+		{
+			name:               "StatefulSet has 0 running replicas: should be considered scaled down",
+			statefulSet:        buildStatefulSet(etcd, 0, 0),
+			expectedScaledDown: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			if tc.statefulSet != nil {
+				objs = append(objs, tc.statefulSet)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+
+			stsKey := types.NamespacedName{
+				Name:      druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta),
+				Namespace: namespace,
+			}
+			scaledDown, checkErr := taskHandler.(*handler).isStsScaledDown(context.Background(), stsKey)
+			g.Expect(checkErr).To(BeNil())
+			g.Expect(scaledDown).To(Equal(tc.expectedScaledDown))
+		})
+	}
+}
+
+// TestDeleteAllPVCs tests the deleteAllPVCs method including the delete-iteration path.
+func TestDeleteAllPVCs(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+	etcd := createEtcd(etcdName, namespace, 3, false, false, false)
+
+	tests := []struct {
+		name string
+		pvcs []*corev1.PersistentVolumeClaim
+	}{
+		{
+			name: "Should succeed when no PVCs exist",
+		},
+		{
+			name: "Should delete all matching PVCs",
+			pvcs: []*corev1.PersistentVolumeClaim{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd-data-test-etcd-0",
+						Namespace: namespace,
+						Labels: map[string]string{
+							"app.kubernetes.io/managed-by": "etcd-druid",
+							"app.kubernetes.io/part-of":    etcdName,
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			objs = append(objs, etcd)
+			for _, pvc := range tc.pvcs {
+				objs = append(objs, pvc)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+			delErr := taskHandler.(*handler).deleteAllPVCs(context.Background(), etcd)
+			g.Expect(delErr).To(BeNil())
+		})
+	}
+}
+
+// TestDeleteAllMemberLeases tests the deleteAllMemberLeases method including the delete-iteration path.
+func TestDeleteAllMemberLeases(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+	etcd := createEtcd(etcdName, namespace, 3, false, false, false)
+
+	tests := []struct {
+		name   string
+		leases []*coordinationv1.Lease
+	}{
+		{
+			name: "Should succeed when no member leases exist",
+		},
+		{
+			name: "Should delete all matching member leases",
+			leases: []*coordinationv1.Lease{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      etcdName + "-0",
+						Namespace: namespace,
+						Labels: map[string]string{
+							druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
+							"app.kubernetes.io/part-of":     etcdName,
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var objs []client.Object
+			objs = append(objs, etcd)
+			for _, lease := range tc.leases {
+				objs = append(objs, lease)
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			taskHandler, err := New(cl, task, nil)
+			g.Expect(err).To(BeNil())
+			delErr := taskHandler.(*handler).deleteAllMemberLeases(context.Background(), etcd)
+			g.Expect(delErr).To(BeNil())
+		})
+	}
+}
+
 // TestUpdateConfigMapForSingleMember tests the updateConfigMapForSingleMember method.
 func TestUpdateConfigMapForSingleMember(t *testing.T) {
 	g := NewGomegaWithT(t)
@@ -716,238 +1178,6 @@ func TestUpdateConfigMapForSingleMember(t *testing.T) {
 	}
 }
 
-// TestIsStsScaledDown tests the isStsScaledDown helper.
-func TestIsStsScaledDown(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "etcd-main"
-		namespace = "test-ns"
-	)
-	etcd := utils.EtcdBuilderWithoutDefaults(etcdName, namespace).WithReplicas(3).Build()
-
-	tests := []struct {
-		name               string
-		statefulSet        *appsv1.StatefulSet
-		expectedScaledDown bool
-	}{
-		{
-			name:               "StatefulSet not found: should be considered scaled down",
-			statefulSet:        nil,
-			expectedScaledDown: true,
-		},
-		{
-			name:               "StatefulSet has 3 running replicas: should not be scaled down",
-			statefulSet:        buildStatefulSet(etcd, 3, 3),
-			expectedScaledDown: false,
-		},
-		{
-			name:               "StatefulSet has 0 running replicas: should be considered scaled down",
-			statefulSet:        buildStatefulSet(etcd, 0, 0),
-			expectedScaledDown: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var objs []client.Object
-			if tc.statefulSet != nil {
-				objs = append(objs, tc.statefulSet)
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-
-			stsKey := types.NamespacedName{
-				Name:      druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta),
-				Namespace: namespace,
-			}
-			scaledDown, checkErr := taskHandler.(*handler).isStsScaledDown(context.Background(), stsKey)
-			g.Expect(checkErr).To(BeNil())
-			g.Expect(scaledDown).To(Equal(tc.expectedScaledDown))
-		})
-	}
-}
-
-// TestNewHandlerTimeoutConfig tests that New() correctly reads timeout values from the task config.
-func TestNewHandlerTimeoutConfig(t *testing.T) {
-	g := NewGomegaWithT(t)
-	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-
-	tests := []struct {
-		name                     string
-		cfg                      *druidv1alpha1.RecoverFromQuorumLossConfig
-		expectedScaleDownTimeout float64
-		expectedPodReadyTimeout  float64
-	}{
-		{
-			name:                     "Should use default timeouts when config is nil",
-			cfg:                      nil,
-			expectedScaleDownTimeout: defaultScaleDownTimeout.Seconds(),
-			expectedPodReadyTimeout:  defaultPodReadyTimeout.Seconds(),
-		},
-		{
-			name: "Should use custom timeouts from config",
-			cfg: &druidv1alpha1.RecoverFromQuorumLossConfig{
-				ScaleDownTimeout: &metav1.Duration{Duration: 60 * time.Second},
-				PodReadyTimeout:  &metav1.Duration{Duration: 120 * time.Second},
-			},
-			expectedScaleDownTimeout: 60,
-			expectedPodReadyTimeout:  120,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			task := buildEtcdOpsTask("e", "ns", tc.cfg)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-			h := taskHandler.(*handler)
-			g.Expect(h.scaleDownTimeout().Seconds()).To(Equal(tc.expectedScaleDownTimeout))
-			g.Expect(h.podReadyTimeout().Seconds()).To(Equal(tc.expectedPodReadyTimeout))
-		})
-	}
-}
-
-// TestHelperFunctions tests the serverPortOrDefault and clientPortOrDefault helpers.
-func TestHelperFunctions(t *testing.T) {
-	g := NewGomegaWithT(t)
-
-	tests := []struct {
-		name           string
-		setServerPort  *int32
-		setClientPort  *int32
-		expectedServer int32
-		expectedClient int32
-	}{
-		{
-			name:           "Should return default peer port when ServerPort is nil",
-			expectedServer: common.DefaultPortEtcdPeer,
-			expectedClient: common.DefaultPortEtcdClient,
-		},
-		{
-			name:           "Should return configured ports when both are set",
-			setServerPort:  ptr.To(int32(3380)),
-			setClientPort:  ptr.To(int32(3379)),
-			expectedServer: 3380,
-			expectedClient: 3379,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			etcd := utils.EtcdBuilderWithoutDefaults("e", "ns").Build()
-			etcd.Spec.Etcd.ServerPort = tc.setServerPort
-			etcd.Spec.Etcd.ClientPort = tc.setClientPort
-			g.Expect(serverPortOrDefault(etcd)).To(Equal(tc.expectedServer))
-			g.Expect(clientPortOrDefault(etcd)).To(Equal(tc.expectedClient))
-		})
-	}
-}
-
-// TestDeleteAllPVCs tests the deleteAllPVCs method including the delete-iteration path.
-func TestDeleteAllPVCs(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-	etcd := createEtcd(etcdName, namespace, 3, false, false, false)
-
-	tests := []struct {
-		name string
-		pvcs []*corev1.PersistentVolumeClaim
-	}{
-		{
-			name: "Should succeed when no PVCs exist",
-		},
-		{
-			name: "Should delete all matching PVCs",
-			pvcs: []*corev1.PersistentVolumeClaim{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "etcd-data-test-etcd-0",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/managed-by": "etcd-druid",
-							"app.kubernetes.io/part-of":    etcdName,
-						},
-					},
-				},
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var objs []client.Object
-			objs = append(objs, etcd)
-			for _, pvc := range tc.pvcs {
-				objs = append(objs, pvc)
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-			delErr := taskHandler.(*handler).deleteAllPVCs(context.Background(), etcd)
-			g.Expect(delErr).To(BeNil())
-		})
-	}
-}
-
-// TestDeleteAllMemberLeases tests the deleteAllMemberLeases method including the delete-iteration path.
-func TestDeleteAllMemberLeases(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-	etcd := createEtcd(etcdName, namespace, 3, false, false, false)
-
-	tests := []struct {
-		name   string
-		leases []*coordinationv1.Lease
-	}{
-		{
-			name: "Should succeed when no member leases exist",
-		},
-		{
-			name: "Should delete all matching member leases",
-			leases: []*coordinationv1.Lease{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      etcdName + "-0",
-						Namespace: namespace,
-						Labels: map[string]string{
-							druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-							"app.kubernetes.io/part-of":     etcdName,
-						},
-					},
-				},
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var objs []client.Object
-			objs = append(objs, etcd)
-			for _, lease := range tc.leases {
-				objs = append(objs, lease)
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-			delErr := taskHandler.(*handler).deleteAllMemberLeases(context.Background(), etcd)
-			g.Expect(delErr).To(BeNil())
-		})
-	}
-}
-
 // TestIsPodReady tests the isPodReady method covering all pod states.
 func TestIsPodReady(t *testing.T) {
 	g := NewGomegaWithT(t)
@@ -1025,80 +1255,8 @@ func TestIsPodReady(t *testing.T) {
 	}
 }
 
-// TestWaitStepTimeout tests that Execute returns a terminal error when the scaleDown
-// or podReady timeout is exceeded while waiting.
-func TestWaitStepTimeout(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-
-	t.Run("Should fail with timeout error when scale-down does not complete in time", func(t *testing.T) {
-		t.Parallel()
-		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
-		// Pre-set the step annotation to WaitScaleDown so Execute enters that step directly,
-		// and set an expired wait-start so the timeout is already exceeded.
-		etcd.Annotations = map[string]string{
-			recoveryStepAnnotation:      string(stepScaleDown),
-			recoveryWaitStartAnnotation: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339),
-		}
-		cm, err := buildConfigMapWithEtcdConfig(etcd)
-		g.Expect(err).To(BeNil())
-		// STS still has running replicas — scale-down not complete.
-		sts := buildStatefulSet(etcd, 0, 3)
-		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, sts).Build()
-		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
-			ScaleDownTimeout: &metav1.Duration{Duration: time.Minute},
-		})
-		taskHandler, handlerErr := New(cl, task, nil)
-		g.Expect(handlerErr).To(BeNil())
-
-		result := taskHandler.Execute(context.Background())
-		g.Expect(result.Error).ToNot(BeNil())
-		g.Expect(result.Requeue).To(BeFalse())
-		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for StatefulSet to scale down"))
-	})
-
-	t.Run("Should fail with timeout error when pod does not become ready in time", func(t *testing.T) {
-		t.Parallel()
-		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
-		// Pre-set the step annotation to WaitPodReady so Execute enters that step directly,
-		// and set an expired wait-start so the timeout is already exceeded.
-		etcd.Annotations = map[string]string{
-			recoveryStepAnnotation:      string(stepScaleUp),
-			recoveryWaitStartAnnotation: time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339),
-		}
-		cm, err := buildConfigMapWithEtcdConfig(etcd)
-		g.Expect(err).To(BeNil())
-		// Pod exists but is not ready.
-		pod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0),
-				Namespace: namespace,
-			},
-			Status: corev1.PodStatus{
-				Conditions: []corev1.PodCondition{
-					{Type: corev1.PodReady, Status: corev1.ConditionFalse},
-				},
-			},
-		}
-		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, pod).Build()
-		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
-			PodReadyTimeout: &metav1.Duration{Duration: 3 * time.Minute},
-		})
-		taskHandler, handlerErr := New(cl, task, nil)
-		g.Expect(handlerErr).To(BeNil())
-
-		result := taskHandler.Execute(context.Background())
-		g.Expect(result.Error).ToNot(BeNil())
-		g.Expect(result.Requeue).To(BeFalse())
-		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for single-member etcd pod to become ready"))
-	})
-}
-
-// TestSuspendReconciliation tests the suspendReconciliation method.
-func TestSuspendReconciliation(t *testing.T) {
+// TestEnableReconciliation tests the enableReconciliation method.
+func TestEnableReconciliation(t *testing.T) {
 	g := NewGomegaWithT(t)
 	const (
 		etcdName  = "test-etcd"
@@ -1110,10 +1268,10 @@ func TestSuspendReconciliation(t *testing.T) {
 		annotations map[string]string
 	}{
 		{
-			name: "Should add suspend annotation when missing",
+			name: "Should add reconcile annotation when etcd has no annotations",
 		},
 		{
-			name: "Should be a no-op when suspend annotation is already present",
+			name: "Should remove suspend annotation and add reconcile annotation",
 			annotations: map[string]string{
 				druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true",
 			},
@@ -1131,52 +1289,12 @@ func TestSuspendReconciliation(t *testing.T) {
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
-			g.Expect(taskHandler.(*handler).suspendReconciliation(context.Background(), etcd)).To(Succeed())
+			recErr := taskHandler.(*handler).enableReconciliation(context.Background(), etcd)
+			g.Expect(recErr).To(BeNil())
 			updated := &druidv1alpha1.Etcd{}
 			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
-			g.Expect(updated.Annotations).To(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
-		})
-	}
-}
-
-// TestDisableComponentProtection tests the disableComponentProtection method.
-func TestDisableComponentProtection(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-
-	tests := []struct {
-		name        string
-		annotations map[string]string
-	}{
-		{
-			name: "Should add disable-protection annotation when missing",
-		},
-		{
-			name: "Should be a no-op when disable-protection annotation is already present",
-			annotations: map[string]string{
-				druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "true",
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			etcd := createEtcd(etcdName, namespace, 3, false, false, false)
-			if tc.annotations != nil {
-				etcd.Annotations = tc.annotations
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-			g.Expect(taskHandler.(*handler).disableComponentProtection(context.Background(), etcd)).To(Succeed())
-			updated := &druidv1alpha1.Etcd{}
-			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
-			g.Expect(updated.Annotations).To(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
+			g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
+			g.Expect(updated.Annotations).To(HaveKeyWithValue(druidv1alpha1.DruidOperationAnnotation, druidv1alpha1.DruidOperationReconcile))
 		})
 	}
 }
@@ -1228,157 +1346,39 @@ func TestEnableComponentProtection(t *testing.T) {
 	}
 }
 
-// TestScaleStatefulSetTo tests the scaleStatefulSetTo helper covering the idempotent case.
-func TestScaleStatefulSetTo(t *testing.T) {
+// TestHelperFunctions tests the serverPortOrDefault and clientPortOrDefault helpers.
+func TestHelperFunctions(t *testing.T) {
 	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-	etcd := createEtcd(etcdName, namespace, 3, false, false, false)
 
 	tests := []struct {
-		name            string
-		statefulSet     *appsv1.StatefulSet
-		desiredReplicas int32
+		name           string
+		setServerPort  *int32
+		setClientPort  *int32
+		expectedServer int32
+		expectedClient int32
 	}{
 		{
-			name:            "STS not found: should be a no-op",
-			statefulSet:     nil,
-			desiredReplicas: 0,
+			name:           "Should return default peer port when ServerPort is nil",
+			expectedServer: common.DefaultPortEtcdPeer,
+			expectedClient: common.DefaultPortEtcdClient,
 		},
 		{
-			name:            "STS already at desired replicas: should be a no-op",
-			statefulSet:     buildStatefulSet(etcd, 0, 0),
-			desiredReplicas: 0,
-		},
-		{
-			name:            "STS needs scaling: should update replicas",
-			statefulSet:     buildStatefulSet(etcd, 3, 3),
-			desiredReplicas: 0,
+			name:           "Should return configured ports when both are set",
+			setServerPort:  ptr.To(int32(3380)),
+			setClientPort:  ptr.To(int32(3379)),
+			expectedServer: 3380,
+			expectedClient: 3379,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			var objs []client.Object
-			if tc.statefulSet != nil {
-				objs = append(objs, tc.statefulSet)
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-			scaleErr := taskHandler.(*handler).scaleStatefulSetTo(context.Background(), etcd, tc.desiredReplicas)
-			g.Expect(scaleErr).To(BeNil())
+			etcd := utils.EtcdBuilderWithoutDefaults("e", "ns").Build()
+			etcd.Spec.Etcd.ServerPort = tc.setServerPort
+			etcd.Spec.Etcd.ClientPort = tc.setClientPort
+			g.Expect(serverPortOrDefault(etcd)).To(Equal(tc.expectedServer))
+			g.Expect(clientPortOrDefault(etcd)).To(Equal(tc.expectedClient))
 		})
 	}
-}
-
-// TestEnableReconciliation tests the enableReconciliation method.
-func TestEnableReconciliation(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-
-	tests := []struct {
-		name        string
-		annotations map[string]string
-	}{
-		{
-			name: "Should add reconcile annotation when etcd has no annotations",
-		},
-		{
-			name: "Should remove suspend annotation and add reconcile annotation",
-			annotations: map[string]string{
-				druidv1alpha1.SuspendEtcdSpecReconcileAnnotation: "true",
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			etcd := createEtcd(etcdName, namespace, 3, false, false, false)
-			if tc.annotations != nil {
-				etcd.Annotations = tc.annotations
-			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd).Build()
-			task := buildEtcdOpsTask(etcdName, namespace, nil)
-			taskHandler, err := New(cl, task, nil)
-			g.Expect(err).To(BeNil())
-			recErr := taskHandler.(*handler).enableReconciliation(context.Background(), etcd)
-			g.Expect(recErr).To(BeNil())
-			updated := &druidv1alpha1.Etcd{}
-			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
-			g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
-			g.Expect(updated.Annotations).To(HaveKeyWithValue(druidv1alpha1.DruidOperationAnnotation, druidv1alpha1.DruidOperationReconcile))
-		})
-	}
-}
-
-// TestRecoverFromQuorumLossExecuteWithPVCsAndLeases tests Execute when PVCs and leases exist.
-// This exercises the deletion iteration paths in deleteAllPVCs and deleteAllMemberLeases.
-func TestRecoverFromQuorumLossExecuteWithPVCsAndLeases(t *testing.T) {
-	g := NewGomegaWithT(t)
-	const (
-		etcdName  = "test-etcd"
-		namespace = "test-ns"
-	)
-
-	etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
-	cm, err := buildConfigMapWithEtcdConfig(etcd)
-	g.Expect(err).To(BeNil())
-
-	// Pre-create STS at 0, a matching PVC, a matching lease, ConfigMap, and a ready pod.
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "etcd-data-test-etcd-0",
-			Namespace: namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "etcd-druid",
-				"app.kubernetes.io/part-of":    etcdName,
-			},
-		},
-	}
-	lease := &coordinationv1.Lease{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      etcdName + "-0",
-			Namespace: namespace,
-			Labels: map[string]string{
-				druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-				"app.kubernetes.io/part-of":     etcdName,
-			},
-		},
-	}
-
-	objs := []client.Object{etcd, cm, buildStatefulSet(etcd, 0, 0), buildReadyPod(etcd), pvc, lease}
-	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-
-	task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
-		ScaleDownTimeout: &metav1.Duration{Duration: time.Second},
-		PodReadyTimeout:  &metav1.Duration{Duration: time.Second},
-	})
-	taskHandler, err := New(cl, task, nil)
-	g.Expect(err).To(BeNil())
-
-	t.Run("Should complete recovery and delete PVCs and leases", func(_ *testing.T) {
-		result := runUntilDone(context.Background(), taskHandler, 30)
-		g.Expect(result.Error).To(BeNil())
-		g.Expect(result.Requeue).To(BeFalse())
-		g.Expect(result.Description).To(Equal("Recovery from quorum loss completed successfully. " +
-			"etcd-druid will reconcile and bring up the remaining cluster members."))
-
-		// Verify PVC and lease were deleted.
-		pvcList := &corev1.PersistentVolumeClaimList{}
-		g.Expect(cl.List(context.Background(), pvcList, client.InNamespace(namespace))).To(Succeed())
-		g.Expect(pvcList.Items).To(BeEmpty())
-
-		leaseList := &coordinationv1.LeaseList{}
-		g.Expect(cl.List(context.Background(), leaseList, client.InNamespace(namespace))).To(Succeed())
-		g.Expect(leaseList.Items).To(BeEmpty())
-	})
 }
