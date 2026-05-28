@@ -49,6 +49,7 @@ type etcdConfig struct {
 	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
 	ClientSecurity          *securityConfig              `json:"client-transport-security,omitempty"`
 	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
+	MemberNamePrefix        string                       `json:"member-name-prefix,omitempty"`
 	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
 	NextClusterVersionCompatible bool `json:"next-cluster-version-compatible,omitempty"`
 }
@@ -85,6 +86,9 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig
+	if etcd.Spec.MemberNamePrefix != nil {
+		cfg.MemberNamePrefix = *etcd.Spec.MemberNamePrefix
+	}
 
 	return cfg
 }
@@ -121,27 +125,19 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
-	// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, replace `podName`
-	// with `druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)` for both the
-	// initial-cluster key and the AdditionalAdvertisePeerURLs lookup. Today memberName ==
-	// podName, so we use podName for both; this assumption breaks when a prefix is configured.
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 
-		// Start with internal service DNS URL
-		peerURLs := []string{fmt.Sprintf("%s://%s.%s:%s", peerScheme, podName, domainName, serverPort)}
+		fmt.Fprintf(&builder, "%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)
 
-		// Find and append additional peer URLs if configured for this member
 		for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
 			if memberURLs.MemberName == podName {
-				peerURLs = append(peerURLs, memberURLs.URLs...)
+				for _, url := range memberURLs.URLs {
+					fmt.Fprintf(&builder, "%s=%s,", memberName, url)
+				}
 				break
 			}
-		}
-
-		// Output memberName=url for EACH URL (not memberName=url1,url2)
-		for _, url := range peerURLs {
-			fmt.Fprintf(&builder, "%s=%s,", podName, url)
 		}
 	}
 	return strings.Trim(builder.String(), ",")
@@ -160,12 +156,9 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	advUrlsMap := make(map[string][]string)
 	// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
 	domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
-	// TODO(@seshachalam-yv): Same as in prepareInitialCluster — once spec.memberNamePrefix
-	// (PR #1309) is merged, replace `podName` with
-	// `druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)` for both the map key
-	// and the AdditionalAdvertisePeerURLs lookup.
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 
 		// Start with internal service DNS URL
 		urls := []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
@@ -180,7 +173,7 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 			}
 		}
 
-		advUrlsMap[podName] = urls
+		advUrlsMap[memberName] = urls
 	}
 	return advUrlsMap
 }

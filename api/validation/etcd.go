@@ -60,6 +60,8 @@ func ValidateEtcdSpecUpdate(new, old *druidv1alpha1.EtcdSpec, deletionTimestampS
 		allErrs = append(allErrs, validateStoreUpdate(new.Backup.Store, old.Backup.Store, path.Child("backup.store"))...)
 	}
 
+	allErrs = append(allErrs, apivalidation.ValidateImmutableField(new.MemberNamePrefix, old.MemberNamePrefix, path.Child("memberNamePrefix"))...)
+
 	return allErrs
 }
 

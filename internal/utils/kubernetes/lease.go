@@ -74,7 +74,7 @@ func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *d
 	}
 	// This OK to do as we do not support downscaling an etcd cluster.
 	// If and when we do that by then we should have already stabilised the labels and therefore this code itself will not be there.
-	allPossibleMemberNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	allPossibleMemberNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	leasesObjMeta := make([]metav1.PartialObjectMetadata, 0, len(objMetaList.Items))
 	for _, lease := range objMetaList.Items {
 		if metav1.IsControlledBy(&lease, &etcd.ObjectMeta) && slices.Contains(allPossibleMemberNames, lease.Name) {

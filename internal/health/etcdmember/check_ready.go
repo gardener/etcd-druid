@@ -16,6 +16,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -35,7 +36,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		checkTime = TimeNow().UTC()
 	)
 
-	leaseNames := druidv1alpha1.GetMemberLeaseNames(etcd.ObjectMeta, etcd.Spec.Replicas)
+	leaseNames := druidv1alpha1.GetMemberLeaseNames(&etcd)
 	leases := make([]*coordinationv1.Lease, 0, len(leaseNames))
 	for _, leaseName := range leaseNames {
 		lease := &coordinationv1.Lease{}
@@ -87,7 +88,8 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 		// Check if member state must be considered as unknown
 		if renew.Add(r.etcdMemberUnknownThreshold).Before(checkTime) {
 			// If pod is not running or cannot be found then we deduce that the status is NotReady.
-			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, lease.Name)
+			podName := podNameFromLeaseName(lease.Name, etcd.Spec.MemberNamePrefix)
+			ready, err := r.checkContainersAreReady(ctx, lease.Namespace, podName)
 			if (err == nil && !ready) || apierrors.IsNotFound(err) {
 				res.status = druidv1alpha1.EtcdMemberStatusNotReady
 				res.reason = "ContainersNotReady"
@@ -110,6 +112,13 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 }
 
 const memberLeaseHolderIdentitySeparator = ":"
+
+func podNameFromLeaseName(leaseName string, memberNamePrefix *string) string {
+	if prefix := ptr.Deref(memberNamePrefix, ""); prefix != "" {
+		return strings.TrimPrefix(leaseName, prefix+"-")
+	}
+	return leaseName
+}
 
 // ReadyCheck returns a check for the "Ready" condition.
 func ReadyCheck(cl client.Client, logger logr.Logger, etcdMemberNotReadyThreshold, etcdMemberUnknownThreshold time.Duration) Checker {

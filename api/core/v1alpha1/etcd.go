@@ -55,8 +55,7 @@ const (
 // +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
-// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update both rules below to derive the expected name from the configured prefix instead of self.metadata.name, and revisit the lastIndexOf('-')-based index check.
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
 
 // Etcd is the Schema for the etcds API
@@ -350,7 +349,15 @@ type SchedulingConstraints struct {
 // EtcdSpec defines the desired state of Etcd
 // +kubebuilder:validation:XValidation:message="etcd.spec.storageClass is an immutable field.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate is an immutable field.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
+// +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field.",rule="has(oldSelf.memberNamePrefix) == has(self.memberNamePrefix)"
 type EtcdSpec struct {
+	// MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be "<prefix>-<pod-name>", otherwise it defaults to the "pod-name".
+	// The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
+	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field",rule="self == oldSelf"
+	MemberNamePrefix *string `json:"memberNamePrefix,omitempty"`
 	// selector is a label query over pods that should match the replica count.
 	// It must match the pod template's labels.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
@@ -455,7 +462,8 @@ const (
 
 // EtcdMemberStatus holds information about etcd cluster membership.
 type EtcdMemberStatus struct {
-	// Name is the name of the etcd member. It is the name of the backing `Pod`.
+	// Name is the name of the etcd member. It matches the member lease name.
+	// When EtcdSpec.MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`.
 	Name string `json:"name"`
 	// ID is the ID of the etcd member.
 	// +optional
