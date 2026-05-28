@@ -213,7 +213,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			name:       "Should return error without requeue when cluster is single-member (replicas=1)",
 			etcdObject: createEtcd("test-etcd", "test-ns", 1, false, false, false),
 			expectedResult: taskhandler.Result{
-				Description: "RecoverFromQuorumLoss task is not applicable for a single-member etcd cluster. " +
+				Description: "Task is not applicable for a single-member etcd cluster. " +
 					"The backup-restore sidecar handles automatic recovery for single-member clusters.",
 				Error: &druiderr.DruidError{
 					Code:      ErrAdmitRecoverFromQuorumLoss,
@@ -228,7 +228,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			name:       "Should return error without requeue when backup store is not configured",
 			etcdObject: createEtcd("test-etcd", "test-ns", 3, false, false, false),
 			expectedResult: taskhandler.Result{
-				Description: "RecoverFromQuorumLoss requires a configured backup store. " +
+				Description: "Task requires a configured backup store. " +
 					"Recovery restores etcd data from the latest snapshot; without a backup store there is nothing to restore from.",
 				Error: &druiderr.DruidError{
 					Code:      ErrAdmitRecoverFromQuorumLoss,
@@ -244,7 +244,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, true),
 			expectedResult: taskhandler.Result{
 				Description: "The etcd cluster is currently ready; no quorum loss detected. " +
-					"RecoverFromQuorumLoss task is only applicable when the cluster has lost quorum.",
+					"task is only applicable when the cluster has lost quorum.",
 				Error: &druiderr.DruidError{
 					Code:      ErrAdmitRecoverFromQuorumLoss,
 					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
