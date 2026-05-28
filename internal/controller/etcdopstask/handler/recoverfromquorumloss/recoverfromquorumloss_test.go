@@ -1346,8 +1346,8 @@ func TestEnableComponentProtection(t *testing.T) {
 	}
 }
 
-// TestHelperFunctions tests the serverPortOrDefault and clientPortOrDefault helpers.
-func TestHelperFunctions(t *testing.T) {
+// TestServerAndClientPortDefaults tests the serverPortOrDefault and clientPortOrDefault helpers.
+func TestServerAndClientPortDefaults(t *testing.T) {
 	g := NewGomegaWithT(t)
 
 	tests := []struct {
