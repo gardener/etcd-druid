@@ -1029,6 +1029,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `scaleDownTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ScaleDownTimeout is the timeout to wait for the StatefulSet to fully scale down to 0 replicas<br />during quorum loss recovery. Defaults to 60 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `podReadyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become<br />ready after the StatefulSet is scaled up to 1 during quorum loss recovery.<br />Defaults to 180 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `allowDataLoss` _boolean_ | AllowDataLoss permits the recovery to proceed even when no backup store is configured for the<br />referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,<br />so the rebuilt single-member cluster will start with an empty data set; setting this to true<br />is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),<br />the admit check rejects the task if no backup store is configured. |  |  |
 
 
 #### SchedulingConstraints
