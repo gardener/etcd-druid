@@ -41,12 +41,16 @@ const (
 	defaultScaleDownTimeout = 60 * time.Second
 	// defaultPodReadyTimeout is the default timeout for waiting for the single-member etcd pod to become ready.
 	defaultPodReadyTimeout = 180 * time.Second
+	// defaultEtcdReadyTimeout is the default timeout for waiting for all etcd cluster members
+	// to become ready (AllMembersReady condition) after reconciliation is re-enabled at the end
+	// of recovery.
+	defaultEtcdReadyTimeout = 300 * time.Second
 	// recoveryStepAnnotation is written on the EtcdOpsTask CR after each step completes, recording
 	// the last completed step so Execute can skip already-done work on requeue.
 	recoveryStepAnnotation = "druid.gardener.cloud/quorum-recovery-last-completed-step"
 	// recoveryWaitStartAnnotation records the RFC3339 timestamp on the EtcdOpsTask CR when a wait
-	// step (WaitScaleDown, WaitPodReady) was first entered, so the timeout can be enforced
-	// across requeueues.
+	// step (WaitScaleDown, WaitPodReady, WaitEtcdReady) was first entered, so the timeout can be
+	// enforced across requeueues.
 	recoveryWaitStartAnnotation = "druid.gardener.cloud/quorum-recovery-wait-start"
 )
 
@@ -64,6 +68,7 @@ const (
 	stepScaleUp                  recoveryStep = "ScaleUp"
 	stepWaitPodReady             recoveryStep = "WaitPodReady"
 	stepReenableReconciliation   recoveryStep = "ReenableReconciliation"
+	stepWaitEtcdReady            recoveryStep = "WaitEtcdReady"
 	stepReenableComponentProtect recoveryStep = "ReenableComponentProtection"
 )
 
@@ -80,6 +85,7 @@ var stepOrder = []recoveryStep{
 	stepScaleUp,
 	stepWaitPodReady,
 	stepReenableReconciliation,
+	stepWaitEtcdReady,
 	stepReenableComponentProtect,
 }
 
@@ -132,6 +138,13 @@ func (h *handler) podReadyTimeout() time.Duration {
 		return h.config.PodReadyTimeout.Duration
 	}
 	return defaultPodReadyTimeout
+}
+
+func (h *handler) etcdReadyTimeout() time.Duration {
+	if h.config.EtcdReadyTimeout != nil {
+		return h.config.EtcdReadyTimeout.Duration
+	}
+	return defaultEtcdReadyTimeout
 }
 
 // Admit validates the preconditions for the RecoverFromQuorumLoss task.
@@ -211,7 +224,8 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 //  9. Wait for the single-member etcd pod to become ready.
 //
 // 10. Re-enable etcd-druid reconciliation (triggers scale-out to original replica count).
-// 11. Re-enable etcd component protection.
+// 11. Wait for all etcd cluster members to become ready (quorum restored).
+// 12. Re-enable etcd component protection.
 func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
 	if errResult != nil {
@@ -228,8 +242,9 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 		step := stepOrder[i]
 
 		var result *taskhandler.Result
-		// Re-fetch Etcd before steps that patch its annotations to avoid stale-object conflicts.
-		if step == stepReenableReconciliation || step == stepReenableComponentProtect {
+		// Re-fetch Etcd before steps that patch its annotations or read its current status, to
+		// avoid stale-object conflicts.
+		if step == stepReenableReconciliation || step == stepWaitEtcdReady || step == stepReenableComponentProtect {
 			var r *taskhandler.Result
 			etcd, r = handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
 			if r != nil {
@@ -348,6 +363,33 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 			result = h.runStep(ctx, task, step, "Re-enabled etcd-druid reconciliation",
 				func() error { return h.enableReconciliation(ctx, etcd) })
 
+		case stepWaitEtcdReady:
+			if !areAllMembersReady(etcd) {
+				if timedOut, elapsed := h.isWaitTimedOut(task, h.etcdReadyTimeout()); timedOut {
+					return taskhandler.Result{
+						Description: fmt.Sprintf("Timed out waiting for all etcd cluster members to become ready after %s", elapsed.Round(time.Second)),
+						Error: druiderr.WrapError(
+							fmt.Errorf("etcd cluster did not reach AllMembersReady condition within %s", h.etcdReadyTimeout()),
+							ErrExecuteRecoverFromQuorumLoss,
+							string(druidv1alpha1.LastOperationTypeExecution),
+							"all-members-ready timeout exceeded"),
+					}
+				}
+				if err := h.ensureWaitStartAnnotation(ctx, task); err != nil {
+					return taskhandler.Result{
+						Description: "Failed to record wait-start time for etcd readiness",
+						Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
+							string(druidv1alpha1.LastOperationTypeExecution),
+							"failed to annotate EtcdOpsTask CR with wait-start time"),
+					}
+				}
+				return taskhandler.Result{
+					Description: "Waiting for all etcd cluster members to become ready",
+					Requeue:     true,
+				}
+			}
+			result = h.runStep(ctx, task, step, "All etcd cluster members are ready", func() error { return nil })
+
 		case stepReenableComponentProtect:
 			result = h.runStep(ctx, task, step, "Re-enabled etcd component protection",
 				func() error { return h.enableComponentProtection(ctx, etcd) })
@@ -359,8 +401,7 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	}
 
 	return taskhandler.Result{
-		Description: "Recovery from quorum loss completed successfully. " +
-			"etcd-druid will reconcile and bring up the remaining cluster members.",
+		Description: "Recovery from quorum loss completed successfully. All etcd cluster members are ready.",
 	}
 }
 
@@ -443,7 +484,7 @@ func (h *handler) recordCompletedStep(ctx context.Context, task *druidv1alpha1.E
 		task.Annotations = make(map[string]string)
 	}
 	task.Annotations[recoveryStepAnnotation] = string(step)
-	if step == stepWaitScaleDown || step == stepWaitPodReady {
+	if step == stepWaitScaleDown || step == stepWaitPodReady || step == stepWaitEtcdReady {
 		delete(task.Annotations, recoveryWaitStartAnnotation)
 	}
 	return h.k8sClient.Patch(ctx, task, patch)
@@ -659,6 +700,17 @@ func (h *handler) isPodReady(ctx context.Context, podKey types.NamespacedName) (
 		return false, err
 	}
 	return k8sutils.HasPodReadyConditionTrue(pod), nil
+}
+
+// areAllMembersReady returns true if the etcd has the AllMembersReady condition set to True,
+// indicating that every replica is registered and reporting healthy.
+func areAllMembersReady(etcd *druidv1alpha1.Etcd) bool {
+	for _, condition := range etcd.Status.Conditions {
+		if condition.Type == druidv1alpha1.ConditionTypeAllMembersReady && condition.Status == druidv1alpha1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 // enableReconciliation removes the suspend-reconciliation annotation and adds the
