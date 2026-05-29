@@ -112,6 +112,14 @@ spec:
                       RecoverFromQuorumLoss defines the configuration for a task that recovers
                       a multi-member etcd cluster from a permanent quorum loss.
                     properties:
+                      allowDataLoss:
+                        description: |-
+                          AllowDataLoss permits the recovery to proceed even when no backup store is configured for the
+                          referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,
+                          so the rebuilt single-member cluster will start with an empty data set; setting this to true
+                          is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),
+                          the admit check rejects the task if no backup store is configured.
+                        type: boolean
                       podReadyTimeout:
                         description: |-
                           PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become
