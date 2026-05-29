@@ -171,6 +171,7 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 
 	hasBackup := etcd.IsBackupStoreEnabled()
 	allowDataLoss := ptr.Deref(h.config.AllowDataLoss, false)
+	logger := log.FromContext(ctx)
 	switch {
 	case !hasBackup && !allowDataLoss:
 		return taskhandler.Result{
@@ -184,10 +185,32 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 			),
 			Requeue: false,
 		}
-	case hasBackup && allowDataLoss:
-		log.FromContext(ctx).Info(
-			"RecoverFromQuorumLoss: AllowDataLoss override is set but a backup store is configured; proceeding with recovery",
-			"etcd", etcd.Name, "namespace", etcd.Namespace)
+	case hasBackup:
+		backupReady, present := backupReadyStatus(etcd)
+		if !present || backupReady != druidv1alpha1.ConditionTrue {
+			if !allowDataLoss {
+				return taskhandler.Result{
+					Description: "Task requires the etcd backup to be in a Ready state. " +
+						"Recovery restores etcd data from the latest snapshot; if the backup is not Ready, recovery may restore stale data or fail to restore at all. " +
+						"Set config.recoverFromQuorumLoss.allowDataLoss=true to acknowledge potential data loss and proceed.",
+					Error: druiderr.WrapError(
+						fmt.Errorf("etcd %s/%s BackupReady condition is %s", etcd.Namespace, etcd.Name, backupReadyStatusForError(backupReady, present)),
+						ErrAdmitRecoverFromQuorumLoss,
+						string(druidv1alpha1.LastOperationTypeAdmit),
+						"etcd backup is not Ready",
+					),
+					Requeue: false,
+				}
+			}
+			logger.Info(
+				"RecoverFromQuorumLoss: AllowDataLoss override is set; proceeding despite BackupReady not being True",
+				"etcd", etcd.Name, "namespace", etcd.Namespace,
+				"backupReady", backupReadyStatusForError(backupReady, present))
+		} else if allowDataLoss {
+			logger.Info(
+				"RecoverFromQuorumLoss: AllowDataLoss override is set but the etcd backup is Ready; proceeding with recovery",
+				"etcd", etcd.Name, "namespace", etcd.Namespace)
+		}
 	}
 
 	if etcd.IsReady() {
@@ -711,6 +734,28 @@ func areAllMembersReady(etcd *druidv1alpha1.Etcd) bool {
 		}
 	}
 	return false
+}
+
+// backupReadyStatus returns the status of the BackupReady condition on the etcd, and a
+// boolean indicating whether the condition was present at all. When the condition is absent
+// (e.g. on a freshly-created cluster whose status reconciler has not yet run), returns
+// (ConditionUnknown, false).
+func backupReadyStatus(etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, bool) {
+	for _, condition := range etcd.Status.Conditions {
+		if condition.Type == druidv1alpha1.ConditionTypeBackupReady {
+			return condition.Status, true
+		}
+	}
+	return druidv1alpha1.ConditionUnknown, false
+}
+
+// backupReadyStatusForError formats the BackupReady status for inclusion in an error message,
+// distinguishing the missing-condition case from a present-but-Unknown condition.
+func backupReadyStatusForError(status druidv1alpha1.ConditionStatus, present bool) string {
+	if !present {
+		return "Missing"
+	}
+	return string(status)
 }
 
 // enableReconciliation removes the suspend-reconciliation annotation and adds the
