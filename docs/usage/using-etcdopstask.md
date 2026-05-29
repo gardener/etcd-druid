@@ -146,11 +146,14 @@ re-enable component protection.
 **Prerequisites:**
 - The target etcd cluster must be a multi-member cluster (`spec.replicas > 1`). For single-member
   clusters the backup-restore sidecar handles recovery automatically.
-- Backup must be enabled for the target etcd cluster (`spec.backup.store` must be configured).
-  Recovery relies on the backup-restore sidecar restoring from the latest snapshot; without a
-  backup store there is nothing to restore from and the task will be rejected. This requirement
-  can be explicitly waived with the `allowDataLoss` config flag — see below — at which point the
-  cluster comes back up empty.
+- Backup must be enabled for the target etcd cluster (`spec.backup.store` must be configured),
+  **and** the etcd's `BackupReady` condition must currently report `True`. Recovery relies on
+  the backup-restore sidecar restoring from the latest snapshot; without a Ready backup, recovery
+  may restore stale data or have nothing to restore from at all. The admit check rejects the task
+  if either condition is unmet. Both requirements can be explicitly waived with the `allowDataLoss`
+  config flag — see below — at which point the cluster comes back up empty (no backup configured)
+  or restores from whatever the latest available snapshot happens to be (backup configured but not
+  Ready).
 - The cluster must currently **not** be in a ready state (quorum loss has occurred).
 - No other `EtcdOpsTask` should be in progress for the same etcd cluster.
 
@@ -158,7 +161,7 @@ re-enable component protection.
 - `scaleDownTimeout`: Maximum time to wait for the StatefulSet to reach 0 replicas (default: `60s`). Accepts Go duration strings (e.g. `30s`, `2m`).
 - `podReadyTimeout`: Maximum time to wait for the single-member pod (`<etcd-name>-0`) to become ready after scale-up (default: `180s`). Accepts Go duration strings.
 - `etcdReadyTimeout`: Maximum time to wait for **all** etcd cluster members to become ready (the `AllMembersReady` condition reports `True`) after etcd-druid reconciliation has been re-enabled and the cluster has been scaled back out (default: `300s` / 5 minutes). Accepts Go duration strings.
-- `allowDataLoss`: When `true`, permits the recovery to proceed even if no backup store is configured for the referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`, so the rebuilt cluster will start with an empty data set; setting this is an explicit acknowledgement that all existing etcd data will be lost. When unset (or `false`), the admit check rejects the task if no backup store is configured. Defaults to `false`.
+- `allowDataLoss`: When `true`, permits the recovery to proceed even if no backup store is configured for the referenced Etcd, **or** if the configured backup is not in a Ready state (`BackupReady != True`). Setting this is an explicit acknowledgement that all existing etcd data may be lost or restored from a stale snapshot. When unset (or `false`), the admit check rejects the task if either of these conditions holds. Defaults to `false`.
 
 **Example:**
 

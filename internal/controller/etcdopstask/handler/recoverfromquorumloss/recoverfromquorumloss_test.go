@@ -66,9 +66,16 @@ func createEtcd(name, namespace string, replicas int32, ready bool, withPeerTLS 
 }
 
 // createEtcdWithBackup creates an Etcd resource with a local backup store configured.
+// The BackupReady condition is set to True by default; tests that need a different status
+// (False, Unknown, missing) should mutate etcd.Status.Conditions after calling this helper.
 func createEtcdWithBackup(name, namespace string, replicas int32, ready bool) *druidv1alpha1.Etcd {
 	eb := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(replicas).WithProviderLocal("test-prefix")
 	etcd := eb.Build()
+	backupReadyCondition := druidv1alpha1.Condition{
+		Type:    druidv1alpha1.ConditionTypeBackupReady,
+		Status:  druidv1alpha1.ConditionTrue,
+		Message: "backup is ready for testing purposes",
+	}
 	if ready {
 		etcd.Status.Ready = ptr.To(true)
 		etcd.Status.Conditions = []druidv1alpha1.Condition{
@@ -77,10 +84,11 @@ func createEtcdWithBackup(name, namespace string, replicas int32, ready bool) *d
 				Status:  druidv1alpha1.ConditionTrue,
 				Message: "etcd is ready for testing purposes",
 			},
+			backupReadyCondition,
 		}
 	} else {
 		etcd.Status.Ready = ptr.To(false)
-		etcd.Status.Conditions = []druidv1alpha1.Condition{}
+		etcd.Status.Conditions = []druidv1alpha1.Condition{backupReadyCondition}
 	}
 	return etcd
 }
@@ -325,6 +333,88 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 		{
 			name:       "Should pass admit check when backup store is configured and AllowDataLoss is true",
 			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, false),
+			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
+				AllowDataLoss: ptr.To(true),
+			},
+			expectedResult: taskhandler.Result{
+				Description: "Admit check passed",
+				Requeue:     false,
+			},
+			expectErr: false,
+		},
+		{
+			name: "Should reject when BackupReady condition is False",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionFalse, Message: "stale snapshot"},
+				}
+				return etcd
+			}(),
+			expectedResult: taskhandler.Result{
+				Description: "Task requires the etcd backup to be in a Ready state. " +
+					"Recovery restores etcd data from the latest snapshot; if the backup is not Ready, recovery may restore stale data or fail to restore at all. " +
+					"Set config.recoverFromQuorumLoss.allowDataLoss=true to acknowledge potential data loss and proceed.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd backup is not Ready",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should reject when BackupReady condition is Unknown",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionUnknown, Message: "snapshot leases not yet renewed"},
+				}
+				return etcd
+			}(),
+			expectedResult: taskhandler.Result{
+				Description: "Task requires the etcd backup to be in a Ready state. " +
+					"Recovery restores etcd data from the latest snapshot; if the backup is not Ready, recovery may restore stale data or fail to restore at all. " +
+					"Set config.recoverFromQuorumLoss.allowDataLoss=true to acknowledge potential data loss and proceed.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd backup is not Ready",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should reject when BackupReady condition is missing",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{}
+				return etcd
+			}(),
+			expectedResult: taskhandler.Result{
+				Description: "Task requires the etcd backup to be in a Ready state. " +
+					"Recovery restores etcd data from the latest snapshot; if the backup is not Ready, recovery may restore stale data or fail to restore at all. " +
+					"Set config.recoverFromQuorumLoss.allowDataLoss=true to acknowledge potential data loss and proceed.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd backup is not Ready",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should pass admit check when BackupReady is False but AllowDataLoss is true",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionFalse, Message: "stale snapshot"},
+				}
+				return etcd
+			}(),
 			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
 				AllowDataLoss: ptr.To(true),
 			},
