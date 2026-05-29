@@ -1146,6 +1146,11 @@ func (in *RecoverFromQuorumLossConfig) DeepCopyInto(out *RecoverFromQuorumLossCo
 		*out = new(metav1.Duration)
 		**out = **in
 	}
+	if in.EtcdReadyTimeout != nil {
+		in, out := &in.EtcdReadyTimeout, &out.EtcdReadyTimeout
+		*out = new(metav1.Duration)
+		**out = **in
+	}
 	if in.AllowDataLoss != nil {
 		in, out := &in.AllowDataLoss, &out.AllowDataLoss
 		*out = new(bool)
