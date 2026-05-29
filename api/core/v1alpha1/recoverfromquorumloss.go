@@ -23,4 +23,12 @@ type RecoverFromQuorumLossConfig struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	PodReadyTimeout *metav1.Duration `json:"podReadyTimeout,omitempty"`
+
+	// AllowDataLoss permits the recovery to proceed even when no backup store is configured for the
+	// referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,
+	// so the rebuilt single-member cluster will start with an empty data set; setting this to true
+	// is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),
+	// the admit check rejects the task if no backup store is configured.
+	// +optional
+	AllowDataLoss *bool `json:"allowDataLoss,omitempty"`
 }

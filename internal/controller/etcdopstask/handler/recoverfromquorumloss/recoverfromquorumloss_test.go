@@ -233,6 +233,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 	tests := []struct {
 		name           string
 		etcdObject     *druidv1alpha1.Etcd
+		taskConfig     *druidv1alpha1.RecoverFromQuorumLossConfig
 		expectedResult taskhandler.Result
 		expectErr      bool
 	}{
@@ -304,6 +305,30 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			},
 			expectErr: false,
 		},
+		{
+			name:       "Should pass admit check when backup store is not configured but AllowDataLoss is true",
+			etcdObject: createEtcd("test-etcd", "test-ns", 3, false, false, false),
+			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
+				AllowDataLoss: ptr.To(true),
+			},
+			expectedResult: taskhandler.Result{
+				Description: "Admit check passed",
+				Requeue:     false,
+			},
+			expectErr: false,
+		},
+		{
+			name:       "Should pass admit check when backup store is configured and AllowDataLoss is true",
+			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, false),
+			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
+				AllowDataLoss: ptr.To(true),
+			},
+			expectedResult: taskhandler.Result{
+				Description: "Admit check passed",
+				Requeue:     false,
+			},
+			expectErr: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -314,7 +339,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 				objs = append(objs, tc.etcdObject)
 			}
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			task := buildEtcdOpsTask("test-etcd", "test-ns", nil)
+			task := buildEtcdOpsTask("test-etcd", "test-ns", tc.taskConfig)
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
 

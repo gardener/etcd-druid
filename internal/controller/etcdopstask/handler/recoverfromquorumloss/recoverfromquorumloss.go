@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -155,7 +156,10 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 		}
 	}
 
-	if !etcd.IsBackupStoreEnabled() {
+	hasBackup := etcd.IsBackupStoreEnabled()
+	allowDataLoss := ptr.Deref(h.config.AllowDataLoss, false)
+	switch {
+	case !hasBackup && !allowDataLoss:
 		return taskhandler.Result{
 			Description: "Task requires a configured backup store. " +
 				"Recovery restores etcd data from the latest snapshot; without a backup store there is nothing to restore from.",
@@ -167,6 +171,10 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 			),
 			Requeue: false,
 		}
+	case hasBackup && allowDataLoss:
+		log.FromContext(ctx).Info(
+			"RecoverFromQuorumLoss: AllowDataLoss override is set but a backup store is configured; proceeding with recovery",
+			"etcd", etcd.Name, "namespace", etcd.Namespace)
 	}
 
 	if etcd.IsReady() {
