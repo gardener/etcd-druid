@@ -24,6 +24,14 @@ type RecoverFromQuorumLossConfig struct {
 	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	PodReadyTimeout *metav1.Duration `json:"podReadyTimeout,omitempty"`
 
+	// EtcdReadyTimeout is the timeout to wait for all etcd cluster members to become ready
+	// (the AllMembersReady condition reports True) after etcd-druid reconciliation has been
+	// re-enabled at the end of the recovery flow. Defaults to 300 seconds (5 minutes).
+	// +optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	EtcdReadyTimeout *metav1.Duration `json:"etcdReadyTimeout,omitempty"`
+
 	// AllowDataLoss permits the recovery to proceed even when no backup store is configured for the
 	// referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,
 	// so the rebuilt single-member cluster will start with an empty data set; setting this to true

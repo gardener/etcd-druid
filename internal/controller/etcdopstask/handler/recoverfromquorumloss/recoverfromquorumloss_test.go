@@ -196,21 +196,25 @@ func TestNewHandlerTimeoutConfig(t *testing.T) {
 		cfg                      *druidv1alpha1.RecoverFromQuorumLossConfig
 		expectedScaleDownTimeout float64
 		expectedPodReadyTimeout  float64
+		expectedEtcdReadyTimeout float64
 	}{
 		{
 			name:                     "Should use default timeouts when config is nil",
 			cfg:                      nil,
 			expectedScaleDownTimeout: defaultScaleDownTimeout.Seconds(),
 			expectedPodReadyTimeout:  defaultPodReadyTimeout.Seconds(),
+			expectedEtcdReadyTimeout: defaultEtcdReadyTimeout.Seconds(),
 		},
 		{
 			name: "Should use custom timeouts from config",
 			cfg: &druidv1alpha1.RecoverFromQuorumLossConfig{
 				ScaleDownTimeout: &metav1.Duration{Duration: 60 * time.Second},
 				PodReadyTimeout:  &metav1.Duration{Duration: 120 * time.Second},
+				EtcdReadyTimeout: &metav1.Duration{Duration: 240 * time.Second},
 			},
 			expectedScaleDownTimeout: 60,
 			expectedPodReadyTimeout:  120,
+			expectedEtcdReadyTimeout: 240,
 		},
 	}
 
@@ -223,6 +227,7 @@ func TestNewHandlerTimeoutConfig(t *testing.T) {
 			h := taskHandler.(*handler)
 			g.Expect(h.scaleDownTimeout().Seconds()).To(Equal(tc.expectedScaleDownTimeout))
 			g.Expect(h.podReadyTimeout().Seconds()).To(Equal(tc.expectedPodReadyTimeout))
+			g.Expect(h.etcdReadyTimeout().Seconds()).To(Equal(tc.expectedEtcdReadyTimeout))
 		})
 	}
 }
@@ -453,12 +458,16 @@ func TestRecoverFromQuorumLossExecute(t *testing.T) {
 			etcdObject: createEtcd(etcdName, namespace, 3, false, false, false),
 			extraObjects: func(etcd *druidv1alpha1.Etcd) []client.Object {
 				cm, _ := buildConfigMapWithEtcdConfig(etcd)
+				// Simulate the etcd controller setting the AllMembersReady condition once all
+				// members are healthy after reconciliation is re-enabled by the recovery flow.
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue, Message: "test"},
+				}
 				return []client.Object{buildStatefulSet(etcd, 0, 0), cm, buildReadyPod(etcd)}
 			},
 			expectedResult: taskhandler.Result{
-				Description: "Recovery from quorum loss completed successfully. " +
-					"etcd-druid will reconcile and bring up the remaining cluster members.",
-				Requeue: false,
+				Description: "Recovery from quorum loss completed successfully. All etcd cluster members are ready.",
+				Requeue:     false,
 			},
 			expectErr: false,
 		},
@@ -518,6 +527,7 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 	task := buildEtcdOpsTask(etcdName, namespace, nil)
 
 	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).
+		WithStatusSubresource(&druidv1alpha1.Etcd{}).
 		WithObjects(etcd, cm, sts, pod, task).Build()
 	taskHandler, handlerErr := New(cl, task, nil)
 	g.Expect(handlerErr).To(BeNil())
@@ -550,7 +560,17 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 		{step: stepPatchConfigMap, description: "Patched ConfigMap to single-member configuration"},
 		{step: stepScaleUp, description: "Scaled StatefulSet up to 1 replica"},
 		{step: stepWaitPodReady, description: "Single-member etcd pod is ready"},
-		{step: stepReenableReconciliation, description: "Re-enabled etcd-druid reconciliation"},
+		{step: stepReenableReconciliation, description: "Re-enabled etcd-druid reconciliation", sideEffect: func() {
+			// Simulate the etcd controller setting the AllMembersReady condition once all
+			// members are healthy after reconciliation has been re-enabled.
+			updatedEtcd := &druidv1alpha1.Etcd{}
+			g.Expect(cl.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: namespace}, updatedEtcd)).To(Succeed())
+			updatedEtcd.Status.Conditions = []druidv1alpha1.Condition{
+				{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue, Message: "test"},
+			}
+			g.Expect(cl.Status().Update(ctx, updatedEtcd)).To(Succeed())
+		}},
+		{step: stepWaitEtcdReady, description: "All etcd cluster members are ready"},
 	}
 
 	for _, exp := range expectations {
@@ -573,12 +593,11 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 	result := taskHandler.Execute(ctx)
 	g.Expect(result.Error).To(BeNil())
 	g.Expect(result.Requeue).To(BeFalse())
-	g.Expect(result.Description).To(Equal("Recovery from quorum loss completed successfully. " +
-		"etcd-druid will reconcile and bring up the remaining cluster members."))
+	g.Expect(result.Description).To(Equal("Recovery from quorum loss completed successfully. All etcd cluster members are ready."))
 }
 
-// TestWaitStepTimeout tests that Execute returns a terminal error when the scaleDown
-// or podReady timeout is exceeded while waiting.
+// TestWaitStepTimeout tests that Execute returns a terminal error when the scaleDown,
+// podReady, or etcdReady timeout is exceeded while waiting.
 func TestWaitStepTimeout(t *testing.T) {
 	g := NewGomegaWithT(t)
 	const (
@@ -647,6 +666,31 @@ func TestWaitStepTimeout(t *testing.T) {
 		g.Expect(result.Requeue).To(BeFalse())
 		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for single-member etcd pod to become ready"))
 	})
+
+	t.Run("Should fail with timeout error when etcd cluster does not become Ready in time", func(t *testing.T) {
+		t.Parallel()
+		// Etcd has no AllMembersReady=True condition — areAllMembersReady() returns false.
+		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+		cm, err := buildConfigMapWithEtcdConfig(etcd)
+		g.Expect(err).To(BeNil())
+		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
+			EtcdReadyTimeout: &metav1.Duration{Duration: time.Minute},
+		})
+		// Pre-set the step annotation to ReenableReconciliation so Execute enters
+		// stepWaitEtcdReady directly, and set an expired wait-start so the timeout has fired.
+		task.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepReenableReconciliation),
+			recoveryWaitStartAnnotation: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, task).Build()
+		taskHandler, handlerErr := New(cl, task, nil)
+		g.Expect(handlerErr).To(BeNil())
+
+		result := taskHandler.Execute(context.Background())
+		g.Expect(result.Error).ToNot(BeNil())
+		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for all etcd cluster members to become ready"))
+	})
 }
 
 // TestRecoverFromQuorumLossExecuteWithPVCsAndLeases tests Execute when PVCs and leases exist.
@@ -659,6 +703,10 @@ func TestRecoverFromQuorumLossExecuteWithPVCsAndLeases(t *testing.T) {
 	)
 
 	etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+	// Simulate the etcd controller setting the AllMembersReady condition once all members are healthy.
+	etcd.Status.Conditions = []druidv1alpha1.Condition{
+		{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue, Message: "test"},
+	}
 	cm, err := buildConfigMapWithEtcdConfig(etcd)
 	g.Expect(err).To(BeNil())
 
@@ -698,8 +746,7 @@ func TestRecoverFromQuorumLossExecuteWithPVCsAndLeases(t *testing.T) {
 		result := runUntilDone(context.Background(), taskHandler, 30)
 		g.Expect(result.Error).To(BeNil())
 		g.Expect(result.Requeue).To(BeFalse())
-		g.Expect(result.Description).To(Equal("Recovery from quorum loss completed successfully. " +
-			"etcd-druid will reconcile and bring up the remaining cluster members."))
+		g.Expect(result.Description).To(Equal("Recovery from quorum loss completed successfully. All etcd cluster members are ready."))
 
 		// Verify PVC and lease were deleted.
 		pvcList := &corev1.PersistentVolumeClaimList{}
