@@ -40,11 +40,12 @@ const (
 	defaultScaleDownTimeout = 60 * time.Second
 	// defaultPodReadyTimeout is the default timeout for waiting for the single-member etcd pod to become ready.
 	defaultPodReadyTimeout = 180 * time.Second
-	// recoveryStepAnnotation is written on the Etcd CR after each step completes, recording
+	// recoveryStepAnnotation is written on the EtcdOpsTask CR after each step completes, recording
 	// the last completed step so Execute can skip already-done work on requeue.
 	recoveryStepAnnotation = "druid.gardener.cloud/quorum-recovery-last-completed-step"
-	// recoveryWaitStartAnnotation records the RFC3339 timestamp when a wait step (WaitScaleDown,
-	// WaitPodReady) was first entered, so the timeout can be enforced across requeueues.
+	// recoveryWaitStartAnnotation records the RFC3339 timestamp on the EtcdOpsTask CR when a wait
+	// step (WaitScaleDown, WaitPodReady) was first entered, so the timeout can be enforced
+	// across requeueues.
 	recoveryWaitStartAnnotation = "druid.gardener.cloud/quorum-recovery-wait-start"
 )
 
@@ -82,9 +83,9 @@ var stepOrder = []recoveryStep{
 }
 
 // lastCompletedStepIndex returns the index of the last completed step recorded on the
-// Etcd CR, or -1 if no step annotation is present (i.e. execution has not started yet).
-func lastCompletedStepIndex(etcd *druidv1alpha1.Etcd) int {
-	val, ok := etcd.Annotations[recoveryStepAnnotation]
+// EtcdOpsTask CR, or -1 if no step annotation is present (i.e. execution has not started yet).
+func lastCompletedStepIndex(task *druidv1alpha1.EtcdOpsTask) int {
+	val, ok := task.Annotations[recoveryStepAnnotation]
 	if !ok {
 		return -1
 	}
@@ -100,6 +101,7 @@ func lastCompletedStepIndex(etcd *druidv1alpha1.Etcd) int {
 type handler struct {
 	k8sClient     client.Client
 	etcdReference types.NamespacedName
+	taskReference types.NamespacedName
 	config        druidv1alpha1.RecoverFromQuorumLossConfig
 }
 
@@ -112,6 +114,7 @@ func New(k8sClient client.Client, task *druidv1alpha1.EtcdOpsTask, _ *http.Clien
 	return &handler{
 		k8sClient:     k8sClient,
 		etcdReference: task.GetEtcdReference(),
+		taskReference: types.NamespacedName{Name: task.Name, Namespace: task.Namespace},
 		config:        *cfg,
 	}, nil
 }
@@ -187,7 +190,7 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 
 // Execute performs the multi-step recovery from quorum loss, requeuing after each completed
 // step so that progress is visible in the task's LastOperation status. On requeue, steps that
-// have already been recorded in the Etcd CR annotation are skipped.
+// have already been recorded in the EtcdOpsTask CR annotation are skipped.
 //
 //  1. Suspend etcd-druid reconciliation.
 //  2. Disable etcd component protection.
@@ -206,8 +209,12 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	if errResult != nil {
 		return *errResult
 	}
+	task, errResult := handlerutils.GetEtcdOpsTask(ctx, h.k8sClient, h.taskReference, druidv1alpha1.LastOperationTypeExecution)
+	if errResult != nil {
+		return *errResult
+	}
 
-	resumeFrom := lastCompletedStepIndex(etcd) + 1
+	resumeFrom := lastCompletedStepIndex(task) + 1
 
 	for i := resumeFrom; i < len(stepOrder); i++ {
 		step := stepOrder[i]
@@ -224,15 +231,15 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 
 		switch step {
 		case stepSuspendReconciliation:
-			result = h.runStep(ctx, etcd, step, "Suspended etcd-druid reconciliation",
+			result = h.runStep(ctx, task, step, "Suspended etcd-druid reconciliation",
 				func() error { return h.suspendReconciliation(ctx, etcd) })
 
 		case stepDisableComponentProtect:
-			result = h.runStep(ctx, etcd, step, "Disabled etcd component protection",
+			result = h.runStep(ctx, task, step, "Disabled etcd component protection",
 				func() error { return h.disableComponentProtection(ctx, etcd) })
 
 		case stepScaleDown:
-			result = h.runStep(ctx, etcd, step, "Scaled StatefulSet down to 0 replicas",
+			result = h.runStep(ctx, task, step, "Scaled StatefulSet down to 0 replicas",
 				func() error { return h.scaleStatefulSetTo(ctx, etcd, 0) })
 
 		case stepWaitScaleDown:
@@ -249,7 +256,7 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 				}
 			}
 			if !scaledDown {
-				if timedOut, elapsed := h.isWaitTimedOut(etcd, h.scaleDownTimeout()); timedOut {
+				if timedOut, elapsed := h.isWaitTimedOut(task, h.scaleDownTimeout()); timedOut {
 					return taskhandler.Result{
 						Description: fmt.Sprintf("Timed out waiting for StatefulSet to scale down after %s", elapsed.Round(time.Second)),
 						Error: druiderr.WrapError(
@@ -259,12 +266,12 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 							"scale-down timeout exceeded"),
 					}
 				}
-				if err := h.ensureWaitStartAnnotation(ctx, etcd); err != nil {
+				if err := h.ensureWaitStartAnnotation(ctx, task); err != nil {
 					return taskhandler.Result{
 						Description: "Failed to record wait-start time for scale-down",
 						Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
 							string(druidv1alpha1.LastOperationTypeExecution),
-							"failed to annotate Etcd CR with wait-start time"),
+							"failed to annotate EtcdOpsTask CR with wait-start time"),
 					}
 				}
 				return taskhandler.Result{
@@ -272,22 +279,22 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 					Requeue:     true,
 				}
 			}
-			result = h.runStep(ctx, etcd, step, "StatefulSet scaled down to 0 replicas", func() error { return nil })
+			result = h.runStep(ctx, task, step, "StatefulSet scaled down to 0 replicas", func() error { return nil })
 
 		case stepDeletePVCs:
-			result = h.runStep(ctx, etcd, step, "Deleted all PVCs",
+			result = h.runStep(ctx, task, step, "Deleted all PVCs",
 				func() error { return h.deleteAllPVCs(ctx, etcd) })
 
 		case stepDeleteMemberLeases:
-			result = h.runStep(ctx, etcd, step, "Deleted all member leases",
+			result = h.runStep(ctx, task, step, "Deleted all member leases",
 				func() error { return h.deleteAllMemberLeases(ctx, etcd) })
 
 		case stepPatchConfigMap:
-			result = h.runStep(ctx, etcd, step, "Patched ConfigMap to single-member configuration",
+			result = h.runStep(ctx, task, step, "Patched ConfigMap to single-member configuration",
 				func() error { return h.updateConfigMapForSingleMember(ctx, etcd) })
 
 		case stepScaleUp:
-			result = h.runStep(ctx, etcd, step, "Scaled StatefulSet up to 1 replica",
+			result = h.runStep(ctx, task, step, "Scaled StatefulSet up to 1 replica",
 				func() error { return h.scaleStatefulSetTo(ctx, etcd, 1) })
 
 		case stepWaitPodReady:
@@ -304,7 +311,7 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 				}
 			}
 			if !ready {
-				if timedOut, elapsed := h.isWaitTimedOut(etcd, h.podReadyTimeout()); timedOut {
+				if timedOut, elapsed := h.isWaitTimedOut(task, h.podReadyTimeout()); timedOut {
 					return taskhandler.Result{
 						Description: fmt.Sprintf("Timed out waiting for single-member etcd pod to become ready after %s", elapsed.Round(time.Second)),
 						Error: druiderr.WrapError(
@@ -314,12 +321,12 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 							"pod-ready timeout exceeded"),
 					}
 				}
-				if err := h.ensureWaitStartAnnotation(ctx, etcd); err != nil {
+				if err := h.ensureWaitStartAnnotation(ctx, task); err != nil {
 					return taskhandler.Result{
 						Description: "Failed to record wait-start time for pod readiness",
 						Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
 							string(druidv1alpha1.LastOperationTypeExecution),
-							"failed to annotate Etcd CR with wait-start time"),
+							"failed to annotate EtcdOpsTask CR with wait-start time"),
 					}
 				}
 				return taskhandler.Result{
@@ -327,14 +334,14 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 					Requeue:     true,
 				}
 			}
-			result = h.runStep(ctx, etcd, step, "Single-member etcd pod is ready", func() error { return nil })
+			result = h.runStep(ctx, task, step, "Single-member etcd pod is ready", func() error { return nil })
 
 		case stepReenableReconciliation:
-			result = h.runStep(ctx, etcd, step, "Re-enabled etcd-druid reconciliation",
+			result = h.runStep(ctx, task, step, "Re-enabled etcd-druid reconciliation",
 				func() error { return h.enableReconciliation(ctx, etcd) })
 
 		case stepReenableComponentProtect:
-			result = h.runStep(ctx, etcd, step, "Re-enabled etcd component protection",
+			result = h.runStep(ctx, task, step, "Re-enabled etcd component protection",
 				func() error { return h.enableComponentProtection(ctx, etcd) })
 		}
 
@@ -349,8 +356,11 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	}
 }
 
-// Cleanup removes the recovery annotations from the Etcd resource if they are still present.
-// This prevents the operator from being permanently locked out when the task fails mid-execution.
+// Cleanup removes the cluster-control annotations from the Etcd resource if they are still
+// present. This prevents the operator from being permanently locked out when the task fails
+// mid-execution. The per-task recovery annotations (recoveryStepAnnotation,
+// recoveryWaitStartAnnotation) live on the EtcdOpsTask itself and are garbage-collected with
+// it after ttlSecondsAfterFinished, so no explicit removal is needed here.
 func (h *handler) Cleanup(ctx context.Context) taskhandler.Result {
 	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeCleanup)
 	if errResult != nil {
@@ -363,9 +373,7 @@ func (h *handler) Cleanup(ctx context.Context) taskhandler.Result {
 	}
 	hasSuspend := metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation)
 	hasDisableProtection := metav1.HasAnnotation(etcd.ObjectMeta, druidv1alpha1.DisableEtcdComponentProtectionAnnotation)
-	hasStep := metav1.HasAnnotation(etcd.ObjectMeta, recoveryStepAnnotation)
-	hasWaitStart := metav1.HasAnnotation(etcd.ObjectMeta, recoveryWaitStartAnnotation)
-	if !hasSuspend && !hasDisableProtection && !hasStep && !hasWaitStart {
+	if !hasSuspend && !hasDisableProtection {
 		return taskhandler.Result{
 			Description: "No cleanup required for RecoverFromQuorumLoss task",
 		}
@@ -373,8 +381,6 @@ func (h *handler) Cleanup(ctx context.Context) taskhandler.Result {
 	patch := client.MergeFrom(etcd.DeepCopy())
 	delete(etcd.Annotations, druidv1alpha1.SuspendEtcdSpecReconcileAnnotation)
 	delete(etcd.Annotations, druidv1alpha1.DisableEtcdComponentProtectionAnnotation)
-	delete(etcd.Annotations, recoveryStepAnnotation)
-	delete(etcd.Annotations, recoveryWaitStartAnnotation)
 	if err := h.k8sClient.Patch(ctx, etcd, patch); err != nil {
 		return taskhandler.Result{
 			Description: "Failed to remove recovery annotations during cleanup",
@@ -389,11 +395,11 @@ func (h *handler) Cleanup(ctx context.Context) taskhandler.Result {
 	}
 }
 
-// runStep executes fn, and on success records the completed step in the Etcd CR annotation
+// runStep executes fn, and on success records the completed step in the EtcdOpsTask CR annotation
 // and returns a Requeue result so the reconciler writes the step description to task status.
 // Returns nil when the caller should continue to the next step in the same call (never happens
 // here — every successful step triggers a requeue except the last, which is handled in Execute).
-func (h *handler) runStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step recoveryStep, description string, fn func() error) *taskhandler.Result {
+func (h *handler) runStep(ctx context.Context, task *druidv1alpha1.EtcdOpsTask, step recoveryStep, description string, fn func() error) *taskhandler.Result {
 	if err := fn(); err != nil {
 		return &taskhandler.Result{
 			Description: fmt.Sprintf("Failed during step %s", step),
@@ -402,12 +408,12 @@ func (h *handler) runStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step re
 				fmt.Sprintf("failed to execute step %s", step)),
 		}
 	}
-	if err := h.recordCompletedStep(ctx, etcd, step); err != nil {
+	if err := h.recordCompletedStep(ctx, task, step); err != nil {
 		return &taskhandler.Result{
 			Description: fmt.Sprintf("Failed to record completion of step %s", step),
 			Error: druiderr.WrapError(err, ErrExecuteRecoverFromQuorumLoss,
 				string(druidv1alpha1.LastOperationTypeExecution),
-				fmt.Sprintf("failed to annotate Etcd CR after step %s", step)),
+				fmt.Sprintf("failed to annotate EtcdOpsTask CR after step %s", step)),
 		}
 	}
 	// Return nil only for the last step so Execute can return the final success result.
@@ -420,40 +426,40 @@ func (h *handler) runStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step re
 	}
 }
 
-// recordCompletedStep writes the step name into the Etcd CR annotation so it can be
+// recordCompletedStep writes the step name into the EtcdOpsTask CR annotation so it can be
 // skipped on the next reconcile invocation. It also clears the wait-start annotation
 // when a wait step completes, since the deadline is no longer relevant.
-func (h *handler) recordCompletedStep(ctx context.Context, etcd *druidv1alpha1.Etcd, step recoveryStep) error {
-	patch := client.MergeFrom(etcd.DeepCopy())
-	if etcd.Annotations == nil {
-		etcd.Annotations = make(map[string]string)
+func (h *handler) recordCompletedStep(ctx context.Context, task *druidv1alpha1.EtcdOpsTask, step recoveryStep) error {
+	patch := client.MergeFrom(task.DeepCopy())
+	if task.Annotations == nil {
+		task.Annotations = make(map[string]string)
 	}
-	etcd.Annotations[recoveryStepAnnotation] = string(step)
+	task.Annotations[recoveryStepAnnotation] = string(step)
 	if step == stepWaitScaleDown || step == stepWaitPodReady {
-		delete(etcd.Annotations, recoveryWaitStartAnnotation)
+		delete(task.Annotations, recoveryWaitStartAnnotation)
 	}
-	return h.k8sClient.Patch(ctx, etcd, patch)
+	return h.k8sClient.Patch(ctx, task, patch)
 }
 
-// ensureWaitStartAnnotation records the current time on the Etcd CR the first time a wait
+// ensureWaitStartAnnotation records the current time on the EtcdOpsTask CR the first time a wait
 // step is entered, so isWaitTimedOut can enforce the timeout across requeueues.
-func (h *handler) ensureWaitStartAnnotation(ctx context.Context, etcd *druidv1alpha1.Etcd) error {
-	if metav1.HasAnnotation(etcd.ObjectMeta, recoveryWaitStartAnnotation) {
+func (h *handler) ensureWaitStartAnnotation(ctx context.Context, task *druidv1alpha1.EtcdOpsTask) error {
+	if metav1.HasAnnotation(task.ObjectMeta, recoveryWaitStartAnnotation) {
 		return nil
 	}
-	patch := client.MergeFrom(etcd.DeepCopy())
-	if etcd.Annotations == nil {
-		etcd.Annotations = make(map[string]string)
+	patch := client.MergeFrom(task.DeepCopy())
+	if task.Annotations == nil {
+		task.Annotations = make(map[string]string)
 	}
-	etcd.Annotations[recoveryWaitStartAnnotation] = time.Now().UTC().Format(time.RFC3339)
-	return h.k8sClient.Patch(ctx, etcd, patch)
+	task.Annotations[recoveryWaitStartAnnotation] = time.Now().UTC().Format(time.RFC3339)
+	return h.k8sClient.Patch(ctx, task, patch)
 }
 
 // isWaitTimedOut returns true if more than timeout has elapsed since the wait-start annotation
 // was written, along with the elapsed duration. Returns false if the annotation is absent or
 // cannot be parsed (treated as not yet timed out).
-func (h *handler) isWaitTimedOut(etcd *druidv1alpha1.Etcd, timeout time.Duration) (bool, time.Duration) {
-	val, ok := etcd.Annotations[recoveryWaitStartAnnotation]
+func (h *handler) isWaitTimedOut(task *druidv1alpha1.EtcdOpsTask, timeout time.Duration) (bool, time.Duration) {
+	val, ok := task.Annotations[recoveryWaitStartAnnotation]
 	if !ok {
 		return false, 0
 	}

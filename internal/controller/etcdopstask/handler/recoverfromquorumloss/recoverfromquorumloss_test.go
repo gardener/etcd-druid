@@ -449,8 +449,9 @@ func TestRecoverFromQuorumLossExecute(t *testing.T) {
 			if tc.extraObjects != nil && tc.etcdObject != nil {
 				objs = append(objs, tc.extraObjects(tc.etcdObject)...)
 			}
-			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			objs = append(objs, task)
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 			taskHandler, err := New(cl, task, nil)
 			g.Expect(err).To(BeNil())
 
@@ -489,10 +490,10 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 	g.Expect(err).To(BeNil())
 	sts := buildStatefulSet(etcd, 3, 3)
 	pod := buildReadyPod(etcd)
+	task := buildEtcdOpsTask(etcdName, namespace, nil)
 
 	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).
-		WithObjects(etcd, cm, sts, pod).Build()
-	task := buildEtcdOpsTask(etcdName, namespace, nil)
+		WithObjects(etcd, cm, sts, pod, task).Build()
 	taskHandler, handlerErr := New(cl, task, nil)
 	g.Expect(handlerErr).To(BeNil())
 
@@ -533,9 +534,9 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 		g.Expect(result.Requeue).To(BeTrue(), "expected requeue after step %s", exp.step)
 		g.Expect(result.Description).To(Equal(exp.description), "wrong description at step %s", exp.step)
 
-		updatedEtcd := &druidv1alpha1.Etcd{}
-		g.Expect(cl.Get(ctx, types.NamespacedName{Name: etcdName, Namespace: namespace}, updatedEtcd)).To(Succeed())
-		g.Expect(updatedEtcd.Annotations).To(HaveKeyWithValue(recoveryStepAnnotation, string(exp.step)),
+		updatedTask := &druidv1alpha1.EtcdOpsTask{}
+		g.Expect(cl.Get(ctx, types.NamespacedName{Name: task.Name, Namespace: namespace}, updatedTask)).To(Succeed())
+		g.Expect(updatedTask.Annotations).To(HaveKeyWithValue(recoveryStepAnnotation, string(exp.step)),
 			"step annotation not recorded after step %s", exp.step)
 
 		if exp.sideEffect != nil {
@@ -563,20 +564,20 @@ func TestWaitStepTimeout(t *testing.T) {
 	t.Run("Should fail with timeout error when scale-down does not complete in time", func(t *testing.T) {
 		t.Parallel()
 		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
-		// Pre-set the step annotation to WaitScaleDown so Execute enters that step directly,
-		// and set an expired wait-start so the timeout is already exceeded.
-		etcd.Annotations = map[string]string{
-			recoveryStepAnnotation:      string(stepScaleDown),
-			recoveryWaitStartAnnotation: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339),
-		}
 		cm, err := buildConfigMapWithEtcdConfig(etcd)
 		g.Expect(err).To(BeNil())
 		// STS still has running replicas — scale-down not complete.
 		sts := buildStatefulSet(etcd, 0, 3)
-		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, sts).Build()
 		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
 			ScaleDownTimeout: &metav1.Duration{Duration: time.Minute},
 		})
+		// Pre-set the step annotation to WaitScaleDown so Execute enters that step directly,
+		// and set an expired wait-start so the timeout is already exceeded.
+		task.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepScaleDown),
+			recoveryWaitStartAnnotation: time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, sts, task).Build()
 		taskHandler, handlerErr := New(cl, task, nil)
 		g.Expect(handlerErr).To(BeNil())
 
@@ -589,12 +590,6 @@ func TestWaitStepTimeout(t *testing.T) {
 	t.Run("Should fail with timeout error when pod does not become ready in time", func(t *testing.T) {
 		t.Parallel()
 		etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
-		// Pre-set the step annotation to WaitPodReady so Execute enters that step directly,
-		// and set an expired wait-start so the timeout is already exceeded.
-		etcd.Annotations = map[string]string{
-			recoveryStepAnnotation:      string(stepScaleUp),
-			recoveryWaitStartAnnotation: time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339),
-		}
 		cm, err := buildConfigMapWithEtcdConfig(etcd)
 		g.Expect(err).To(BeNil())
 		// Pod exists but is not ready.
@@ -609,10 +604,16 @@ func TestWaitStepTimeout(t *testing.T) {
 				},
 			},
 		}
-		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, pod).Build()
 		task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
 			PodReadyTimeout: &metav1.Duration{Duration: 3 * time.Minute},
 		})
+		// Pre-set the step annotation to WaitPodReady so Execute enters that step directly,
+		// and set an expired wait-start so the timeout is already exceeded.
+		task.Annotations = map[string]string{
+			recoveryStepAnnotation:      string(stepScaleUp),
+			recoveryWaitStartAnnotation: time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339),
+		}
+		cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, cm, pod, task).Build()
 		taskHandler, handlerErr := New(cl, task, nil)
 		g.Expect(handlerErr).To(BeNil())
 
@@ -658,13 +659,13 @@ func TestRecoverFromQuorumLossExecuteWithPVCsAndLeases(t *testing.T) {
 		},
 	}
 
-	objs := []client.Object{etcd, cm, buildStatefulSet(etcd, 0, 0), buildReadyPod(etcd), pvc, lease}
-	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-
 	task := buildEtcdOpsTask(etcdName, namespace, &druidv1alpha1.RecoverFromQuorumLossConfig{
 		ScaleDownTimeout: &metav1.Duration{Duration: time.Second},
 		PodReadyTimeout:  &metav1.Duration{Duration: time.Second},
 	})
+	objs := []client.Object{etcd, cm, buildStatefulSet(etcd, 0, 0), buildReadyPod(etcd), pvc, lease, task}
+	cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+
 	taskHandler, err := New(cl, task, nil)
 	g.Expect(err).To(BeNil())
 
@@ -709,14 +710,12 @@ func TestRecoverFromQuorumLossCleanup(t *testing.T) {
 			expectedDescription: "No cleanup required for RecoverFromQuorumLoss task",
 		},
 		{
-			name: "Should remove all recovery annotations including step annotation",
+			name: "Should remove cluster-scope recovery annotations from the Etcd CR",
 			etcdObject: func() *druidv1alpha1.Etcd {
 				etcd := createEtcd(etcdName, namespace, 3, false, false, false)
 				etcd.Annotations = map[string]string{
 					druidv1alpha1.SuspendEtcdSpecReconcileAnnotation:       "true",
 					druidv1alpha1.DisableEtcdComponentProtectionAnnotation: "true",
-					recoveryStepAnnotation:                                 string(stepScaleDown),
-					recoveryWaitStartAnnotation:                            time.Now().UTC().Format(time.RFC3339),
 				}
 				return etcd
 			}(),
@@ -745,8 +744,6 @@ func TestRecoverFromQuorumLossCleanup(t *testing.T) {
 				g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: etcdName, Namespace: namespace}, updated)).To(Succeed())
 				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.SuspendEtcdSpecReconcileAnnotation))
 				g.Expect(updated.Annotations).ToNot(HaveKey(druidv1alpha1.DisableEtcdComponentProtectionAnnotation))
-				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryStepAnnotation))
-				g.Expect(updated.Annotations).ToNot(HaveKey(recoveryWaitStartAnnotation))
 			}
 		})
 	}
