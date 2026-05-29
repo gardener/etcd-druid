@@ -62,6 +62,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		"namespace", req.Namespace,
 		"name", req.Name,
 	)
+	ctx = log.IntoContext(ctx, logger)
 	logger.Info("Reconciling EtcdOpsTask")
 
 	task, err := r.getTask(ctx, req.NamespacedName)
