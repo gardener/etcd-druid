@@ -120,6 +120,13 @@ spec:
                           is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),
                           the admit check rejects the task if no backup store is configured.
                         type: boolean
+                      etcdReadyTimeout:
+                        description: |-
+                          EtcdReadyTimeout is the timeout to wait for all etcd cluster members to become ready
+                          (the AllMembersReady condition reports True) after etcd-druid reconciliation has been
+                          re-enabled at the end of the recovery flow. Defaults to 300 seconds (5 minutes).
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                        type: string
                       podReadyTimeout:
                         description: |-
                           PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become
