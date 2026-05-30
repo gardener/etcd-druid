@@ -52,12 +52,20 @@ const (
 	// step (WaitScaleDown, WaitPodReady, WaitEtcdReady) was first entered, so the timeout can be
 	// enforced across requeueues.
 	recoveryWaitStartAnnotation = "druid.gardener.cloud/quorum-recovery-wait-start"
+	// confirmAnnotation is set by an operator on the EtcdOpsTask to confirm execution of the
+	// destructive recovery flow. The first execution step blocks until this annotation is
+	// observed with the literal value "true". Any other value (or absence) keeps the gate closed.
+	confirmAnnotation = "druid.gardener.cloud/confirm-recovery"
+	// confirmAnnotationValue is the only value that signals user confirmation. Strict match —
+	// other truthy-looking values such as "True", "yes", or "1" do not confirm.
+	confirmAnnotationValue = "true"
 )
 
 // recoveryStep identifies an individual step in the quorum-loss recovery sequence.
 type recoveryStep string
 
 const (
+	stepWaitConfirmation         recoveryStep = "WaitConfirmation"
 	stepSuspendReconciliation    recoveryStep = "SuspendReconciliation"
 	stepDisableComponentProtect  recoveryStep = "DisableComponentProtection"
 	stepScaleDown                recoveryStep = "ScaleDown"
@@ -75,6 +83,7 @@ const (
 // stepOrder is the canonical execution sequence. Execute iterates this slice and
 // skips any step whose index is <= the index of the last completed step.
 var stepOrder = []recoveryStep{
+	stepWaitConfirmation,
 	stepSuspendReconciliation,
 	stepDisableComponentProtect,
 	stepScaleDown,
@@ -236,19 +245,20 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 // step so that progress is visible in the task's LastOperation status. On requeue, steps that
 // have already been recorded in the EtcdOpsTask CR annotation are skipped.
 //
-//  1. Suspend etcd-druid reconciliation.
-//  2. Disable etcd component protection.
-//  3. Scale the StatefulSet down to 0.
-//  4. Wait for the StatefulSet to reach 0 replicas.
-//  5. Delete all PVCs.
-//  6. Delete all member leases.
-//  7. Patch the ConfigMap to configure a single-member cluster (member-0 only).
-//  8. Scale up the StatefulSet to 1.
-//  9. Wait for the single-member etcd pod to become ready.
+//  1. Wait for user confirmation (annotation druid.gardener.cloud/confirm-recovery: "true" on the EtcdOpsTask).
+//  2. Suspend etcd-druid reconciliation.
+//  3. Disable etcd component protection.
+//  4. Scale the StatefulSet down to 0.
+//  5. Wait for the StatefulSet to reach 0 replicas.
+//  6. Delete all PVCs.
+//  7. Delete all member leases.
+//  8. Patch the ConfigMap to configure a single-member cluster (member-0 only).
+//  9. Scale up the StatefulSet to 1.
 //
-// 10. Re-enable etcd-druid reconciliation (triggers scale-out to original replica count).
-// 11. Wait for all etcd cluster members to become ready (quorum restored).
-// 12. Re-enable etcd component protection.
+// 10. Wait for the single-member etcd pod to become ready.
+// 11. Re-enable etcd-druid reconciliation (triggers scale-out to original replica count).
+// 12. Wait for all etcd cluster members to become ready (quorum restored).
+// 13. Re-enable etcd component protection.
 func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	etcd, errResult := handlerutils.GetEtcd(ctx, h.k8sClient, h.etcdReference, druidv1alpha1.LastOperationTypeExecution)
 	if errResult != nil {
@@ -274,8 +284,26 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 				return *r
 			}
 		}
+		// Re-fetch the EtcdOpsTask before stepWaitConfirmation so a freshly-added confirmation
+		// annotation is observed without waiting for the next reconcile cycle.
+		if step == stepWaitConfirmation {
+			var r *taskhandler.Result
+			task, r = handlerutils.GetEtcdOpsTask(ctx, h.k8sClient, h.taskReference, druidv1alpha1.LastOperationTypeExecution)
+			if r != nil {
+				return *r
+			}
+		}
 
 		switch step {
+		case stepWaitConfirmation:
+			if task.Annotations[confirmAnnotation] != confirmAnnotationValue {
+				return taskhandler.Result{
+					Description: "Awaiting user confirmation. Add the 'druid.gardener.cloud/confirm-recovery: true' annotation to the EtcdOpsTask to proceed with the destructive recovery.",
+					Requeue:     true,
+				}
+			}
+			result = h.runStep(ctx, task, step, "User confirmation received", func() error { return nil })
+
 		case stepSuspendReconciliation:
 			result = h.runStep(ctx, task, step, "Suspended etcd-druid reconciliation",
 				func() error { return h.suspendReconciliation(ctx, etcd) })
