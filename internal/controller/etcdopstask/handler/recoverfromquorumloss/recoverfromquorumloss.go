@@ -17,6 +17,7 @@ import (
 	taskhandler "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	handlerutils "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	healthcondition "github.com/gardener/etcd-druid/internal/health/condition"
 	k8sutils "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -222,15 +223,61 @@ func (h *handler) Admit(ctx context.Context) taskhandler.Result {
 		}
 	}
 
-	if etcd.IsReady() {
+	readyStatus, readyReason, readyPresent := readyCondition(etcd)
+	switch {
+	case readyPresent && readyStatus == druidv1alpha1.ConditionTrue:
 		return taskhandler.Result{
-			Description: "The etcd cluster is currently ready; no quorum loss detected. " +
-				"task is only applicable when the cluster has lost quorum.",
+			Description: "The etcd cluster has not lost quorum (Ready=True, reason=Quorate). " +
+				"RecoverFromQuorumLoss is only applicable when quorum has been lost (Ready=False with reason QuorumLost). " +
+				"The cluster may have other unhealthiness (members not ready, rolling update in progress, etc.); " +
+				"those do not require quorum-loss recovery and the cluster will recover on its own or require a different remediation.",
 			Error: druiderr.WrapError(
-				fmt.Errorf("etcd %s/%s is in ready state; quorum loss not detected", etcd.Namespace, etcd.Name),
+				fmt.Errorf("etcd %s/%s has Ready=True (reason=%s)", etcd.Namespace, etcd.Name, readyReason),
 				ErrAdmitRecoverFromQuorumLoss,
 				string(druidv1alpha1.LastOperationTypeAdmit),
-				"etcd cluster is ready; quorum loss not detected",
+				"etcd cluster has not lost quorum",
+			),
+			Requeue: false,
+		}
+	case readyPresent && readyStatus == druidv1alpha1.ConditionFalse && readyReason == healthcondition.ReadyConditionReasonQuorumLost:
+		// The only path forward — fall through to the success result below.
+	case readyPresent && readyStatus == druidv1alpha1.ConditionFalse:
+		return taskhandler.Result{
+			Description: fmt.Sprintf(
+				"The etcd cluster has not lost quorum (Ready=False, reason=%s; the canonical QuorumLost signal has not been observed). "+
+					"RecoverFromQuorumLoss is only applicable when the Ready condition reports False with reason QuorumLost; "+
+					"the cluster may recover on its own, or a different remediation may be required.",
+				readyReason),
+			Error: druiderr.WrapError(
+				fmt.Errorf("etcd %s/%s has Ready=False with reason %q; QuorumLost signal not observed", etcd.Namespace, etcd.Name, readyReason),
+				ErrAdmitRecoverFromQuorumLoss,
+				string(druidv1alpha1.LastOperationTypeAdmit),
+				"etcd cluster has not lost quorum",
+			),
+			Requeue: false,
+		}
+	default:
+		// Ready=Unknown or condition missing entirely.
+		var description string
+		var cause error
+		if readyPresent {
+			description = fmt.Sprintf(
+				"Cannot determine whether the etcd cluster has lost quorum: Ready condition is Unknown (reason=%q). "+
+					"Wait until the cluster's health is reconciled before running RecoverFromQuorumLoss.",
+				readyReason)
+			cause = fmt.Errorf("etcd %s/%s has Ready=Unknown (reason=%q); cannot confirm quorum loss", etcd.Namespace, etcd.Name, readyReason)
+		} else {
+			description = "Cannot determine whether the etcd cluster has lost quorum: no Ready condition is published. " +
+				"Wait until the cluster's health is reconciled before running RecoverFromQuorumLoss."
+			cause = fmt.Errorf("etcd %s/%s has no Ready condition; cannot confirm quorum loss", etcd.Namespace, etcd.Name)
+		}
+		return taskhandler.Result{
+			Description: description,
+			Error: druiderr.WrapError(
+				cause,
+				ErrAdmitRecoverFromQuorumLoss,
+				string(druidv1alpha1.LastOperationTypeAdmit),
+				"cannot determine quorum-loss status",
 			),
 			Requeue: false,
 		}
@@ -784,6 +831,18 @@ func backupReadyStatusForError(status druidv1alpha1.ConditionStatus, present boo
 		return "Missing"
 	}
 	return string(status)
+}
+
+// readyCondition returns the Ready condition's status and reason on the etcd, and a boolean
+// indicating whether the condition was present at all. When the condition is absent, returns
+// (ConditionUnknown, "", false).
+func readyCondition(etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string, bool) {
+	for _, condition := range etcd.Status.Conditions {
+		if condition.Type == druidv1alpha1.ConditionTypeReady {
+			return condition.Status, condition.Reason, true
+		}
+	}
+	return druidv1alpha1.ConditionUnknown, "", false
 }
 
 // enableReconciliation removes the suspend-reconciliation annotation and adds the
