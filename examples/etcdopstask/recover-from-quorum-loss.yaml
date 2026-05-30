@@ -3,6 +3,12 @@ kind: EtcdOpsTask
 metadata:
   name: recover-from-quorum-loss
   namespace: default
+  # annotations:
+  #   # Required: explicit confirmation before the destructive recovery proceeds.
+  #   # The task pauses at the first execution step until this annotation is observed with the
+  #   # literal value "true". Any other value (or absence) keeps the gate closed.
+  #   # Uncomment when you are ready to run the recovery.
+  #   druid.gardener.cloud/confirm-recovery: "true"
 spec:
   etcdName: etcd-main
   ttlSecondsAfterFinished: 3600

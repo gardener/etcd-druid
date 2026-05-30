@@ -32,11 +32,19 @@ import (
 // ---- Test helper functions ----
 
 // buildEtcdOpsTask creates an EtcdOpsTask for the RecoverFromQuorumLoss handler with optional config.
+// The confirmation annotation `druid.gardener.cloud/confirm-recovery: "true"` is seeded by default so that
+// the gate at the start of Execute() does not block the test. Tests that exercise the gate
+// directly should remove or mutate this annotation explicitly.
 func buildEtcdOpsTask(etcdName, namespace string, cfg *druidv1alpha1.RecoverFromQuorumLossConfig) *druidv1alpha1.EtcdOpsTask {
-	return utils.EtcdOpsTaskBuilderWithDefaults("test-recover-task", namespace).
+	task := utils.EtcdOpsTaskBuilderWithDefaults("test-recover-task", namespace).
 		WithEtcdName(etcdName).
 		WithRecoverFromQuorumLossConfig(cfg).
 		Build()
+	if task.Annotations == nil {
+		task.Annotations = map[string]string{}
+	}
+	task.Annotations[confirmAnnotation] = confirmAnnotationValue
+	return task
 }
 
 // createEtcd creates an Etcd resource for testing with configurable replicas, readiness, TLS, and backup store.
@@ -634,6 +642,7 @@ func TestRecoverFromQuorumLossExecuteStepByStep(t *testing.T) {
 	// Each entry represents one reconcile invocation that should succeed and requeue.
 	// sideEffect functions simulate controller-managed status changes the fake client won't do.
 	expectations := []stepExpect{
+		{step: stepWaitConfirmation, description: "User confirmation received"},
 		{step: stepSuspendReconciliation, description: "Suspended etcd-druid reconciliation"},
 		{step: stepDisableComponentProtect, description: "Disabled etcd component protection"},
 		{step: stepScaleDown, description: "Scaled StatefulSet down to 0 replicas", sideEffect: func() {
@@ -781,6 +790,86 @@ func TestWaitStepTimeout(t *testing.T) {
 		g.Expect(result.Requeue).To(BeFalse())
 		g.Expect(result.Description).To(ContainSubstring("Timed out waiting for all etcd cluster members to become ready"))
 	})
+}
+
+// TestRecoverFromQuorumLossWaitConfirmation tests the confirmation gate at the start of Execute.
+// The gate must block until the annotation `druid.gardener.cloud/confirm-recovery` is set to the literal
+// string "true"; any other value (or absence) keeps the gate closed.
+func TestRecoverFromQuorumLossWaitConfirmation(t *testing.T) {
+	g := NewGomegaWithT(t)
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-ns"
+	)
+
+	tests := []struct {
+		name              string
+		confirmAnnotation *string
+		expectAdvance     bool
+		expectDescription string
+	}{
+		{
+			name:              "Should requeue when confirm annotation is absent",
+			confirmAnnotation: nil,
+			expectAdvance:     false,
+			expectDescription: "Awaiting user confirmation. Add the 'druid.gardener.cloud/confirm-recovery: true' annotation to the EtcdOpsTask to proceed with the destructive recovery.",
+		},
+		{
+			name:              "Should advance when confirm annotation is exactly \"true\"",
+			confirmAnnotation: ptr.To("true"),
+			expectAdvance:     true,
+			expectDescription: "User confirmation received",
+		},
+		{
+			name:              "Should requeue when confirm annotation is \"True\" (case mismatch)",
+			confirmAnnotation: ptr.To("True"),
+			expectAdvance:     false,
+			expectDescription: "Awaiting user confirmation. Add the 'druid.gardener.cloud/confirm-recovery: true' annotation to the EtcdOpsTask to proceed with the destructive recovery.",
+		},
+		{
+			name:              "Should requeue when confirm annotation is \"yes\"",
+			confirmAnnotation: ptr.To("yes"),
+			expectAdvance:     false,
+			expectDescription: "Awaiting user confirmation. Add the 'druid.gardener.cloud/confirm-recovery: true' annotation to the EtcdOpsTask to proceed with the destructive recovery.",
+		},
+		{
+			name:              "Should requeue when confirm annotation is \"false\"",
+			confirmAnnotation: ptr.To("false"),
+			expectAdvance:     false,
+			expectDescription: "Awaiting user confirmation. Add the 'druid.gardener.cloud/confirm-recovery: true' annotation to the EtcdOpsTask to proceed with the destructive recovery.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := createEtcdWithBackup(etcdName, namespace, 3, false)
+			task := buildEtcdOpsTask(etcdName, namespace, nil)
+			// buildEtcdOpsTask seeds confirm=true by default; override to test the gate.
+			delete(task.Annotations, confirmAnnotation)
+			if tc.confirmAnnotation != nil {
+				task.Annotations[confirmAnnotation] = *tc.confirmAnnotation
+			}
+			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(etcd, task).Build()
+			taskHandler, handlerErr := New(cl, task, nil)
+			g.Expect(handlerErr).To(BeNil())
+
+			result := taskHandler.Execute(context.Background())
+			g.Expect(result.Error).To(BeNil())
+			g.Expect(result.Description).To(Equal(tc.expectDescription))
+			g.Expect(result.Requeue).To(BeTrue())
+
+			updatedTask := &druidv1alpha1.EtcdOpsTask{}
+			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: task.Name, Namespace: namespace}, updatedTask)).To(Succeed())
+			if tc.expectAdvance {
+				g.Expect(updatedTask.Annotations).To(HaveKeyWithValue(recoveryStepAnnotation, string(stepWaitConfirmation)),
+					"step annotation should be recorded after the gate advances")
+			} else {
+				g.Expect(updatedTask.Annotations).ToNot(HaveKey(recoveryStepAnnotation),
+					"step annotation should not be recorded while the gate is closed")
+			}
+		})
+	}
 }
 
 // TestRecoverFromQuorumLossExecuteWithPVCsAndLeases tests Execute when PVCs and leases exist.
