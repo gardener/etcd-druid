@@ -48,6 +48,10 @@ func buildEtcdOpsTask(etcdName, namespace string, cfg *druidv1alpha1.RecoverFrom
 }
 
 // createEtcd creates an Etcd resource for testing with configurable replicas, readiness, TLS, and backup store.
+// When ready=false, the Ready condition is seeded as False with reason QuorumLost so that the
+// RecoverFromQuorumLoss admit check (which requires this exact signal) accepts the cluster as
+// applicable. Tests that need a different Ready state (e.g. Unknown, missing, or False with a
+// non-QuorumLost reason) should mutate etcd.Status.Conditions after calling this helper.
 func createEtcd(name, namespace string, replicas int32, ready bool, withPeerTLS bool, withClientTLS bool) *druidv1alpha1.Etcd {
 	eb := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(replicas)
 	if withPeerTLS {
@@ -63,12 +67,20 @@ func createEtcd(name, namespace string, replicas int32, ready bool, withPeerTLS 
 			{
 				Type:    druidv1alpha1.ConditionTypeReady,
 				Status:  druidv1alpha1.ConditionTrue,
+				Reason:  "Quorate",
 				Message: "etcd is ready for testing purposes",
 			},
 		}
 	} else {
 		etcd.Status.Ready = ptr.To(false)
-		etcd.Status.Conditions = []druidv1alpha1.Condition{}
+		etcd.Status.Conditions = []druidv1alpha1.Condition{
+			{
+				Type:    druidv1alpha1.ConditionTypeReady,
+				Status:  druidv1alpha1.ConditionFalse,
+				Reason:  "QuorumLost",
+				Message: "etcd has lost quorum for testing purposes",
+			},
+		}
 	}
 	return etcd
 }
@@ -76,6 +88,8 @@ func createEtcd(name, namespace string, replicas int32, ready bool, withPeerTLS 
 // createEtcdWithBackup creates an Etcd resource with a local backup store configured.
 // The BackupReady condition is set to True by default; tests that need a different status
 // (False, Unknown, missing) should mutate etcd.Status.Conditions after calling this helper.
+// The Ready condition follows the same pattern as createEtcd: False+QuorumLost when ready=false,
+// True+Quorate when ready=true.
 func createEtcdWithBackup(name, namespace string, replicas int32, ready bool) *druidv1alpha1.Etcd {
 	eb := utils.EtcdBuilderWithoutDefaults(name, namespace).WithReplicas(replicas).WithProviderLocal("test-prefix")
 	etcd := eb.Build()
@@ -90,13 +104,22 @@ func createEtcdWithBackup(name, namespace string, replicas int32, ready bool) *d
 			{
 				Type:    druidv1alpha1.ConditionTypeReady,
 				Status:  druidv1alpha1.ConditionTrue,
+				Reason:  "Quorate",
 				Message: "etcd is ready for testing purposes",
 			},
 			backupReadyCondition,
 		}
 	} else {
 		etcd.Status.Ready = ptr.To(false)
-		etcd.Status.Conditions = []druidv1alpha1.Condition{backupReadyCondition}
+		etcd.Status.Conditions = []druidv1alpha1.Condition{
+			{
+				Type:    druidv1alpha1.ConditionTypeReady,
+				Status:  druidv1alpha1.ConditionFalse,
+				Reason:  "QuorumLost",
+				Message: "etcd has lost quorum for testing purposes",
+			},
+			backupReadyCondition,
+		}
 	}
 	return etcd
 }
@@ -306,12 +329,14 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			name:       "Should return error without requeue when Etcd is ready (no quorum loss detected)",
 			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, true),
 			expectedResult: taskhandler.Result{
-				Description: "The etcd cluster is currently ready; no quorum loss detected. " +
-					"task is only applicable when the cluster has lost quorum.",
+				Description: "The etcd cluster has not lost quorum (Ready=True, reason=Quorate). " +
+					"RecoverFromQuorumLoss is only applicable when quorum has been lost (Ready=False with reason QuorumLost). " +
+					"The cluster may have other unhealthiness (members not ready, rolling update in progress, etc.); " +
+					"those do not require quorum-loss recovery and the cluster will recover on its own or require a different remediation.",
 				Error: &druiderr.DruidError{
 					Code:      ErrAdmitRecoverFromQuorumLoss,
 					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
-					Message:   "etcd cluster is ready; quorum loss not detected",
+					Message:   "etcd cluster has not lost quorum",
 				},
 				Requeue: false,
 			},
@@ -355,6 +380,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			etcdObject: func() *druidv1alpha1.Etcd {
 				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
 				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionFalse, Reason: "QuorumLost", Message: "etcd has lost quorum for testing purposes"},
 					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionFalse, Message: "stale snapshot"},
 				}
 				return etcd
@@ -377,6 +403,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			etcdObject: func() *druidv1alpha1.Etcd {
 				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
 				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionFalse, Reason: "QuorumLost", Message: "etcd has lost quorum for testing purposes"},
 					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionUnknown, Message: "snapshot leases not yet renewed"},
 				}
 				return etcd
@@ -398,7 +425,9 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			name: "Should reject when BackupReady condition is missing",
 			etcdObject: func() *druidv1alpha1.Etcd {
 				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
-				etcd.Status.Conditions = []druidv1alpha1.Condition{}
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionFalse, Reason: "QuorumLost", Message: "etcd has lost quorum for testing purposes"},
+				}
 				return etcd
 			}(),
 			expectedResult: taskhandler.Result{
@@ -419,6 +448,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			etcdObject: func() *druidv1alpha1.Etcd {
 				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
 				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionFalse, Reason: "QuorumLost", Message: "etcd has lost quorum for testing purposes"},
 					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionFalse, Message: "stale snapshot"},
 				}
 				return etcd
@@ -431,6 +461,118 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 				Requeue:     false,
 			},
 			expectErr: false,
+		},
+		{
+			name: "Should reject when Ready=False with a non-QuorumLost reason",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionFalse, Reason: "BackupReady", Message: "transient unhealthiness"},
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionTrue, Message: "ok"},
+				}
+				return etcd
+			}(),
+			expectedResult: taskhandler.Result{
+				Description: "The etcd cluster has not lost quorum (Ready=False, reason=BackupReady; the canonical QuorumLost signal has not been observed). " +
+					"RecoverFromQuorumLoss is only applicable when the Ready condition reports False with reason QuorumLost; " +
+					"the cluster may recover on its own, or a different remediation may be required.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd cluster has not lost quorum",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should reject when Ready condition is Unknown",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionUnknown, Reason: "NoMembersInStatus", Message: "no members yet"},
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionTrue, Message: "ok"},
+				}
+				return etcd
+			}(),
+			expectedResult: taskhandler.Result{
+				Description: "Cannot determine whether the etcd cluster has lost quorum: Ready condition is Unknown (reason=\"NoMembersInStatus\"). " +
+					"Wait until the cluster's health is reconciled before running RecoverFromQuorumLoss.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "cannot determine quorum-loss status",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should reject when Ready condition is missing",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionTrue, Message: "ok"},
+				}
+				return etcd
+			}(),
+			expectedResult: taskhandler.Result{
+				Description: "Cannot determine whether the etcd cluster has lost quorum: no Ready condition is published. " +
+					"Wait until the cluster's health is reconciled before running RecoverFromQuorumLoss.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "cannot determine quorum-loss status",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should still reject when Ready=True even with AllowDataLoss=true",
+			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, true),
+			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
+				AllowDataLoss: ptr.To(true),
+			},
+			expectedResult: taskhandler.Result{
+				Description: "The etcd cluster has not lost quorum (Ready=True, reason=Quorate). " +
+					"RecoverFromQuorumLoss is only applicable when quorum has been lost (Ready=False with reason QuorumLost). " +
+					"The cluster may have other unhealthiness (members not ready, rolling update in progress, etc.); " +
+					"those do not require quorum-loss recovery and the cluster will recover on its own or require a different remediation.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd cluster has not lost quorum",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
+		},
+		{
+			name: "Should still reject Ready=False non-QuorumLost reason even with AllowDataLoss=true",
+			etcdObject: func() *druidv1alpha1.Etcd {
+				etcd := createEtcdWithBackup("test-etcd", "test-ns", 3, false)
+				etcd.Status.Conditions = []druidv1alpha1.Condition{
+					{Type: druidv1alpha1.ConditionTypeReady, Status: druidv1alpha1.ConditionFalse, Reason: "BackupReady", Message: "transient unhealthiness"},
+					{Type: druidv1alpha1.ConditionTypeBackupReady, Status: druidv1alpha1.ConditionTrue, Message: "ok"},
+				}
+				return etcd
+			}(),
+			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
+				AllowDataLoss: ptr.To(true),
+			},
+			expectedResult: taskhandler.Result{
+				Description: "The etcd cluster has not lost quorum (Ready=False, reason=BackupReady; the canonical QuorumLost signal has not been observed). " +
+					"RecoverFromQuorumLoss is only applicable when the Ready condition reports False with reason QuorumLost; " +
+					"the cluster may recover on its own, or a different remediation may be required.",
+				Error: &druiderr.DruidError{
+					Code:      ErrAdmitRecoverFromQuorumLoss,
+					Operation: string(druidv1alpha1.LastOperationTypeAdmit),
+					Message:   "etcd cluster has not lost quorum",
+				},
+				Requeue: false,
+			},
+			expectErr: true,
 		},
 	}
 
