@@ -651,7 +651,7 @@ spec:
                   type: object
                 memberNamePrefix:
                   description: |-
-                    MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be "<prefix>-<pod-name>", otherwise it defaults to the "pod-name".
+                    MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.
                     The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
                   maxLength: 63
                   pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -1979,7 +1979,7 @@ spec:
                       name:
                         description: |-
                           Name is the name of the etcd member. It matches the member lease name.
-                          When EtcdSpec.MemberNamePrefix is set, it is "<prefix>-<pod-name>" otherwise it is the name of the backing `Pod`.
+                          When EtcdSpec.MemberNamePrefix is set, it is `<prefix>-<pod-name>` otherwise it is the name of the backing `Pod`.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
