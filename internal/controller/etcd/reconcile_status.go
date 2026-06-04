@@ -96,39 +96,46 @@ func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha
 }
 
 func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
-	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil || len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members) == 0 {
+	spec := etcd.Spec.Etcd.BootstrapWithExistingCluster
+	if spec == nil || len(spec.Members) == 0 {
 		return ctrlutils.ContinueReconcile()
 	}
 
+	bootstrapSucceeded := false
 	for _, cond := range etcd.Status.Conditions {
 		if cond.Type == druidv1alpha1.ConditionTypeBootstrapWithExistingCluster && cond.Status == druidv1alpha1.ConditionTrue {
-			if etcd.Status.BootstrapWithExistingClusterMembers == nil {
-				now := metav1.Now()
-				joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members))
-				for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
-					joined = append(joined, druidv1alpha1.BootstrapJoinedMember{
-						Name:               m.Name,
-						PeerURLs:           m.PeerURLs,
-						LastTransitionTime: now,
-					})
-				}
-				etcd.Status.BootstrapWithExistingClusterMembers = &druidv1alpha1.BootstrapWithExistingClusterStatus{
-					JoinedWith: joined,
-				}
-			} else {
-				specMembers := make(map[string][]string, len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members))
-				for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
-					specMembers[m.Name] = m.PeerURLs
-				}
-				for i := range etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith {
-					if len(etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith[i].PeerURLs) == 0 {
-						if peerURLs, ok := specMembers[etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith[i].Name]; ok {
-							etcd.Status.BootstrapWithExistingClusterMembers.JoinedWith[i].PeerURLs = peerURLs
-						}
-					}
-				}
-			}
+			bootstrapSucceeded = true
 			break
+		}
+	}
+	if !bootstrapSucceeded {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	if len(etcd.Status.BootstrapWithExistingClusterMembers) == 0 {
+		now := metav1.Now()
+		joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(spec.Members))
+		for _, m := range spec.Members {
+			joined = append(joined, druidv1alpha1.BootstrapJoinedMember{
+				Name:     m.Name,
+				PeerURLs: m.PeerURLs,
+				JoinedAt: now,
+			})
+		}
+		etcd.Status.BootstrapWithExistingClusterMembers = joined
+		return ctrlutils.ContinueReconcile()
+	}
+
+	peerURLsByName := make(map[string][]string, len(spec.Members))
+	for _, m := range spec.Members {
+		peerURLsByName[m.Name] = m.PeerURLs
+	}
+	for i := range etcd.Status.BootstrapWithExistingClusterMembers {
+		member := &etcd.Status.BootstrapWithExistingClusterMembers[i]
+		if len(member.PeerURLs) == 0 {
+			if peerURLs, ok := peerURLsByName[member.Name]; ok {
+				member.PeerURLs = peerURLs
+			}
 		}
 	}
 	return ctrlutils.ContinueReconcile()

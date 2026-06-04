@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -15,6 +15,29 @@ import (
 type bootstrapWithExistingCluster struct{}
 
 func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
+	// Sticky success: bootstrap is a one-shot event. Once status records
+	// the joined source members, this condition stays True for the
+	// lifetime of the resource. Re-evaluating member health here would
+	// regress the condition to BootstrapInProgress on a transient member
+	// outage post-bootstrap, which is incorrect.
+	//
+	// status.bootstrapWithExistingClusterMembers is populated by
+	// reconcile_status.mutateBootstrapWithExistingClusterStatus only after
+	// this condition has reached True at least once, so a non-empty status
+	// slice is a durable witness of a successful bootstrap. It also stays
+	// populated when spec.etcd.bootstrapWithExistingCluster is later
+	// cleared (the member-removal trigger), so the condition correctly
+	// stays True through that flow until removal completes and a future
+	// controller clears status.
+	if len(etcd.Status.BootstrapWithExistingClusterMembers) > 0 {
+		return &result{
+			conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
+			status:  druidv1alpha1.ConditionTrue,
+			reason:  "BootstrapSucceeded",
+			message: "All members have successfully joined the existing cluster",
+		}
+	}
+
 	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil || len(etcd.Spec.Etcd.BootstrapWithExistingCluster.Members) == 0 {
 		return nil
 	}
@@ -24,7 +47,7 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 			conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
 			status:  druidv1alpha1.ConditionFalse,
 			reason:  "BootstrapInProgress",
-			message: "Not all target members have joined the cluster yet",
+			message: "Not all members have joined the cluster yet",
 		}
 	}
 
@@ -34,7 +57,7 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 				conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
 				status:  druidv1alpha1.ConditionFalse,
 				reason:  "BootstrapInProgress",
-				message: "Not all target members are ready",
+				message: "Not all members are ready",
 			}
 		}
 	}
@@ -43,7 +66,7 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 		conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
 		status:  druidv1alpha1.ConditionTrue,
 		reason:  "BootstrapSucceeded",
-		message: "All target members have successfully joined the existing cluster",
+		message: "All members have successfully joined the existing cluster",
 	}
 }
 
