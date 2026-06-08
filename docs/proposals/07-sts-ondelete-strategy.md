@@ -131,7 +131,7 @@ The OnDelete controller needs to understand two things about each pod:
 
 The controller deletes at most one pod per reconciliation cycle. The invariant that protects quorum is this: it never removes a *participating* member while a previously-updated pod has not yet rejoined the quorum. Participating pods are therefore updated strictly one at a time, each only after the previously-updated pod is participating again.
 
-Non-participating pods do not count toward quorum, so they carry no such constraint: the controller recreates them in successive cycles without waiting for each one to come back. This is why a cluster that has already lost quorum (for example, two of three members down) recovers without any special batch path: the down members are recreated one per cycle in quick succession.
+Non-participating pods do not count toward quorum, so they carry no such constraint: the controller recreates them in successive cycles without waiting for each one to come back.
 
 This cadence applies to clusters of all sizes. Clusters with more than three replicas have the quorum headroom to update multiple *participating* pods concurrently, but that optimization is intentionally deferred: parallel updates would require handling partial-batch outcomes (one pod of a batch rejoining while another stalls), which significantly complicates the controller's decisions. The first iteration keeps the conservative one-at-a-time cadence for participating pods at every cluster size (see [Future Scope](#future-scope)).
 
@@ -231,7 +231,7 @@ The gate's effective state can change in two ways:
 1. On the next Etcd reconciliation, the StatefulSet component sets `spec.updateStrategy.type` to `OnDelete`. The Kubernetes StatefulSet controller stops auto-rolling pods.
 2. The OnDelete controller's predicate now matches the StatefulSet and engages. If a `RollingUpdate` was in flight (some pods at the new revision, some not), the OnDelete controller observes the same `controller-revision-hash` labels and continues from where the previous controller left off, in health-aware order. Pods already updated by the StatefulSet controller are not re-deleted.
 3. If no pods are outdated, the OnDelete controller simply watches for future template changes.
-4. If the previous `RollingUpdate` had stalled waiting for a pod to come back, the OnDelete controller waits for the same pod; the wait behaviour is unchanged, only the selection order for subsequent pods differs.
+4. If the previous `RollingUpdate` had stalled waiting for some pod to come back, the OnDelete controller also waits for those; the wait behaviour is unchanged, only the selection order for subsequent pods differs.
 
 **Switch from `OnDelete` to `RollingUpdate`.**
 
