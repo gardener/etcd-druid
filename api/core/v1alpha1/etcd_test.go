@@ -161,14 +161,16 @@ func createEtcd(name, namespace string) *Etcd {
 		},
 	}
 
-	peerTlsConfig := &TLSConfig{
-		TLSCASecretRef: SecretReference{
-			SecretReference: corev1.SecretReference{
-				Name: "peer-url-ca-etcd",
+	peerTlsConfig := &PeerTLSConfig{
+		TLSConfig: TLSConfig{
+			TLSCASecretRef: SecretReference{
+				SecretReference: corev1.SecretReference{
+					Name: "peer-url-ca-etcd",
+				},
 			},
-		},
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name: "peer-url-etcd-server-tls",
+			ServerTLSSecretRef: corev1.SecretReference{
+				Name: "peer-url-etcd-server-tls",
+			},
 		},
 	}
 

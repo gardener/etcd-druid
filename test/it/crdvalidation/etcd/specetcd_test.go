@@ -11,6 +11,9 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 )
 
 // runs the validation on the etcd.spec.etcd.etcdDefragTimeout field.
@@ -398,4 +401,36 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
+}
+
+// TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerify is a smoke test confirming
+// that the new peer-only field spec.etcd.peerUrlTls.skipClientSANVerify is
+// accepted by the kube-apiserver. The field is structurally peer-only — it
+// lives on PeerTLSConfig, which is only reachable under peerUrlTls — so no
+// CEL rule is needed to enforce "peer-only"; the schema does that for free.
+//
+// This test documents intent: it locks in that a manifest setting
+// skipClientSANVerify=true under peerUrlTls is a valid Etcd resource.
+func TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerify(t *testing.T) {
+	testNs, g := setupTestEnvironment(t)
+
+	etcd := utils.EtcdBuilderWithoutDefaults("etcd-skip-san-smoke", testNs).
+		WithReplicas(3).
+		Build()
+	etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.PeerTLSConfig{
+		TLSConfig: druidv1alpha1.TLSConfig{
+			TLSCASecretRef: druidv1alpha1.SecretReference{
+				SecretReference: corev1.SecretReference{
+					Name: "peer-ca",
+				},
+				DataKey: ptr.To("ca.crt"),
+			},
+			ServerTLSSecretRef: corev1.SecretReference{
+				Name: "peer-server",
+			},
+		},
+		SkipClientSANVerify: ptr.To(true),
+	}
+
+	validateEtcdCreation(g, etcd, false)
 }

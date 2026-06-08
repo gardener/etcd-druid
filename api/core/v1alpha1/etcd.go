@@ -104,6 +104,33 @@ type TLSConfig struct {
 	ClientTLSSecretRef corev1.SecretReference `json:"clientTLSSecretRef"`
 }
 
+// PeerTLSConfig holds TLS configuration for etcd peer (server-to-server)
+// communication. It inline-embeds TLSConfig and adds peer-only knobs that
+// map to fields on etcd's embed.Config.PeerTLSInfo (e.g. SkipClientSANVerify).
+// The wire format under spec.etcd.peerUrlTls is identical to TLSConfig plus
+// the optional SkipClientSANVerify field; existing manifests using only the
+// base TLSConfig fields stay valid without changes.
+type PeerTLSConfig struct {
+	TLSConfig `json:",inline"`
+
+	// SkipClientSANVerify, when true, skips verification of Subject
+	// Alternative Names on the client certificate during peer mTLS
+	// handshakes. The CA-based identity check still applies — any
+	// certificate signed by the configured peer CA is accepted regardless
+	// of its SAN. Only effective when peerUrlTls is configured (which is
+	// structurally required: this field cannot be set without setting
+	// peerUrlTls itself).
+	//
+	// Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerify; rendered
+	// under peer-transport-security in the etcd config ConfigMap. Matches
+	// etcd v3.6's native YAML key (skip-client-san-verification) — for
+	// etcd v3.4 / v3.5, etcd-wrapper translates it to the
+	// --experimental-peer-skip-client-san-verification flag.
+	//
+	// +optional
+	SkipClientSANVerify *bool `json:"skipClientSANVerify,omitempty"`
+}
+
 // SecretReference defines a reference to a secret.
 type SecretReference struct {
 	corev1.SecretReference `json:",inline"`
@@ -265,10 +292,12 @@ type EtcdConfig struct {
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []MemberPeerURLs `json:"additionalAdvertisePeerURLs,omitempty"`
-	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster
+	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.
 	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
+	// In addition to the base TLSConfig fields it also exposes the peer-only
+	// SkipClientSANVerify knob (see PeerTLSConfig).
 	// +optional
-	PeerUrlTLS *TLSConfig `json:"peerUrlTls,omitempty"`
+	PeerUrlTLS *PeerTLSConfig `json:"peerUrlTls,omitempty"`
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call
 	// +optional
 	// +kubebuilder:validation:Type=string

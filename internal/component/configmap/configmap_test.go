@@ -686,3 +686,106 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 		g.Expect(actualETCDConfig).ToNot(HaveKey("peer-transport-security"))
 	}
 }
+
+// TestPeerSkipClientSANVerify exercises the rendering of
+// spec.etcd.peerUrlTls.skipClientSANVerify into the etcd config ConfigMap.
+// The field is structurally peer-only (it lives on PeerTLSConfig, not the
+// shared TLSConfig used by clientUrlTls), so the kube-apiserver's schema —
+// not a CEL rule — guarantees it cannot be set without peerUrlTls.
+//
+// Cases:
+//   - PeerUrlTLS=nil: peer-transport-security must be absent.
+//   - PeerUrlTLS set, SkipClientSANVerify=nil: peer-transport-security present,
+//     skip-client-san-verification key absent (zero + omitempty).
+//   - PeerUrlTLS set, SkipClientSANVerify=ptr(false): same as above (omitempty).
+//   - PeerUrlTLS set, SkipClientSANVerify=ptr(true): nested
+//     peer-transport-security.skip-client-san-verification: true.
+func TestPeerSkipClientSANVerify(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                       string
+		peerTLSEnabled             bool
+		skipClientSANVerify        *bool
+		expectPeerTransportSection bool
+		expectSkipKey              bool
+		expectSkipValue            bool
+	}{
+		{
+			name:                       "no peer TLS — peer-transport-security absent",
+			peerTLSEnabled:             false,
+			skipClientSANVerify:        nil,
+			expectPeerTransportSection: false,
+		},
+		{
+			name:                       "peer TLS, skipClientSANVerify unset — key omitted",
+			peerTLSEnabled:             true,
+			skipClientSANVerify:        nil,
+			expectPeerTransportSection: true,
+			expectSkipKey:              false,
+		},
+		{
+			name:                       "peer TLS, skipClientSANVerify=false — key omitted (omitempty)",
+			peerTLSEnabled:             true,
+			skipClientSANVerify:        ptr.To(false),
+			expectPeerTransportSection: true,
+			expectSkipKey:              false,
+		},
+		{
+			name:                       "peer TLS, skipClientSANVerify=true — key present and true",
+			peerTLSEnabled:             true,
+			skipClientSANVerify:        ptr.To(true),
+			expectPeerTransportSection: true,
+			expectSkipKey:              true,
+			expectSkipValue:            true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			builder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace)
+			if tc.peerTLSEnabled {
+				builder = builder.WithPeerTLS()
+			}
+			etcd := builder.Build()
+			if tc.skipClientSANVerify != nil {
+				if etcd.Spec.Etcd.PeerUrlTLS == nil {
+					etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.PeerTLSConfig{}
+				}
+				etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerify = tc.skipClientSANVerify
+			}
+
+			// Assert at the cfg (struct) level — nil-safe vs. PeerSecurity.
+			cfg := createEtcdConfig(etcd)
+			if tc.expectPeerTransportSection {
+				g.Expect(cfg.PeerSecurity).ToNot(BeNil())
+				g.Expect(cfg.PeerSecurity.SkipClientSANVerify).To(Equal(tc.expectSkipValue))
+			} else {
+				g.Expect(cfg.PeerSecurity).To(BeNil())
+			}
+
+			// Assert at the rendered-YAML level — guards against the
+			// JSON tag drifting from etcd v3.6's wire format.
+			cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
+			g.Expect(buildResource(etcd, cm)).To(Succeed())
+			parsed := map[string]any{}
+			g.Expect(yaml.Unmarshal([]byte(cm.Data[common.EtcdConfigFileName]), &parsed)).To(Succeed())
+
+			if !tc.expectPeerTransportSection {
+				g.Expect(parsed).ToNot(HaveKey("peer-transport-security"))
+				return
+			}
+			g.Expect(parsed).To(HaveKey("peer-transport-security"))
+			peerSec, ok := parsed["peer-transport-security"].(map[string]any)
+			g.Expect(ok).To(BeTrue(), "peer-transport-security must be a map")
+			if tc.expectSkipKey {
+				g.Expect(peerSec).To(HaveKeyWithValue("skip-client-san-verification", tc.expectSkipValue))
+			} else {
+				g.Expect(peerSec).ToNot(HaveKey("skip-client-san-verification"))
+			}
+		})
+	}
+}

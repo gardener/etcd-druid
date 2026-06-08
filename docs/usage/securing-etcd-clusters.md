@@ -30,5 +30,43 @@ An etcd cluster setup by `etcd-druid` leverages the following TLS artifacts:
 !!! note
     TLS artifacts should be created prior to creating `Etcd` clusters. `etcd-druid` currently does not provide a convenience way to generate these TLS artifacts. [etcd](https://etcd.io/docs/v3.4/op-guide/security/) recommends to use [cfssl](https://github.com/cloudflare/cfssl) to generate certificates. However you can use any other tool as well. We do provide a convenience script for local development [here](https://github.com/gardener/etcd-wrapper/blob/main/hack/local-dev/generate_pki.sh) which can be used to generate TLS artifacts. Currently this script is part of [etcd-wrapper](https://github.com/gardener/etcd-wrapper) github repository but we will harmonize these scripts to be used across all github projects under the `etcd-druid` ecosystem.
 
+## Skipping client-SAN verification on peer mTLS
+
+For environments where peer client certificates intentionally omit Subject
+Alternative Names (e.g. some certificate-management pipelines that issue
+short-lived peer certificates without DNS / IP SANs), the peer-side mTLS
+SAN check can be disabled via `spec.etcd.peerUrlTls.skipClientSANVerify`:
+
+```yaml
+spec:
+  etcd:
+    peerUrlTls:
+      tlsCASecretRef:
+        name: peer-ca
+        dataKey: ca.crt
+      serverTLSSecretRef:
+        name: peer-server
+      skipClientSANVerify: true
+```
+
+Notes:
+
+* The field is **peer-only by type** — it lives on `PeerTLSConfig`, the wrapper
+  type used exclusively at `spec.etcd.peerUrlTls`. The shared `TLSConfig` used
+  by `clientUrlTls` and `backup.tls` does not expose it, so the field cannot be
+  set on the client- or backup-restore TLS blocks. No CEL rule is needed to
+  enforce that — it is a structural property of the schema.
+* The CA-based identity check still applies. Any peer certificate signed by
+  the configured peer CA is accepted regardless of its SAN; certificates
+  signed by other CAs are still rejected. Only enable this knob if you
+  understand the trust implications of trusting the CA's full issuance set.
+* In the rendered etcd config ConfigMap the value lands at
+  `peer-transport-security.skip-client-san-verification`, matching etcd
+  v3.6's native `securityConfig` YAML layout.
+* For etcd v3.4 / v3.5 (where the YAML key does not yet exist), `etcd-wrapper`
+  bridges the value to the
+  `--experimental-peer-skip-client-san-verification` command-line flag on the
+  etcd process, so the same Etcd manifest works across versions.
+
 
 

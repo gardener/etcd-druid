@@ -60,11 +60,20 @@ type securityConfig struct {
 	ClientCertAuth bool   `json:"client-cert-auth,omitempty"`
 	TrustedCAFile  string `json:"trusted-ca-file,omitempty"`
 	AutoTLS        bool   `json:"auto-tls"`
+	// SkipClientSANVerify mirrors etcd v3.6 embed.securityConfig's
+	// `skip-client-san-verification` field. It is only meaningful for the
+	// peer security block (peer-transport-security); the client block leaves
+	// it zero so the field is omitted via omitempty.
+	SkipClientSANVerify bool `json:"skip-client-san-verification,omitempty"`
 }
 
 func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	clientScheme, clientSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.ClientUrlTLS, common.VolumeMountPathEtcdCA, common.VolumeMountPathEtcdServerTLS)
-	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(etcd.Spec.Etcd.PeerUrlTLS, common.VolumeMountPathEtcdPeerCA, common.VolumeMountPathEtcdPeerServerTLS)
+	var peerTLS *druidv1alpha1.TLSConfig
+	if etcd.Spec.Etcd.PeerUrlTLS != nil {
+		peerTLS = &etcd.Spec.Etcd.PeerUrlTLS.TLSConfig
+	}
+	peerScheme, peerSecurityConfig := getSchemeAndSecurityConfig(peerTLS, common.VolumeMountPathEtcdPeerCA, common.VolumeMountPathEtcdPeerServerTLS)
 	peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)
 	cfg := &etcdConfig{
 		Name:                         "etcd-config",
@@ -86,6 +95,10 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig
+	if etcd.Spec.Etcd.PeerUrlTLS != nil && cfg.PeerSecurity != nil &&
+		ptr.Deref(etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerify, false) {
+		cfg.PeerSecurity.SkipClientSANVerify = true
+	}
 	if etcd.Spec.MemberNamePrefix != nil {
 		cfg.MemberNamePrefix = *etcd.Spec.MemberNamePrefix
 	}
