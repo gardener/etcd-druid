@@ -2,6 +2,7 @@
 
 ## Concepts
 
+* [Bootstrap with an Existing etcd Cluster](concepts/bootstrap-with-existing-cluster.md)
 * [Etcd Cluster Components](concepts/etcd-cluster-components.md)
 * [Protecting Etcd Cluster Resources](concepts/etcd-cluster-resource-protection.md)
 
