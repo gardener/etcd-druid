@@ -674,7 +674,7 @@ _Appears in:_
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  |  |
 | `additionalAdvertisePeerURLs` _[MemberPeerURLs](#memberpeerurls) array_ | AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append<br />to initial-advertise-peer-urls. Each entry maps a member name to its<br />additional URLs. The member name must follow the pattern \{etcd-name\}-\{index\}<br />where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).<br />Updating this field on a running cluster triggers a ConfigMap update<br />and a rolling restart of the StatefulSet. |  | MaxItems: 10 <br /> |
-| `peerUrlTls` _[TLSConfig](#tlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster. |  |  |
+| `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerify knob (see PeerTLSConfig). |  |  |
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
@@ -1031,6 +1031,30 @@ _Appears in:_
 | `delta` | OnDemandSnapshotTypeDelta indicates a delta snapshot, capturing only changes since the last snapshot.<br /> |
 
 
+#### PeerTLSConfig
+
+
+
+PeerTLSConfig holds TLS configuration for etcd peer (server-to-server)
+communication. It inline-embeds TLSConfig and adds peer-only knobs that
+map to fields on etcd's embed.Config.PeerTLSInfo (e.g. SkipClientSANVerify).
+The wire format under spec.etcd.peerUrlTls is identical to TLSConfig plus
+the optional SkipClientSANVerify field; existing manifests using only the
+base TLSConfig fields stay valid without changes.
+
+
+
+_Appears in:_
+- [EtcdConfig](#etcdconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  |  |
+| `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+| `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+| `skipClientSANVerify` _boolean_ | SkipClientSANVerify, when true, skips verification of Subject<br />Alternative Names on the client certificate during peer mTLS<br />handshakes. The CA-based identity check still applies — any<br />certificate signed by the configured peer CA is accepted regardless<br />of its SAN. Only effective when peerUrlTls is configured (which is<br />structurally required: this field cannot be set without setting<br />peerUrlTls itself).<br />Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerify; rendered<br />under peer-transport-security in the etcd config ConfigMap. Matches<br />etcd v3.6's native YAML key (skip-client-san-verification) — for<br />etcd v3.4 / v3.5, etcd-wrapper translates it to the<br />--experimental-peer-skip-client-san-verification flag. |  |  |
+
+
 #### SchedulingConstraints
 
 
@@ -1059,6 +1083,7 @@ SecretReference defines a reference to a secret.
 
 
 _Appears in:_
+- [PeerTLSConfig](#peertlsconfig)
 - [TLSConfig](#tlsconfig)
 
 | Field | Description | Default | Validation |
@@ -1148,6 +1173,7 @@ TLSConfig hold the TLS configuration details.
 _Appears in:_
 - [BackupSpec](#backupspec)
 - [EtcdConfig](#etcdconfig)
+- [PeerTLSConfig](#peertlsconfig)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |

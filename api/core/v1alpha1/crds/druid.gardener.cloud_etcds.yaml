@@ -577,8 +577,10 @@ spec:
                     type: string
                   peerUrlTls:
                     description: |-
-                      PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster
+                      PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.
                       Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
+                      In addition to the base TLSConfig fields it also exposes the peer-only
+                      SkipClientSANVerify knob (see PeerTLSConfig).
                     properties:
                       clientTLSSecretRef:
                         description: |-
@@ -610,6 +612,22 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      skipClientSANVerify:
+                        description: |-
+                          SkipClientSANVerify, when true, skips verification of Subject
+                          Alternative Names on the client certificate during peer mTLS
+                          handshakes. The CA-based identity check still applies — any
+                          certificate signed by the configured peer CA is accepted regardless
+                          of its SAN. Only effective when peerUrlTls is configured (which is
+                          structurally required: this field cannot be set without setting
+                          peerUrlTls itself).
+
+                          Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerify; rendered
+                          under peer-transport-security in the etcd config ConfigMap. Matches
+                          etcd v3.6's native YAML key (skip-client-san-verification) — for
+                          etcd v3.4 / v3.5, etcd-wrapper translates it to the
+                          --experimental-peer-skip-client-san-verification flag.
+                        type: boolean
                       tlsCASecretRef:
                         description: SecretReference defines a reference to a secret.
                         properties:
