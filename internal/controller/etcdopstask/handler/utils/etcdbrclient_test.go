@@ -13,13 +13,13 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	taskhandler "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -31,6 +31,14 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 
 	caCert, err := testutils.GenerateCACert("test")
 	g.Expect(err).ToNot(HaveOccurred())
+
+	const (
+		etcdName  = "test-etcd"
+		namespace = "test-namespace"
+	)
+
+	tlsEnabledEtcd := testutils.EtcdBuilderWithoutDefaults(etcdName, namespace).WithBackupRestoreTLS().Build()
+	tlsEnabledEtcd.UID = "test-etcd-uid"
 
 	tests := []struct {
 		name            string
@@ -46,8 +54,8 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 			name: "Should return http scheme and default client when TLS is not configured",
 			etcd: &druidv1alpha1.Etcd{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-etcd",
-					Namespace: "test-namespace",
+					Name:      etcdName,
+					Namespace: namespace,
 				},
 				Spec: druidv1alpha1.EtcdSpec{
 					Backup: druidv1alpha1.BackupSpec{
@@ -63,29 +71,51 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 			validateTLS:     false,
 		},
 		{
-			name: "Should return error without requeue when CA secret is not found",
-			etcd: &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-etcd",
-					Namespace: "test-namespace",
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						TLS: &druidv1alpha1.TLSConfig{
-							TLSCASecretRef: druidv1alpha1.SecretReference{
-								SecretReference: v1.SecretReference{
-									Name: "ca-secret",
-								},
-								DataKey: ptr.To("ca.crt"),
-							},
-						},
-					},
-				},
-			},
+			name:            "Should return error without requeue when StatefulSet is not found",
+			etcd:            tlsEnabledEtcd,
 			existingObjects: nil,
 			defaultClient:   http.Client{},
 			phase:           druidv1alpha1.LastOperationTypeExecution,
 			expectedScheme:  "",
+			expectedResult: taskhandler.Result{
+				Error: &druiderr.DruidError{
+					Code:      statefulset.ErrGetStatefulSet,
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
+				},
+				Requeue: false,
+			},
+			validateTLS: false,
+		},
+		{
+			name: "Should return error with requeue when backup-restore CA volume is missing from StatefulSet",
+			etcd: tlsEnabledEtcd,
+			existingObjects: []client.Object{
+				testutils.CreateStatefulSet(etcdName, namespace, tlsEnabledEtcd.UID, 1),
+			},
+			defaultClient:  http.Client{},
+			phase:          druidv1alpha1.LastOperationTypeExecution,
+			expectedScheme: "",
+			expectedResult: taskhandler.Result{
+				Error: &druiderr.DruidError{
+					Code:      taskhandler.ErrGetCASecret,
+					Operation: string(druidv1alpha1.LastOperationTypeExecution),
+				},
+				Requeue: true,
+			},
+			validateTLS: false,
+		},
+		{
+			name: "Should return error without requeue when CA secret is not found",
+			etcd: tlsEnabledEtcd,
+			existingObjects: []client.Object{
+				testutils.AddBackupRestoreCAVolume(
+					testutils.CreateStatefulSet(etcdName, namespace, tlsEnabledEtcd.UID, 1),
+					testutils.BackupRestoreTLSCASecretName,
+				),
+			},
+			defaultClient:  http.Client{},
+			phase:          druidv1alpha1.LastOperationTypeExecution,
+			expectedScheme: "",
 			expectedResult: taskhandler.Result{
 				Error: &druiderr.DruidError{
 					Code:      taskhandler.ErrGetCASecret,
@@ -97,29 +127,16 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 		},
 		{
 			name: "Should return error without requeue when CA cert data key is not found in secret",
-			etcd: &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-etcd",
-					Namespace: "test-namespace",
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						TLS: &druidv1alpha1.TLSConfig{
-							TLSCASecretRef: druidv1alpha1.SecretReference{
-								SecretReference: v1.SecretReference{
-									Name: "ca-secret",
-								},
-								DataKey: ptr.To("ca.crt"),
-							},
-						},
-					},
-				},
-			},
+			etcd: tlsEnabledEtcd,
 			existingObjects: []client.Object{
+				testutils.AddBackupRestoreCAVolume(
+					testutils.CreateStatefulSet(etcdName, namespace, tlsEnabledEtcd.UID, 1),
+					testutils.BackupRestoreTLSCASecretName,
+				),
 				&v1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "ca-secret",
-						Namespace: "test-namespace",
+						Name:      testutils.BackupRestoreTLSCASecretName,
+						Namespace: namespace,
 					},
 					Data: map[string][]byte{
 						"wrong-key": []byte("some-data"),
@@ -140,29 +157,16 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 		},
 		{
 			name: "Should return error without requeue when CA cert data is invalid",
-			etcd: &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-etcd",
-					Namespace: "test-namespace",
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						TLS: &druidv1alpha1.TLSConfig{
-							TLSCASecretRef: druidv1alpha1.SecretReference{
-								SecretReference: v1.SecretReference{
-									Name: "ca-secret",
-								},
-								DataKey: ptr.To("ca.crt"),
-							},
-						},
-					},
-				},
-			},
+			etcd: tlsEnabledEtcd,
 			existingObjects: []client.Object{
+				testutils.AddBackupRestoreCAVolume(
+					testutils.CreateStatefulSet(etcdName, namespace, tlsEnabledEtcd.UID, 1),
+					testutils.BackupRestoreTLSCASecretName,
+				),
 				&v1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "ca-secret",
-						Namespace: "test-namespace",
+						Name:      testutils.BackupRestoreTLSCASecretName,
+						Namespace: namespace,
 					},
 					Data: map[string][]byte{
 						"ca.crt": []byte("invalid-cert-data"),
@@ -183,29 +187,16 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 		},
 		{
 			name: "Should successfully configure HTTPS client with valid CA cert",
-			etcd: &druidv1alpha1.Etcd{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-etcd",
-					Namespace: "test-namespace",
-				},
-				Spec: druidv1alpha1.EtcdSpec{
-					Backup: druidv1alpha1.BackupSpec{
-						TLS: &druidv1alpha1.TLSConfig{
-							TLSCASecretRef: druidv1alpha1.SecretReference{
-								SecretReference: v1.SecretReference{
-									Name: "ca-secret",
-								},
-								DataKey: ptr.To("ca.crt"),
-							},
-						},
-					},
-				},
-			},
+			etcd: tlsEnabledEtcd,
 			existingObjects: []client.Object{
+				testutils.AddBackupRestoreCAVolume(
+					testutils.CreateStatefulSet(etcdName, namespace, tlsEnabledEtcd.UID, 1),
+					testutils.BackupRestoreTLSCASecretName,
+				),
 				&v1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "ca-secret",
-						Namespace: "test-namespace",
+						Name:      testutils.BackupRestoreTLSCASecretName,
+						Namespace: namespace,
 					},
 					Data: map[string][]byte{
 						"ca.crt": caCert,
