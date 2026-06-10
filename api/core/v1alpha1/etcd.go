@@ -310,7 +310,7 @@ type EtcdConfig struct {
 	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
 	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
 	// When spec.memberNamePrefix is set, member names become
-	// "<memberNamePrefix>-<etcd-name>-<index>".
+	// "<memberNamePrefix>-<podName>".
 	// Updating this field on a running cluster triggers a ConfigMap update
 	// and a rolling restart of the StatefulSet.
 	// +optional
@@ -369,7 +369,7 @@ type MemberPeerURLs struct {
 	// MemberName is the etcd member name.
 	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
 	// When spec.memberNamePrefix is set, the member name becomes
-	// "<memberNamePrefix>-<etcd-name>-<index>". The top-level CEL rules on
+	// "<memberNamePrefix>-<podName>". The top-level CEL rules on
 	// Etcd already incorporate the prefix when validating these names.
 	// +required
 	// +kubebuilder:validation:Required
