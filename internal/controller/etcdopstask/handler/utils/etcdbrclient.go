@@ -38,7 +38,7 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 	etcdbrCASecret := &v1.Secret{}
 	dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
 
-	// TODO @Shreyas-s14: revert this change once the gardener/gardener issue has been fixed.
+	// TODO @Shreyas-s14: revert this change once the gardener/gardener issue has been fixed: https://github.com/gardener/gardener/issues/15004
 	sts, err := kutil.GetStatefulSet(ctx, k8sClient, etcd)
 	if err != nil {
 		errResult = &taskhandler.Result{
