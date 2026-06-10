@@ -9,7 +9,7 @@ reviewers:
 - "etcd-druid-maintainers"
 ---
 
-# DEP-07: Druid Controlled Pod Updates via StatefulSet OnDelete Strategy
+# DEP-07: Druid Controlled Quorum-Aware Pod Updates via StatefulSet OnDelete Strategy
 
 ## Summary
 
