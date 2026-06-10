@@ -131,12 +131,13 @@ func TestOnDemandSnapshotTaskAdmit(t *testing.T) {
 func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 	g := NewGomegaWithT(t)
 	tests := []struct {
-		name                string
-		etcdObject          *druidv1alpha1.Etcd
-		isSnapshotTypeDelta bool
-		FakeResponse        *utils.FakeResponse
-		expectedResult      taskhandler.Result
-		expectErr           bool
+		name                   string
+		etcdObject             *druidv1alpha1.Etcd
+		isSnapshotTypeDelta    bool
+		stsWithBackupRestoreCA bool
+		FakeResponse           *utils.FakeResponse
+		expectedResult         taskhandler.Result
+		expectErr              bool
 	}{
 		{
 			name:       "Should return error without requeue when Etcd object is not found",
@@ -220,8 +221,9 @@ func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:       "Should return error without requeue when TLS is enabled but CA secret is not found",
-			etcdObject: createEtcd("test-etcd", "test-namespace", true, true, false, true),
+			name:                   "Should return error without requeue when TLS is enabled but CA secret is not found",
+			etcdObject:             createEtcd("test-etcd", "test-namespace", true, true, false, true),
+			stsWithBackupRestoreCA: true,
 			FakeResponse: &utils.FakeResponse{
 				Response: http.Response{},
 				Error:    nil,
@@ -278,6 +280,13 @@ func TestOnDemandSnapshotTaskExecute(t *testing.T) {
 			var objs []client.Object
 			if tc.etcdObject != nil {
 				objs = append(objs, tc.etcdObject)
+			}
+			if tc.stsWithBackupRestoreCA {
+				tc.etcdObject.UID = "test-etcd-uid"
+				objs = append(objs, utils.AddBackupRestoreCAVolume(
+					utils.CreateStatefulSet(tc.etcdObject.Name, tc.etcdObject.Namespace, tc.etcdObject.UID, 1),
+					utils.BackupRestoreTLSCASecretName,
+				))
 			}
 			cl := utils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 

@@ -399,3 +399,71 @@ func TestGetStatefulSetContainerTLSVolumeMounts(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSecretNameFromVolume(t *testing.T) {
+	const etcdbrCASecretName = "ca-etcdbr"
+	stsWithCAVolume := testutils.AddBackupRestoreCAVolume(
+		testutils.CreateStatefulSet("test-sts", "test-ns", uuid.NewUUID(), 1),
+		etcdbrCASecretName,
+	)
+	stsWithoutCAVolume := testutils.CreateStatefulSet("test-sts", "test-ns", uuid.NewUUID(), 1)
+	stsWithEmptyDirNamedAsCAVolume := testutils.AddEmptyDirVolume(
+		testutils.CreateStatefulSet("test-sts", "test-ns", uuid.NewUUID(), 1),
+		common.VolumeNameBackupRestoreCA,
+	)
+
+	testCases := []struct {
+		name          string
+		sts           *appsv1.StatefulSet
+		volumeName    string
+		expectedName  string
+		expectedFound bool
+	}{
+		{
+			name:          "sts is nil",
+			sts:           nil,
+			volumeName:    common.VolumeNameBackupRestoreCA,
+			expectedName:  "",
+			expectedFound: false,
+		},
+		{
+			name:          "volume not present on sts",
+			sts:           stsWithoutCAVolume,
+			volumeName:    common.VolumeNameBackupRestoreCA,
+			expectedName:  "",
+			expectedFound: false,
+		},
+		{
+			name:          "secret-typed volume found, returns secret name",
+			sts:           stsWithCAVolume,
+			volumeName:    common.VolumeNameBackupRestoreCA,
+			expectedName:  etcdbrCASecretName,
+			expectedFound: true,
+		},
+		{
+			name:          "volume name matches but volume source is not a secret",
+			sts:           stsWithEmptyDirNamedAsCAVolume,
+			volumeName:    common.VolumeNameBackupRestoreCA,
+			expectedName:  "",
+			expectedFound: false,
+		},
+		{
+			name:          "different volume name queried",
+			sts:           stsWithCAVolume,
+			volumeName:    "nonexistent",
+			expectedName:  "",
+			expectedFound: false,
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			name, found := GetSecretNameFromVolume(tc.sts, tc.volumeName)
+			g.Expect(found).To(Equal(tc.expectedFound))
+			g.Expect(name).To(Equal(tc.expectedName))
+		})
+	}
+}

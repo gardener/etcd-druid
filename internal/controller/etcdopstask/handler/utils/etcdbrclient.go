@@ -13,8 +13,11 @@ import (
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	taskhandler "github.com/gardener/etcd-druid/internal/controller/etcdopstask/handler"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,14 +38,43 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 	etcdbrCASecret := &v1.Secret{}
 	dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
 
-	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: tlsConfig.TLSCASecretRef.Name}, etcdbrCASecret); err != nil {
+	// TODO @Shreyas-s14: revert this change once the gardener/gardener issue has been fixed: https://github.com/gardener/gardener/issues/15004
+	sts, err := kutil.GetStatefulSet(ctx, k8sClient, etcd)
+	if err != nil {
+		errResult = &taskhandler.Result{
+			Description: "Failed to get StatefulSet for backup-restore CA resolution",
+			Error:       druiderr.WrapError(err, statefulset.ErrGetStatefulSet, string(phase), fmt.Sprintf("failed to get StatefulSet for etcd %s/%s", etcd.Namespace, etcd.Name)),
+			Requeue:     true,
+		}
+		return
+	}
+	if sts == nil {
+		errResult = &taskhandler.Result{
+			Description: fmt.Sprintf("StatefulSet for etcd %s/%s not found or not owned by etcd", etcd.Namespace, etcd.Name),
+			Error:       druiderr.WrapError(fmt.Errorf("StatefulSet for etcd %s/%s not found or not owned", etcd.Namespace, etcd.Name), statefulset.ErrGetStatefulSet, string(phase), "resolve backup-restore CA secret from StatefulSet"),
+			Requeue:     false,
+		}
+		return
+	}
+
+	etcdbrCASecretName, ok := kutil.GetSecretNameFromVolume(sts, common.VolumeNameBackupRestoreCA)
+	if !ok {
+		errResult = &taskhandler.Result{
+			Description: fmt.Sprintf("backup-restore CA volume %q not found on StatefulSet %s/%s", common.VolumeNameBackupRestoreCA, etcd.Namespace, etcd.Name),
+			Error:       druiderr.WrapError(fmt.Errorf("volume %q not found on StatefulSet %s/%s", common.VolumeNameBackupRestoreCA, etcd.Namespace, etcd.Name), taskhandler.ErrGetCASecret, string(phase), "resolve backup-restore CA secret from StatefulSet volumes"),
+			Requeue:     false,
+		}
+		return
+	}
+
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: etcdbrCASecretName}, etcdbrCASecret); err != nil {
 		requeue := true
 		if apierrors.IsNotFound(err) {
 			requeue = false
 		}
 		errResult = &taskhandler.Result{
 			Description: "Failed to get etcdbr CA secret",
-			Error:       druiderr.WrapError(err, taskhandler.ErrGetCASecret, string(phase), fmt.Sprintf("failed to get etcdbr CA secret %s/%s", etcd.Namespace, tlsConfig.TLSCASecretRef.Name)),
+			Error:       druiderr.WrapError(err, taskhandler.ErrGetCASecret, string(phase), fmt.Sprintf("failed to get etcdbr CA secret %s/%s", etcd.Namespace, etcdbrCASecretName)),
 			Requeue:     requeue,
 		}
 		return
