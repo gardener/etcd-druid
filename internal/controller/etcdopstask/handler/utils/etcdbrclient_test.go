@@ -87,7 +87,7 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 			validateTLS: false,
 		},
 		{
-			name: "Should return error with requeue when backup-restore CA volume is missing from StatefulSet",
+			name: "Should return error without requeue when backup-restore CA volume is missing from StatefulSet",
 			etcd: tlsEnabledEtcd,
 			existingObjects: []client.Object{
 				testutils.CreateStatefulSet(etcdName, namespace, tlsEnabledEtcd.UID, 1),
@@ -100,7 +100,7 @@ func TestConfigureHTTPClientForEtcdBR(t *testing.T) {
 					Code:      taskhandler.ErrGetCASecret,
 					Operation: string(druidv1alpha1.LastOperationTypeExecution),
 				},
-				Requeue: true,
+				Requeue: false,
 			},
 			validateTLS: false,
 		},

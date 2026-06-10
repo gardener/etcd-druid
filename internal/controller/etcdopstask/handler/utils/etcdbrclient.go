@@ -56,12 +56,12 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 		return
 	}
 
-	etcdbrCASecretName, ok := kutil.GetVolumeSecretName(sts, common.VolumeNameBackupRestoreCA)
+	etcdbrCASecretName, ok := kutil.GetSecretNameFromVolume(sts, common.VolumeNameBackupRestoreCA)
 	if !ok {
 		errResult = &taskhandler.Result{
 			Description: fmt.Sprintf("backup-restore CA volume %q not found on StatefulSet %s/%s", common.VolumeNameBackupRestoreCA, etcd.Namespace, etcd.Name),
 			Error:       druiderr.WrapError(fmt.Errorf("volume %q not found on StatefulSet %s/%s", common.VolumeNameBackupRestoreCA, etcd.Namespace, etcd.Name), taskhandler.ErrGetCASecret, string(phase), "resolve backup-restore CA secret from StatefulSet volumes"),
-			Requeue:     true,
+			Requeue:     false,
 		}
 		return
 	}

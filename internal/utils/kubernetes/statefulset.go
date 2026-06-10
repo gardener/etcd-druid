@@ -156,8 +156,8 @@ func filterTLSVolumeMounts(containerName string, allVolumeMounts []corev1.Volume
 	return filteredVolMounts
 }
 
-// GetVolumeSecretName returns the SecretName of the named Secret-typed volume in the StatefulSet's pod template.
-func GetVolumeSecretName(sts *appsv1.StatefulSet, volumeName string) (string, bool) {
+// GetSecretNameFromVolume returns the SecretName of the named Secret-typed volume in the StatefulSet's pod template.
+func GetSecretNameFromVolume(sts *appsv1.StatefulSet, volumeName string) (string, bool) {
 	if sts == nil {
 		return "", false
 	}
