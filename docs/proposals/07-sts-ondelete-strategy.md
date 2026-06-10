@@ -1,5 +1,5 @@
 ---
-title: StatefulSet OnDelete Update Strategy
+title: StatefulSet Quorum-Aware Updates with OnDelete Strategy
 dep-number: 07
 creation-date: 2024-09-20
 status: implementable
@@ -62,18 +62,18 @@ For a single-node etcd cluster, concerns 1 and 2 do not apply: there is no quoru
 
 ### Feature Gate
 
-The OnDelete behaviour is opt-in via a new feature gate, `UpdateStrategyOnDelete`, declared alongside the existing gates in `api/config/v1alpha1/features.go`. Operators enable it by setting it in the `featureGates` map of the operator configuration:
+Quorum-aware pod updates with the `OnDelete` strategy are opt-in via a new feature gate, `QuorumAwareUpdatesWithOnDelete`, declared alongside the existing gates in `api/config/v1alpha1/features.go`. Operators enable it by setting it in the `featureGates` map of the operator configuration:
 
 ```yaml
 # OperatorConfiguration
 featureGates:
-  UpdateStrategyOnDelete: true
+  QuorumAwareUpdatesWithOnDelete: true
 ```
 
 - **Maturity:** Alpha
 - **Default:** `false`
 - **Scope:** Operator-wide. The gate applies to every etcd cluster managed by that etcd-druid instance; there is no per-cluster override.
-- **Effect when enabled:** The Etcd reconciler sets `spec.updateStrategy.type = OnDelete` on every managed StatefulSet, and the OnDelete controller (described below) takes over pod updates.
+- **Effect when enabled:** The Etcd reconciler sets `spec.updateStrategy.type = OnDelete` on every managed StatefulSet, and the OnDelete controller (described below) orchestrates pod updates.
 - **Effect when disabled:** The Etcd reconciler sets `spec.updateStrategy.type = RollingUpdate` on the StatefulSet, preserving the current behaviour. The OnDelete controller's predicate does not match, so it stays inert.
 
 **Why a feature gate.**
@@ -160,6 +160,8 @@ Delete the selected pod and requeue. Deleting any of these pods causes the State
 
 The controller determines member roles by reading the member lease's `holderIdentity` field, which contains the member ID and role.
 
+> **Known limitation.** Member lease updates can lag the actual leadership change by a brief interval, during which the controller may read a stale role. If a leadership change occurs in that window, the controller could select the newly-elected leader as a follower and trigger one additional leader election. This is rare and inherent to using the lease as the role source; it is accepted as a known limitation.
+>
 > **Note:** When the leader pod is deleted with a normal grace period, the etcd server attempts a graceful [leadership transfer](https://github.com/etcd-io/etcd/blob/326d5a2e7765d1d918865d2c3897f0a27320db80/server/etcdserver/server.go#L1319-L1331) to a follower before shutting down. This transfer is **best-effort**: etcd initiates it during shutdown but does not wait for it to succeed, so a leader election can still occur if the handover does not complete in time. In the common case the handover succeeds and the cluster avoids a full leader-election downtime, which is why an explicit move-leader call from the controller before updating a leader is not needed.
 
 Delete the selected pod and requeue.
@@ -219,7 +221,7 @@ To support both pre-fix and post-fix Kubernetes versions, the OnDelete controlle
 
 ### Transitioning Between Strategies
 
-The Etcd reconciler is the single owner of `StatefulSet.spec.updateStrategy.type`. On every reconciliation it sets this field based on the current state of the `UpdateStrategyOnDelete` feature gate: enabled → `OnDelete`, disabled → `RollingUpdate`. This invariant means that whenever the gate's effective state changes, the StatefulSet's strategy follows on the next reconciliation, and no manual intervention is required to keep the two in sync.
+The Etcd reconciler is the single owner of `StatefulSet.spec.updateStrategy.type`. On every reconciliation it sets this field based on the current state of the `QuorumAwareUpdatesWithOnDelete` feature gate: enabled → `OnDelete`, disabled → `RollingUpdate`. This invariant means that whenever the gate's effective state changes, the StatefulSet's strategy follows on the next reconciliation, and no manual intervention is required to keep the two in sync.
 
 The gate's effective state can change in two ways:
 
@@ -247,7 +249,7 @@ Both switches are inherently safe because they touch only the StatefulSet's `spe
 The Vertical Pod Autoscaler (VPA) in `Recreate` or `InPlaceOrRecreate` mode does not modify the StatefulSet spec directly. VPA operates through two independent mechanisms:
 
 1. **VPA Updater**: Evicts pods that don't match the recommended resource values. This eviction respects the PDB.
-2. **VPA Admission Controller**: When the StatefulSet controller (or the OnDelete controller) recreates a pod, the admission webhook injects VPA-recommended resource values into the new pod's spec at creation time.
+2. **VPA Admission Controller**: When the StatefulSet controller recreates a pod, the admission webhook injects VPA-recommended resource values into the new pod's spec at creation time.
 
 Since VPA does not modify the StatefulSet pod template, it does not trigger a new `updateRevision` and the OnDelete controller is not involved in VPA-driven resource updates. VPA continues to operate independently regardless of the update strategy.
 
