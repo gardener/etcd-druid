@@ -155,3 +155,19 @@ func filterTLSVolumeMounts(containerName string, allVolumeMounts []corev1.Volume
 	}
 	return filteredVolMounts
 }
+
+// GetSecretNameFromVolume looks up a Secret-typed volume by name in the StatefulSet's pod template.
+// It returns the volume's SecretName and true if a volume with the given name exists and has a
+// Secret volume source; otherwise it returns "" and false (when sts is nil, no volume matches the
+// name, or the matching volume's source is not a Secret).
+func GetSecretNameFromVolume(sts *appsv1.StatefulSet, volumeName string) (string, bool) {
+	if sts == nil {
+		return "", false
+	}
+	for _, vol := range sts.Spec.Template.Spec.Volumes {
+		if vol.Name == volumeName && vol.Secret != nil {
+			return vol.Secret.SecretName, true
+		}
+	}
+	return "", false
+}

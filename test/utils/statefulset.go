@@ -83,3 +83,25 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 		},
 	}
 }
+
+// AddBackupRestoreCAVolume appends the backup-restore-ca volume to the StatefulSet's pod
+// template, pointing at the named secret. Returns the StatefulSet for chaining.
+func AddBackupRestoreCAVolume(sts *appsv1.StatefulSet, etcdbrCASecretName string) *appsv1.StatefulSet {
+	sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, corev1.Volume{
+		Name: common.VolumeNameBackupRestoreCA,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{SecretName: etcdbrCASecretName},
+		},
+	})
+	return sts
+}
+
+// AddEmptyDirVolume appends an EmptyDir volume with the given name to the StatefulSet's
+// pod template. Returns the StatefulSet for chaining.
+func AddEmptyDirVolume(sts *appsv1.StatefulSet, volumeName string) *appsv1.StatefulSet {
+	sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, corev1.Volume{
+		Name:         volumeName,
+		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+	})
+	return sts
+}
