@@ -154,18 +154,18 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 	return eb
 }
 
-// WithPeerSkipClientSANVerify sets the SkipClientSANVerify flag on the Etcd
-// resource's peerUrlTls. If peerUrlTls is not yet set, an empty
+// WithPeerSkipClientSANVerification sets the SkipClientSANVerification flag
+// on the Etcd resource's peerUrlTls. If peerUrlTls is not yet set, an empty
 // *PeerTLSConfig is allocated first so the flag is structurally reachable
 // (its parent struct must exist for the value to apply).
-func (eb *EtcdBuilder) WithPeerSkipClientSANVerify(skip bool) *EtcdBuilder {
+func (eb *EtcdBuilder) WithPeerSkipClientSANVerification(skip bool) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
 		return nil
 	}
 	if eb.etcd.Spec.Etcd.PeerUrlTLS == nil {
 		eb.etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.PeerTLSConfig{}
 	}
-	eb.etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerify = ptr.To(skip)
+	eb.etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerification = ptr.To(skip)
 	return eb
 }
 

@@ -106,14 +106,14 @@ type TLSConfig struct {
 
 // PeerTLSConfig holds TLS configuration for etcd peer (server-to-server)
 // communication. It inline-embeds TLSConfig and adds peer-only knobs that
-// map to fields on etcd's embed.Config.PeerTLSInfo (e.g. SkipClientSANVerify).
+// map to fields on etcd's embed.Config.PeerTLSInfo (e.g. SkipClientSANVerification).
 // The wire format under spec.etcd.peerUrlTls is identical to TLSConfig plus
-// the optional SkipClientSANVerify field; existing manifests using only the
-// base TLSConfig fields stay valid without changes.
+// the optional SkipClientSANVerification field; existing manifests using only
+// the base TLSConfig fields stay valid without changes.
 type PeerTLSConfig struct {
 	TLSConfig `json:",inline"`
 
-	// SkipClientSANVerify, when true, skips verification of Subject
+	// SkipClientSANVerification, when true, skips verification of Subject
 	// Alternative Names on the client certificate during peer mTLS
 	// handshakes. The CA-based identity check still applies — any
 	// certificate signed by the configured peer CA is accepted regardless
@@ -121,14 +121,23 @@ type PeerTLSConfig struct {
 	// structurally required: this field cannot be set without setting
 	// peerUrlTls itself).
 	//
-	// Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerify; rendered
-	// under peer-transport-security in the etcd config ConfigMap. Matches
-	// etcd v3.6's native YAML key (skip-client-san-verification) — for
-	// etcd v3.4 / v3.5, etcd-wrapper translates it to the
-	// --experimental-peer-skip-client-san-verification flag.
+	// Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerification;
+	// rendered under peer-transport-security in the etcd config ConfigMap.
+	//
+	// Behavior across etcd versions:
+	//   - etcd v3.6+: the YAML key skip-client-san-verification under
+	//     peer-transport-security is honored natively — see
+	//     https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485
+	//     and https://github.com/etcd-io/etcd/blob/release-3.6/server/etcdmain/config.go#L122
+	//     (the experimental CLI flag is deprecated in v3.6).
+	//   - etcd v3.4 / v3.5: the YAML key is not honored natively; etcd-wrapper
+	//     translates this field into the
+	//     --experimental-peer-skip-client-san-verification CLI flag — see
+	//     https://github.com/etcd-io/etcd/blob/release-3.5/server/etcdmain/config.go#L302
+	//     and the bridge in https://github.com/gardener/etcd-wrapper/pull/92.
 	//
 	// +optional
-	SkipClientSANVerify *bool `json:"skipClientSANVerify,omitempty"`
+	SkipClientSANVerification *bool `json:"skipClientSANVerification,omitempty"`
 }
 
 // SecretReference defines a reference to a secret.
@@ -295,7 +304,7 @@ type EtcdConfig struct {
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.
 	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
 	// In addition to the base TLSConfig fields it also exposes the peer-only
-	// SkipClientSANVerify knob (see PeerTLSConfig).
+	// SkipClientSANVerification knob (see PeerTLSConfig).
 	// +optional
 	PeerUrlTLS *PeerTLSConfig `json:"peerUrlTls,omitempty"`
 	// EtcdDefragTimeout defines the timeout duration for etcd defrag call

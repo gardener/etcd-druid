@@ -60,11 +60,15 @@ type securityConfig struct {
 	ClientCertAuth bool   `json:"client-cert-auth,omitempty"`
 	TrustedCAFile  string `json:"trusted-ca-file,omitempty"`
 	AutoTLS        bool   `json:"auto-tls"`
-	// SkipClientSANVerify mirrors etcd v3.6 embed.securityConfig's
-	// `skip-client-san-verification` field. It is only meaningful for the
-	// peer security block (peer-transport-security); the client block leaves
-	// it zero so the field is omitted via omitempty.
-	SkipClientSANVerify bool `json:"skip-client-san-verification,omitempty"`
+	// SkipClientSANVerification mirrors etcd v3.6 embed.securityConfig's
+	// `skip-client-san-verification` field — see
+	// https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485.
+	// It is only meaningful for the peer security block
+	// (peer-transport-security); the client block leaves it zero so the field
+	// is omitted via omitempty. For etcd v3.4 / v3.5, etcd-wrapper translates
+	// this rendered key to the --experimental-peer-skip-client-san-verification
+	// CLI flag (see https://github.com/gardener/etcd-wrapper/pull/92).
+	SkipClientSANVerification bool `json:"skip-client-san-verification,omitempty"`
 }
 
 func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
@@ -96,8 +100,8 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig
 	if etcd.Spec.Etcd.PeerUrlTLS != nil && cfg.PeerSecurity != nil &&
-		ptr.Deref(etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerify, false) {
-		cfg.PeerSecurity.SkipClientSANVerify = true
+		ptr.Deref(etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerification, false) {
+		cfg.PeerSecurity.SkipClientSANVerification = true
 	}
 	if etcd.Spec.MemberNamePrefix != nil {
 		cfg.MemberNamePrefix = *etcd.Spec.MemberNamePrefix

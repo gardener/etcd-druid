@@ -687,26 +687,26 @@ func matchPeerTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actual
 	}
 }
 
-// TestPeerSkipClientSANVerify exercises the rendering of
-// spec.etcd.peerUrlTls.skipClientSANVerify into the etcd config ConfigMap.
+// TestPeerSkipClientSANVerification exercises the rendering of
+// spec.etcd.peerUrlTls.skipClientSANVerification into the etcd config ConfigMap.
 // The field is structurally peer-only (it lives on PeerTLSConfig, not the
 // shared TLSConfig used by clientUrlTls), so the kube-apiserver's schema —
 // not a CEL rule — guarantees it cannot be set without peerUrlTls.
 //
 // Cases:
 //   - PeerUrlTLS=nil: peer-transport-security must be absent.
-//   - PeerUrlTLS set, SkipClientSANVerify=nil: peer-transport-security present,
+//   - PeerUrlTLS set, SkipClientSANVerification=nil: peer-transport-security present,
 //     skip-client-san-verification key absent (zero + omitempty).
-//   - PeerUrlTLS set, SkipClientSANVerify=ptr(false): same as above (omitempty).
-//   - PeerUrlTLS set, SkipClientSANVerify=ptr(true): nested
+//   - PeerUrlTLS set, SkipClientSANVerification=ptr(false): same as above (omitempty).
+//   - PeerUrlTLS set, SkipClientSANVerification=ptr(true): nested
 //     peer-transport-security.skip-client-san-verification: true.
-func TestPeerSkipClientSANVerify(t *testing.T) {
+func TestPeerSkipClientSANVerification(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name                       string
 		peerTLSEnabled             bool
-		skipClientSANVerify        *bool
+		skipClientSANVerification  *bool
 		expectPeerTransportSection bool
 		expectSkipKey              bool
 		expectSkipValue            bool
@@ -714,27 +714,27 @@ func TestPeerSkipClientSANVerify(t *testing.T) {
 		{
 			name:                       "no peer TLS — peer-transport-security absent",
 			peerTLSEnabled:             false,
-			skipClientSANVerify:        nil,
+			skipClientSANVerification:  nil,
 			expectPeerTransportSection: false,
 		},
 		{
-			name:                       "peer TLS, skipClientSANVerify unset — key omitted",
+			name:                       "peer TLS, skipClientSANVerification unset — key omitted",
 			peerTLSEnabled:             true,
-			skipClientSANVerify:        nil,
+			skipClientSANVerification:  nil,
 			expectPeerTransportSection: true,
 			expectSkipKey:              false,
 		},
 		{
-			name:                       "peer TLS, skipClientSANVerify=false — key omitted (omitempty)",
+			name:                       "peer TLS, skipClientSANVerification=false — key omitted (omitempty)",
 			peerTLSEnabled:             true,
-			skipClientSANVerify:        ptr.To(false),
+			skipClientSANVerification:  ptr.To(false),
 			expectPeerTransportSection: true,
 			expectSkipKey:              false,
 		},
 		{
-			name:                       "peer TLS, skipClientSANVerify=true — key present and true",
+			name:                       "peer TLS, skipClientSANVerification=true — key present and true",
 			peerTLSEnabled:             true,
-			skipClientSANVerify:        ptr.To(true),
+			skipClientSANVerification:  ptr.To(true),
 			expectPeerTransportSection: true,
 			expectSkipKey:              true,
 			expectSkipValue:            true,
@@ -751,18 +751,18 @@ func TestPeerSkipClientSANVerify(t *testing.T) {
 				builder = builder.WithPeerTLS()
 			}
 			etcd := builder.Build()
-			if tc.skipClientSANVerify != nil {
+			if tc.skipClientSANVerification != nil {
 				if etcd.Spec.Etcd.PeerUrlTLS == nil {
 					etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.PeerTLSConfig{}
 				}
-				etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerify = tc.skipClientSANVerify
+				etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerification = tc.skipClientSANVerification
 			}
 
 			// Assert at the cfg (struct) level — nil-safe vs. PeerSecurity.
 			cfg := createEtcdConfig(etcd)
 			if tc.expectPeerTransportSection {
 				g.Expect(cfg.PeerSecurity).ToNot(BeNil())
-				g.Expect(cfg.PeerSecurity.SkipClientSANVerify).To(Equal(tc.expectSkipValue))
+				g.Expect(cfg.PeerSecurity.SkipClientSANVerification).To(Equal(tc.expectSkipValue))
 			} else {
 				g.Expect(cfg.PeerSecurity).To(BeNil())
 			}
