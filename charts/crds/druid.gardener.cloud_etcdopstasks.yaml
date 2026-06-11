@@ -107,6 +107,40 @@ spec:
                     - message: isFinal must be false (or omitted) when type is 'delta'
                       rule: 'self.type == ''delta'' ? !has(self.isFinal) || self.isFinal
                         == false : true'
+                  recoverFromQuorumLoss:
+                    description: |-
+                      RecoverFromQuorumLoss defines the configuration for a task that recovers
+                      a multi-member etcd cluster from a permanent quorum loss.
+                    properties:
+                      allowDataLoss:
+                        description: |-
+                          AllowDataLoss permits the recovery to proceed even when no backup store is configured for the
+                          referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,
+                          so the rebuilt single-member cluster will start with an empty data set; setting this to true
+                          is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),
+                          the admit check rejects the task if no backup store is configured.
+                        type: boolean
+                      etcdReadyTimeout:
+                        description: |-
+                          EtcdReadyTimeout is the timeout to wait for all etcd cluster members to become ready
+                          (the AllMembersReady condition reports True) after etcd-druid reconciliation has been
+                          re-enabled at the end of the recovery flow. Defaults to 300 seconds (5 minutes).
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                        type: string
+                      podReadyTimeout:
+                        description: |-
+                          PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become
+                          ready after the StatefulSet is scaled up to 1 during quorum loss recovery.
+                          Defaults to 180 seconds.
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                        type: string
+                      scaleDownTimeout:
+                        description: |-
+                          ScaleDownTimeout is the timeout to wait for the StatefulSet to fully scale down to 0 replicas
+                          during quorum loss recovery. Defaults to 60 seconds.
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                        type: string
+                    type: object
                 type: object
                 x-kubernetes-validations:
                 - message: config is immutable

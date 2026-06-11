@@ -128,6 +128,11 @@ type EtcdOpsTaskConfig struct {
 	// OnDemandSnapshot defines the configuration for an on-demand snapshot task.
 	// +optional
 	OnDemandSnapshot *OnDemandSnapshotConfig `json:"onDemandSnapshot,omitempty"`
+
+	// RecoverFromQuorumLoss defines the configuration for a task that recovers
+	// a multi-member etcd cluster from a permanent quorum loss.
+	// +optional
+	RecoverFromQuorumLoss *RecoverFromQuorumLossConfig `json:"recoverFromQuorumLoss,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////

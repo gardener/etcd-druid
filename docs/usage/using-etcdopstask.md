@@ -7,8 +7,6 @@
 `EtcdOpsTask` allows operators to execute one-time operational tasks on an Etcd cluster. This includes operations like triggering on-demand snapshots (full or delta). The controller manages the task lifecycle, executing the operation and updating the task status to reflect success or failure.
 
 ## How Operators Can Use EtcdOpsTask
-> [!NOTE] 
-> As of v0.34.0, `EtcdOpsTask` primarily supports on-demand snapshot operations. Future versions may introduce additional task types.
 
 ### Creating an EtcdOpsTask
 
@@ -129,7 +127,89 @@ Triggers an on-demand snapshot outside the regular snapshot schedule.
 - `timeoutSecondsDelta`: Timeout in seconds for delta snapshot operations (default: 60)
 
 
-### Best Practices
+#### RecoverFromQuorumLoss
+
+Automates recovery of a multi-member etcd cluster that has permanently lost quorum. This task
+implements the manual recovery steps documented in [Recovering Etcd Clusters](recovering-etcd-clusters.md):
+wait for user confirmation → suspend reconciliation → disable component protection → scale STS
+to 0 → delete PVCs → delete member Leases → patch ConfigMap to single-member → scale STS to 1
+→ wait for pod ready → re-enable reconciliation (triggers scale-out) → wait for all members to
+become ready → re-enable component protection.
+
+> [!WARNING]
+> This task deletes all PersistentVolumeClaims for the etcd cluster. All etcd data on those
+> volumes is permanently lost. By default a backup must be available for the cluster to restore
+> from; the backup-restore sidecar will automatically restore from the latest snapshot when the
+> single-member pod starts. Do **not** use this task unless the cluster has truly lost quorum
+> and cannot recover on its own.
+
+**Prerequisites:**
+- The target etcd cluster must be a multi-member cluster (`spec.replicas > 1`). For single-member
+  clusters the backup-restore sidecar handles recovery automatically.
+- Backup must be enabled for the target etcd cluster (`spec.backup.store` must be configured),
+  **and** the etcd's `BackupReady` condition must currently report `True`. Recovery relies on
+  the backup-restore sidecar restoring from the latest snapshot; without a Ready backup, recovery
+  may restore stale data or have nothing to restore from at all. The admit check rejects the task
+  if either condition is unmet. Both requirements can be explicitly waived with the `allowDataLoss`
+  config flag — see below — at which point the cluster comes back up empty (no backup configured)
+  or restores from whatever the latest available snapshot happens to be (backup configured but not
+  Ready).
+- The cluster must currently **not** be in a ready state (quorum loss has occurred).
+- No other `EtcdOpsTask` should be in progress for the same etcd cluster.
+- **Confirmation:** because this task is destructive, it requires explicit user confirmation
+  before any state-mutating step runs. The first execution step blocks until the annotation
+  `druid.gardener.cloud/confirm-recovery: "true"` is observed on the EtcdOpsTask. Until then, the task
+  sits in `InProgress` state with `status.lastOperation.description` reading `"Awaiting user
+  confirmation..."` and no changes are made to the cluster. The annotation may be included in the
+  YAML at creation time (for unattended workflows) or applied after reviewing the created task.
+  The match is strict: only the literal value `"true"` confirms; `"True"`, `"yes"`, or any other
+  value keeps the gate closed.
+
+**Configuration options:**
+- `scaleDownTimeout`: Maximum time to wait for the StatefulSet to reach 0 replicas (default: `60s`). Accepts Go duration strings (e.g. `30s`, `2m`).
+- `podReadyTimeout`: Maximum time to wait for the single-member pod (`<etcd-name>-0`) to become ready after scale-up (default: `180s`). Accepts Go duration strings.
+- `etcdReadyTimeout`: Maximum time to wait for **all** etcd cluster members to become ready (the `AllMembersReady` condition reports `True`) after etcd-druid reconciliation has been re-enabled and the cluster has been scaled back out (default: `300s` / 5 minutes). Accepts Go duration strings.
+- `allowDataLoss`: When `true`, permits the recovery to proceed even if no backup store is configured for the referenced Etcd, **or** if the configured backup is not in a Ready state (`BackupReady != True`). Setting this is an explicit acknowledgement that all existing etcd data may be lost or restored from a stale snapshot. When unset (or `false`), the admit check rejects the task if either of these conditions holds. Defaults to `false`.
+
+**Example:**
+
+```yaml
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: EtcdOpsTask
+metadata:
+  name: recover-from-quorum-loss
+  namespace: default
+  # annotations:
+  #   # Required: explicit confirmation before the destructive recovery proceeds.
+  #   # The task pauses at the first execution step until this annotation is observed with value "true".
+  #   # Uncomment when you are ready to run the recovery.
+  #   druid.gardener.cloud/confirm-recovery: "true"
+spec:
+  etcdName: etcd-main
+  ttlSecondsAfterFinished: 3600
+  config:
+    recoverFromQuorumLoss:
+      scaleDownTimeout: 60s
+      podReadyTimeout: 5m
+      etcdReadyTimeout: 5m
+```
+
+**Expected behaviour:**
+1. The task waits for the `druid.gardener.cloud/confirm-recovery: "true"` annotation to be present on the EtcdOpsTask. Until then, no changes are made to the cluster.
+2. Once confirmed, the task suspends etcd-druid reconciliation and disables component protection on the target Etcd resource.
+3. The StatefulSet is scaled to 0 and all PVCs and member leases are deleted.
+4. The etcd ConfigMap is patched to configure a single-member cluster using member-0 only.
+5. The StatefulSet is scaled to 1 and the task waits for the pod to become ready.
+6. The backup-restore sidecar restores etcd data from the latest available snapshot (skipped if `allowDataLoss: true` and no backup store is configured — the cluster comes up empty).
+7. Once the pod is ready, etcd-druid reconciliation is re-enabled and the cluster is scaled back to the original replica count.
+8. The task waits for the `AllMembersReady` condition on the Etcd resource to report `True` — i.e. every replica has rejoined the cluster and reports healthy — before proceeding.
+9. Component protection is re-enabled. The task reports `Succeeded` only after the cluster is verified back to a fully ready state.
+
+If the task fails mid-execution, the `Cleanup` phase removes the suspend and disable-protection
+annotations so the operator is not permanently locked out.
+
+
+
 
 1. **Unique Names**: Use descriptive, unique names for tasks to avoid conflicts
 2. **Monitor Status**: Check task status before creating duplicate operations. This will help avoid duplicate tasks.
