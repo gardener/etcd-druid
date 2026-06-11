@@ -88,8 +88,7 @@ Currently a [/readyz](https://github.com/gardener/etcd-wrapper/blob/cf3be92fc03c
 
 Currently `etcd-druid` doesn't configure any [liveness probe](https://kubernetes.io/docs/concepts/workloads/pods/probes/#liveness-probe) for a etcd statefulset. Based on our observations, the introduction of livenessProbe can do more harm then being useful as liveness probe failure simply causes the kubelet to restart the etcd container, which is not helpful in most of the scenarios. Some examples of such scenarios:
 
-1. **Etcd cluster bootstrap**: Determining an appropriate value for `livenessProbe.initialDelaySeconds` is difficult as etcd member(s)may take longer than expected to start for various reasons. If the startup time exceeds initialDelaySeconds, the kubelet will prematurely kills and restart the etcd container.
-
+1. **Etcd cluster bootstrap**: Determining an appropriate value for `livenessProbe.initialDelaySeconds` is difficult as etcd member(s)may take longer than expected to start for various reasons such as network related issue among others etc. If the startup time exceeds initialDelaySeconds, the kubelet will prematurely kills and restart the etcd container.
 
 2. Even if `livenessProbe.initialDelaySeconds` is set to some large value (say >200sec) or a startupProbe is introduced, still it won't solve all of the problems, for example: Consider a scenario where etcd cluster member are busy due to high load, now because of this if any etcd member is unable to respond to livenessProbe within the configured time causing livenessProbe to fail, due to that kubelet will kill the etcd container in order to restart the container, this restarting of a member will only worsen the overall situation.
 
