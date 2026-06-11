@@ -909,8 +909,8 @@ func (in *OnDemandSnapshotConfig) DeepCopy() *OnDemandSnapshotConfig {
 func (in *PeerTLSConfig) DeepCopyInto(out *PeerTLSConfig) {
 	*out = *in
 	in.TLSConfig.DeepCopyInto(&out.TLSConfig)
-	if in.SkipClientSANVerify != nil {
-		in, out := &in.SkipClientSANVerify, &out.SkipClientSANVerify
+	if in.SkipClientSANVerification != nil {
+		in, out := &in.SkipClientSANVerification, &out.SkipClientSANVerification
 		*out = new(bool)
 		**out = **in
 	}
