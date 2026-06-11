@@ -12,12 +12,12 @@ For every `Etcd` cluster that is provisioned by `etcd-druid` it deploys a set of
   * `etcd-wrapper` : This is the main container which runs an etcd process.
   
   * `etcd-backup-restore` : This is a side-container which does the following:
-    
+
     * Orchestrates the initialization of etcd. This includes validation of any existing etcd data directory, restoration in case of corrupt etcd data directory files for a single-member etcd cluster.
     * Periodically renews member lease.
     * Optionally takes schedule and threshold based delta and full snapshots and pushes them to a configured object store.
     * Orchestrates scheduled etcd-db defragmentation.
-    
+
     > NOTE: This is not a complete list of functionalities offered out of `etcd-backup-restore`. 
 
 **Code reference:** [StatefulSet-Component](https://github.com/gardener/etcd-druid/tree/480213808813c5282b19aff5f3fd6868529e779c/internal/component/statefulset)
@@ -34,7 +34,7 @@ Every `etcd` member requires [configuration](https://etcd.io/docs/v3.4/op-guide/
 
 An etcd cluster requires quorum for all write operations. Clients can additionally configure quorum based reads as well to ensure [linearizable](https://jepsen.io/consistency/models/linearizable) reads (kube-apiserver's etcd client is configured for linearizable reads and writes). In a cluster of size 3, only 1 member failure is tolerated. [Failure tolerance](https://etcd.io/docs/v3.3/faq/#what-is-failure-tolerance) for an etcd cluster with replicas `n` is computed as `(n-1)/2`.
 
-To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-druid` creates a [PodDisruptionBudget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets). 
+To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-druid` creates a [PodDisruptionBudget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets).
 
 !!! note
     For a single node etcd cluster a `PodDisruptionBudget` will be created, however `pdb.spec.minavailable` is set to 0 effectively disabling it.
@@ -43,13 +43,13 @@ To ensure that etcd pods are not evicted more than its failure tolerance, `etcd-
 
 ## ServiceAccount
 
-`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) is created per `Etcd` cluster for this purpose.
+`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access kubernetes resources like [Lease](https://kubernetes.io/docs/concepts/architecture/leases/), [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) etc. A dedicated [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) is created per `Etcd` cluster for this purpose.
 
 **Code reference:** [ServiceAccount-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/serviceaccount)
 
 ## Role & RoleBinding
 
-`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access resources like `Lease`, `StatefulSet` etc. A dedicated [Role](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole) and [RoleBinding](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding) is created and linked to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) created per `Etcd` cluster.
+`etcd-backup-restore` container running as a side-car in every etcd-member, requires permissions to access kubernetes resources like `Lease`, `StatefulSet` etc. A dedicated [Role](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#role-and-clusterrole) and [RoleBinding](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding) is created and linked to the [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/) created per `Etcd` cluster.
 
 **Code reference:** [Role-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/role) & [RoleBinding-Component](https://github.com/gardener/etcd-druid/tree/master/internal/component/rolebinding)
 
@@ -63,8 +63,8 @@ To enable clients to connect to an etcd cluster a ClusterIP `Client` [Service](h
 
 Every member in an `Etcd` cluster has a dedicated [Lease](https://kubernetes.io/docs/concepts/architecture/leases/) that gets created which signifies that the member is alive. It is the responsibility of the `etcd-backup-store` side-car container to periodically renew the lease.
 
-!!! note 
-    Today the lease object is also used to indicate the member-ID and the role of the member in an etcd cluster. Possible roles are `Leader`, `Member`(which denotes that this is a member but not a leader). This will change in the future with [EtcdMember resource](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/docs/proposals/04-etcd-member-custom-resource.md).
+[!NOTE]
+Today the lease object is used to hold the memberID, clusterID and the role of the member in an etcd cluster information. Possible roles are `Leader`, `Member`(which denotes that this is a member but not a leader). This will change in the future with [EtcdMember resource](https://github.com/gardener/etcd-druid/blob/3383e0219a6c21c6ef1d5610db964cc3524807c8/docs/proposals/04-etcd-member-custom-resource.md).
 
 **Code reference:** [Member-Lease-Component](https://github.com/gardener/etcd-druid/tree/3383e0219a6c21c6ef1d5610db964cc3524807c8/internal/component/memberlease)
 
@@ -82,7 +82,7 @@ One of the responsibilities of `etcd-backup-restore` container is to take period
 
 ### ReadinessProbe
 
-Currently a [/readyz](https://github.com/gardener/etcd-wrapper/blob/cf3be92fc03c78941a3275f6ac4b37f54fd9b59a/internal/app/readycheck.go#L143) endpoint provided by [etcd-wrapper](https://github.com/gardener/etcd-wrapper) is being used as readinessProbe. This endpoint performs a linearizable `GET` request, which effectively represents the readiness of the etcd cluster.
+Currently a [/readyz](https://github.com/gardener/etcd-wrapper/blob/cf3be92fc03c78941a3275f6ac4b37f54fd9b59a/internal/app/readycheck.go#L143) endpoint provided by [etcd-wrapper](https://github.com/gardener/etcd-wrapper) is being used as readinessProbe. This endpoint performs a linearizable `GET` request, which effectively represents the readiness of the etcd cluster as linearizable call expects strong consistency which requires quorum among the members.
 
 ### LivenessProbe
 
@@ -90,6 +90,7 @@ Currently `etcd-druid` doesn't configure any [liveness probe](https://kubernetes
 
 1. **Etcd cluster bootstrap**: Determining an appropriate value for `livenessProbe.initialDelaySeconds` is difficult as etcd member(s)may take longer than expected to start for various reasons. If the startup time exceeds initialDelaySeconds, the kubelet will prematurely kills and restart the etcd container.
 
-2. Even if `initialDelaySeconds` is set to some large value (say >200sec) or a startupProbe is introduced, still it won't solve all of the problems, for example: Consider a scenario when etcd cluster member are busy due to high load because of this if any etcd member unable to respond to livenessProbe within the configured time causing livenessProbe to fail, due to that kubelet will kills the etcd container in order to restart the container, this restarting of a member will only worsen the overall situation.
+
+2. Even if `livenessProbe.initialDelaySeconds` is set to some large value (say >200sec) or a startupProbe is introduced, still it won't solve all of the problems, for example: Consider a scenario where etcd cluster member are busy due to high load, now because of this if any etcd member is unable to respond to livenessProbe within the configured time causing livenessProbe to fail, due to that kubelet will kill the etcd container in order to restart the container, this restarting of a member will only worsen the overall situation.
 
 more details can be found here: https://github.com/gardener/etcd-druid/issues/280#issuecomment-4505733020
