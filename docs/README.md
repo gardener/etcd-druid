@@ -41,6 +41,7 @@
 * [Securing Etcd Clusters](usage/securing-etcd-clusters.md)
 * [Recovering Etcd Clusters](usage/recovering-etcd-clusters.md)
 * [Using Additional Advertise Peer URLs](usage/using-additional-advertise-peer-urls.md)
+* [Bootstrapping with an Existing etcd Cluster](usage/bootstrapping-with-existing-cluster.md)
 
 ## Proposals
 
