@@ -63,11 +63,8 @@ type securityConfig struct {
 	// SkipClientSANVerification mirrors etcd v3.6 embed.securityConfig's
 	// `skip-client-san-verification` field — see
 	// https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485.
-	// It is only meaningful for the peer security block
-	// (peer-transport-security); the client block leaves it zero so the field
-	// is omitted via omitempty. For etcd v3.4 / v3.5, etcd-wrapper translates
-	// this rendered key to the --experimental-peer-skip-client-san-verification
-	// CLI flag (see https://github.com/gardener/etcd-wrapper/pull/92).
+	// Only meaningful for the peer security block (peer-transport-security);
+	// the client block leaves it zero so the field is omitted via omitempty.
 	SkipClientSANVerification bool `json:"skip-client-san-verification,omitempty"`
 }
 

@@ -35,7 +35,7 @@ An etcd cluster setup by `etcd-druid` leverages the following TLS artifacts:
 For environments where peer client certificates intentionally omit Subject
 Alternative Names (e.g. some certificate-management pipelines that issue
 short-lived peer certificates without DNS / IP SANs), the peer-side mTLS
-SAN check can be disabled via `spec.etcd.peerUrlTls.skipClientSANVerification`:
+SAN check can be disabled by setting `spec.etcd.peerUrlTls.skipClientSANVerification` to `true`:
 
 ```yaml
 spec:
@@ -60,13 +60,6 @@ Notes:
   the configured peer CA is accepted regardless of its SAN; certificates
   signed by other CAs are still rejected. Only enable this knob if you
   understand the trust implications of trusting the CA's full issuance set.
-* In the rendered etcd config ConfigMap the value lands at
-  `peer-transport-security.skip-client-san-verification`, matching etcd
-  v3.6's native `securityConfig` YAML layout.
-* For etcd v3.4 / v3.5 (where the YAML key does not yet exist), `etcd-wrapper`
-  bridges the value to the
-  `--experimental-peer-skip-client-san-verification` command-line flag on the
-  etcd process, so the same Etcd manifest works across versions.
 
 
 
