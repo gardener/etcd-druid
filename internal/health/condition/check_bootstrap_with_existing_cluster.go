@@ -31,7 +31,7 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 	// controller clears status.
 	if len(etcd.Status.BootstrapWithExistingClusterMembers) > 0 {
 		return &result{
-			conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
+			conType: druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
 			status:  druidv1alpha1.ConditionTrue,
 			reason:  "BootstrapSucceeded",
 			message: "All members have successfully joined the existing cluster",
@@ -44,7 +44,7 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 
 	if len(etcd.Status.Members) < int(etcd.Spec.Replicas) {
 		return &result{
-			conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
+			conType: druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
 			status:  druidv1alpha1.ConditionFalse,
 			reason:  "BootstrapInProgress",
 			message: "Not all members have joined the cluster yet",
@@ -54,7 +54,7 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 	for _, member := range etcd.Status.Members {
 		if member.Status != druidv1alpha1.EtcdMemberStatusReady {
 			return &result{
-				conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
+				conType: druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
 				status:  druidv1alpha1.ConditionFalse,
 				reason:  "BootstrapInProgress",
 				message: "Not all members are ready",
@@ -63,14 +63,14 @@ func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alph
 	}
 
 	return &result{
-		conType: druidv1alpha1.ConditionTypeBootstrapWithExistingCluster,
+		conType: druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
 		status:  druidv1alpha1.ConditionTrue,
 		reason:  "BootstrapSucceeded",
 		message: "All members have successfully joined the existing cluster",
 	}
 }
 
-// BootstrapWithExistingClusterCheck returns a check for the "BootstrapWithExistingCluster" condition.
+// BootstrapWithExistingClusterCheck returns a check for the "BootstrappedWithExistingCluster" condition.
 func BootstrapWithExistingClusterCheck(_ client.Client) Checker {
 	return &bootstrapWithExistingCluster{}
 }

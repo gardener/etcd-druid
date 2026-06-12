@@ -93,7 +93,7 @@ var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 				result := check.Check(context.TODO(), etcd)
 
 				Expect(result).NotTo(BeNil())
-				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBootstrapWithExistingCluster))
+				Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster))
 				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionFalse))
 				Expect(result.Reason()).To(Equal("BootstrapInProgress"))
 				Expect(result.Message()).To(Equal("Not all members have joined the cluster yet"))

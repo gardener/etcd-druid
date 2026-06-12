@@ -457,8 +457,9 @@ type BootstrapJoinedMember struct {
 	// +optional
 	// +listType=atomic
 	PeerURLs []string `json:"peerUrls,omitempty"`
-	// JoinedAt is the time at which this source member was recorded as joined.
-	// Bootstrap is a one-shot event; this timestamp is set once and not updated.
+	// JoinedAt records when the target finished bootstrapping with the source cluster.
+	// Bootstrap is atomic, so the value is identical across all entries.
+	// This timestamp is set once and not updated.
 	// +required
 	JoinedAt metav1.Time `json:"joinedAt"`
 }
@@ -577,8 +578,8 @@ const (
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
 	// ConditionTypeClusterIDMismatch is a constant for a condition type indicating that the etcd cluster has multiple cluster IDs.
 	ConditionTypeClusterIDMismatch ConditionType = "ClusterIDMismatch"
-	// ConditionTypeBootstrapWithExistingCluster indicates the bootstrap join state.
-	ConditionTypeBootstrapWithExistingCluster ConditionType = "BootstrapWithExistingCluster"
+	// ConditionTypeBootstrappedWithExistingCluster indicates the bootstrap join state.
+	ConditionTypeBootstrappedWithExistingCluster ConditionType = "BootstrappedWithExistingCluster"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.

@@ -103,7 +103,7 @@ func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.Operat
 
 	bootstrapSucceeded := false
 	for _, cond := range etcd.Status.Conditions {
-		if cond.Type == druidv1alpha1.ConditionTypeBootstrapWithExistingCluster && cond.Status == druidv1alpha1.ConditionTrue {
+		if cond.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && cond.Status == druidv1alpha1.ConditionTrue {
 			bootstrapSucceeded = true
 			break
 		}

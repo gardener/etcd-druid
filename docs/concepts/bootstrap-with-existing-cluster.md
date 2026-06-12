@@ -4,15 +4,13 @@
 
 This capability enables two common workflows:
 
-- **Migration** — Move etcd state from one cluster to another by adding new members that synchronize automatically. Removal of the original source members is tracked separately in [DEP #1355](https://github.com/gardener/etcd-druid/pull/1355).
+- **Migration** — Move etcd state from one cluster to another by adding new members that synchronize automatically. Removal of the original source members is tracked separately in [DEP-08](https://github.com/gardener/etcd-druid/pull/1355).
 - **Extension** — Add new etcd-druid managed members to an existing cluster while keeping the original members in service.
 
 In both cases, the source cluster continues serving reads and writes throughout the operation.
 
-The feature currently covers only the **join phase**: adding target members to an existing etcd cluster. Automated removal of the original source members is proposed in [DEP #1355](https://github.com/gardener/etcd-druid/pull/1355) and will build on the status and trigger semantics described in this document.
-
 > [!NOTE]
-> Source-member removal is **not yet implemented**. Clearing `.spec.etcd.bootstrapWithExistingCluster` currently only arms the future removal trigger.
+> Source-member removal is **not yet implemented**. Clearing `.spec.etcd.bootstrapWithExistingCluster` is allowed (see [Mutability](#mutability)) but currently has no effect on the cluster.
 
 ## Terminology
 
@@ -20,9 +18,9 @@ The feature currently covers only the **join phase**: adding target members to a
 |------|------------|
 | **Source etcd cluster** | The existing cluster whose data is being joined. The source may be managed by etcd-druid, self-managed, or hosted outside Kubernetes. |
 | **Target etcd cluster** | The new etcd-druid managed cluster that joins the source. |
-| **Combined etcd cluster** | The state in which source and target members form a single etcd cluster. |
+| **Combined etcd cluster** | The single cluster that is formed by members of both the source and target etcd clusters. |
 | **Learner** | A non-voting etcd member that receives Raft log entries but does not participate in quorum decisions. Target members are added as learners before being promoted to voting members. |
-| **Join phase** | The bootstrap lifecycle during which target members join the source cluster and are recorded in `.status.bootstrapWithExistingClusterMembers`. |
+| **Join phase** | The bootstrap lifecycle during which target members join the source cluster. |
 
 ## Topology
 
@@ -45,9 +43,7 @@ Once the join phase completes, the source and target members form a single 6-mem
 │   │etcd-source-0│    │etcd-source-1│    │etcd-source-2│   source members       │
 │   │   leader    │◄──►│   follower  │◄──►│   follower  │                        │
 │   └─────────────┘    └─────────────┘    └─────────────┘                        │
-│          ▲                  ▲                  ▲                               │
-│          │                  │                  │                               │
-│          ▼                  ▼                  ▼                               │
+│                                                                                │
 │   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                        │
 │   │etcd-target-0│    │etcd-target-1│    │etcd-target-2│   target members       │
 │   │   follower  │◄──►│   follower  │◄──►│   follower  │                        │
@@ -55,7 +51,7 @@ Once the join phase completes, the source and target members form a single 6-mem
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-After the source-member removal proposed in DEP #1355 completes, only the target remains: a 3-member etcd cluster with quorum 2, with `.spec.etcd.bootstrapWithExistingCluster` cleared and `.status.bootstrapWithExistingClusterMembers` cleared by the removal reconciliation.
+After the source-member removal proposed in [DEP-08](https://github.com/gardener/etcd-druid/pull/1355) completes, only the target remains: a 3-member etcd cluster with quorum 2.
 
 ## API Surface
 
@@ -69,15 +65,12 @@ spec:
         - name: etcd-source-0
           peerUrls:
             - https://etcd-source-0.etcd-source-peer.source-ns.svc:2380
-        - name: etcd-source-1
-          peerUrls:
-            - https://etcd-source-1.etcd-source-peer.source-ns.svc:2380
-        - name: etcd-source-2
-          peerUrls:
-            - https://etcd-source-2.etcd-source-peer.source-ns.svc:2380
+        # ... one entry per source member
       clientEndpoints:
         - https://etcd-source-client.source-ns.svc:2379
 ```
+
+For a complete `Etcd` manifest, see the [usage guide](../usage/bootstrapping-with-existing-cluster.md#step-by-step-setup).
 
 ### Status
 
@@ -88,25 +81,21 @@ status:
       peerUrls:
         - https://etcd-source-0.etcd-source-peer.source-ns.svc:2380
       joinedAt: "2026-06-04T10:11:00Z"
-    - name: etcd-source-1
-      peerUrls:
-        - https://etcd-source-1.etcd-source-peer.source-ns.svc:2380
-      joinedAt: "2026-06-04T10:11:00Z"
-    - name: etcd-source-2
-      peerUrls:
-        - https://etcd-source-2.etcd-source-peer.source-ns.svc:2380
-      joinedAt: "2026-06-04T10:11:00Z"
+    # ... one entry per source member, all sharing the same joinedAt
 ```
 
-`.status.bootstrapWithExistingClusterMembers` is a flat `[]BootstrapJoinedMember` list on `EtcdStatus`. The status reconciler writes all entries in a single call with one shared timestamp; `joinedAt` is set once and never updated, giving operators a single record of when the target finished its join phase against the source.
+`.status.bootstrapWithExistingClusterMembers` is a flat `[]BootstrapJoinedMember` list on `EtcdStatus`. Each entry records a source member the target joined to. `joinedAt` records when the target finished bootstrapping; bootstrap is atomic, so the value is identical across all entries. The reconciler writes all entries in a single call and never updates them afterwards.
 
 ### Condition
 
-The `BootstrapWithExistingCluster` condition type is added to `.status.conditions` when the feature is in use. It tracks whether the join has completed successfully. See [Lifecycle States](#lifecycle-states) for the full state machine.
+The `BootstrappedWithExistingCluster` condition type is added to `.status.conditions` when the feature is in use. It tracks whether the join has completed successfully. See [Lifecycle States](#lifecycle-states) for the full state machine.
 
 ### Validation
 
 The validations below are enforced at admission time — partly by kubebuilder validation markers (required, list-size, regex), partly by CEL rules (URL-scheme coupling, mutability). Together they prevent the most common authoring mistakes.
+
+> [!NOTE]
+> Peer-side and client-side TLS are configured independently — `.spec.etcd.peerUrlTls` and `.spec.etcd.clientUrlTls` can be set in any combination. The two URL-scheme rules below validate each side against its own TLS config.
 
 | Field | Constraint |
 |-------|------------|
@@ -118,7 +107,7 @@ The validations below are enforced at admission time — partly by kubebuilder v
 > [!NOTE]
 > The list-size caps (5 URLs per member, 10 members, 10 client endpoints) are imposed by Kubernetes' per-rule **CEL validation cost budget** — the URL-scheme rules iterate over every entry, so cost scales with list length. Raising the limits requires restructuring the CEL rules first.
 
-URL-scheme mismatches are rejected at admission time. **Certificate-trust mismatches are detected only at runtime** — see [TLS Requirements](#tls-requirements).
+URL-scheme mismatches are rejected at admission time. **Certificate-trust mismatches are detected only at runtime** — see [TLS Trust Model](#tls-trust-model).
 
 #### Mutability
 
@@ -133,11 +122,10 @@ A CEL transition rule controls whether `.spec.etcd.bootstrapWithExistingCluster`
 | 1 | no | no | Yes | Non-bootstrap clusters stay non-bootstrap |
 | 2 | yes | yes | Yes | Edits to `members`/`clientEndpoints` after creation |
 | 3 | no | yes | **No** | Cannot retrofit the feature onto an existing `Etcd` |
-| 4 | yes | no | Yes | Clears the spec — arms the removal trigger |
+| 4 | yes | no | Yes | Clears the spec (no effect today; see [DEP-08](https://github.com/gardener/etcd-druid/pull/1355) for planned removal behavior) |
 
-> [!WARNING]
-> The API server rejects retrofit attempts (row 3) with the message:
-> *"etcd.spec.etcd.bootstrapWithExistingCluster cannot be added after the Etcd resource has been created"*
+> [!NOTE]
+> Edits to `members` / `clientEndpoints` (row 2) are allowed by the API but should generally be avoided once the join is in progress. After the condition flips to `True/BootstrappedWithExistingCluster`, the spec is no longer consulted for the join — `.status.bootstrapWithExistingClusterMembers` is the source of truth at that point. Edits remain allowed primarily to support correcting typos before any target pod has come up.
 
 
 ## How etcd-druid Implements the Join
@@ -161,7 +149,7 @@ The `etcd-backup-restore` sidecar is configured with the source cluster's client
 
 ### 3. Status Reconciliation
 
-After all target members become Ready, the `BootstrapWithExistingCluster` condition transitions to `True` with reason `BootstrapSucceeded`.
+After all target members become Ready, the `BootstrappedWithExistingCluster` condition transitions to `True` with reason `BootstrapSucceeded`.
 
 During the same reconciliation pass, `etcd-druid` records the source-member inventory in `.status.bootstrapWithExistingClusterMembers`, assigning a shared `joinedAt` timestamp to every entry.
 
@@ -169,13 +157,13 @@ This snapshot is written only once:
 
 - Existing entries are never overwritten.
 - `joinedAt` is never modified.
-- Missing `peerUrls` may be backfilled during later reconciliations for compatibility with older API versions.
+- `peerUrls` may be empty in entries written by an earlier druid release (the field was added later as `+optional`); the next reconcile copies them in from spec.
 
 ### Code references
 
 - [`prepareInitialCluster`](https://github.com/gardener/etcd-druid/blob/master/internal/component/configmap/etcdconfig.go) in `internal/component/configmap/etcdconfig.go` — extends `initial-cluster` with source members.
 - [StatefulSet builder](https://github.com/gardener/etcd-druid/blob/master/internal/component/statefulset/builder.go) in `internal/component/statefulset/builder.go` — appends source client endpoints to the backup-restore sidecar's `--service-endpoints`.
-- [`check_bootstrap_with_existing_cluster.go`](https://github.com/gardener/etcd-druid/blob/master/internal/health/condition/check_bootstrap_with_existing_cluster.go) — implements the `BootstrapWithExistingCluster` condition check.
+- [`check_bootstrap_with_existing_cluster.go`](https://github.com/gardener/etcd-druid/blob/master/internal/health/condition/check_bootstrap_with_existing_cluster.go) — implements the `BootstrappedWithExistingCluster` condition check.
 - [`mutateBootstrapWithExistingClusterStatus`](https://github.com/gardener/etcd-druid/blob/master/internal/controller/etcd/reconcile_status.go) in `internal/controller/etcd/reconcile_status.go` — populates `.status.bootstrapWithExistingClusterMembers` once the condition is `True` and back-fills empty `peerUrls` on later reconciles.
 
 
@@ -185,9 +173,9 @@ The feature progresses through three observable states:
 
 | State | Condition | When |
 |-------|-----------|------|
-| **Not in use** | absent (no `BootstrapWithExistingCluster` condition is emitted) | Spec unset and status empty. Either a standard standalone cluster, or — once [DEP #1355](https://github.com/gardener/etcd-druid/pull/1355) lands — the terminal state after source-member removal. |
+| **Not in use** | absent (no `BootstrappedWithExistingCluster` condition is emitted) | Spec unset and status empty. A standard standalone cluster. |
 | **In progress** | `False / BootstrapInProgress` | Spec set, status empty; either not all target pods are up yet (`len(.status.members) < .spec.replicas`) or some target members are not Ready. |
-| **Succeeded** | `True / BootstrapSucceeded` (sticky) | Status populated. Stays `True` for the lifetime of the resource — including after spec is cleared to arm the removal trigger. |
+| **Succeeded** | `True / BootstrapSucceeded` (sticky) | Status populated. Stays `True` for the lifetime of the resource — including after the spec is cleared. |
 
 The condition check evaluates `len(.status.bootstrapWithExistingClusterMembers) > 0` **before** inspecting the spec, which is why **Succeeded** is sticky regardless of whether spec is set or cleared.
 
@@ -195,30 +183,25 @@ The condition check evaluates `len(.status.bootstrapWithExistingClusterMembers) 
 
 Once the **Succeeded** state is reached, pod restarts, `StatefulSet` rolls, and `etcd-druid` restarts do not regress the condition — the join phase is recorded as a one-time fact in `.status`, not re-evaluated as a recurring readiness probe. If `etcd-druid` restarts *before* the condition first flips to `True`, the next reconcile re-evaluates from spec and observed pod readiness; nothing is lost because no status was written yet. If a target pod restarts mid-join, etcd's data directory either contains a partial replica that catches up by replaying the leader's log, or is empty and re-joins as a fresh learner via the same `MemberAdd` flow.
 
-## TLS Requirements
+## TLS Trust Model
 
-URL-scheme rules are enforced at admission time and documented under [Validation](#validation). This section covers the runtime CA-trust workflow that the operator must set up *outside* of API admission.
+URL-scheme rules are enforced at admission time and documented under [Validation](#validation). This section covers the runtime CA-trust *model* under which the target's existing `peerUrlTls` / `clientUrlTls` trust roots are used to dial the source cluster.
 
 There is no separate source-CA reference field on `bootstrapWithExistingCluster`. At runtime, the target etcd and backup-restore processes dial source endpoints using the target's own TLS trust roots:
 
 - Target etcd dials source peer URLs over TLS using `.spec.etcd.peerUrlTls` trust roots.
 - Target `etcd-backup-restore` dials source client endpoints using `.spec.etcd.clientUrlTls` trust roots.
 
-When TLS is enabled, the operator must:
-
-1. **Copy the source cluster's CA certificate** to the target cluster.
-2. **Create a combined CA bundle** containing both the target CA and the source CA. Store this bundle in the `Secret`s referenced by `.spec.etcd.peerUrlTls.tlsCASecretRef` and `.spec.etcd.clientUrlTls.tlsCASecretRef`.
-3. **Sign the target's TLS certificates** using a CA the source also trusts. The source etcd members must accept incoming TLS connections from target members during the join phase.
-
-If both clusters already share a common CA, no merging is needed — the shared CA handles trust in both directions.
+The two TLS contexts (peer and client) are independent — each is configured by its own `TLSConfig` and can be set in any combination. The trust roots for each context must include the source cluster's corresponding CA before the join can succeed; bidirectional trust is required because the source must also accept incoming TLS connections from target members.
 
 > [!WARNING]
-> A URL-scheme mismatch is rejected at admission time. A certificate-trust mismatch is detected only at runtime: the target etcd exits with `tls: failed to verify certificate: x509: certificate is not trusted` and the `BootstrapWithExistingCluster` condition stays at `False/BootstrapInProgress`.
+> A URL-scheme mismatch is rejected at admission time. A certificate-trust mismatch is detected only at runtime: the target etcd fails its TLS handshake against the source, and the `BootstrappedWithExistingCluster` condition stays at `False/BootstrapInProgress` until the trust roots are corrected.
 
 ## Related
 
-- [Using Additional Advertise Peer URLs](../usage/using-additional-advertise-peer-urls.md) — frequently paired when source and target are in different network domains
-- [etcd Cluster Components](etcd-cluster-components.md) — resources `etcd-druid` manages for every `Etcd` resource
-- [DEP #1355](https://github.com/gardener/etcd-druid/pull/1355) — design proposal for the source-member removal reconciliation
-- [etcd Learner Design](https://etcd.io/docs/v3.5/learning/design-learner/) — upstream documentation on the learner protocol
-- [etcd Clustering Guide](https://etcd.io/docs/v3.5/op-guide/clustering/) — etcd cluster formation and `initial-cluster` semantics
+- [Bootstrapping with an Existing etcd Cluster (usage guide)](../usage/bootstrapping-with-existing-cluster.md) — operator-facing setup steps and verification.
+- [Using Additional Advertise Peer URLs](../usage/using-additional-advertise-peer-urls.md) — frequently paired when source and target run in different network domains.
+- [etcd Cluster Components](etcd-cluster-components.md) — resources `etcd-druid` manages for every `Etcd` resource.
+- [DEP-08](https://github.com/gardener/etcd-druid/pull/1355) — design proposal for the source-member removal reconciliation.
+- [etcd Learner Design](https://etcd.io/docs/v3.5/learning/design-learner/) — upstream documentation on the learner protocol.
+- [etcd Clustering Guide](https://etcd.io/docs/v3.5/op-guide/clustering/) — etcd cluster formation and `initial-cluster` semantics.
