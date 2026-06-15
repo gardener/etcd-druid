@@ -54,8 +54,7 @@ Notes:
 * The field is **peer-only by type** — it lives on `PeerTLSConfig`, the wrapper
   type used exclusively at `spec.etcd.peerUrlTls`. The shared `TLSConfig` used
   by `clientUrlTls` and `backup.tls` does not expose it, so the field cannot be
-  set on the client- or backup-restore TLS blocks. No CEL rule is needed to
-  enforce that — it is a structural property of the schema.
+  set on the client- or backup-restore TLS blocks.
 * The CA-based identity check still applies. Any peer certificate signed by
   the configured peer CA is accepted regardless of its SAN; certificates
   signed by other CAs are still rejected. Only enable this knob if you

@@ -106,7 +106,7 @@ type TLSConfig struct {
 
 // PeerTLSConfig holds TLS configuration for etcd peer (server-to-server)
 // communication. It inline-embeds TLSConfig and adds peer-only knobs that
-// map to fields on etcd's embed.Config.PeerTLSInfo (e.g. SkipClientSANVerification).
+// map to fields on etcd's config.PeerTLSInfo (e.g. SkipClientSANVerification).
 // The wire format under spec.etcd.peerUrlTls is identical to TLSConfig plus
 // the optional SkipClientSANVerification field; existing manifests using only
 // the base TLSConfig fields stay valid without changes.
@@ -121,7 +121,7 @@ type PeerTLSConfig struct {
 	// structurally required: this field cannot be set without setting
 	// peerUrlTls itself).
 	//
-	// Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerification;
+	// Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;
 	// rendered under peer-transport-security in the etcd config ConfigMap.
 	//
 	// Behavior across etcd versions:

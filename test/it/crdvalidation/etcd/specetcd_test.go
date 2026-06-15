@@ -406,12 +406,8 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 // TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerification is a smoke test
 // confirming that the new peer-only field
 // spec.etcd.peerUrlTls.skipClientSANVerification is accepted by the
-// kube-apiserver. The field is structurally peer-only — it lives on
-// PeerTLSConfig, which is only reachable under peerUrlTls — so no CEL rule is
-// needed to enforce "peer-only"; the schema does that for free.
-//
-// This test documents intent: it locks in that a manifest setting
-// skipClientSANVerification=true under peerUrlTls is a valid Etcd resource.
+// kube-apiserver — i.e. a manifest setting skipClientSANVerification=true
+// under peerUrlTls is a valid Etcd resource.
 func TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerification(t *testing.T) {
 	testNs, g := setupTestEnvironment(t)
 

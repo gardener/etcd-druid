@@ -622,7 +622,7 @@ spec:
                           structurally required: this field cannot be set without setting
                           peerUrlTls itself).
 
-                          Mirrors etcd embed.Config.PeerTLSInfo.SkipClientSANVerification;
+                          Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;
                           rendered under peer-transport-security in the etcd config ConfigMap.
 
                           Behavior across etcd versions:
