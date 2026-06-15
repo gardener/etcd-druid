@@ -340,11 +340,17 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 			}
 		}
 	case druidstore.GCS:
+		if b.etcd.Spec.Backup.Store.SecretRef == nil {
+			return nil
+		}
 		return &corev1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
 			MountPath: common.VolumeMountPathGCSBackupSecret,
 		}
 	case druidstore.S3, druidstore.ABS, druidstore.OSS, druidstore.Swift, druidstore.OCS:
+		if b.etcd.Spec.Backup.Store.SecretRef == nil {
+			return nil
+		}
 		return &corev1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
 			MountPath: common.VolumeMountPathNonGCSProviderBackupSecret,
@@ -860,7 +866,11 @@ func (b *stsBuilder) getBackupVolume(ctx component.OperatorContext) (*corev1.Vol
 		}, nil
 	case druidstore.GCS, druidstore.S3, druidstore.OSS, druidstore.ABS, druidstore.Swift, druidstore.OCS:
 		if store.SecretRef == nil {
-			return nil, fmt.Errorf("etcd: %v, no secretRef configured for backup store", druidv1alpha1.GetNamespaceName(b.etcd.ObjectMeta))
+			// SecretRef is optional when the pod has ambient credentials (e.g. GKE
+			// Workload Identity, EKS IRSA, AKS Workload Identity). In that case the
+			// cloud SDK's Application Default Credentials chain will pick up the
+			// pod-level identity without a mounted secret.
+			return nil, nil
 		}
 
 		return &corev1.Volume{
