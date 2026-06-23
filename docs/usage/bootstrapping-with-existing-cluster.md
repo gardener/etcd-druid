@@ -1,29 +1,25 @@
 # Bootstrapping with an Existing etcd Cluster
 
-This guide explains how to configure `spec.etcd.bootstrapWithExistingCluster` to make a new `Etcd` resource managed by `etcd-druid` join an already-running etcd cluster (managed or not managed by etcd-druid) instead of starting as a standalone cluster.
+This guide shows how to create a new etcd-druid managed `Etcd` resource that joins an already-running etcd cluster instead of starting as a standalone cluster.
 
-The conceptual background — terminology, lifecycle states, condition semantics, status shape, TLS trust model, etc. — is covered in [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md). This guide focuses on the **how**: prerequisites, step-by-step setup, and verification.
+The source cluster may be managed by etcd-druid or externally managed. In both cases, the source member names, peer URLs, and client endpoints that you put into the target spec must already be valid from the target's network.
 
-> [!NOTE]
-> This feature covers only the **join phase**: target members are added to the source cluster and synchronized. Removal of the original source members is tracked separately in [DEP-08](https://github.com/gardener/etcd-druid/pull/1369) and is **not implemented yet**. Until DEP-08 lands, the end state is a *combined* cluster of source + target members; if your goal is full migration, plan to remove source members manually for now.
+For background and lifecycle semantics, see [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md).
 
 ## Prerequisites
 
-Before configuring `bootstrapWithExistingCluster` on a new `Etcd` resource, ensure:
+Before creating the target `Etcd` resource, ensure:
 
-1. **All source etcd cluster members are healthy and reachable.** Every peer URL listed under `bootstrapWithExistingCluster.members[*].peerUrls` must be dialable from the target's network namespace, and at least one source client endpoint must be reachable from the target's `etcd-backup-restore` sidecar. If source and target run in different network domains, list URLs that the source has explicitly advertised for cross-domain reachability — see the IMPORTANT note in step 1 below.
-2. **Source member names and peer URLs are known and stable.** You'll list them verbatim in the target etcd resource spec; they must match what the source advertises in its own member list (`etcdctl member list --endpoints=<source-client-endpoints>`).
-3. **TLS trust is set up if either side uses TLS.** See the [concept doc's TLS Trust Model](../concepts/bootstrap-with-existing-cluster.md#tls-trust-model) — this is the most common source of failure.
-4. **The new `Etcd` resource has not yet been created.** `bootstrapWithExistingCluster` is **create-only** — it cannot be added to an existing `Etcd` resource. Plan the field into the manifest you apply at creation time.
-5. **Source and target run the same etcd minor version.** etcd's join (member-add / learner-promote) flow does **not** support cross-minor-version joins — both clusters must be on the same `3.X.*` series. The exact target version is fixed by the `etcd-wrapper` image referenced from `.spec.etcd.image`:
-    - With the [`UpgradeEtcdVersion` feature gate](../deployment/feature-gates.md#feature-gates-for-alpha-or-beta-features) enabled, `etcd-druid` selects an `etcd-wrapper` image bundling etcd `3.5.x` for the target — the source must therefore also be on a `3.5.x` release.
-    - With `UpgradeEtcdVersion` disabled (the current default), `etcd-druid` selects an `etcd-wrapper` image bundling etcd `3.4.x` for the target — the source must therefore also be on a `3.4.x` release.
+1. **The source cluster is healthy.** All source members that you want the target to join with should be `started` in `etcdctl member list`.
+2. **The source peer URLs in the target spec are reachable from the target pods.** Only the URLs listed under `.spec.etcd.bootstrapWithExistingCluster.members[*].peerUrls` need to be reachable from the target network.
+3. **At least one source client endpoint is reachable from the target backup-restore sidecar.** These endpoints go into `.spec.etcd.bootstrapWithExistingCluster.clientEndpoints`.
+4. **The source and target use compatible TLS trust roots.** The target's peer/client TLS configuration is used when dialing source peer/client endpoints. See the [TLS trust model](../concepts/bootstrap-with-existing-cluster.md#tls-trust-model).
+5. **The target `Etcd` resource does not already exist.** `bootstrapWithExistingCluster` is create-only and cannot be added to an existing `Etcd` resource.
+6. **Source and target run the same etcd minor version.** If the target uses etcd `3.5.x`, the source should also use etcd `3.5.x`; if the target uses etcd `3.4.x`, the source should also use etcd `3.4.x`.
 
-## Step-by-Step Setup
+## Step 1: Inspect the source cluster
 
-### 1. Inspect the source cluster
-
-Run the following from a host (or pod) that can reach the source cluster:
+Run `etcdctl member list` against the source cluster from a location that can reach its client endpoint:
 
 ```bash
 etcdctl --endpoints=<source-client-endpoint> \
@@ -33,12 +29,11 @@ etcdctl --endpoints=<source-client-endpoint> \
   member list -w table
 ```
 
-> [!NOTE]
-> If the source cluster does not have TLS enabled, omit the `--cacert`, `--cert`, and `--key` flags.
+If the source cluster does not use TLS, omit the TLS flags.
 
-Sample output:
+Example output:
 
-```
+```text
 +------------------+---------+---------------+---------------------------------------------------------+---------------------------------------------------------+
 |        ID        | STATUS  |     NAME      |                       PEER ADDRS                        |                      CLIENT ADDRS                       |
 +------------------+---------+---------------+---------------------------------------------------------+---------------------------------------------------------+
@@ -48,14 +43,20 @@ Sample output:
 +------------------+---------+---------------+---------------------------------------------------------+---------------------------------------------------------+
 ```
 
-Record each member's **`NAME`** and **`PEER ADDRS`** — they go into `bootstrapWithExistingCluster.members`. Record one or more **`CLIENT ADDRS`** for `bootstrapWithExistingCluster.clientEndpoints`.
+Record:
+
+- each source member `NAME`,
+- the source peer URLs that are reachable from the target pods,
+- one or more source client endpoints reachable from the target backup-restore sidecar.
 
 > [!IMPORTANT]
-> If source and target run in **different network domains** (separate Kubernetes clusters, on-prem ↔ cloud, etc.), the source must advertise peer URLs that are routable from the target. For etcd-druid managed sources, set `.spec.etcd.additionalAdvertisePeerURLs` on the source — see [Using Additional Advertise Peer URLs](using-additional-advertise-peer-urls.md). For externally managed sources, configure the source etcd's `--initial-advertise-peer-urls` directly. Use those externally-routable URLs in the target spec.
+> The `PEER ADDRS` shown above are same-network examples. If source and target run in different network domains, replace them with peer URLs that the source cluster advertises and the target can dial.
+>
+> For an etcd-druid managed source, configure [`.spec.etcd.additionalAdvertisePeerURLs`](docs/usage/using-additional-advertise-peer-urls.md) on the source if extra reachable peer URLs are needed. For an externally managed source, prepare the advertised peer URLs outside etcd-druid. The target spec must use the source member names and peer URLs as advertised by the source member list.
 
-### 2. Author the target `Etcd` manifest
+## Step 2: Create the target `Etcd` manifest
 
-Add `bootstrapWithExistingCluster` to the target spec. A minimal 3-replica example:
+Add `spec.etcd.bootstrapWithExistingCluster` when creating the target resource:
 
 ```yaml
 apiVersion: druid.gardener.cloud/v1alpha1
@@ -101,63 +102,63 @@ spec:
   # ... other fields as needed
 ```
 
-### 3. Apply the manifest
+Use `http://` URLs when TLS is not enabled for the corresponding peer/client side. Admission validation rejects URL schemes that do not match `.spec.etcd.peerUrlTls` or `.spec.etcd.clientUrlTls`.
+
+## Step 3: Apply the manifest
 
 ```bash
 kubectl apply -f etcd-target.yaml
 ```
 
-`etcd-druid` will:
+etcd-druid then reconciles the target resources:
 
-- Append source member peer URLs to the target's `initial-cluster` ConfigMap entry.
-- Append source `clientEndpoints` to the `--service-endpoints` flag of the target's `etcd-backup-restore` sidecar.
-- Bring up target pods, which join the source cluster.
+- the target ConfigMap `initial-cluster` includes both target members and source members,
+- the target backup-restore `--service-endpoints` includes the target client service and the configured source `clientEndpoints`,
+- the target pods start and join the existing source cluster.
 
-### 4. Watch the bootstrap progress
+## Step 4: Watch join progress
 
-Track the dedicated condition:
+Check the dedicated condition:
 
 ```bash
 kubectl -n target-ns get etcd etcd-target \
   -o jsonpath='{.status.conditions[?(@.type=="BootstrappedWithExistingCluster")]}{"\n"}'
 ```
 
-While the join is in progress:
+While the join is still in progress, the condition is `False`:
 
 ```json
 {"type":"BootstrappedWithExistingCluster","status":"False","reason":"BootstrapInProgress","message":"Not all members have joined the cluster yet"}
 ```
 
-`.status.bootstrapWithExistingClusterMembers` is **empty** (or absent) until the join succeeds — the snapshot is written atomically once all target members have joined. To watch in-progress per-member state, inspect `.status.members` (the standard member list) instead.
+During this phase `.status.bootstrapWithExistingClusterMembers` is absent or empty. To inspect per-target-member readiness, use `.status.members`.
 
-Once it succeeds:
+After the join succeeds, the condition becomes `True`:
 
 ```json
 {"type":"BootstrappedWithExistingCluster","status":"True","reason":"BootstrapSucceeded","message":"All members have successfully joined the existing cluster"}
 ```
 
-The condition is **sticky**: once it flips to `True`, it stays `True` for the lifetime of the `Etcd` resource — pod restarts and `StatefulSet` rolls do not regress it.
+The success condition is sticky. Once true, pod restarts or transient readiness changes do not reset the historical bootstrap result.
 
-### 5. Verify the combined cluster
+## Step 5: Verify the combined cluster
 
-The `etcd-wrapper` container uses a [distroless](https://github.com/GoogleContainerTools/distroless) image and ships neither `etcdctl` nor a shell, so `kubectl exec` cannot run `etcdctl` inside it. The recommended verification path is `kubectl debug` — attach an ephemeral container that already has `etcdctl`, sharing the target pod's network namespace and mounted client TLS secret. This avoids extracting TLS material onto the operator's workstation.
+The `etcd-wrapper` container is distroless and does not ship a shell or `etcdctl`. Use an ephemeral debug container with `etcdctl` instead of copying TLS secrets to your workstation:
 
 ```bash
 kubectl -n target-ns debug -it pod/etcd-target-0 \
-  --image=europe-docker.pkg.dev/sap-se-gcp-k8s-delivery/releases-public/europe-docker_pkg_dev/gardener-project/releases/gardener/ops-toolbelt:latest \
-  --target=etcd \
-  -- /bin/bash
+  --image=europe-docker.pkg.dev/sap-se-gcp-k8s-delivery/releases-public/europe-docker_pkg_dev/gardener-project/releases/gardener/ops-toolbelt:latest 
 ```
 
-The `ops-toolbelt` image pre-configures the `ETCDCTL_*` environment variables (endpoint, CA, client cert/key) for the targeted etcd pod, so `etcdctl` can be invoked without repeating the flags. List the members:
+List the combined membership:
 
 ```sh
 etcdctl member list -w table
 ```
 
-Expected: 6 members total: 3 source members + 3 target members — all `started`.
+Expected: source members and target members are present, and all are `started`.
 
-Verify that source and target members report the **same `clusterID`** — proof that the target has joined the source cluster rather than forming a separate cluster:
+Verify that source and target endpoints report the same cluster ID:
 
 ```sh
 etcdctl endpoint status \
@@ -165,17 +166,21 @@ etcdctl endpoint status \
   -w table
 ```
 
-The `CLUSTER ID` column must be identical for the source endpoint and the target endpoint.
+The `CLUSTER ID` column must match for source and target endpoints. If the IDs differ, the target formed or contacted a different cluster instead of joining the source cluster.
 
 > [!NOTE]
-> If your cluster does not allow ephemeral debug containers (`kubectl debug` is gated by the `EphemeralContainers` feature gate and may be restricted by admission policy), use a one-off pod scheduled to the same node and namespace running an `etcdctl` image, with the client TLS `Secret`s mounted as volumes. Avoid copying secret material to a workstation.
+> If ephemeral debug containers are not allowed in your environment, use a short-lived pod in the same namespace with `etcdctl` and mount the required client TLS secrets as volumes. Avoid copying certificate/key material to a workstation.
 
-The target's status records the source members it joined to:
+## Step 6: Inspect recorded source-member status
+
+After the join succeeds, etcd-druid writes the source-member inventory:
 
 ```bash
 kubectl -n target-ns get etcd etcd-target \
   -o jsonpath='{.status.bootstrapWithExistingClusterMembers}{"\n"}'
 ```
+
+Example:
 
 ```json
 [
@@ -185,12 +190,11 @@ kubectl -n target-ns get etcd etcd-target \
 ]
 ```
 
-`joinedAt` is set once when the bootstrap completes and is the same value across all entries.
+This status records source members that were present when the target completed bootstrap. `joinedAt` is not per-member; it is the shared time when etcd-druid recorded the successful bootstrap inventory.
 
 ## Related
 
-- [Concept doc: Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md) — terminology, lifecycle states, status semantics, TLS trust model.
-- [Using Additional Advertise Peer URLs](using-additional-advertise-peer-urls.md) — frequently paired when source and target run in different network domains.
-- [Securing Etcd Clusters](securing-etcd-clusters.md) — TLS configuration reference for `peerUrlTls` / `clientUrlTls`.
-- [DEP-08](https://github.com/gardener/etcd-druid/pull/1369) — design proposal for source-member removal (companion to this feature).
-- [etcd Learner Design](https://etcd.io/docs/v3.5/learning/design-learner/) — upstream documentation on the learner protocol used internally during the join.
+- [Concept doc: Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md)
+- [Using Additional Advertise Peer URLs](using-additional-advertise-peer-urls.md)
+- [Securing Etcd Clusters](securing-etcd-clusters.md)
+- [etcd Learner Design](https://etcd.io/docs/v3.5/learning/design-learner/)

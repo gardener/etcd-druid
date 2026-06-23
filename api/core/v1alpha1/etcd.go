@@ -453,11 +453,12 @@ type BootstrapWithExistingCluster struct {
 // only; they never describe target members and are not updated after bootstrap
 // completes.
 type BootstrapJoinedMember struct {
-	// Name is the source-cluster member name that the target joined to.
+	// Name is the source-cluster member name recorded in the post-bootstrap
+	// source-member inventory.
 	// +required
 	Name string `json:"name"`
-	// PeerURLs are the peer URLs of the joined source member, copied from
-	// spec.etcd.bootstrapWithExistingCluster.members at the time of join.
+	// PeerURLs are the source member peer URLs copied from
+	// spec.etcd.bootstrapWithExistingCluster.members when the inventory is first recorded.
 	// +optional
 	// +listType=atomic
 	PeerURLs []string `json:"peerUrls,omitempty"`
@@ -676,11 +677,10 @@ type EtcdStatus struct {
 	// +optional
 	Selector *string `json:"selector,omitempty"`
 	// BootstrapWithExistingClusterMembers records the source-cluster members
-	// that the target joined during bootstrap. The reconciler writes it in a
-	// single pass after the BootstrappedWithExistingCluster condition first
-	// reaches True and never updates it thereafter. The list outlives
-	// spec.etcd.bootstrapWithExistingCluster being cleared and is preserved so
-	// the recorded source members can be removed from the etcd cluster.
+	// that were present when the target finished bootstrapping with the existing
+	// cluster. The reconciler writes it in a single pass after the
+	// BootstrappedWithExistingCluster condition first reaches True and never
+	// updates it thereafter.
 	// +optional
 	// +listType=atomic
 	BootstrapWithExistingClusterMembers []BootstrapJoinedMember `json:"bootstrapWithExistingClusterMembers,omitempty"`
