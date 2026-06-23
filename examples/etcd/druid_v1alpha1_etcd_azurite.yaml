@@ -37,6 +37,13 @@ spec:
     #   labels:
     #     key: value
     #   trafficDistribution: PreferSameZone
+    # peerUrlTls:
+    #   tlsCASecretRef:
+    #     name: peer-ca
+    #     dataKey: ca.crt
+    #   serverTLSSecretRef:
+    #     name: peer-server
+    #   skipClientSANVerification: true   # skip SAN check on peer client cert; CA-based identity check still applies
   backup:
     port: 8080
     fullSnapshotSchedule: "0 */24 * * *"

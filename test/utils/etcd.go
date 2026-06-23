@@ -128,17 +128,19 @@ func (eb *EtcdBuilder) WithClientTLS() *EtcdBuilder {
 	return eb
 }
 
-// GetPeerTLSConfig returns a default TLSConfig for peer communication.
-func GetPeerTLSConfig() *druidv1alpha1.TLSConfig {
-	return &druidv1alpha1.TLSConfig{
-		TLSCASecretRef: druidv1alpha1.SecretReference{
-			SecretReference: corev1.SecretReference{
-				Name: PeerTLSCASecretName,
+// GetPeerTLSConfig returns a default PeerTLSConfig for peer communication.
+func GetPeerTLSConfig() *druidv1alpha1.PeerTLSConfig {
+	return &druidv1alpha1.PeerTLSConfig{
+		TLSConfig: druidv1alpha1.TLSConfig{
+			TLSCASecretRef: druidv1alpha1.SecretReference{
+				SecretReference: corev1.SecretReference{
+					Name: PeerTLSCASecretName,
+				},
+				DataKey: ptr.To("ca.crt"),
 			},
-			DataKey: ptr.To("ca.crt"),
-		},
-		ServerTLSSecretRef: corev1.SecretReference{
-			Name: PeerTLSServerCertSecretName,
+			ServerTLSSecretRef: corev1.SecretReference{
+				Name: PeerTLSServerCertSecretName,
+			},
 		},
 	}
 }
@@ -149,6 +151,21 @@ func (eb *EtcdBuilder) WithPeerTLS() *EtcdBuilder {
 		return nil
 	}
 	eb.etcd.Spec.Etcd.PeerUrlTLS = GetPeerTLSConfig()
+	return eb
+}
+
+// WithPeerSkipClientSANVerification sets the SkipClientSANVerification flag
+// on the Etcd resource's peerUrlTls. If peerUrlTls is not yet set, an empty
+// *PeerTLSConfig is allocated first so the flag is structurally reachable
+// (its parent struct must exist for the value to apply).
+func (eb *EtcdBuilder) WithPeerSkipClientSANVerification(skip bool) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	if eb.etcd.Spec.Etcd.PeerUrlTLS == nil {
+		eb.etcd.Spec.Etcd.PeerUrlTLS = &druidv1alpha1.PeerTLSConfig{}
+	}
+	eb.etcd.Spec.Etcd.PeerUrlTLS.SkipClientSANVerification = ptr.To(skip)
 	return eb
 }
 
