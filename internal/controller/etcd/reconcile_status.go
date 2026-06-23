@@ -5,6 +5,8 @@
 package etcd
 
 import (
+	"slices"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
@@ -96,26 +98,21 @@ func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha
 }
 
 func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
-	spec := etcd.Spec.Etcd.BootstrapWithExistingCluster
-	if spec == nil || len(spec.Members) == 0 {
+	existingCluster := etcd.Spec.Etcd.BootstrapWithExistingCluster
+	if existingCluster == nil || len(existingCluster.Members) == 0 {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	bootstrapSucceeded := false
-	for _, cond := range etcd.Status.Conditions {
-		if cond.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && cond.Status == druidv1alpha1.ConditionTrue {
-			bootstrapSucceeded = true
-			break
-		}
-	}
-	if !bootstrapSucceeded {
+	if !slices.ContainsFunc(etcd.Status.Conditions, func(c druidv1alpha1.Condition) bool {
+		return c.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && c.Status == druidv1alpha1.ConditionTrue
+	}) {
 		return ctrlutils.ContinueReconcile()
 	}
 
 	if len(etcd.Status.BootstrapWithExistingClusterMembers) == 0 {
 		now := metav1.Now()
-		joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(spec.Members))
-		for _, m := range spec.Members {
+		joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(existingCluster.Members))
+		for _, m := range existingCluster.Members {
 			joined = append(joined, druidv1alpha1.BootstrapJoinedMember{
 				Name:     m.Name,
 				PeerURLs: m.PeerURLs,
@@ -126,8 +123,8 @@ func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.Operat
 		return ctrlutils.ContinueReconcile()
 	}
 
-	peerURLsByName := make(map[string][]string, len(spec.Members))
-	for _, m := range spec.Members {
+	peerURLsByName := make(map[string][]string, len(existingCluster.Members))
+	for _, m := range existingCluster.Members {
 		peerURLsByName[m.Name] = m.PeerURLs
 	}
 	for i := range etcd.Status.BootstrapWithExistingClusterMembers {

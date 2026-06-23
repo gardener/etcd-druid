@@ -468,22 +468,14 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=false")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=https://%s-local:%d", b.etcd.Name, b.clientPort))
 		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			serviceEndpoints := fmt.Sprintf("https://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort)
-			if b.etcd.Spec.Etcd.BootstrapWithExistingCluster != nil && len(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints) > 0 {
-				serviceEndpoints += "," + strings.Join(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints, ",")
-			}
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=%s", serviceEndpoints))
+			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=%s", b.getServiceEndpoints("https")))
 		}
 	} else {
 		commandArgs = append(commandArgs, "--insecure-transport=true")
 		commandArgs = append(commandArgs, "--insecure-skip-tls-verify=true")
 		commandArgs = append(commandArgs, fmt.Sprintf("--endpoints=http://%s-local:%d", b.etcd.Name, b.clientPort))
 		if druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta) {
-			serviceEndpoints := fmt.Sprintf("http://%s:%d", druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort)
-			if b.etcd.Spec.Etcd.BootstrapWithExistingCluster != nil && len(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints) > 0 {
-				serviceEndpoints += "," + strings.Join(b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints, ",")
-			}
-			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=%s", serviceEndpoints))
+			commandArgs = append(commandArgs, fmt.Sprintf("--service-endpoints=%s", b.getServiceEndpoints("http")))
 		}
 	}
 	if b.etcd.Spec.Backup.TLS != nil {
@@ -526,6 +518,17 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	}
 
 	return commandArgs
+}
+
+// getServiceEndpoints builds the comma-separated --service-endpoints value
+// for etcd-backup-restore: the target's client service, plus any
+// bootstrapWithExistingCluster.clientEndpoints appended for source-side access.
+func (b *stsBuilder) getServiceEndpoints(scheme string) string {
+	endpoints := []string{fmt.Sprintf("%s://%s:%d", scheme, druidv1alpha1.GetClientServiceName(b.etcd.ObjectMeta), b.clientPort)}
+	if b.etcd.Spec.Etcd.BootstrapWithExistingCluster != nil {
+		endpoints = append(endpoints, b.etcd.Spec.Etcd.BootstrapWithExistingCluster.ClientEndpoints...)
+	}
+	return strings.Join(endpoints, ",")
 }
 
 func (b *stsBuilder) getBackupStoreCommandArgs() []string {

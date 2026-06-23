@@ -166,14 +166,9 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		}
 	}
 	if etcd.Spec.Etcd.BootstrapWithExistingCluster != nil {
-		// Emit one "name=url" pair per URL — etcd's --initial-cluster syntax
-		// requires each peer URL to be paired with its member name (e.g.
-		// "src-0=http://a:2380,src-0=http://b:2380"), not a comma-joined list
-		// of URLs sharing a single name. Mirrors the per-URL emission used
-		// above for target members + AdditionalAdvertisePeerURLs.
-		for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
-			for _, url := range m.PeerURLs {
-				fmt.Fprintf(&builder, "%s=%s,", m.Name, url)
+		for _, member := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
+			for _, peerURL := range member.PeerURLs {
+				fmt.Fprintf(&builder, "%s=%s,", member.Name, peerURL)
 			}
 		}
 	}

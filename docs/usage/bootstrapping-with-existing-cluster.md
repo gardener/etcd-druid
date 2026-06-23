@@ -1,20 +1,23 @@
 # Bootstrapping with an Existing etcd Cluster
 
-This guide explains how to configure `spec.etcd.bootstrapWithExistingCluster` to make a new `Etcd` resource managed by `etcd-druid` join an already-running etcd cluster instead of starting as a standalone cluster.
+This guide explains how to configure `spec.etcd.bootstrapWithExistingCluster` to make a new `Etcd` resource managed by `etcd-druid` join an already-running etcd cluster (managed or not managed by etcd-druid) instead of starting as a standalone cluster.
 
-The conceptual background — terminology, lifecycle states, condition semantics, status shape, TLS trust model — is covered in [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md). This guide focuses on the **how**: prerequisites, step-by-step setup, and verification.
+The conceptual background — terminology, lifecycle states, condition semantics, status shape, TLS trust model, etc. — is covered in [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md). This guide focuses on the **how**: prerequisites, step-by-step setup, and verification.
 
 > [!NOTE]
-> This feature covers only the **join phase**: target members are added to the source cluster and synchronized. Removal of the original source members is tracked separately in [DEP-08](https://github.com/gardener/etcd-druid/pull/1355) and is **not implemented yet**. Until DEP-08 lands, the end state is a *combined* cluster of source + target members; if your goal is full migration, plan to remove source members manually for now.
+> This feature covers only the **join phase**: target members are added to the source cluster and synchronized. Removal of the original source members is tracked separately in [DEP-08](https://github.com/gardener/etcd-druid/pull/1369) and is **not implemented yet**. Until DEP-08 lands, the end state is a *combined* cluster of source + target members; if your goal is full migration, plan to remove source members manually for now.
 
 ## Prerequisites
 
 Before configuring `bootstrapWithExistingCluster` on a new `Etcd` resource, ensure:
 
-1. **The source etcd cluster is healthy and reachable.** Every source member's peer URL must be dialable from the target's network namespace, and the source's client endpoint(s) must be reachable from the target's `etcd-backup-restore` sidecar.
-2. **Source member names and peer URLs are known and stable.** You'll list them verbatim in the target spec; they must match what the source advertises in its own member list (`etcdctl member list`).
+1. **All source etcd cluster members are healthy and reachable.** Every peer URL listed under `bootstrapWithExistingCluster.members[*].peerUrls` must be dialable from the target's network namespace, and at least one source client endpoint must be reachable from the target's `etcd-backup-restore` sidecar. If source and target run in different network domains, list URLs that the source has explicitly advertised for cross-domain reachability — see the IMPORTANT note in step 1 below.
+2. **Source member names and peer URLs are known and stable.** You'll list them verbatim in the target etcd resource spec; they must match what the source advertises in its own member list (`etcdctl member list --endpoints=<source-client-endpoints>`).
 3. **TLS trust is set up if either side uses TLS.** See the [concept doc's TLS Trust Model](../concepts/bootstrap-with-existing-cluster.md#tls-trust-model) — this is the most common source of failure.
 4. **The new `Etcd` resource has not yet been created.** `bootstrapWithExistingCluster` is **create-only** — it cannot be added to an existing `Etcd` resource. Plan the field into the manifest you apply at creation time.
+5. **Source and target run the same etcd minor version.** etcd's join (member-add / learner-promote) flow does **not** support cross-minor-version joins — both clusters must be on the same `3.X.*` series. The exact target version is fixed by the `etcd-wrapper` image referenced from `.spec.etcd.image`:
+    - With the [`UpgradeEtcdVersion` feature gate](../deployment/feature-gates.md#feature-gates-for-alpha-or-beta-features) enabled, `etcd-druid` selects an `etcd-wrapper` image bundling etcd `3.5.x` for the target — the source must therefore also be on a `3.5.x` release.
+    - With `UpgradeEtcdVersion` disabled (the current default), `etcd-druid` selects an `etcd-wrapper` image bundling etcd `3.4.x` for the target — the source must therefore also be on a `3.4.x` release.
 
 ## Step-by-Step Setup
 
@@ -125,6 +128,8 @@ While the join is in progress:
 {"type":"BootstrappedWithExistingCluster","status":"False","reason":"BootstrapInProgress","message":"Not all members have joined the cluster yet"}
 ```
 
+`.status.bootstrapWithExistingClusterMembers` is **empty** (or absent) until the join succeeds — the snapshot is written atomically once all target members have joined. To watch in-progress per-member state, inspect `.status.members` (the standard member list) instead.
+
 Once it succeeds:
 
 ```json
@@ -135,34 +140,35 @@ The condition is **sticky**: once it flips to `True`, it stays `True` for the li
 
 ### 5. Verify the combined cluster
 
-The `etcd-wrapper` container uses a [distroless](https://github.com/GoogleContainerTools/distroless) image and does not ship `etcdctl` or a shell, so `kubectl exec` cannot run `etcdctl` inside the pod. Use `kubectl port-forward` and run `etcdctl` from your local machine instead.
-
-Pull the target's client TLS material out of its `Secret`s so `etcdctl` can talk to the etcd client port over TLS:
+The `etcd-wrapper` container uses a [distroless](https://github.com/GoogleContainerTools/distroless) image and ships neither `etcdctl` nor a shell, so `kubectl exec` cannot run `etcdctl` inside it. The recommended verification path is `kubectl debug` — attach an ephemeral container that already has `etcdctl`, sharing the target pod's network namespace and mounted client TLS secret. This avoids extracting TLS material onto the operator's workstation.
 
 ```bash
-kubectl -n target-ns get secret <client-ca-secret> \
-  -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/etcd-target-ca.crt
-kubectl -n target-ns get secret <client-cert-secret> \
-  -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/etcd-target-client.crt
-kubectl -n target-ns get secret <client-cert-secret> \
-  -o jsonpath='{.data.tls\.key}' | base64 -d > /tmp/etcd-target-client.key
+kubectl -n target-ns debug -it pod/etcd-target-0 \
+  --image=europe-docker.pkg.dev/sap-se-gcp-k8s-delivery/releases-public/europe-docker_pkg_dev/gardener-project/releases/gardener/ops-toolbelt:latest \
+  --target=etcd \
+  -- /bin/bash
 ```
 
-Replace `<client-ca-secret>` with `.spec.etcd.clientUrlTls.tlsCASecretRef.name` and `<client-cert-secret>` with `.spec.etcd.clientUrlTls.clientTLSSecretRef.name` from your manifest.
+The `ops-toolbelt` image pre-configures the `ETCDCTL_*` environment variables (endpoint, CA, client cert/key) for the targeted etcd pod, so `etcdctl` can be invoked without repeating the flags. List the members:
 
-Forward the etcd client port from a target pod and list the members:
-
-```bash
-kubectl -n target-ns port-forward etcd-target-0 2379:2379 &
-
-etcdctl --endpoints=https://localhost:2379 \
-  --cacert=/tmp/etcd-target-ca.crt \
-  --cert=/tmp/etcd-target-client.crt \
-  --key=/tmp/etcd-target-client.key \
-  member list -w table
+```sh
+etcdctl member list -w table
 ```
 
-Expected: 6 members total — 3 source + 3 target — all `started`.
+Expected: 6 members total: 3 source members + 3 target members — all `started`.
+
+Verify that source and target members report the **same `clusterID`** — proof that the target has joined the source cluster rather than forming a separate cluster:
+
+```sh
+etcdctl endpoint status \
+  --endpoints=<source-client-endpoint>,https://localhost:2379 \
+  -w table
+```
+
+The `CLUSTER ID` column must be identical for the source endpoint and the target endpoint.
+
+> [!NOTE]
+> If your cluster does not allow ephemeral debug containers (`kubectl debug` is gated by the `EphemeralContainers` feature gate and may be restricted by admission policy), use a one-off pod scheduled to the same node and namespace running an `etcdctl` image, with the client TLS `Secret`s mounted as volumes. Avoid copying secret material to a workstation.
 
 The target's status records the source members it joined to:
 
@@ -186,5 +192,5 @@ kubectl -n target-ns get etcd etcd-target \
 - [Concept doc: Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md) — terminology, lifecycle states, status semantics, TLS trust model.
 - [Using Additional Advertise Peer URLs](using-additional-advertise-peer-urls.md) — frequently paired when source and target run in different network domains.
 - [Securing Etcd Clusters](securing-etcd-clusters.md) — TLS configuration reference for `peerUrlTls` / `clientUrlTls`.
-- [DEP-08](https://github.com/gardener/etcd-druid/pull/1355) — design proposal for source-member removal (companion to this feature).
+- [DEP-08](https://github.com/gardener/etcd-druid/pull/1369) — design proposal for source-member removal (companion to this feature).
 - [etcd Learner Design](https://etcd.io/docs/v3.5/learning/design-learner/) — upstream documentation on the learner protocol used internally during the join.

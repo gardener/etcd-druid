@@ -447,9 +447,13 @@ type BootstrapWithExistingCluster struct {
 	ClientEndpoints []string `json:"clientEndpoints"`
 }
 
-// BootstrapJoinedMember records a member that was registered with the source cluster.
+// BootstrapJoinedMember records one source-cluster member that was part of the
+// existing cluster when the target finished bootstrapping. The entries are stored
+// in EtcdStatus.BootstrapWithExistingClusterMembers and describe the source side
+// only; they never describe target members and are not updated after bootstrap
+// completes.
 type BootstrapJoinedMember struct {
-	// Name is the source-cluster member name that was joined with.
+	// Name is the source-cluster member name that the target joined to.
 	// +required
 	Name string `json:"name"`
 	// PeerURLs are the peer URLs of the joined source member, copied from
@@ -457,9 +461,11 @@ type BootstrapJoinedMember struct {
 	// +optional
 	// +listType=atomic
 	PeerURLs []string `json:"peerUrls,omitempty"`
-	// JoinedAt records when the target finished bootstrapping with the source cluster.
-	// Bootstrap is atomic, so the value is identical across all entries.
-	// This timestamp is set once and not updated.
+	// JoinedAt is the time at which etcd-druid first recorded this source-member
+	// inventory after the target successfully bootstrapped with the existing
+	// cluster. It is not a per-member join timestamp; all entries in
+	// BootstrapWithExistingClusterMembers share the same value. This timestamp is
+	// set once and never updated.
 	// +required
 	JoinedAt metav1.Time `json:"joinedAt"`
 }
@@ -578,7 +584,10 @@ const (
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
 	// ConditionTypeClusterIDMismatch is a constant for a condition type indicating that the etcd cluster has multiple cluster IDs.
 	ConditionTypeClusterIDMismatch ConditionType = "ClusterIDMismatch"
-	// ConditionTypeBootstrappedWithExistingCluster indicates the bootstrap join state.
+	// ConditionTypeBootstrappedWithExistingCluster indicates the bootstrap join state
+	// of all members configured in spec.etcd.bootstrapWithExistingCluster. It transitions
+	// to True once the target has successfully joined the existing cluster and remains
+	// sticky-True thereafter, surviving transient member outages.
 	ConditionTypeBootstrappedWithExistingCluster ConditionType = "BootstrappedWithExistingCluster"
 )
 
@@ -666,11 +675,12 @@ type EtcdStatus struct {
 	// It must match the pod template's labels.
 	// +optional
 	Selector *string `json:"selector,omitempty"`
-	// BootstrapWithExistingClusterMembers tracks the source-cluster members
-	// that were joined when this etcd was bootstrapped. A non-empty list
-	// while spec.etcd.bootstrapWithExistingCluster is unset signals that
-	// source members should be removed and the target should become a
-	// standalone cluster.
+	// BootstrapWithExistingClusterMembers records the source-cluster members
+	// that the target joined during bootstrap. The reconciler writes it in a
+	// single pass after the BootstrappedWithExistingCluster condition first
+	// reaches True and never updates it thereafter. The list outlives
+	// spec.etcd.bootstrapWithExistingCluster being cleared and is preserved so
+	// the recorded source members can be removed from the etcd cluster.
 	// +optional
 	// +listType=atomic
 	BootstrapWithExistingClusterMembers []BootstrapJoinedMember `json:"bootstrapWithExistingClusterMembers,omitempty"`
