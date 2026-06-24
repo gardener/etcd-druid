@@ -15,7 +15,9 @@ Before creating the target `Etcd` resource, ensure:
 3. **At least one source client endpoint is reachable from the target backup-restore sidecar.** These endpoints go into `.spec.etcd.bootstrapWithExistingCluster.clientEndpoints`.
 4. **The source and target use compatible TLS trust roots.** The target's peer/client TLS configuration is used when dialing source peer/client endpoints. See the [TLS trust model](../concepts/bootstrap-with-existing-cluster.md#tls-trust-model).
 5. **The target `Etcd` resource does not already exist.** `bootstrapWithExistingCluster` is create-only and cannot be added to an existing `Etcd` resource.
-6. **Source and target run the same etcd minor version.** If the target uses etcd `3.5.x`, the source should also use etcd `3.5.x`; if the target uses etcd `3.4.x`, the source should also use etcd `3.4.x`.
+6. **Source and target run the same etcd minor version.** The etcd version `etcd-druid` deploys on the target depends on the [`UpgradeEtcdVersion`](../deployment/feature-gates.md#feature-gates-for-alpha-or-beta-features) feature gate:
+    - With `UpgradeEtcdVersion` enabled, `etcd-druid` deploys etcd `3.5.x` on the target; the source must also be on `3.5.x`.
+    - With `UpgradeEtcdVersion` disabled (current default), `etcd-druid` deploys etcd `3.4.x` on the target; the source must also be on `3.4.x`.
 
 ## Step 1: Inspect the source cluster
 
