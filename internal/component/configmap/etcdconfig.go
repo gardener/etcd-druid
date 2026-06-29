@@ -23,9 +23,14 @@ const (
 	defaultInitialClusterToken     = "etcd-cluster"
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
-	defaultSnapshotCount                                     = int64(10000)
-	advertiseURLTypePeer                                     = "peer"
-	advertiseURLTypeClient                                   = "client"
+	defaultSnapshotCount   = int64(10000)
+	advertiseURLTypePeer   = "peer"
+	advertiseURLTypeClient = "client"
+
+	// Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"
+	// here because "map" has been observed to cause significant increase in total database size.
+	// The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.
+	// Please refer to this issue for more issue: https://github.com/gardener/etcd-druid/issues/1373
 	defaultBboltFreeListType druidv1alpha1.BboltFreelistType = druidv1alpha1.BboltFreelistArray
 )
 

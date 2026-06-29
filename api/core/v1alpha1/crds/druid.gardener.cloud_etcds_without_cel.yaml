@@ -421,7 +421,7 @@ spec:
                       description: |-
                         BackendBboltFreelistType specifies the freelist type used by the bbolt backend storage engine of etcd.
                         Supported values are 'array' (default) and 'map'.
-                        It corresponds to the etcd flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x
+                        It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x
                       enum:
                         - array
                         - map

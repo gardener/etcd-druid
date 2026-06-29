@@ -39,6 +39,11 @@ const (
 	Periodic CompactionMode = "periodic"
 	// Revision is a constant to set auto-compaction-mode 'revision' for revision number based retention.
 	Revision CompactionMode = "revision"
+
+	// BboltFreelistArray is the array-based freelist type for bbolt backend.
+	BboltFreelistArray BboltFreelistType = "array"
+	// BboltFreelistMap is the hashmap-based freelist type for bbolt backend.
+	BboltFreelistMap BboltFreelistType = "map"
 )
 
 // +genclient
@@ -97,13 +102,6 @@ type CompactionMode string
 // BboltFreelistType specifies the freelist type used by the bbolt backend storage engine of etcd.
 // +kubebuilder:validation:Enum=array;map
 type BboltFreelistType string
-
-const (
-	// BboltFreelistArray is the array-based freelist type for bbolt backend.
-	BboltFreelistArray BboltFreelistType = "array"
-	// BboltFreelistMap is the hashmap-based freelist type for bbolt backend.
-	BboltFreelistMap BboltFreelistType = "map"
-)
 
 // TLSConfig hold the TLS configuration details.
 type TLSConfig struct {
@@ -333,7 +331,7 @@ type EtcdConfig struct {
 	ClientService *ClientService `json:"clientService,omitempty"`
 	// BackendBboltFreelistType specifies the freelist type used by the bbolt backend storage engine of etcd.
 	// Supported values are 'array' (default) and 'map'.
-	// It corresponds to the etcd flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x
+	// It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x
 	// +optional
 	BackendBboltFreelistType *BboltFreelistType `json:"backendBboltFreelistType,omitempty"`
 }
