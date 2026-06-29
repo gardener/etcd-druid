@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
@@ -22,9 +23,10 @@ const (
 	defaultInitialClusterToken     = "etcd-cluster"
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
-	defaultSnapshotCount   = int64(10000)
-	advertiseURLTypePeer   = "peer"
-	advertiseURLTypeClient = "client"
+	defaultSnapshotCount                                     = int64(10000)
+	advertiseURLTypePeer                                     = "peer"
+	advertiseURLTypeClient                                   = "client"
+	defaultBboltFreeListType druidv1alpha1.BboltFreelistType = druidv1alpha1.BboltFreelistArray
 )
 
 var (
@@ -51,7 +53,8 @@ type etcdConfig struct {
 	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
 	MemberNamePrefix        string                       `json:"member-name-prefix,omitempty"`
 	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
-	NextClusterVersionCompatible bool `json:"next-cluster-version-compatible,omitempty"`
+	NextClusterVersionCompatible bool                            `json:"next-cluster-version-compatible,omitempty"`
+	BackendBboltFreelistType     druidv1alpha1.BboltFreelistType `json:"backend-bbolt-freelist-type,omitempty"`
 }
 
 type securityConfig struct {
@@ -102,6 +105,9 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 	if etcd.Spec.MemberNamePrefix != nil {
 		cfg.MemberNamePrefix = *etcd.Spec.MemberNamePrefix
+	}
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		cfg.BackendBboltFreelistType = ptr.Deref(etcd.Spec.Etcd.BackendBboltFreelistType, defaultBboltFreeListType)
 	}
 
 	return cfg

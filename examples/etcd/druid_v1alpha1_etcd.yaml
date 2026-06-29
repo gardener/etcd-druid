@@ -44,6 +44,7 @@ spec:
     #   serverTLSSecretRef:
     #     name: peer-server
     #   skipClientSANVerification: true   # skip SAN check on peer client cert; CA-based identity check still applies
+    # backendBboltFreelistType: array # only supports 2 values; array(default) or map, need to be set only when etcd version is 3.5.x
   backup:
     port: 8080
     fullSnapshotSchedule: "0 */24 * * *"

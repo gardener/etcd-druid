@@ -329,6 +329,11 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		*out = new(ClientService)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.BackendBboltFreelistType != nil {
+		in, out := &in.BackendBboltFreelistType, &out.BackendBboltFreelistType
+		*out = new(BboltFreelistType)
+		**out = **in
+	}
 	return
 }
 
