@@ -431,3 +431,52 @@ func TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerification(t *testing.T) {
 
 	validateEtcdCreation(g, etcd, false)
 }
+
+// TestValidateSpecEtcdBackendBboltFreelistType validates that
+// spec.etcd.backendBboltFreelistType only accepts the values "array" or "map",
+// and that leaving the field unset (nil) is also valid.
+func TestValidateSpecEtcdBackendBboltFreelistType(t *testing.T) {
+	tests := []struct {
+		name      string
+		etcdName  string
+		value     *string
+		expectErr bool
+	}{
+		{
+			name:      "unset — field omitted, should be accepted",
+			etcdName:  "etcd-bbolt-freelisttype-unset",
+			value:     ptr.To("array"),
+			expectErr: false,
+		},
+		{
+			name:      "valid value: array",
+			etcdName:  "etcd-bbolt-freelisttype-array",
+			value:     ptr.To("array"),
+			expectErr: false,
+		},
+		{
+			name:      "valid value: map",
+			etcdName:  "etcd-bbolt-freelisttype-map",
+			value:     ptr.To("map"),
+			expectErr: false,
+		},
+		{
+			name:      "invalid value: rejected by enum validation",
+			etcdName:  "etcd-bbolt-freelisttype-invalid",
+			value:     ptr.To("someDummy"),
+			expectErr: true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			if test.value != nil {
+				etcd.Spec.Etcd.BackendBboltFreelistType = (*druidv1alpha1.BboltFreelistType)(test.value)
+			}
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
