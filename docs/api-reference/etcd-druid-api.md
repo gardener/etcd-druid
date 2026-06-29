@@ -691,7 +691,7 @@ _Appears in:_
 | `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br /> |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  |  |
-| `additionalAdvertisePeerURLs` _[MemberPeerURLs](#memberpeerurls) array_ | AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append<br />to initial-advertise-peer-urls. Each entry maps a member name to its<br />additional URLs. The member name must follow the pattern \{etcd-name\}-\{index\}<br />where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).<br />Updating this field on a running cluster triggers a ConfigMap update<br />and a rolling restart of the StatefulSet.<br />TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update this godoc and the consumers in internal/component/configmap/etcdconfig.go to look up entries by the derived member name instead of the bare pod name. |  | MaxItems: 10 <br /> |
+| `additionalAdvertisePeerURLs` _[MemberPeerURLs](#memberpeerurls) array_ | AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append<br />to initial-advertise-peer-urls. Each entry maps a member name to its<br />additional URLs. The member name must follow the pattern \{etcd-name\}-\{index\}<br />where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).<br />Updating this field on a running cluster triggers a ConfigMap update<br />and a rolling restart of the StatefulSet. |  | MaxItems: 10 <br /> |
 | `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerification knob (see PeerTLSConfig). |  |  |
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
@@ -991,7 +991,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `memberName` _string_ | MemberName is the etcd member name.<br />Must match the etcd member name of the cluster (e.g., etcd-main-0).<br />TODO(@seshachalam-yv): When spec.memberNamePrefix (PR #1309) is introduced, the member name becomes "<memberNamePrefix>-<podName>" — re-anchor the top-level CEL rules on Etcd to incorporate the prefix in the startsWith check and revisit the index-derivation logic. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br /> |
+| `memberName` _string_ | MemberName is the etcd member name.<br />Must match the etcd member name of the cluster (e.g., etcd-main-0). |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br /> |
 | `urls` _string array_ | URLs is a list of additional peer URLs for this member.<br />These will be appended to the default internal service URL.<br />A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).<br />Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380). |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br /> |
 
 
@@ -1071,7 +1071,7 @@ _Appears in:_
 | `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  |  |
 | `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
 | `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
-| `skipClientSANVerification` _boolean_ | SkipClientSANVerification, when true, skips verification of Subject<br />Alternative Names on the client certificate during peer mTLS<br />handshakes. The CA-based identity check still applies — any<br />certificate signed by the configured peer CA is accepted regardless<br />of its SAN. Only effective when peerUrlTls is configured (which is<br />structurally required: this field cannot be set without setting<br />peerUrlTls itself).<br /><br />Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;<br />rendered under peer-transport-security in the etcd config ConfigMap.<br /><br />Behavior across etcd versions:<br />  - etcd v3.6+: the YAML key skip-client-san-verification under<br />    peer-transport-security is honored natively — see<br />    https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485<br />    and https://github.com/etcd-io/etcd/blob/release-3.6/server/etcdmain/config.go#L122<br />    (the experimental CLI flag is deprecated in v3.6).<br />  - etcd v3.4 / v3.5: the YAML key is not honored natively; etcd-wrapper<br />    translates this field into the<br />    --experimental-peer-skip-client-san-verification CLI flag — see<br />    https://github.com/etcd-io/etcd/blob/release-3.5/server/etcdmain/config.go#L302<br />    and the bridge in https://github.com/gardener/etcd-wrapper/pull/92. |  |  |
+| `skipClientSANVerification` _boolean_ | SkipClientSANVerification, when true, skips verification of Subject<br />Alternative Names on the client certificate during peer mTLS<br />handshakes. The CA-based identity check still applies — any<br />certificate signed by the configured peer CA is accepted regardless<br />of its SAN. Only effective when peerUrlTls is configured (which is<br />structurally required: this field cannot be set without setting<br />peerUrlTls itself).<br />Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;<br />rendered under peer-transport-security in the etcd config ConfigMap.<br />Behavior across etcd versions:<br />  - etcd v3.6+: the YAML key skip-client-san-verification under<br />    peer-transport-security is honored natively — see<br />    https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485<br />    and https://github.com/etcd-io/etcd/blob/release-3.6/server/etcdmain/config.go#L122<br />    (the experimental CLI flag is deprecated in v3.6).<br />  - etcd v3.4 / v3.5: the YAML key is not honored natively; etcd-wrapper<br />    translates this field into the<br />    --experimental-peer-skip-client-san-verification CLI flag — see<br />    https://github.com/etcd-io/etcd/blob/release-3.5/server/etcdmain/config.go#L302<br />    and the bridge in https://github.com/gardener/etcd-wrapper/pull/92. |  |  |
 
 
 #### SchedulingConstraints
@@ -1107,6 +1107,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `name` _string_ | name is unique within a namespace to reference a secret resource. |  |  |
+| `namespace` _string_ | namespace defines the space within which the secret name must be unique. |  |  |
 | `dataKey` _string_ | DataKey is the name of the key in the data map containing the credentials. |  |  |
 
 
@@ -1205,9 +1207,7 @@ _Underlying type:_ _string_
 
 TaskState represents the current state of an EtcdOpsTask.
 
-
 Transitions (irreversible):
-
 
 	Pending  → InProgress → Succeeded
 	   ↘                 ↘ Failed
