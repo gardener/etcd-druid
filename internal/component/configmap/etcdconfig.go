@@ -28,9 +28,9 @@ const (
 	advertiseURLTypeClient = "client"
 
 	// Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"
-	// here because "map" has been observed to cause significant increase in total database size.
+	// because for "map", it has been observed to cause significant increase in total database size.
 	// The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.
-	// Please refer to this issue for more issue: https://github.com/gardener/etcd-druid/issues/1373
+	// Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373
 	defaultBboltFreeListType druidv1alpha1.BboltFreelistType = druidv1alpha1.BboltFreelistArray
 )
 
