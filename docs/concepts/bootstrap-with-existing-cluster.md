@@ -87,18 +87,18 @@ etcd-druid does not modify an externally managed source cluster. For such source
 
 ## Validation and mutability
 
-Admission validation catches common authoring errors:
+`.spec.etcd.bootstrapWithExistingCluster` has to be part of the manifest applied at creation time on an `Etcd` resource; it cannot be added on an update. Once set, modification of `.spec.etcd.bootstrapWithExistingCluster.members` and `.spec.etcd.bootstrapWithExistingCluster.clientEndpoints` is not allowed until bootstrap is complete (`status.conditions[?(@.type=='BootstrappedWithExistingCluster')].status` is `True`).
+
+At creation time, admission also catches the common authoring errors:
 
 | Field | Constraint |
 |-------|------------|
-| `.members` | required; between 1 and 10 entries |
-| `.members[*].name` | required; RFC 1123 label; must match the source member name |
-| `.members[*].peerUrls` | required; between 1 and 5 URLs per member; URL scheme must match `.spec.etcd.peerUrlTls` |
-| `.clientEndpoints` | required; between 1 and 10 entries; URL scheme must match `.spec.etcd.clientUrlTls` |
+| `.spec.etcd.bootstrapWithExistingCluster.members` | required; between 1 and 10 entries |
+| `.spec.etcd.bootstrapWithExistingCluster.members[*].name` | required; RFC 1123 label; must match the source member name |
+| `.spec.etcd.bootstrapWithExistingCluster.members[*].peerUrls` | required; between 1 and 5 URLs per member; URL scheme must match `.spec.etcd.peerUrlTls` |
+| `.spec.etcd.bootstrapWithExistingCluster.clientEndpoints` | required; between 1 and 10 entries; URL scheme must match `.spec.etcd.clientUrlTls` |
 
-URL schemes are required to match the target's own peer/client TLS configuration because the same TLS contexts dial both target-to-target and target-to-source connections. A scheme mismatch — for example, an `http://` source URL while the target uses peer TLS — would not produce a usable cluster.
-
-`bootstrapWithExistingCluster` is create-only: a CEL transition rule prevents it from being added to an already-created `Etcd` resource. While the field is present, its contents may be edited, and it may be cleared later.
+The URL-scheme constraints exist because the target reuses its own peer/client TLS configuration to dial the source. A scheme mismatch — for example, `http://` source URLs while the target enables `.spec.etcd.peerUrlTls` — would not produce a usable cluster and is rejected up front.
 
 ## TLS trust model
 
