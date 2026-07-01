@@ -36,13 +36,13 @@ If the source cluster does not use TLS, omit the TLS flags.
 Example output:
 
 ```text
-+------------------+---------+---------------+---------------------------------------------------------+---------------------------------------------------------+
-|        ID        | STATUS  |     NAME      |                       PEER ADDRS                        |                      CLIENT ADDRS                       |
-+------------------+---------+---------------+---------------------------------------------------------+---------------------------------------------------------+
-| abc...           | started | etcd-source-0 | https://etcd-source-0.etcd-source-peer.source-ns.svc:2380 | https://etcd-source-client.source-ns.svc:2379           |
-| def...           | started | etcd-source-1 | https://etcd-source-1.etcd-source-peer.source-ns.svc:2380 | https://etcd-source-client.source-ns.svc:2379           |
-| 012...           | started | etcd-source-2 | https://etcd-source-2.etcd-source-peer.source-ns.svc:2380 | https://etcd-source-client.source-ns.svc:2379           |
-+------------------+---------+---------------+---------------------------------------------------------+---------------------------------------------------------+
++------------------+---------+---------------+-----------------------------------------------------------------------------------+---------------------------------------------------------+
+|        ID        | STATUS  |     NAME      |                                    PEER ADDRS                                     |                      CLIENT ADDRS                       |
++------------------+---------+---------------+-----------------------------------------------------------------------------------+---------------------------------------------------------+
+| abc...           | started | etcd-source-0 | https://etcd-source-0.etcd-source-peer.source-ns.svc:2380,https://10.0.0.1:2380   | https://etcd-source-client.source-ns.svc:2379           |
+| def...           | started | etcd-source-1 | https://etcd-source-1.etcd-source-peer.source-ns.svc:2380,https://10.0.0.2:2380   | https://etcd-source-client.source-ns.svc:2379           |
+| 012...           | started | etcd-source-2 | https://etcd-source-2.etcd-source-peer.source-ns.svc:2380,https://10.0.0.3:2380   | https://etcd-source-client.source-ns.svc:2379           |
++------------------+---------+---------------+-----------------------------------------------------------------------------------+---------------------------------------------------------+
 ```
 
 Record:
@@ -75,12 +75,15 @@ spec:
         - name: etcd-source-0
           peerUrls:
             - https://etcd-source-0.etcd-source-peer.source-ns.svc:2380
+            - https://10.0.0.1:2380
         - name: etcd-source-1
           peerUrls:
             - https://etcd-source-1.etcd-source-peer.source-ns.svc:2380
+            - https://10.0.0.2:2380
         - name: etcd-source-2
           peerUrls:
             - https://etcd-source-2.etcd-source-peer.source-ns.svc:2380
+            - https://10.0.0.3:2380
       clientEndpoints:
         - https://etcd-source-client.source-ns.svc:2379
     peerUrlTls:
@@ -186,9 +189,9 @@ Example:
 
 ```json
 [
-  {"name":"etcd-source-0","peerUrls":["https://etcd-source-0.etcd-source-peer.source-ns.svc:2380"],"joinedAt":"2026-06-04T10:11:00Z"},
-  {"name":"etcd-source-1","peerUrls":["https://etcd-source-1.etcd-source-peer.source-ns.svc:2380"],"joinedAt":"2026-06-04T10:11:00Z"},
-  {"name":"etcd-source-2","peerUrls":["https://etcd-source-2.etcd-source-peer.source-ns.svc:2380"],"joinedAt":"2026-06-04T10:11:00Z"}
+  {"name":"etcd-source-0","peerUrls":["https://etcd-source-0.etcd-source-peer.source-ns.svc:2380","https://10.0.0.1:2380"],"joinedAt":"2026-06-04T10:11:00Z"},
+  {"name":"etcd-source-1","peerUrls":["https://etcd-source-1.etcd-source-peer.source-ns.svc:2380","https://10.0.0.2:2380"],"joinedAt":"2026-06-04T10:11:00Z"},
+  {"name":"etcd-source-2","peerUrls":["https://etcd-source-2.etcd-source-peer.source-ns.svc:2380","https://10.0.0.3:2380"],"joinedAt":"2026-06-04T10:11:00Z"}
 ]
 ```
 

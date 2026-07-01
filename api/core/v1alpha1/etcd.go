@@ -385,6 +385,8 @@ type MemberPeerURLs struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5
+	// +kubebuilder:validation:items:MaxLength=2048
+	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)"
 	// +listType=atomic
 	URLs []string `json:"urls"`
 }

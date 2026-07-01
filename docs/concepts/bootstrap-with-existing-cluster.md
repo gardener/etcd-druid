@@ -91,10 +91,10 @@ Admission validation catches common authoring errors:
 
 | Field | Constraint |
 |-------|------------|
-| `.members` | required; at most 10 entries |
+| `.members` | required; between 1 and 10 entries |
 | `.members[*].name` | required; RFC 1123 label; must match the source member name |
-| `.members[*].peerUrls` | required; at most 5 URLs per member; URL scheme must match `.spec.etcd.peerUrlTls` |
-| `.clientEndpoints` | required; at most 10 entries; URL scheme must match `.spec.etcd.clientUrlTls` |
+| `.members[*].peerUrls` | required; between 1 and 5 URLs per member; URL scheme must match `.spec.etcd.peerUrlTls` |
+| `.clientEndpoints` | required; between 1 and 10 entries; URL scheme must match `.spec.etcd.clientUrlTls` |
 
 URL schemes are required to match the target's own peer/client TLS configuration because the same TLS contexts dial both target-to-target and target-to-source connections. A scheme mismatch — for example, an `http://` source URL while the target uses peer TLS — would not produce a usable cluster.
 
