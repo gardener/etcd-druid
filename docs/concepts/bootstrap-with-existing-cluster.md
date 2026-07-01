@@ -52,16 +52,15 @@ After the join succeeds, `etcd-druid` writes a snapshot of the source-cluster me
 
 ```yaml
 status:
-  bootstrapWithExistingClusterMembers:
-    - name: <source-member-name>
-      peerUrls:
-        - <source-peer-url-recorded-from-spec>
-      joinedAt: "2026-06-04T10:11:00Z"
+  bootstrapWithExistingCluster:
+    joinedAt: "2026-06-04T10:11:00Z"
+    members:
+      - name: <source-member-name>
+        peerUrls:
+          - <source-peer-url-recorded-from-spec>
 ```
 
-This list records source members that were present when the target successfully bootstrapped with the existing cluster. It does not describe target members.
-
-`joinedAt` is a shared bootstrap-completion timestamp. It is not a per-member join timestamp; all entries written in the same bootstrap completion have the same value.
+`members` records the source members that were present when the target successfully bootstrapped with the existing cluster. It does not describe target members. `joinedAt` marks when the target finished bootstrapping — a single timestamp for the whole snapshot, not a per-member value.
 
 ### Condition
 
@@ -71,7 +70,7 @@ This list records source members that were present when the target successfully 
 |-------|-----------|---------|
 | Not in use | absent | `bootstrapWithExistingCluster` is not configured and no bootstrap status exists. |
 | In progress | `False / BootstrapInProgress` | The target has not yet fully joined, or not all target members are ready. |
-| Succeeded | `True / BootstrapSucceeded` | The target has joined successfully. Success is sticky once `.status.bootstrapWithExistingClusterMembers` is populated. |
+| Succeeded | `True / BootstrapSucceeded` | The target has joined successfully. Success is sticky once `.status.bootstrapWithExistingCluster` is populated. |
 
 The sticky success behavior is intentional: bootstrap is a one-time event. After the join has succeeded, transient pod restarts or member readiness changes should not make the historical bootstrap result regress to in-progress.
 
@@ -81,7 +80,7 @@ When `bootstrapWithExistingCluster` is configured, etcd-druid changes only the t
 
 1. **ConfigMap `initial-cluster`:** source members from `.spec.etcd.bootstrapWithExistingCluster.members` are appended to the target's `initial-cluster` configuration together with target members.
 2. **StatefulSet `--service-endpoints`:** source `clientEndpoints` are appended so the target sidecar can observe the combined cluster.
-3. **Status:** once the join succeeds, `.status.bootstrapWithExistingClusterMembers` is written as the source-member snapshot.
+3. **Status:** once the join succeeds, `.status.bootstrapWithExistingCluster` is written as the source-member snapshot.
 
 etcd-druid does not modify an externally managed source cluster. For such sources, reachable advertised peer URLs and TLS trust must be prepared by the source operator before creating the target `Etcd` resource.
 

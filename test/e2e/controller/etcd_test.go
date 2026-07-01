@@ -242,7 +242,7 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 			testEnv.CreateAndCheckEtcd(g, targetEtcd, timeoutEtcdCreation)
 			logger.Info("successfully created target Etcd")
 
-			logger.Info("waiting for BootstrappedWithExistingCluster=True and status inventory to be recorded")
+			logger.Info("waiting for BootstrappedWithExistingCluster=True and status snapshot to be recorded")
 			g.Eventually(func(g Gomega) {
 				etcd, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
 				g.Expect(err).NotTo(HaveOccurred())
@@ -252,33 +252,30 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 					return condition.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && condition.Status == druidv1alpha1.ConditionTrue
 				})), "BootstrappedWithExistingCluster condition must reach True after the target joins")
 
-				// Status snapshot must record all source members with their peer URLs.
-				snap := etcd.Status.BootstrapWithExistingClusterMembers
-				g.Expect(snap).To(HaveLen(clusterSize))
+				// Status snapshot must record all source members with their peer URLs
+				// and a single non-zero JoinedAt.
+				snap := etcd.Status.BootstrapWithExistingCluster
+				g.Expect(snap).NotTo(BeNil())
+				g.Expect(snap.JoinedAt.IsZero()).To(BeFalse(), "JoinedAt must be set when the snapshot is recorded")
+				g.Expect(snap.Members).To(HaveLen(clusterSize))
 
-				recordedNames := make([]string, 0, len(snap))
-				recordedPeerURLs := make([]string, 0, len(snap))
-				for _, m := range snap {
+				recordedNames := make([]string, 0, len(snap.Members))
+				recordedPeerURLs := make([]string, 0, len(snap.Members))
+				for _, m := range snap.Members {
 					recordedNames = append(recordedNames, m.Name)
 					recordedPeerURLs = append(recordedPeerURLs, m.PeerURLs...)
-					g.Expect(m.JoinedAt.IsZero()).To(BeFalse(), "JoinedAt must be set when the inventory is recorded")
 				}
 				g.Expect(recordedNames).To(ConsistOf(sourceMemberNames))
 				g.Expect(recordedPeerURLs).To(ConsistOf(sourcePeerURLs))
-
-				// Bootstrap is atomic — all entries must share the same JoinedAt.
-				for i := 1; i < len(snap); i++ {
-					g.Expect(snap[i].JoinedAt).To(Equal(snap[0].JoinedAt),
-						"JoinedAt must be identical across all entries (single inventory write)")
-				}
 			}, timeoutEtcdCreation, timeoutEtcdDisruptionStart).Should(Succeed())
-			logger.Info("BootstrappedWithExistingCluster=True and status inventory recorded")
+			logger.Info("BootstrappedWithExistingCluster=True and status snapshot recorded")
 
 			// Capture the recorded JoinedAt to verify stickiness — later reconciles must
 			// not overwrite the original timestamp.
 			targetAfterJoin, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
 			g.Expect(err).NotTo(HaveOccurred())
-			originalJoinedAt := targetAfterJoin.Status.BootstrapWithExistingClusterMembers[0].JoinedAt
+			g.Expect(targetAfterJoin.Status.BootstrapWithExistingCluster).NotTo(BeNil())
+			originalJoinedAt := targetAfterJoin.Status.BootstrapWithExistingCluster.JoinedAt
 
 			logger.Info("verifying that the condition stays True and JoinedAt is preserved across reconciles")
 			g.Consistently(func(g Gomega) {
@@ -287,11 +284,11 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 				g.Expect(etcd.Status.Conditions).To(ContainElement(Satisfy(func(condition druidv1alpha1.Condition) bool {
 					return condition.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && condition.Status == druidv1alpha1.ConditionTrue
 				})), "BootstrappedWithExistingCluster must remain True after the join completes (sticky success)")
-				g.Expect(etcd.Status.BootstrapWithExistingClusterMembers).To(HaveLen(clusterSize))
-				for _, m := range etcd.Status.BootstrapWithExistingClusterMembers {
-					g.Expect(m.JoinedAt).To(Equal(originalJoinedAt),
-						"JoinedAt must not be rewritten on later reconciles")
-				}
+				snap := etcd.Status.BootstrapWithExistingCluster
+				g.Expect(snap).NotTo(BeNil())
+				g.Expect(snap.Members).To(HaveLen(clusterSize))
+				g.Expect(snap.JoinedAt).To(Equal(originalJoinedAt),
+					"JoinedAt must not be rewritten on later reconciles")
 			}, timeoutEtcdDisruptionStart, pollingInterval).Should(Succeed())
 			logger.Info("condition and JoinedAt are stable")
 

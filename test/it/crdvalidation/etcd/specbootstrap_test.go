@@ -19,13 +19,14 @@ import (
 	"github.com/gardener/etcd-druid/test/utils"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	. "github.com/onsi/gomega"
 )
 
-// bootstrapWithExistingCluster cannot be added on update — enforced by the
-// CEL transition rule on EtcdConfig: `!has(self.bootstrapWithExistingCluster)
-// || has(oldSelf.bootstrapWithExistingCluster)`.
+// TestValidateUpdateSpecBootstrapWithExistingClusterCreateOnly verifies that
+// bootstrapWithExistingCluster cannot be added on an update to an existing
+// Etcd. Enforced by a CEL transition rule on EtcdConfig.
 func TestValidateUpdateSpecBootstrapWithExistingClusterCreateOnly(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
@@ -46,11 +47,11 @@ func TestValidateUpdateSpecBootstrapWithExistingClusterCreateOnly(t *testing.T) 
 	validateEtcdUpdate(g, etcd, true, ctx, cl)
 }
 
-// While the BootstrappedWithExistingCluster condition is False (bootstrap in
-// progress), edits to .members and .clientEndpoints are rejected at admission
-// time by the top-level CEL rules on Etcd. When no condition is set yet or the
-// condition is True, edits are permitted by the CEL rules (though edits post-
-// success are silently ignored by the reconciler).
+// TestValidateUpdateSpecBootstrapWithExistingClusterFreezeWhileInProgress
+// verifies the top-level CEL rules on Etcd that freeze .members and
+// .clientEndpoints while the BootstrappedWithExistingCluster condition is
+// False. Edits are permitted when no condition is present yet or when it is
+// True; edits are rejected only during the in-progress window.
 func TestValidateUpdateSpecBootstrapWithExistingClusterFreezeWhileInProgress(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
@@ -170,6 +171,182 @@ func TestValidateUpdateSpecBootstrapWithExistingClusterFreezeWhileInProgress(t *
 				test.mutate(etcd.Spec.Etcd.BootstrapWithExistingCluster)
 			}
 			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+		})
+	}
+}
+
+// TestValidateCreateSpecBootstrapWithExistingClusterUniqueMemberNames verifies
+// that bootstrapWithExistingCluster.members[*].name is unique across the list.
+// Enforced by a top-level CEL rule on Etcd.
+func TestValidateCreateSpecBootstrapWithExistingClusterUniqueMemberNames(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	testNs, g := setupTestEnvironment(t)
+	ctx := context.Background()
+	cl := itTestEnv.GetClient()
+
+	tests := []struct {
+		name      string
+		etcdName  string
+		members   []druidv1alpha1.BootstrapExistingMember
+		expectErr bool
+	}{
+		{
+			name:     "Valid: all names unique",
+			etcdName: "etcd-unique-1",
+			members: []druidv1alpha1.BootstrapExistingMember{
+				{Name: "src-0", PeerURLs: []string{"http://10.0.0.1:2380"}},
+				{Name: "src-1", PeerURLs: []string{"http://10.0.0.2:2380"}},
+				{Name: "src-2", PeerURLs: []string{"http://10.0.0.3:2380"}},
+			},
+			expectErr: false,
+		},
+		{
+			name:     "Invalid: duplicate name",
+			etcdName: "etcd-unique-2",
+			members: []druidv1alpha1.BootstrapExistingMember{
+				{Name: "src-0", PeerURLs: []string{"http://10.0.0.1:2380"}},
+				{Name: "src-0", PeerURLs: []string{"http://10.0.0.2:2380"}},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+				Members:         test.members,
+				ClientEndpoints: []string{"http://10.0.0.1:2379"},
+			}
+			if test.expectErr {
+				g.Expect(cl.Create(ctx, etcd)).NotTo(Succeed())
+			} else {
+				g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+			}
+		})
+	}
+}
+
+// TestValidateCreateSpecBootstrapWithExistingClusterNoTargetCollision verifies
+// that no bootstrapWithExistingCluster.members[*].name may collide with a
+// target member name (either <etcd.Name>-<i> or <memberNamePrefix>-<etcd.Name>-<i>).
+// Enforced by a top-level CEL rule on Etcd.
+func TestValidateCreateSpecBootstrapWithExistingClusterNoTargetCollision(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	testNs, g := setupTestEnvironment(t)
+	ctx := context.Background()
+	cl := itTestEnv.GetClient()
+
+	tests := []struct {
+		name             string
+		etcdName         string
+		memberNamePrefix *string
+		bootstrapName    string
+		expectErr        bool
+	}{
+		{
+			name:          "Valid: bootstrap name unrelated to target prefix",
+			etcdName:      "etcd-collision-1",
+			bootstrapName: "src-0",
+			expectErr:     false,
+		},
+		{
+			name:          "Invalid: bootstrap name starts with target's Etcd name",
+			etcdName:      "etcd-collision-2",
+			bootstrapName: "etcd-collision-2-0",
+			expectErr:     true,
+		},
+		{
+			name:             "Valid: with memberNamePrefix, bootstrap name that would only collide without the prefix is allowed",
+			etcdName:         "etcd-collision-3",
+			memberNamePrefix: ptr.To("main"),
+			// Would have collided with "etcd-collision-3-0" but the actual target prefix is "main-etcd-collision-3-".
+			bootstrapName: "etcd-collision-3-0",
+			expectErr:     false,
+		},
+		{
+			name:             "Invalid: with memberNamePrefix, bootstrap name starts with prefix-etcdname-",
+			etcdName:         "etcd-collision-4",
+			memberNamePrefix: ptr.To("main"),
+			bootstrapName:    "main-etcd-collision-4-0",
+			expectErr:        true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			if test.memberNamePrefix != nil {
+				etcd.Spec.MemberNamePrefix = test.memberNamePrefix
+			}
+			etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+				Members: []druidv1alpha1.BootstrapExistingMember{
+					{Name: test.bootstrapName, PeerURLs: []string{"http://10.0.0.1:2380"}},
+				},
+				ClientEndpoints: []string{"http://10.0.0.1:2379"},
+			}
+			if test.expectErr {
+				g.Expect(cl.Create(ctx, etcd)).NotTo(Succeed())
+			} else {
+				g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+			}
+		})
+	}
+}
+
+// TestValidateCreateSpecBootstrapWithExistingClusterURLUniqueness verifies that
+// bootstrapWithExistingCluster.members[*].peerUrls and .clientEndpoints reject
+// duplicate URL entries. Enforced by the +listType=set marker on each field.
+func TestValidateCreateSpecBootstrapWithExistingClusterURLUniqueness(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	testNs, g := setupTestEnvironment(t)
+	ctx := context.Background()
+	cl := itTestEnv.GetClient()
+
+	tests := []struct {
+		name            string
+		etcdName        string
+		peerURLs        []string
+		clientEndpoints []string
+		expectErr       bool
+	}{
+		{
+			name:            "Valid: unique peerUrls and unique clientEndpoints",
+			etcdName:        "etcd-url-unique-1",
+			peerURLs:        []string{"http://10.0.0.1:2380", "http://10.0.0.2:2380"},
+			clientEndpoints: []string{"http://10.0.0.1:2379"},
+			expectErr:       false,
+		},
+		{
+			name:            "Invalid: duplicate peerUrl within a member",
+			etcdName:        "etcd-url-unique-2",
+			peerURLs:        []string{"http://10.0.0.1:2380", "http://10.0.0.1:2380"},
+			clientEndpoints: []string{"http://10.0.0.1:2379"},
+			expectErr:       true,
+		},
+		{
+			name:            "Invalid: duplicate clientEndpoint",
+			etcdName:        "etcd-url-unique-3",
+			peerURLs:        []string{"http://10.0.0.1:2380"},
+			clientEndpoints: []string{"http://10.0.0.1:2379", "http://10.0.0.1:2379"},
+			expectErr:       true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+				Members: []druidv1alpha1.BootstrapExistingMember{
+					{Name: "src-0", PeerURLs: test.peerURLs},
+				},
+				ClientEndpoints: test.clientEndpoints,
+			}
+			if test.expectErr {
+				g.Expect(cl.Create(ctx, etcd)).NotTo(Succeed())
+			} else {
+				g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+			}
 		})
 	}
 }

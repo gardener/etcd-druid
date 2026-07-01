@@ -64,6 +64,8 @@ const (
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.members == oldSelf.spec.etcd.bootstrapWithExistingCluster.members",message="etcd.spec.etcd.bootstrapWithExistingCluster.members cannot be modified while the bootstrap is in progress"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.clientEndpoints == oldSelf.spec.etcd.bootstrapWithExistingCluster.clientEndpoints",message="etcd.spec.etcd.bootstrapWithExistingCluster.clientEndpoints cannot be modified while the bootstrap is in progress"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m1, self.spec.etcd.bootstrapWithExistingCluster.members.filter(m2, m1.name == m2.name).size() == 1)",message="bootstrapWithExistingCluster.members[*].name must be unique"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m, has(self.spec.memberNamePrefix) ? !m.name.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : !m.name.startsWith(self.metadata.name + '-'))",message="bootstrapWithExistingCluster.members[*].name must not collide with a target member (must not start with the target Etcd's member-name prefix)"
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -389,7 +391,7 @@ type MemberPeerURLs struct {
 	// +kubebuilder:validation:MaxItems=5
 	// +kubebuilder:validation:items:MaxLength=2048
 	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)"
-	// +listType=atomic
+	// +listType=set
 	URLs []string `json:"urls"`
 }
 
@@ -412,7 +414,7 @@ type BootstrapExistingMember struct {
 	// +kubebuilder:validation:MaxItems=5
 	// +kubebuilder:validation:items:MaxLength=2048
 	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)"
-	// +listType=atomic
+	// +listType=set
 	PeerURLs []string `json:"peerUrls"`
 }
 
@@ -447,32 +449,38 @@ type BootstrapWithExistingCluster struct {
 	// +kubebuilder:validation:MaxItems=10
 	// +kubebuilder:validation:items:MaxLength=2048
 	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://etcd-source-client.source-ns.svc:2379)"
-	// +listType=atomic
+	// +listType=set
 	ClientEndpoints []string `json:"clientEndpoints"`
 }
 
-// BootstrapJoinedMember records one source-cluster member that was part of the
-// existing cluster when the target finished bootstrapping. The entries are stored
-// in EtcdStatus.BootstrapWithExistingClusterMembers and describe the source side
-// only; they never describe target members and are not updated after bootstrap
-// completes.
+// BootstrapJoinedMember describes a single source-cluster member that was
+// part of the existing cluster at the time the target finished bootstrapping.
+// It is only used inside EtcdStatus.BootstrapWithExistingCluster.Members.
 type BootstrapJoinedMember struct {
-	// Name is the source-cluster member name recorded in the post-bootstrap
-	// source-member inventory.
+	// Name is the source-cluster member's name.
 	// +required
 	Name string `json:"name"`
-	// PeerURLs are the source member peer URLs copied from
-	// spec.etcd.bootstrapWithExistingCluster.members when the inventory is first recorded.
-	// +optional
+	// PeerURLs are the source member's peer URLs, copied from
+	// spec.etcd.bootstrapWithExistingCluster.members at the time the
+	// snapshot was recorded.
+	// +required
 	// +listType=atomic
-	PeerURLs []string `json:"peerUrls,omitempty"`
-	// JoinedAt is the time at which etcd-druid first recorded this source-member
-	// inventory after the target successfully bootstrapped with the existing
-	// cluster. It is not a per-member join timestamp; all entries in
-	// BootstrapWithExistingClusterMembers share the same value. This timestamp is
-	// set once and never updated.
+	PeerURLs []string `json:"peerUrls"`
+}
+
+// BootstrapWithExistingClusterStatus is the snapshot etcd-druid records after
+// the target has successfully joined the existing cluster. It is written
+// exactly once, when the BootstrappedWithExistingCluster condition first
+// transitions to True, and is not updated thereafter.
+type BootstrapWithExistingClusterStatus struct {
+	// JoinedAt is the time at which the snapshot was recorded.
 	// +required
 	JoinedAt metav1.Time `json:"joinedAt"`
+	// Members are the source-cluster members observed at the time the
+	// snapshot was recorded.
+	// +required
+	// +listType=atomic
+	Members []BootstrapJoinedMember `json:"members"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
@@ -680,14 +688,11 @@ type EtcdStatus struct {
 	// It must match the pod template's labels.
 	// +optional
 	Selector *string `json:"selector,omitempty"`
-	// BootstrapWithExistingClusterMembers records the source-cluster members
-	// that were present when the target finished bootstrapping with the existing
-	// cluster. The reconciler writes it in a single pass after the
-	// BootstrappedWithExistingCluster condition first reaches True and never
-	// updates it thereafter.
+	// BootstrapWithExistingCluster is the snapshot of the source cluster the
+	// target joined. It is set once when the BootstrappedWithExistingCluster
+	// condition first transitions to True, and is not updated thereafter.
 	// +optional
-	// +listType=atomic
-	BootstrapWithExistingClusterMembers []BootstrapJoinedMember `json:"bootstrapWithExistingClusterMembers,omitempty"`
+	BootstrapWithExistingCluster *BootstrapWithExistingClusterStatus `json:"bootstrapWithExistingCluster,omitempty"`
 }
 
 const (

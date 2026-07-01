@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -540,9 +541,12 @@ func TestPrepareInitialClusterWithBootstrapMembers(t *testing.T) {
 		t.Parallel()
 		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
 		etcd.Spec.Etcd.BootstrapWithExistingCluster = nil
-		etcd.Status.BootstrapWithExistingClusterMembers = []druidv1alpha1.BootstrapJoinedMember{
-			{Name: "src-0", PeerURLs: []string{"https://src-0.peer.src-ns.svc:2380"}},
-			{Name: "src-1", PeerURLs: []string{"https://src-1.peer.src-ns.svc:2380"}},
+		etcd.Status.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingClusterStatus{
+			JoinedAt: metav1.Now(),
+			Members: []druidv1alpha1.BootstrapJoinedMember{
+				{Name: "src-0", PeerURLs: []string{"https://src-0.peer.src-ns.svc:2380"}},
+				{Name: "src-1", PeerURLs: []string{"https://src-1.peer.src-ns.svc:2380"}},
+			},
 		}
 		actualInitialCluster := prepareInitialCluster(etcd, "https")
 		g.Expect(actualInitialCluster).NotTo(ContainSubstring("src-"))

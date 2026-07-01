@@ -8,20 +8,21 @@ import (
 	"context"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	. "github.com/gardener/etcd-druid/internal/health/condition"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	. "github.com/gardener/etcd-druid/internal/health/condition"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 	Describe("#Check", func() {
 		var (
-			readyMember    druidv1alpha1.EtcdMemberStatus
-			notReadyMember druidv1alpha1.EtcdMemberStatus
-			sourceMembers  []druidv1alpha1.BootstrapExistingMember
-			joinedMembers  []druidv1alpha1.BootstrapJoinedMember
+			readyMember     druidv1alpha1.EtcdMemberStatus
+			notReadyMember  druidv1alpha1.EtcdMemberStatus
+			sourceMembers   []druidv1alpha1.BootstrapExistingMember
+			bootstrapStatus *druidv1alpha1.BootstrapWithExistingClusterStatus
 		)
 
 		BeforeEach(func() {
@@ -36,10 +37,13 @@ var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 				{Name: "src-1", PeerURLs: []string{"https://src-1.peer.src-ns.svc:2380"}},
 				{Name: "src-2", PeerURLs: []string{"https://src-2.peer.src-ns.svc:2380"}},
 			}
-			joinedMembers = []druidv1alpha1.BootstrapJoinedMember{
-				{Name: "src-0", PeerURLs: []string{"https://src-0.peer.src-ns.svc:2380"}, JoinedAt: metav1.Now()},
-				{Name: "src-1", PeerURLs: []string{"https://src-1.peer.src-ns.svc:2380"}, JoinedAt: metav1.Now()},
-				{Name: "src-2", PeerURLs: []string{"https://src-2.peer.src-ns.svc:2380"}, JoinedAt: metav1.Now()},
+			bootstrapStatus = &druidv1alpha1.BootstrapWithExistingClusterStatus{
+				JoinedAt: metav1.Now(),
+				Members: []druidv1alpha1.BootstrapJoinedMember{
+					{Name: "src-0", PeerURLs: []string{"https://src-0.peer.src-ns.svc:2380"}},
+					{Name: "src-1", PeerURLs: []string{"https://src-1.peer.src-ns.svc:2380"}},
+					{Name: "src-2", PeerURLs: []string{"https://src-2.peer.src-ns.svc:2380"}},
+				},
 			}
 		})
 
@@ -137,9 +141,9 @@ var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 					},
 					Status: druidv1alpha1.EtcdStatus{
 						Members: []druidv1alpha1.EtcdMemberStatus{readyMember, readyMember, readyMember},
-						// BootstrapWithExistingClusterMembers populated by
+						// BootstrapWithExistingCluster populated by
 						// reconcile_status only after this condition first
-						// reaches True; on this pass it's still empty.
+						// reaches True; on this pass it's still nil.
 					},
 				}
 				check := BootstrapWithExistingClusterCheck(nil)
@@ -168,8 +172,8 @@ var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 						},
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Members: []druidv1alpha1.EtcdMemberStatus{readyMember, notReadyMember, readyMember},
-						BootstrapWithExistingClusterMembers: joinedMembers,
+						Members:                      []druidv1alpha1.EtcdMemberStatus{readyMember, notReadyMember, readyMember},
+						BootstrapWithExistingCluster: bootstrapStatus,
 					},
 				}
 				check := BootstrapWithExistingClusterCheck(nil)
@@ -192,8 +196,8 @@ var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 						},
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Members:                             []druidv1alpha1.EtcdMemberStatus{readyMember, readyMember},
-						BootstrapWithExistingClusterMembers: joinedMembers,
+						Members:                      []druidv1alpha1.EtcdMemberStatus{readyMember, readyMember},
+						BootstrapWithExistingCluster: bootstrapStatus,
 					},
 				}
 				check := BootstrapWithExistingClusterCheck(nil)
@@ -217,8 +221,8 @@ var _ = Describe("BootstrapWithExistingClusterCheck", func() {
 						// BootstrapWithExistingCluster intentionally nil.
 					},
 					Status: druidv1alpha1.EtcdStatus{
-						Members:                             []druidv1alpha1.EtcdMemberStatus{readyMember, readyMember, readyMember},
-						BootstrapWithExistingClusterMembers: joinedMembers,
+						Members:                      []druidv1alpha1.EtcdMemberStatus{readyMember, readyMember, readyMember},
+						BootstrapWithExistingCluster: bootstrapStatus,
 					},
 				}
 				check := BootstrapWithExistingClusterCheck(nil)

@@ -136,7 +136,7 @@ While the join is still in progress, the condition is `False`:
 {"type":"BootstrappedWithExistingCluster","status":"False","reason":"BootstrapInProgress","message":"Not all members have joined the cluster yet"}
 ```
 
-During this phase `.status.bootstrapWithExistingClusterMembers` is absent or empty. To inspect per-target-member readiness, use `.status.members`.
+During this phase `.status.bootstrapWithExistingCluster` is absent. To inspect per-target-member readiness, use `.status.members`.
 
 After the join succeeds, the condition becomes `True`:
 
@@ -182,20 +182,23 @@ After the join succeeds, etcd-druid writes the source-member inventory:
 
 ```bash
 kubectl -n target-ns get etcd etcd-target \
-  -o jsonpath='{.status.bootstrapWithExistingClusterMembers}{"\n"}'
+  -o jsonpath='{.status.bootstrapWithExistingCluster}{"\n"}'
 ```
 
 Example:
 
 ```json
-[
-  {"name":"etcd-source-0","peerUrls":["https://etcd-source-0.etcd-source-peer.source-ns.svc:2380","https://10.0.0.1:2380"],"joinedAt":"2026-06-04T10:11:00Z"},
-  {"name":"etcd-source-1","peerUrls":["https://etcd-source-1.etcd-source-peer.source-ns.svc:2380","https://10.0.0.2:2380"],"joinedAt":"2026-06-04T10:11:00Z"},
-  {"name":"etcd-source-2","peerUrls":["https://etcd-source-2.etcd-source-peer.source-ns.svc:2380","https://10.0.0.3:2380"],"joinedAt":"2026-06-04T10:11:00Z"}
-]
+{
+  "joinedAt": "2026-06-04T10:11:00Z",
+  "members": [
+    {"name":"etcd-source-0","peerUrls":["https://etcd-source-0.etcd-source-peer.source-ns.svc:2380","https://10.0.0.1:2380"]},
+    {"name":"etcd-source-1","peerUrls":["https://etcd-source-1.etcd-source-peer.source-ns.svc:2380","https://10.0.0.2:2380"]},
+    {"name":"etcd-source-2","peerUrls":["https://etcd-source-2.etcd-source-peer.source-ns.svc:2380","https://10.0.0.3:2380"]}
+  ]
+}
 ```
 
-This status records source members that were present when the target completed bootstrap. `joinedAt` is not per-member; it is the shared time when etcd-druid recorded the successful bootstrap inventory.
+This status records source members that were present when the target completed bootstrap. `joinedAt` is a single timestamp for the whole snapshot — the moment etcd-druid recorded the successful bootstrap.
 
 ## Related
 

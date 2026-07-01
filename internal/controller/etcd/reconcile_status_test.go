@@ -24,11 +24,9 @@ import (
 //     (i.e., during the join), so that the snapshot is only written once the
 //     join has succeeded — preventing premature/partial state from being
 //     persisted,
-//   - write the full source-member inventory once the condition flips True,
-//     stamping every entry with the same JoinedAt,
-//   - back-fill PeerURLs on entries written by an earlier druid release that
-//     omitted them (the field was added later as +optional),
-//   - never overwrite an existing JoinedAt or otherwise re-write the snapshot.
+//   - write the source-member snapshot once the condition flips True, with a
+//     single JoinedAt at the wrapper level and the members copied from spec,
+//   - never overwrite the snapshot once it has been recorded.
 func TestMutateBootstrapWithExistingClusterStatus(t *testing.T) {
 	conditionTrue := druidv1alpha1.Condition{
 		Type:   druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
@@ -43,11 +41,11 @@ func TestMutateBootstrapWithExistingClusterStatus(t *testing.T) {
 		{Name: "etcd-source-1", PeerURLs: []string{"https://etcd-source-1:2380"}},
 	}
 
-	makeEtcd := func(spec *druidv1alpha1.BootstrapWithExistingCluster, conditions []druidv1alpha1.Condition, status []druidv1alpha1.BootstrapJoinedMember) *druidv1alpha1.Etcd {
+	makeEtcd := func(spec *druidv1alpha1.BootstrapWithExistingCluster, conditions []druidv1alpha1.Condition, status *druidv1alpha1.BootstrapWithExistingClusterStatus) *druidv1alpha1.Etcd {
 		etcd := &druidv1alpha1.Etcd{}
 		etcd.Spec.Etcd.BootstrapWithExistingCluster = spec
 		etcd.Status.Conditions = conditions
-		etcd.Status.BootstrapWithExistingClusterMembers = status
+		etcd.Status.BootstrapWithExistingCluster = status
 		return etcd
 	}
 
@@ -61,37 +59,36 @@ func TestMutateBootstrapWithExistingClusterStatus(t *testing.T) {
 			name: "spec is nil — no-op",
 			etcd: makeEtcd(nil, []druidv1alpha1.Condition{conditionTrue}, nil),
 			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				g.Expect(etcd.Status.BootstrapWithExistingClusterMembers).To(BeEmpty())
+				g.Expect(etcd.Status.BootstrapWithExistingCluster).To(BeNil())
 			},
 		},
 		{
 			name: "spec.members is empty — no-op",
 			etcd: makeEtcd(&druidv1alpha1.BootstrapWithExistingCluster{}, []druidv1alpha1.Condition{conditionTrue}, nil),
 			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				g.Expect(etcd.Status.BootstrapWithExistingClusterMembers).To(BeEmpty())
+				g.Expect(etcd.Status.BootstrapWithExistingCluster).To(BeNil())
 			},
 		},
 		{
 			name: "condition False (BootstrapInProgress) — snapshot is NOT written",
 			etcd: makeEtcd(&druidv1alpha1.BootstrapWithExistingCluster{Members: srcMembers}, []druidv1alpha1.Condition{conditionFalse}, nil),
 			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				g.Expect(etcd.Status.BootstrapWithExistingClusterMembers).To(BeEmpty(),
+				g.Expect(etcd.Status.BootstrapWithExistingCluster).To(BeNil(),
 					"snapshot must not be written until the BootstrappedWithExistingCluster condition is True — guards against persisting partial state mid-join")
 			},
 		},
 		{
-			name: "condition True, status empty — snapshot is written once with shared JoinedAt",
+			name: "condition True, status not populated — snapshot is written once with a non-zero JoinedAt",
 			etcd: makeEtcd(&druidv1alpha1.BootstrapWithExistingCluster{Members: srcMembers}, []druidv1alpha1.Condition{conditionTrue}, nil),
 			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				snap := etcd.Status.BootstrapWithExistingClusterMembers
-				g.Expect(snap).To(HaveLen(2))
-				g.Expect(snap[0].Name).To(Equal("etcd-source-0"))
-				g.Expect(snap[0].PeerURLs).To(ConsistOf("https://etcd-source-0:2380"))
-				g.Expect(snap[1].Name).To(Equal("etcd-source-1"))
-				g.Expect(snap[1].PeerURLs).To(ConsistOf("https://etcd-source-1:2380"))
-				// JoinedAt must be identical across all entries (bootstrap is atomic).
-				g.Expect(snap[0].JoinedAt).To(Equal(snap[1].JoinedAt))
-				g.Expect(snap[0].JoinedAt.IsZero()).To(BeFalse())
+				snap := etcd.Status.BootstrapWithExistingCluster
+				g.Expect(snap).NotTo(BeNil())
+				g.Expect(snap.JoinedAt.IsZero()).To(BeFalse(), "JoinedAt must be set when the snapshot is recorded")
+				g.Expect(snap.Members).To(HaveLen(2))
+				g.Expect(snap.Members[0].Name).To(Equal("etcd-source-0"))
+				g.Expect(snap.Members[0].PeerURLs).To(ConsistOf("https://etcd-source-0:2380"))
+				g.Expect(snap.Members[1].Name).To(Equal("etcd-source-1"))
+				g.Expect(snap.Members[1].PeerURLs).To(ConsistOf("https://etcd-source-1:2380"))
 			},
 		},
 		{
@@ -101,50 +98,22 @@ func TestMutateBootstrapWithExistingClusterStatus(t *testing.T) {
 				return makeEtcd(
 					&druidv1alpha1.BootstrapWithExistingCluster{Members: srcMembers},
 					[]druidv1alpha1.Condition{conditionTrue},
-					[]druidv1alpha1.BootstrapJoinedMember{
-						{Name: "etcd-source-0", PeerURLs: []string{"https://etcd-source-0:2380"}, JoinedAt: preExisting},
-						{Name: "etcd-source-1", PeerURLs: []string{"https://etcd-source-1:2380"}, JoinedAt: preExisting},
+					&druidv1alpha1.BootstrapWithExistingClusterStatus{
+						JoinedAt: preExisting,
+						Members: []druidv1alpha1.BootstrapJoinedMember{
+							{Name: "etcd-source-0", PeerURLs: []string{"https://etcd-source-0:2380"}},
+							{Name: "etcd-source-1", PeerURLs: []string{"https://etcd-source-1:2380"}},
+						},
 					},
 				)
 			}(),
 			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				snap := etcd.Status.BootstrapWithExistingClusterMembers
-				g.Expect(snap).To(HaveLen(2))
+				snap := etcd.Status.BootstrapWithExistingCluster
+				g.Expect(snap).NotTo(BeNil())
 				// The existing JoinedAt must NOT be overwritten on later reconciles.
-				g.Expect(snap[0].JoinedAt).To(Equal(snap[1].JoinedAt))
-			},
-		},
-		{
-			name: "snapshot has empty PeerURLs (older druid release) — they are back-filled from spec",
-			etcd: makeEtcd(
-				&druidv1alpha1.BootstrapWithExistingCluster{Members: srcMembers},
-				[]druidv1alpha1.Condition{conditionTrue},
-				[]druidv1alpha1.BootstrapJoinedMember{
-					{Name: "etcd-source-0", JoinedAt: metav1.Now()},
-					{Name: "etcd-source-1", JoinedAt: metav1.Now()},
-				},
-			),
-			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				snap := etcd.Status.BootstrapWithExistingClusterMembers
-				g.Expect(snap).To(HaveLen(2))
-				g.Expect(snap[0].PeerURLs).To(ConsistOf("https://etcd-source-0:2380"))
-				g.Expect(snap[1].PeerURLs).To(ConsistOf("https://etcd-source-1:2380"))
-			},
-		},
-		{
-			name: "snapshot has empty PeerURLs but spec no longer references that name — entry is left untouched",
-			etcd: makeEtcd(
-				&druidv1alpha1.BootstrapWithExistingCluster{Members: srcMembers},
-				[]druidv1alpha1.Condition{conditionTrue},
-				[]druidv1alpha1.BootstrapJoinedMember{
-					{Name: "etcd-source-orphan", JoinedAt: metav1.Now()},
-				},
-			),
-			validate: func(g *WithT, etcd *druidv1alpha1.Etcd) {
-				snap := etcd.Status.BootstrapWithExistingClusterMembers
-				g.Expect(snap).To(HaveLen(1))
-				g.Expect(snap[0].Name).To(Equal("etcd-source-orphan"))
-				g.Expect(snap[0].PeerURLs).To(BeEmpty())
+				g.Expect(time.Since(snap.JoinedAt.Time)).To(BeNumerically(">=", time.Hour-time.Minute),
+					"JoinedAt must be preserved from the initial write, not refreshed")
+				g.Expect(snap.Members).To(HaveLen(2))
 			},
 		},
 	}

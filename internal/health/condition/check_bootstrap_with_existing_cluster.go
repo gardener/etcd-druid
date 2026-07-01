@@ -12,24 +12,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// bootstrapWithExistingCluster is a Checker for the
+// BootstrappedWithExistingCluster condition.
 type bootstrapWithExistingCluster struct{}
 
+// Check returns the BootstrappedWithExistingCluster condition for the given
+// Etcd. It returns nil when the feature is not configured, False during the
+// join, and True once the join has completed.
+//
+// The condition is sticky-True: once etcd.Status.BootstrapWithExistingCluster
+// is populated by mutateBootstrapWithExistingClusterStatus (which only fires
+// after this Check first returns True), the condition stays True regardless
+// of transient member outages. Re-evaluating member health after bootstrap
+// would incorrectly regress the condition to BootstrapInProgress.
 func (b *bootstrapWithExistingCluster) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
-	// Sticky success: bootstrap is a one-shot event. Once status records
-	// the joined source members, this condition stays True for the
-	// lifetime of the resource. Re-evaluating member health here would
-	// regress the condition to BootstrapInProgress on a transient member
-	// outage post-bootstrap, which is incorrect.
-	//
-	// status.bootstrapWithExistingClusterMembers is populated by
-	// reconcile_status.mutateBootstrapWithExistingClusterStatus only after
-	// this condition has reached True at least once, so a non-empty status
-	// slice is a durable witness of a successful bootstrap. It also stays
-	// populated when spec.etcd.bootstrapWithExistingCluster is later
-	// cleared (the member-removal trigger), so the condition correctly
-	// stays True through that flow until removal completes and a future
-	// controller clears status.
-	if len(etcd.Status.BootstrapWithExistingClusterMembers) > 0 {
+	if etcd.Status.BootstrapWithExistingCluster != nil {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
 			status:  druidv1alpha1.ConditionTrue,

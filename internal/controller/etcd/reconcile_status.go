@@ -97,6 +97,14 @@ func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha
 	return ctrlutils.ContinueReconcile()
 }
 
+// mutateBootstrapWithExistingClusterStatus records the source-cluster
+// snapshot in etcd.Status.BootstrapWithExistingCluster the first time the
+// BootstrappedWithExistingCluster condition is observed as True.
+//
+// It is a no-op when the field is not configured, when the condition has
+// not yet reached True, or when the snapshot has already been recorded.
+// The snapshot is write-once: it is never rewritten from spec on later
+// reconciles.
 func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
 	existingCluster := etcd.Spec.Etcd.BootstrapWithExistingCluster
 	if existingCluster == nil || len(existingCluster.Members) == 0 {
@@ -109,31 +117,17 @@ func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.Operat
 		return ctrlutils.ContinueReconcile()
 	}
 
-	if len(etcd.Status.BootstrapWithExistingClusterMembers) == 0 {
-		now := metav1.Now()
-		joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(existingCluster.Members))
-		for _, m := range existingCluster.Members {
-			joined = append(joined, druidv1alpha1.BootstrapJoinedMember{
-				Name:     m.Name,
-				PeerURLs: m.PeerURLs,
-				JoinedAt: now,
-			})
-		}
-		etcd.Status.BootstrapWithExistingClusterMembers = joined
+	if etcd.Status.BootstrapWithExistingCluster != nil {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	peerURLsByName := make(map[string][]string, len(existingCluster.Members))
+	joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(existingCluster.Members))
 	for _, m := range existingCluster.Members {
-		peerURLsByName[m.Name] = m.PeerURLs
+		joined = append(joined, druidv1alpha1.BootstrapJoinedMember(m))
 	}
-	for i := range etcd.Status.BootstrapWithExistingClusterMembers {
-		member := &etcd.Status.BootstrapWithExistingClusterMembers[i]
-		if len(member.PeerURLs) == 0 {
-			if peerURLs, ok := peerURLsByName[member.Name]; ok {
-				member.PeerURLs = peerURLs
-			}
-		}
+	etcd.Status.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingClusterStatus{
+		JoinedAt: metav1.Now(),
+		Members:  joined,
 	}
 	return ctrlutils.ContinueReconcile()
 }
