@@ -95,7 +95,7 @@ jobs:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: "1.26"
       - name: tidy
         run: make tidy
       - name: check
@@ -143,7 +143,7 @@ jobs:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@v1
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: "1.26"
       - name: run-tests
         shell: bash
         run: |
@@ -178,4 +178,4 @@ jobs:
       run: |
         make sast-report
         make --directory=druidctl sast-report
-      go-version: '1.25'
+      go-version: "1.26"
