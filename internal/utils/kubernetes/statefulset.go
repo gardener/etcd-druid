@@ -22,17 +22,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// IsStatefulSetReady checks whether the given StatefulSet is ready and up-to-date.
-// A StatefulSet is considered healthy if its controller observed its current revision,
-// it is not in an update (i.e. UpdateRevision is empty) and if its current replicas are equal to
-// desired replicas specified in ETCD specs.
-// It returns ready status (bool) and in case it is not ready then the second return value holds the reason.
-func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string) {
+// IsStatefulSetReady reports whether the StatefulSet is ready and up-to-date.
+//
+// For RollingUpdate the fast path uses status field comparisons. For OnDelete
+// it lists pods and compares controller-revision-hash against updateRevision,
+// because the K8s StatefulSet controller does not promote status.currentRevision
+// under OnDelete on K8s < v1.37 (kubernetes/kubernetes#73492, #106055, fix in
+// #136833). The pod-level path stays valid post-v1.37; do not gate it on the
+// Kubernetes version.
+func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string) {
 	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
 		return false, fmt.Sprintf("observed generation %d is outdated in comparison to generation %d", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
 	}
 	if statefulSet.Status.ReadyReplicas < etcdReplicas {
 		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas)
+	}
+	if statefulSet.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+		allUpdated, unupdatedName, err := AreAllStsPodsAtUpdateRevision(ctx, cl, statefulSet)
+		if err != nil {
+			return false, fmt.Sprintf("unable to determine pod-level revision state: %s", err.Error())
+		}
+		if !allUpdated {
+			return false, fmt.Sprintf("pod %s is not at the target StatefulSet revision %s", unupdatedName, statefulSet.Status.UpdateRevision)
+		}
+		return true, ""
 	}
 	if statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision {
 		return false, fmt.Sprintf("Current StatefulSet revision %s is older than the updated StatefulSet revision %s)", statefulSet.Status.CurrentRevision, statefulSet.Status.UpdateRevision)
@@ -41,6 +54,39 @@ func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bo
 		return false, fmt.Sprintf("StatefulSet status.CurrentReplicas (%d) != status.UpdatedReplicas (%d)", statefulSet.Status.CurrentReplicas, statefulSet.Status.UpdatedReplicas)
 	}
 	return true, ""
+}
+
+// AreAllStsPodsAtUpdateRevision reports whether every non-terminating pod of sts
+// carries sts.Status.UpdateRevision on its controller-revision-hash label. On
+// mismatch it returns the name of the first offending pod, useful for reason
+// strings. Terminating pods are excluded so a pod recreation does not flap the
+// answer.
+func AreAllStsPodsAtUpdateRevision(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (bool, string, error) {
+	updateRevision := sts.Status.UpdateRevision
+	if updateRevision == "" {
+		return false, "", nil
+	}
+	if sts.Spec.Selector == nil {
+		return false, "", fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
+	}
+	sel, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to parse statefulSet %s/%s spec.selector: %w", sts.Namespace, sts.Name, err)
+	}
+	list := &corev1.PodList{}
+	if err := cl.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: sel}); err != nil {
+		return false, "", fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
+	}
+	for i := range list.Items {
+		pod := &list.Items[i]
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if pod.Labels[appsv1.StatefulSetRevisionLabel] != updateRevision {
+			return false, pod.Name, nil
+		}
+	}
+	return true, "", nil
 }
 
 // GetStatefulSet fetches StatefulSet created for the etcd. Nil will be returned if one of these conditions are met:
