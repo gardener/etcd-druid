@@ -41,6 +41,7 @@ require (
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/telemetry v0.0.0-20251008203120-078029d740a8 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
@@ -61,6 +62,7 @@ require (
 )
 
 tool (
+	golang.org/x/tools/cmd/goimports
 	k8s.io/code-generator
 	sigs.k8s.io/controller-tools/cmd/controller-gen
 )
