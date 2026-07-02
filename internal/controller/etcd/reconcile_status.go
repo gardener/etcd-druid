@@ -71,7 +71,7 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		if etcd.Status.ObservedGeneration == nil || *etcd.Status.ObservedGeneration != etcd.Generation {
 			expectedReplicas = *sts.Spec.Replicas
 		}
-		ready, _ := kubernetes.IsStatefulSetReady(expectedReplicas, sts)
+		ready, _ := kubernetes.IsStatefulSetReady(ctx, r.client, expectedReplicas, sts)
 		etcd.Status.CurrentReplicas = sts.Status.CurrentReplicas
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.Replicas = sts.Status.CurrentReplicas

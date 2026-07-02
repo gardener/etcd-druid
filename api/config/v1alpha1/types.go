@@ -115,6 +115,8 @@ type ControllerConfiguration struct {
 	Etcd EtcdControllerConfiguration `json:"etcd"`
 	// Compaction is the configuration for the compaction controller.
 	Compaction CompactionControllerConfiguration `json:"compaction"`
+	// OnDelete is the configuration for the ondelete controller.
+	OnDelete OnDeleteControllerConfiguration `json:"ondelete"`
 	// EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller.
 	EtcdCopyBackupsTask EtcdCopyBackupsTaskControllerConfiguration `json:"etcdCopyBackupsTask"`
 	// Secret is the configuration for the Secret controller.
@@ -192,6 +194,13 @@ type EtcdOpsTaskControllerConfiguration struct {
 	// RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask.
 	// +optional
 	RequeueInterval *metav1.Duration `json:"requeueInterval,omitempty"`
+}
+
+// OnDeleteControllerConfiguration defines the configuration for the OnDelete controller.
+type OnDeleteControllerConfiguration struct {
+	// ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request.
+	// +optional
+	ConcurrentSyncs *int `json:"concurrentSyncs,omitempty"`
 }
 
 // WebhookConfiguration defines the configuration for admission webhooks.

@@ -50,11 +50,14 @@ type StatefulSetMatcher struct {
 	backupPort             int32
 	wrapperPort            int32
 	expectedReplicas       int32
+	expectedUpdateStrategy appsv1.StatefulSetUpdateStrategyType
 	expectNoServiceAccount bool
 	expectNoService        bool
 }
 
-// NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher.
+// NewStatefulSetMatcher constructs a new instance of StatefulSetMatcher. The
+// expected updateStrategy.type defaults to RollingUpdate; use
+// WithExpectedUpdateStrategy to override.
 func NewStatefulSetMatcher(g *WithT,
 	cl client.Client,
 	etcd *druidv1alpha1.Etcd,
@@ -75,9 +78,17 @@ func NewStatefulSetMatcher(g *WithT,
 		backupPort:             ptr.Deref(etcd.Spec.Backup.Port, 8080),
 		wrapperPort:            ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
 		expectedReplicas:       replicas,
+		expectedUpdateStrategy: appsv1.RollingUpdateStatefulSetStrategyType,
 		expectNoServiceAccount: expectNoServiceAccount,
 		expectNoService:        expectNoService,
 	}
+}
+
+// WithExpectedUpdateStrategy overrides the expected StatefulSet update strategy
+// used by matchSpec (default: RollingUpdate).
+func (s StatefulSetMatcher) WithExpectedUpdateStrategy(updateStrategy appsv1.StatefulSetUpdateStrategyType) StatefulSetMatcher {
+	s.expectedUpdateStrategy = updateStrategy
+	return s
 }
 
 // MatchStatefulSet returns a custom gomega matcher that will match both the ObjectMeta and Spec of a StatefulSet.
@@ -103,7 +114,7 @@ func (s StatefulSetMatcher) matchSpec() gomegatypes.GomegaMatcher {
 		"Selector":            testutils.MatchSpecLabelSelector(druidv1alpha1.GetDefaultLabels(s.etcd.ObjectMeta)),
 		"PodManagementPolicy": Equal(appsv1.ParallelPodManagement),
 		"UpdateStrategy": MatchFields(IgnoreExtras, Fields{
-			"Type": Equal(appsv1.RollingUpdateStatefulSetStrategyType),
+			"Type": Equal(s.expectedUpdateStrategy),
 		}),
 		"VolumeClaimTemplates": s.matchVolumeClaimTemplates(),
 		"Template":             s.matchPodTemplateSpec(),

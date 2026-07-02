@@ -115,7 +115,7 @@ func TestIsStatefulSetReady(t *testing.T) {
 			sts.Status.UpdatedReplicas = tc.statusUpdatedReplicas
 			sts.Status.CurrentRevision = tc.statusCurrentRevision
 			sts.Status.UpdateRevision = tc.statusUpdateRevision
-			stsReady, reasonMsg := IsStatefulSetReady(tc.etcdSpecReplicas, sts)
+			stsReady, reasonMsg := IsStatefulSetReady(context.Background(), nil, tc.etcdSpecReplicas, sts)
 			g.Expect(stsReady).To(Equal(tc.expectedStsReady))
 			g.Expect(!utils.IsEmptyString(reasonMsg)).To(Equal(tc.expectedNotReadyReasonPresent))
 		})

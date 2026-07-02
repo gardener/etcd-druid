@@ -7,6 +7,7 @@ package statefulset
 import (
 	"fmt"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -52,7 +53,6 @@ var (
 			corev1.ResourceMemory: apiresource.MustParse("128Mi"),
 		},
 	}
-	defaultUpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
 )
 
 type stsBuilder struct {
@@ -136,13 +136,24 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
-	err := b.createPodTemplateSpec(ctx)
-	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
-	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
-	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
-	if err != nil {
+	if err := b.createPodTemplateSpec(ctx); err != nil {
 		return err
 	}
+	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.IsEtcdRuntimeComponentCreationEnabled(b.etcd.ObjectMeta), b.replicas, 0))
+
+	// The Etcd reconciler is the sole writer of updateStrategy.type. The OnDelete
+	// controller only deletes pods and never mutates StatefulSet spec. The field
+	// is rewritten on every Sync, so a gate flip converges on the next reconcile.
+	// See DEP-07 Transitioning Between Strategies for the transition semantics
+	// (RollingUpdate <-> OnDelete, and version downgrade).
+	stsUpdateStrategy := appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete) {
+		stsUpdateStrategy.Type = appsv1.OnDeleteStatefulSetStrategyType
+	}
+	b.sts.Spec.UpdateStrategy = stsUpdateStrategy
+
+	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace, "updateStrategy", stsUpdateStrategy.Type)
+
 	if !b.skipSetOrUpdateForbiddenFields {
 		b.sts.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),
