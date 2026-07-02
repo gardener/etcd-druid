@@ -4,13 +4,13 @@ This guide shows how to create a new etcd-druid managed `Etcd` resource that joi
 
 The source cluster may be managed by etcd-druid or externally managed. In both cases, the source member names, peer URLs, and client endpoints that you put into the target spec must already be valid from the target's network.
 
-For background and lifecycle semantics, see [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md).
+For background and lifecycle semantics, see [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md). This guide uses "source cluster", "target `Etcd` resource", and "join phase" as defined in that document's [Terminology](../concepts/bootstrap-with-existing-cluster.md#terminology) section.
 
 ## Prerequisites
 
 Before creating the target `Etcd` resource, ensure:
 
-1. **The source cluster is healthy.** All source members that you want the target to join with should be `started` in `etcdctl member list`.
+1. **The source cluster is healthy and reachable from the target's network.** For each source member you list in `.spec.etcd.bootstrapWithExistingCluster.members`, its peer URL must be dialable from the target pods, and the member must be responsive. `etcdctl member list --write-out=table` reporting `started` for the member is necessary but not sufficient — confirm the member also responds to `etcdctl endpoint health` before you list it.
 2. **The source peer URLs in the target spec are reachable from the target pods.** Only the URLs listed under `.spec.etcd.bootstrapWithExistingCluster.members[*].peerUrls` need to be reachable from the target network.
 3. **At least one source client endpoint is reachable from the target backup-restore sidecar.** These endpoints go into `.spec.etcd.bootstrapWithExistingCluster.clientEndpoints`.
 4. **The source and target use compatible TLS trust roots.** The target's peer/client TLS configuration is used when dialing source peer/client endpoints. See the [TLS trust model](../concepts/bootstrap-with-existing-cluster.md#tls-trust-model).
@@ -67,6 +67,8 @@ metadata:
   name: etcd-target
   namespace: target-ns
 spec:
+  # replicas is the target-side member count only. The joined cluster ends up with
+  # (replicas + number of source members listed below) etcd members in total.
   replicas: 3
   etcd:
     image: <etcd-wrapper-image>

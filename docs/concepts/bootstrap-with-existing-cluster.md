@@ -1,6 +1,6 @@
 # Bootstrap with an Existing etcd Cluster
 
-`etcd-druid` can create a new `Etcd` resource by joining it to an already-running etcd cluster instead of forming a standalone cluster. The new etcd-druid managed members become part of the existing etcd cluster and replicate its data while the existing members continue serving traffic.
+A new `Etcd` resource can be configured to join an already-running etcd cluster instead of forming a standalone cluster. When the user creates such an `Etcd`, `etcd-druid` reconciles it so that the target members become part of the existing etcd cluster and replicate its data while the existing members continue serving traffic.
 
 This document describes the **join phase**: how the target `Etcd` resource is configured to join an existing source cluster, what etcd-druid does during the join, and the status it records once the join has succeeded.
 
