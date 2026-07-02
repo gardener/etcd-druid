@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 
@@ -25,6 +26,12 @@ const (
 	defaultSnapshotCount   = int64(10000)
 	advertiseURLTypePeer   = "peer"
 	advertiseURLTypeClient = "client"
+
+	// Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"
+	// because for "map", it has been observed to cause significant increase in total database size.
+	// The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.
+	// Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373
+	defaultBboltFreeListType druidv1alpha1.BboltFreelistType = druidv1alpha1.BboltFreelistArray
 )
 
 var (
@@ -51,7 +58,8 @@ type etcdConfig struct {
 	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
 	MemberNamePrefix        string                       `json:"member-name-prefix,omitempty"`
 	//TODO: (@Shreyas-s14): remove this field once etcd 3.5.26 is the minimum supported version.
-	NextClusterVersionCompatible bool `json:"next-cluster-version-compatible,omitempty"`
+	NextClusterVersionCompatible bool                            `json:"next-cluster-version-compatible,omitempty"`
+	BackendBboltFreelistType     druidv1alpha1.BboltFreelistType `json:"backend-bbolt-freelist-type,omitempty"`
 }
 
 type securityConfig struct {
@@ -102,6 +110,9 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 	}
 	if etcd.Spec.MemberNamePrefix != nil {
 		cfg.MemberNamePrefix = *etcd.Spec.MemberNamePrefix
+	}
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		cfg.BackendBboltFreelistType = ptr.Deref(etcd.Spec.Etcd.BackendBboltFreelistType, defaultBboltFreeListType)
 	}
 
 	return cfg

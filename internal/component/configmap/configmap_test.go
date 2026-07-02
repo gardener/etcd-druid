@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -785,6 +786,100 @@ func TestPeerSkipClientSANVerification(t *testing.T) {
 				g.Expect(peerSec).To(HaveKeyWithValue("skip-client-san-verification", tc.expectSkipValue))
 			} else {
 				g.Expect(peerSec).ToNot(HaveKey("skip-client-san-verification"))
+			}
+		})
+	}
+}
+
+// TestBboltFreelistType verifies that backend-bbolt-freelist-type is written into
+// the etcd config only when the UpgradeEtcdVersion feature gate is enabled.
+//
+// Cases:
+//   - feature gate off, field unset  → key absent
+//   - feature gate off, field set    → key absent (flag unknown to etcd <3.5)
+//   - feature gate on,  field unset  → key present with default value (array)
+//   - feature gate on,  field=array  → key present with value "array"
+//   - feature gate on,  field=map    → key present with value "map"
+func TestBboltFreelistType(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		featureGateEnabled bool
+		freeListType       *druidv1alpha1.BboltFreelistType
+		expectKeyPresent   bool
+		expectedValue      string
+	}{
+		{
+			name:               "feature gate off, field unset — key absent",
+			featureGateEnabled: false,
+			freeListType:       nil,
+			expectKeyPresent:   false,
+		},
+		{
+			name:               "feature gate off, field set — key still absent",
+			featureGateEnabled: false,
+			freeListType:       ptr.To(druidv1alpha1.BboltFreelistMap),
+			expectKeyPresent:   false,
+		},
+		{
+			name:               "feature gate on, field unset — default array",
+			featureGateEnabled: true,
+			freeListType:       nil,
+			expectKeyPresent:   true,
+			expectedValue:      string(defaultBboltFreeListType),
+		},
+		{
+			name:               "feature gate on, field=array — value array",
+			featureGateEnabled: true,
+			freeListType:       ptr.To(druidv1alpha1.BboltFreelistArray),
+			expectKeyPresent:   true,
+			expectedValue:      "array",
+		},
+		{
+			name:               "feature gate on, field=map — value map",
+			featureGateEnabled: true,
+			freeListType:       ptr.To(druidv1alpha1.BboltFreelistMap),
+			expectKeyPresent:   true,
+			expectedValue:      "map",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+				map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: tc.featureGateEnabled},
+			)
+			g.Expect(err).ToNot(HaveOccurred())
+			t.Cleanup(func() {
+				_ = druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+					map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: false},
+				)
+			})
+
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
+			etcd.Spec.Etcd.BackendBboltFreelistType = tc.freeListType
+
+			// Assert at the cfg (struct) level.
+			cfg := createEtcdConfig(etcd)
+			if tc.expectKeyPresent {
+				g.Expect(string(cfg.BackendBboltFreelistType)).To(Equal(tc.expectedValue))
+			} else {
+				g.Expect(cfg.BackendBboltFreelistType).To(BeEmpty())
+			}
+
+			// Assert at the rendered-YAML level.
+			cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
+			g.Expect(buildResource(etcd, cm)).To(Succeed())
+			parsed := map[string]any{}
+			g.Expect(yaml.Unmarshal([]byte(cm.Data[common.EtcdConfigFileName]), &parsed)).To(Succeed())
+
+			if tc.expectKeyPresent {
+				g.Expect(parsed).To(HaveKeyWithValue("backend-bbolt-freelist-type", tc.expectedValue))
+			} else {
+				g.Expect(parsed).ToNot(HaveKey("backend-bbolt-freelist-type"))
 			}
 		})
 	}

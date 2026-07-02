@@ -39,6 +39,11 @@ const (
 	Periodic CompactionMode = "periodic"
 	// Revision is a constant to set auto-compaction-mode 'revision' for revision number based retention.
 	Revision CompactionMode = "revision"
+
+	// BboltFreelistArray is the array-based freelist type for bbolt backend.
+	BboltFreelistArray BboltFreelistType = "array"
+	// BboltFreelistMap is the hashmap-based freelist type for bbolt backend.
+	BboltFreelistMap BboltFreelistType = "map"
 )
 
 // +genclient
@@ -93,6 +98,10 @@ type CompressionPolicy string
 // 'periodic' for duration based retention and 'revision' for revision number based retention.
 // +kubebuilder:validation:Enum=periodic;revision
 type CompactionMode string
+
+// BboltFreelistType specifies the freelist type used by the bbolt backend storage engine of etcd.
+// +kubebuilder:validation:Enum=array;map
+type BboltFreelistType string
 
 // TLSConfig hold the TLS configuration details.
 type TLSConfig struct {
@@ -320,6 +329,15 @@ type EtcdConfig struct {
 	// ClientService defines the parameters of the client service that a user can specify
 	// +optional
 	ClientService *ClientService `json:"clientService,omitempty"`
+	// BackendBboltFreelistType specifies the freelist-type used by the bbolt backend storage engine of etcd.
+	// Supported values are 'array' (default) and 'map'.
+	// It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x
+	// Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"
+	// because for "map", it has been observed to cause significant increase in total database size.
+	// The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.
+	// Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373
+	// +optional
+	BackendBboltFreelistType *BboltFreelistType `json:"backendBboltFreelistType,omitempty"`
 }
 
 // ClientService defines the parameters of the client service that a user can specify

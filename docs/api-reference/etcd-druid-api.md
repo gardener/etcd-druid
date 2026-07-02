@@ -472,6 +472,24 @@ _Appears in:_
 | `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  |  |
 
 
+#### BboltFreelistType
+
+_Underlying type:_ _string_
+
+BboltFreelistType specifies the freelist type used by the bbolt backend storage engine of etcd.
+
+_Validation:_
+- Enum: [array map]
+
+_Appears in:_
+- [EtcdConfig](#etcdconfig)
+
+| Field | Description |
+| --- | --- |
+| `array` | BboltFreelistArray is the array-based freelist type for bbolt backend.<br /> |
+| `map` | BboltFreelistMap is the hashmap-based freelist type for bbolt backend.<br /> |
+
+
 #### ClientService
 
 
@@ -678,6 +696,7 @@ _Appears in:_
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
+| `backendBboltFreelistType` _[BboltFreelistType](#bboltfreelisttype)_ | BackendBboltFreelistType specifies the freelist-type used by the bbolt backend storage engine of etcd.<br />Supported values are 'array' (default) and 'map'.<br />It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x<br />Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"<br />because for "map", it has been observed to cause significant increase in total database size.<br />The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.<br />Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373 |  | Enum: [array map] <br /> |
 
 
 #### EtcdCopyBackupsTask
