@@ -165,6 +165,13 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 			}
 		}
 	}
+	if etcd.Spec.Etcd.BootstrapWithExistingCluster != nil {
+		for _, member := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
+			for _, peerURL := range member.PeerURLs {
+				fmt.Fprintf(&builder, "%s=%s,", member.Name, peerURL)
+			}
+		}
+	}
 	return strings.Trim(builder.String(), ",")
 }
 

@@ -5,6 +5,8 @@
 package etcd
 
 import (
+	"slices"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
@@ -32,6 +34,7 @@ func (r *Reconciler) reconcileStatus(ctx component.OperatorContext, etcd *druidv
 		r.mutateETCDStatusWithMemberStatusAndConditions,
 		r.inspectStatefulSetAndMutateETCDStatus,
 		r.setSelector,
+		r.mutateBootstrapWithExistingClusterStatus,
 	}
 
 	for _, fn := range mutateETCDStatusStepFns {
@@ -91,5 +94,40 @@ func (r *Reconciler) setSelector(_ component.OperatorContext, etcd *druidv1alpha
 		return ctrlutils.ReconcileWithError(err)
 	}
 	etcd.Status.Selector = ptr.To(selector.String())
+	return ctrlutils.ContinueReconcile()
+}
+
+// mutateBootstrapWithExistingClusterStatus records the source-cluster
+// snapshot in etcd.Status.BootstrapWithExistingCluster the first time the
+// BootstrappedWithExistingCluster condition is observed as True.
+//
+// It is a no-op when the field is not configured, when the condition has
+// not yet reached True, or when the snapshot has already been recorded.
+// The snapshot is write-once: it is never rewritten from spec on later
+// reconciles.
+func (r *Reconciler) mutateBootstrapWithExistingClusterStatus(_ component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+	existingCluster := etcd.Spec.Etcd.BootstrapWithExistingCluster
+	if existingCluster == nil || len(existingCluster.Members) == 0 {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	if !slices.ContainsFunc(etcd.Status.Conditions, func(c druidv1alpha1.Condition) bool {
+		return c.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && c.Status == druidv1alpha1.ConditionTrue
+	}) {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	if etcd.Status.BootstrapWithExistingCluster != nil {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	joined := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(existingCluster.Members))
+	for _, m := range existingCluster.Members {
+		joined = append(joined, druidv1alpha1.BootstrapJoinedMember(m))
+	}
+	etcd.Status.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingClusterStatus{
+		JoinedAt: metav1.Now(),
+		Members:  joined,
+	}
 	return ctrlutils.ContinueReconcile()
 }

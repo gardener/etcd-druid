@@ -173,6 +173,131 @@ func TestBasic(t *testing.T) {
 	}
 }
 
+// TestBootstrapWithExistingCluster verifies that a target Etcd configured with
+// spec.etcd.bootstrapWithExistingCluster joins an already-running source Etcd
+// and that the controller records the source-member inventory in status once
+// the join succeeds. It also asserts that the BootstrappedWithExistingCluster
+// condition is sticky once True and that JoinedAt is shared across entries and
+// preserved on later reconciles.
+func TestBootstrapWithExistingCluster(t *testing.T) {
+	t.Parallel()
+	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
+
+	const (
+		sourceEtcdName = "source"
+		targetEtcdName = "target"
+		clusterSize    = 3
+	)
+
+	for _, provider := range providers {
+		tcName := fmt.Sprintf("bootstrap-existing-%s", getProviderSuffix(provider))
+		t.Run(tcName, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			var testSucceeded bool // cannot use t.Failed() in deferred functions since it is evaluated at the end of the test
+
+			testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
+			logger := log.WithName(tcName).WithValues("namespace", testNamespace)
+			defer func() {
+				cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+			}()
+			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+
+			logger.Info("creating 3-member source Etcd")
+			sourceEtcd := testutils.EtcdBuilderWithoutDefaults(sourceEtcdName, testNamespace).
+				WithReplicas(clusterSize).
+				WithDefaultBackup().
+				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, sourceEtcdName)).
+				Build()
+			testEnv.CreateAndCheckEtcd(g, sourceEtcd, timeoutEtcdCreation)
+			logger.Info("successfully created source Etcd")
+
+			// Build the list of source members the target must join. With a 3-member source the
+			// initial-cluster view passed to the target contains every source pod's peer URL.
+			sourceMembers := make([]druidv1alpha1.BootstrapExistingMember, 0, clusterSize)
+			sourceMemberNames := make([]string, 0, clusterSize)
+			sourcePeerURLs := make([]string, 0, clusterSize)
+			for i := range clusterSize {
+				name := fmt.Sprintf("%s-%d", sourceEtcdName, i)
+				peerURL := fmt.Sprintf("http://%s-%d.%s-peer.%s.svc:2380", sourceEtcdName, i, sourceEtcdName, testNamespace)
+				sourceMembers = append(sourceMembers, druidv1alpha1.BootstrapExistingMember{
+					Name:     name,
+					PeerURLs: []string{peerURL},
+				})
+				sourceMemberNames = append(sourceMemberNames, name)
+				sourcePeerURLs = append(sourcePeerURLs, peerURL)
+			}
+			sourceClientEndpoint := fmt.Sprintf("http://%s-client.%s.svc:2379", sourceEtcdName, testNamespace)
+
+			logger.Info("creating 3-member target Etcd configured with bootstrapWithExistingCluster")
+			targetEtcd := testutils.EtcdBuilderWithoutDefaults(targetEtcdName, testNamespace).
+				WithReplicas(clusterSize).
+				WithDefaultBackup().
+				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, targetEtcdName)).
+				Build()
+			targetEtcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+				Members:         sourceMembers,
+				ClientEndpoints: []string{sourceClientEndpoint},
+			}
+			testEnv.CreateAndCheckEtcd(g, targetEtcd, timeoutEtcdCreation)
+			logger.Info("successfully created target Etcd")
+
+			logger.Info("waiting for BootstrappedWithExistingCluster=True and status snapshot to be recorded")
+			g.Eventually(func(g Gomega) {
+				etcd, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				// The dedicated condition must reach True.
+				g.Expect(etcd.Status.Conditions).To(ContainElement(Satisfy(func(condition druidv1alpha1.Condition) bool {
+					return condition.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && condition.Status == druidv1alpha1.ConditionTrue
+				})), "BootstrappedWithExistingCluster condition must reach True after the target joins")
+
+				// Status snapshot must record all source members with their peer URLs
+				// and a single non-zero JoinedAt.
+				snap := etcd.Status.BootstrapWithExistingCluster
+				g.Expect(snap).NotTo(BeNil())
+				g.Expect(snap.JoinedAt.IsZero()).To(BeFalse(), "JoinedAt must be set when the snapshot is recorded")
+				g.Expect(snap.Members).To(HaveLen(clusterSize))
+
+				recordedNames := make([]string, 0, len(snap.Members))
+				recordedPeerURLs := make([]string, 0, len(snap.Members))
+				for _, m := range snap.Members {
+					recordedNames = append(recordedNames, m.Name)
+					recordedPeerURLs = append(recordedPeerURLs, m.PeerURLs...)
+				}
+				g.Expect(recordedNames).To(ConsistOf(sourceMemberNames))
+				g.Expect(recordedPeerURLs).To(ConsistOf(sourcePeerURLs))
+			}, timeoutEtcdCreation, timeoutEtcdDisruptionStart).Should(Succeed())
+			logger.Info("BootstrappedWithExistingCluster=True and status snapshot recorded")
+
+			// Capture the recorded JoinedAt to verify stickiness — later reconciles must
+			// not overwrite the original timestamp.
+			targetAfterJoin, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(targetAfterJoin.Status.BootstrapWithExistingCluster).NotTo(BeNil())
+			originalJoinedAt := targetAfterJoin.Status.BootstrapWithExistingCluster.JoinedAt
+
+			logger.Info("verifying that the condition stays True and JoinedAt is preserved across reconciles")
+			g.Consistently(func(g Gomega) {
+				etcd, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(etcd.Status.Conditions).To(ContainElement(Satisfy(func(condition druidv1alpha1.Condition) bool {
+					return condition.Type == druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster && condition.Status == druidv1alpha1.ConditionTrue
+				})), "BootstrappedWithExistingCluster must remain True after the join completes (sticky success)")
+				snap := etcd.Status.BootstrapWithExistingCluster
+				g.Expect(snap).NotTo(BeNil())
+				g.Expect(snap.Members).To(HaveLen(clusterSize))
+				g.Expect(snap.JoinedAt).To(Equal(originalJoinedAt),
+					"JoinedAt must not be rewritten on later reconciles")
+			}, timeoutEtcdDisruptionStart, pollingInterval).Should(Succeed())
+			logger.Info("condition and JoinedAt are stable")
+
+			logger.Info("finished running bootstrapWithExistingCluster test")
+			testSucceeded = true
+		})
+	}
+}
+
 // TestScaleOut tests scale out of an Etcd cluster from 1 -> 3 replicas along with label changes.
 func TestScaleOut(t *testing.T) {
 	t.Parallel()

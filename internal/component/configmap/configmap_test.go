@@ -7,6 +7,7 @@ package configmap
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -435,6 +437,125 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			g.Expect(actualURLs).To(Equal(tc.expectedURLs))
 		})
 	}
+}
+
+func TestPrepareInitialClusterWithBootstrapMembers(t *testing.T) {
+	g := NewWithT(t)
+	t.Parallel()
+
+	t.Run("should append source cluster members to initial-cluster", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+			Members: []druidv1alpha1.BootstrapExistingMember{
+				{Name: "source-etcd-0", PeerURLs: []string{"https://source-etcd-0.source-etcd-peer.source-ns.svc:2380"}},
+				{Name: "source-etcd-1", PeerURLs: []string{"https://source-etcd-1.source-etcd-peer.source-ns.svc:2380"}},
+				{Name: "source-etcd-2", PeerURLs: []string{"https://source-etcd-2.source-etcd-peer.source-ns.svc:2380"}},
+			},
+		}
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+		g.Expect(actualInitialCluster).To(ContainSubstring("source-etcd-0=https://source-etcd-0.source-etcd-peer.source-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("source-etcd-1=https://source-etcd-1.source-etcd-peer.source-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("source-etcd-2=https://source-etcd-2.source-etcd-peer.source-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2380"))
+	})
+
+	t.Run("should emit name=url per URL when a member has multiple peer URLs", func(t *testing.T) {
+		// etcd's --initial-cluster syntax pairs each URL with its member
+		// name independently (name=url1,name=url2,...). A previous
+		// implementation joined the URLs into a single name=url1,url2,url3
+		// entry, which etcd rejects.
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(1).WithPeerTLS().Build()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+			Members: []druidv1alpha1.BootstrapExistingMember{
+				{
+					Name: "src-0",
+					PeerURLs: []string{
+						"https://src-0.peer.src-ns.svc:2380",
+						"https://10.0.0.1:2380",
+					},
+				},
+				{
+					Name: "src-1",
+					PeerURLs: []string{
+						"https://src-1.peer.src-ns.svc:2380",
+						"https://10.0.0.2:2380",
+					},
+				},
+			},
+		}
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+
+		// Each URL appears paired with its member name independently — never as a comma-joined list.
+		g.Expect(actualInitialCluster).To(ContainSubstring("src-0=https://src-0.peer.src-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("src-0=https://10.0.0.1:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("src-1=https://src-1.peer.src-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("src-1=https://10.0.0.2:2380"))
+
+		// Negative: the malformed shape "name=url1,url2" must NOT appear.
+		g.Expect(actualInitialCluster).NotTo(ContainSubstring("src-0=https://src-0.peer.src-ns.svc:2380,https://10.0.0.1:2380"))
+		g.Expect(actualInitialCluster).NotTo(ContainSubstring("src-1=https://src-1.peer.src-ns.svc:2380,https://10.0.0.2:2380"))
+
+		// Splitting on "," yields one segment per (member,url) pair (1 target
+		// + 2*2 source pairs = 5 total). Every segment is well-formed name=url.
+		segments := strings.Split(actualInitialCluster, ",")
+		g.Expect(segments).To(HaveLen(5))
+		for _, segment := range segments {
+			g.Expect(strings.Count(segment, "=")).To(Equal(1), "segment %q should be exactly one name=url pair", segment)
+		}
+	})
+
+	t.Run("should not change initial-cluster-state", func(t *testing.T) {
+		// etcd-backup-restore recomputes --initial-cluster-state from
+		// on-disk cluster state before launching embedded etcd, so the
+		// configmap value is the bootstrap default rather than the
+		// source-of-truth. Druid leaves it at "new".
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(1).Build()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+			Members: []druidv1alpha1.BootstrapExistingMember{
+				{Name: "source-0", PeerURLs: []string{"http://source-0:2380"}},
+			},
+		}
+		cfg := createEtcdConfig(etcd)
+		g.Expect(cfg.InitialClusterState).To(Equal("new"))
+	})
+
+	t.Run("should not append when bootstrapWithExistingCluster is nil", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+		g.Expect(actualInitialCluster).NotTo(ContainSubstring("source"))
+	})
+
+	t.Run("should not append source entries when spec is nil but status records joined members", func(t *testing.T) {
+		// Member-removal trigger contract: when
+		//   spec.etcd.bootstrapWithExistingCluster == nil
+		// AND
+		//   status.bootstrapWithExistingClusterMembers is non-empty
+		// the controller treats it as the signal to remove source members.
+		// During that window the configmap must regenerate WITHOUT source
+		// entries so a restarted etcd no longer advertises the source
+		// cluster as part of its initial cluster.
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(3).WithPeerTLS().Build()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster = nil
+		etcd.Status.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingClusterStatus{
+			JoinedAt: metav1.Now(),
+			Members: []druidv1alpha1.BootstrapJoinedMember{
+				{Name: "src-0", PeerURLs: []string{"https://src-0.peer.src-ns.svc:2380"}},
+				{Name: "src-1", PeerURLs: []string{"https://src-1.peer.src-ns.svc:2380"}},
+			},
+		}
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+		g.Expect(actualInitialCluster).NotTo(ContainSubstring("src-"))
+		g.Expect(actualInitialCluster).NotTo(ContainSubstring("source"))
+		// Target members must still be present.
+		g.Expect(actualInitialCluster).To(ContainSubstring("etcd-test-0=https://etcd-test-0.etcd-test-peer.test-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("etcd-test-1=https://etcd-test-1.etcd-test-peer.test-ns.svc:2380"))
+		g.Expect(actualInitialCluster).To(ContainSubstring("etcd-test-2=https://etcd-test-2.etcd-test-peer.test-ns.svc:2380"))
+	})
 }
 
 func TestSyncWhenConfigMapExists(t *testing.T) {

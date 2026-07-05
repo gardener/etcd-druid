@@ -80,7 +80,9 @@ nav:
       - Recovering Etcd clusters: usage/recovering-etcd-clusters.md
       - Securing Etcd clusters: usage/securing-etcd-clusters.md
       - Using Additional Advertise Peer URLs: usage/using-additional-advertise-peer-urls.md
+      - Bootstrapping with an Existing etcd Cluster: usage/bootstrapping-with-existing-cluster.md
   - Concepts:
+      - Bootstrap with an Existing etcd Cluster: concepts/bootstrap-with-existing-cluster.md
       - Components in an Etcd cluster: concepts/etcd-cluster-components.md
       - Protecting resources in Etcd cluster: concepts/etcd-cluster-resource-protection.md
   - Development:

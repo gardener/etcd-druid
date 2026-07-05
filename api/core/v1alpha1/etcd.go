@@ -62,6 +62,10 @@ const (
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.members == oldSelf.spec.etcd.bootstrapWithExistingCluster.members",message="etcd.spec.etcd.bootstrapWithExistingCluster.members cannot be modified while the bootstrap is in progress"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.clientEndpoints == oldSelf.spec.etcd.bootstrapWithExistingCluster.clientEndpoints",message="etcd.spec.etcd.bootstrapWithExistingCluster.clientEndpoints cannot be modified while the bootstrap is in progress"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m1, self.spec.etcd.bootstrapWithExistingCluster.members.filter(m2, m1.name == m2.name).size() == 1)",message="bootstrapWithExistingCluster.members[*].name must be unique"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m, has(self.spec.memberNamePrefix) ? !m.name.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : !m.name.startsWith(self.metadata.name + '-'))",message="bootstrapWithExistingCluster.members[*].name must not collide with a target member (must not start with the target Etcd's member-name prefix)"
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -264,6 +268,11 @@ type SnapshotCompactionSpec struct {
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
 // +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerURLs) || !has(self.peerUrlTls) || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
 // +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerURLs) || has(self.peerUrlTls) || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
+// +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || !has(self.peerUrlTls) || self.bootstrapWithExistingCluster.members.all(m, m.peerUrls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all bootstrapWithExistingCluster member peer URLs must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || has(self.peerUrlTls) || self.bootstrapWithExistingCluster.members.all(m, m.peerUrls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all bootstrapWithExistingCluster member peer URLs must use http://"
+// +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || !has(self.clientUrlTls) || self.bootstrapWithExistingCluster.clientEndpoints.all(u, u.startsWith('https://'))",message="when clientUrlTls is enabled, all bootstrapWithExistingCluster clientEndpoints must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || has(self.clientUrlTls) || self.bootstrapWithExistingCluster.clientEndpoints.all(u, u.startsWith('http://'))",message="when clientUrlTls is not enabled, all bootstrapWithExistingCluster clientEndpoints must use http://"
+// +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || has(oldSelf.bootstrapWithExistingCluster)",message="etcd.spec.etcd.bootstrapWithExistingCluster cannot be added after the Etcd resource has been created"
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -304,9 +313,10 @@ type EtcdConfig struct {
 	// to initial-advertise-peer-urls. Each entry maps a member name to its
 	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
 	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
+	// When spec.memberNamePrefix is set, member names become
+	// "<memberNamePrefix>-<podName>".
 	// Updating this field on a running cluster triggers a ConfigMap update
 	// and a rolling restart of the StatefulSet.
-	// TODO(@seshachalam-yv): Once spec.memberNamePrefix (PR #1309) is merged, member names become "<memberNamePrefix>-<podName>" — update this godoc and the consumers in internal/component/configmap/etcdconfig.go to look up entries by the derived member name instead of the bare pod name.
 	// +optional
 	// +kubebuilder:validation:MaxItems=10
 	AdditionalAdvertisePeerURLs []MemberPeerURLs `json:"additionalAdvertisePeerURLs,omitempty"`
@@ -338,6 +348,9 @@ type EtcdConfig struct {
 	// Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373
 	// +optional
 	BackendBboltFreelistType *BboltFreelistType `json:"backendBboltFreelistType,omitempty"`
+	// BootstrapWithExistingCluster configures this etcd to join an existing cluster.
+	// +optional
+	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
 }
 
 // ClientService defines the parameters of the client service that a user can specify
@@ -359,7 +372,9 @@ type ClientService struct {
 type MemberPeerURLs struct {
 	// MemberName is the etcd member name.
 	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
-	// TODO(@seshachalam-yv): When spec.memberNamePrefix (PR #1309) is introduced, the member name becomes "<memberNamePrefix>-<podName>" — re-anchor the top-level CEL rules on Etcd to incorporate the prefix in the startsWith check and revisit the index-derivation logic.
+	// When spec.memberNamePrefix is set, the member name becomes
+	// "<memberNamePrefix>-<podName>". The top-level CEL rules on
+	// Etcd already incorporate the prefix when validating these names.
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
@@ -374,8 +389,98 @@ type MemberPeerURLs struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5
-	// +listType=atomic
+	// +kubebuilder:validation:items:MaxLength=2048
+	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)"
+	// +listType=set
 	URLs []string `json:"urls"`
+}
+
+// BootstrapExistingMember represents an existing etcd member in a source cluster.
+type BootstrapExistingMember struct {
+	// Name is the etcd member name in the source cluster.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
+	// PeerURLs are the peer URLs of this member.
+	// Must be valid HTTP or HTTPS URLs with scheme and host; port is optional
+	// (e.g., https://10.0.0.1:2380).
+	// A maximum of 5 peer URLs can be specified per member (constrained by CEL validation cost budget).
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=5
+	// +kubebuilder:validation:items:MaxLength=2048
+	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)"
+	// +listType=set
+	PeerURLs []string `json:"peerUrls"`
+}
+
+// BootstrapWithExistingCluster configures bootstrapping of an Etcd by joining
+// an existing (source) etcd cluster.
+//
+// When set, the source cluster's members are appended to the target's
+// initial-cluster configuration, and the source's client endpoints are passed
+// to backup-restore for member management. The source's serving certificates
+// must be signed by a certificate authority already trusted by the target's
+// ClientUrlTLS truststore; no separate source CA reference is supported.
+//
+// This field can only be set at creation time and cannot be added on update.
+// Clearing it after a successful join is reserved as the future trigger for
+// removing the source members from the joined cluster.
+type BootstrapWithExistingCluster struct {
+	// Members are the existing etcd members of the source cluster.
+	// A maximum of 10 members can be specified (constrained by CEL validation cost budget).
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=10
+	// +listType=atomic
+	Members []BootstrapExistingMember `json:"members"`
+	// ClientEndpoints are the client endpoints of the source cluster for member management.
+	// Must be valid HTTP or HTTPS URLs with scheme and host; port is optional
+	// (e.g., https://etcd-source-client.source-ns.svc:2379).
+	// A maximum of 10 client endpoints can be specified (constrained by CEL validation cost budget).
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=10
+	// +kubebuilder:validation:items:MaxLength=2048
+	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://etcd-source-client.source-ns.svc:2379)"
+	// +listType=set
+	ClientEndpoints []string `json:"clientEndpoints"`
+}
+
+// BootstrapJoinedMember describes a single source-cluster member that was
+// part of the existing cluster at the time the target finished bootstrapping.
+// It is only used inside EtcdStatus.BootstrapWithExistingCluster.Members.
+type BootstrapJoinedMember struct {
+	// Name is the source-cluster member's name.
+	// +required
+	Name string `json:"name"`
+	// PeerURLs are the source member's peer URLs, copied from
+	// spec.etcd.bootstrapWithExistingCluster.members at the time the
+	// snapshot was recorded.
+	// +required
+	// +listType=atomic
+	PeerURLs []string `json:"peerUrls"`
+}
+
+// BootstrapWithExistingClusterStatus is the snapshot etcd-druid records after
+// the target has successfully joined the existing cluster. It is written
+// exactly once, when the BootstrappedWithExistingCluster condition first
+// transitions to True, and is not updated thereafter.
+type BootstrapWithExistingClusterStatus struct {
+	// JoinedAt is the time at which the snapshot was recorded.
+	// +required
+	JoinedAt metav1.Time `json:"joinedAt"`
+	// Members are the source-cluster members observed at the time the
+	// snapshot was recorded.
+	// +required
+	// +listType=atomic
+	Members []BootstrapJoinedMember `json:"members"`
 }
 
 // SharedConfig defines parameters shared and used by Etcd as well as backup-restore sidecar.
@@ -492,6 +597,11 @@ const (
 	ConditionTypeDataVolumesReady ConditionType = "DataVolumesReady"
 	// ConditionTypeClusterIDMismatch is a constant for a condition type indicating that the etcd cluster has multiple cluster IDs.
 	ConditionTypeClusterIDMismatch ConditionType = "ClusterIDMismatch"
+	// ConditionTypeBootstrappedWithExistingCluster indicates the bootstrap join state
+	// of all members configured in spec.etcd.bootstrapWithExistingCluster. It transitions
+	// to True once the target has successfully joined the existing cluster and remains
+	// sticky-True thereafter, surviving transient member outages.
+	ConditionTypeBootstrappedWithExistingCluster ConditionType = "BootstrappedWithExistingCluster"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.
@@ -578,6 +688,11 @@ type EtcdStatus struct {
 	// It must match the pod template's labels.
 	// +optional
 	Selector *string `json:"selector,omitempty"`
+	// BootstrapWithExistingCluster is the snapshot of the source cluster the
+	// target joined. It is set once when the BootstrappedWithExistingCluster
+	// condition first transitions to True, and is not updated thereafter.
+	// +optional
+	BootstrapWithExistingCluster *BootstrapWithExistingClusterStatus `json:"bootstrapWithExistingCluster,omitempty"`
 }
 
 const (
