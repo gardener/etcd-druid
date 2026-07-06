@@ -15,6 +15,7 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -61,6 +62,80 @@ func namesOf(pods []corev1.Pod) []string {
 		names = append(names, pods[i].Name)
 	}
 	return names
+}
+
+func TestPodSetInFlightReason(t *testing.T) {
+	tests := []struct {
+		name               string
+		desiredReplicas    *int32
+		pods               []corev1.Pod
+		expectEmpty        bool
+		expectReasonSubstr string
+	}{
+		{
+			name:            "settled pod set -> empty reason",
+			desiredReplicas: ptr.To(int32(3)),
+			pods: []corev1.Pod{
+				*makeStsPod("p-0", testStsNamespace, testRevNew, true),
+				*makeStsPod("p-1", testStsNamespace, testRevNew, true),
+				*makeStsPod("p-2", testStsNamespace, testRevNew, true),
+			},
+			expectEmpty: true,
+		},
+		{
+			name:            "any terminating pod -> reason names the terminating pod",
+			desiredReplicas: ptr.To(int32(3)),
+			pods: []corev1.Pod{
+				*makeStsPod("p-0", testStsNamespace, testRevNew, true),
+				*withDeletionTimestamp(makeStsPod("p-1", testStsNamespace, testRevOld, false)),
+				*makeStsPod("p-2", testStsNamespace, testRevNew, true),
+			},
+			expectReasonSubstr: "p-1",
+		},
+		{
+			name:            "pod count below desired -> reason mentions counts",
+			desiredReplicas: ptr.To(int32(3)),
+			pods: []corev1.Pod{
+				*makeStsPod("p-0", testStsNamespace, testRevNew, true),
+			},
+			expectReasonSubstr: "below desired 3",
+		},
+		{
+			name:            "hibernation (desired=0) with no pods -> empty reason",
+			desiredReplicas: ptr.To(int32(0)),
+			pods:            nil,
+			expectEmpty:     true,
+		},
+		{
+			name:            "nil spec.replicas is treated as 0 -> empty reason for empty pod set",
+			desiredReplicas: nil,
+			pods:            nil,
+			expectEmpty:     true,
+		},
+		{
+			name:            "terminating check runs before count check",
+			desiredReplicas: ptr.To(int32(3)),
+			pods: []corev1.Pod{
+				*withDeletionTimestamp(makeStsPod("p-terminating", testStsNamespace, testRevOld, false)),
+			},
+			expectReasonSubstr: "p-terminating",
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sts := &appsv1.StatefulSet{Spec: appsv1.StatefulSetSpec{Replicas: tc.desiredReplicas}}
+			reason := podSetInFlightReason(sts, tc.pods)
+			if tc.expectEmpty {
+				g.Expect(reason).To(BeEmpty())
+			} else {
+				g.Expect(reason).To(ContainSubstring(tc.expectReasonSubstr))
+			}
+		})
+	}
 }
 
 func TestSelectNonParticipatingOutdated(t *testing.T) {
@@ -427,10 +502,10 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{}))).To(BeTrue())
 	})
 
-	t.Run("Terminating outdated pod holds Step 3, no delete this cycle", func(t *testing.T) {
+	t.Run("Terminating outdated pod holds the top gate, no delete this cycle", func(t *testing.T) {
 		g := NewWithT(t)
-		// A prior cycle deleted p2; it is still terminating. The gate must hold
-		// until the STS controller recreates it at the new revision.
+		// A prior cycle deleted p2; it is still terminating. The top gate must
+		// hold until the STS controller recreates it at the new revision.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
 		p2 := withDeletionTimestamp(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false))
@@ -445,17 +520,15 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("Fresh rollout: second reconcile holds Step 3 while first delete is in flight", func(t *testing.T) {
+	t.Run("Fresh rollout: second reconcile is held by the top gate while first delete is in flight", func(t *testing.T) {
 		g := NewWithT(t)
-		// Regression against a bug where Step 3 would not hold on a fresh rollout
-		// (no pods yet at target revision), letting successive fast reconciles
-		// delete multiple participating pods back-to-back.
+		// Regression against a bug where the reconciler would delete multiple
+		// participating pods back-to-back on a fresh rollout because Step 3's
+		// gate was vacuous (empty `current`). The top gate catches the
+		// terminating pod from the prior cycle and holds.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
-		// Simulate the state a second reconcile would see immediately after a
-		// prior cycle deleted p0: cache shows p0 with DeletionTimestamp set,
-		// STS controller has not yet recreated it.
 		p0Terminating := withDeletionTimestamp(p0.DeepCopy())
 
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(
@@ -469,9 +542,30 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0Terminating, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// p1 and p2 must not be deleted while p0 is still terminating.
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{})).To(Succeed())
+	})
+
+	t.Run("Step 2 fires even when Step 3 would hold (Dead outdated pod is quorum-safe to delete)", func(t *testing.T) {
+		g := NewWithT(t)
+		// Per DEP-07: Step 2 is safe regardless of quorum state — a
+		// non-participating pod contributes nothing. Step 3's gate must NOT
+		// prevent Step 2 from firing.
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, false) // current, NOT participating (Step 3 would hold)
+		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)  // outdated participating
+		p2 := withContainerState(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false),
+			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}) // outdated Dead
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard()}
+
+		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(requeued(result)).To(BeTrue())
+		// Dead outdated pod IS deleted despite the unready current-revision pod.
+		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{}))).To(BeTrue())
+		// p0 and p1 are untouched.
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
 	})
 
 	t.Run("At most one Delete per invocation (Step 2)", func(t *testing.T) {

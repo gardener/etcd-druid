@@ -9,11 +9,14 @@ import (
 	"maps"
 	"testing"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
+	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +27,39 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestNewReconciler_DefaultsNilConcurrentSyncs(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         druidconfigv1alpha1.OnDeleteControllerConfiguration
+		expectedSyncs int
+	}{
+		{
+			name:          "nil ConcurrentSyncs is defaulted",
+			input:         druidconfigv1alpha1.OnDeleteControllerConfiguration{},
+			expectedSyncs: druidconfigv1alpha1.DefaultOnDeleteControllerConcurrentSyncs,
+		},
+		{
+			name:          "explicit ConcurrentSyncs is preserved",
+			input:         druidconfigv1alpha1.OnDeleteControllerConfiguration{ConcurrentSyncs: ptr.To(7)},
+			expectedSyncs: 7,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			mockCtrl := gomock.NewController(t)
+			mgr := mockmanager.NewMockManager(mockCtrl)
+			mgr.EXPECT().GetClient().AnyTimes().Return(testutils.NewTestClientBuilder().Build())
+
+			r := NewReconciler(mgr, tc.input)
+			g.Expect(r).ToNot(BeNil())
+			g.Expect(r.config.ConcurrentSyncs).ToNot(BeNil())
+			g.Expect(*r.config.ConcurrentSyncs).To(Equal(tc.expectedSyncs))
+		})
+	}
+}
 
 func TestReconcile_BailsOut(t *testing.T) {
 	ctx := context.Background()
