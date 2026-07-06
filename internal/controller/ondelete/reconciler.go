@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package ondelete implements the controller that drives quorum-aware pod updates
-// for StatefulSets on the OnDelete update strategy. See DEP-07.
+// for StatefulSets on the OnDelete update strategy. See DEP-07:https://github.com/gardener/etcd-druid/blob/master/docs/proposals/07-quorum-aware-pod-updates.md
 package ondelete
 
 import (
@@ -21,21 +21,19 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-// Reconciler drives the OnDelete pod-update procedure on watched StatefulSets.
-// It is stateless: every invocation re-derives the rollout state from the cluster.
+// Reconciler performs the OnDelete pod-update procedure on watched StatefulSets.
 type Reconciler struct {
 	client client.Client
 	config druidconfigv1alpha1.OnDeleteControllerConfiguration
 	logger logr.Logger
 }
 
-// NewReconciler constructs a Reconciler for the OnDelete controller. It defaults
-// a nil ConcurrentSyncs so a hand-built OperatorConfiguration (unit test, or the
-// window before `cd api && make generate` runs) does not nil-deref later.
+// NewReconciler constructs a Reconciler for the OnDelete controller.
 func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteControllerConfiguration) *Reconciler {
 	if config.ConcurrentSyncs == nil {
 		config.ConcurrentSyncs = ptr.To(druidconfigv1alpha1.DefaultOnDeleteControllerConcurrentSyncs)
@@ -52,10 +50,9 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteContr
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch
 
-// Reconcile drives one iteration of DEP-07 Pod Update Procedure. At most one
-// pod is deleted per invocation.
+// Reconcile reconciles to perform the pod update procedure.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("statefulSet", req.NamespacedName)
+	logger := r.logger.WithValues("sts", req.NamespacedName, "runID", string(controller.ReconcileIDFromContext(ctx)))
 
 	sts := &appsv1.StatefulSet{}
 	if err := r.client.Get(ctx, req.NamespacedName, sts); err != nil {
@@ -65,7 +62,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to get StatefulSet %s: %w", req.NamespacedName, err)
 	}
 
-	// Defence in depth against a stale-cache race with a strategy flip back to RollingUpdate.
+	// Additional defence in depth against any stale cache results.
 	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
 		return ctrl.Result{}, nil
 	}
@@ -88,7 +85,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.executePodUpdateProcedure(ctx, logger, sts, etcd, pods)
 }
 
-// getOwningEtcd returns the Etcd controller-owner of sts, or (nil, nil) if none.
+// getOwningEtcd returns the Etcd controller-owner of sts
 func (r *Reconciler) getOwningEtcd(ctx context.Context, sts *appsv1.StatefulSet) (*druidv1alpha1.Etcd, error) {
 	etcdKind := druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind
 	var ownerName string
@@ -117,15 +114,15 @@ func (r *Reconciler) listStsPods(ctx context.Context, sts *appsv1.StatefulSet) (
 	if sts.Spec.Selector == nil {
 		return nil, fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
 	}
-	sel, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
+	selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse statefulSet %s/%s spec.selector: %w", sts.Namespace, sts.Name, err)
 	}
-	if sel.Empty() {
+	if selector.Empty() {
 		return nil, fmt.Errorf("statefulSet %s/%s spec.selector matched everything; refusing to list", sts.Namespace, sts.Name)
 	}
 	list := &corev1.PodList{}
-	if err := r.client.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: sel}); err != nil {
+	if err := r.client.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: selector}); err != nil {
 		return nil, fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
 	}
 	return list.Items, nil

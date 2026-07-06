@@ -96,19 +96,24 @@ func TestReconcile_DrivesProcedureWhenEligible(t *testing.T) {
 
 	sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
 	etcd := etcdFixture()
-	// One outdated non-participating pod so Step 2 fires a deletion.
-	pod := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, false)
-	// Give the pod the STS label so listStsPods finds it.
-	maps.Copy(pod.Labels, sts.Spec.Selector.MatchLabels)
-	cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts, etcd, pod).Build()
+
+	// All three replicas present: p0 is outdated and non-participating (Step 2
+	// target), p1 and p2 are current-revision and participating.
+	p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, false)
+	p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
+	p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevNew, true)
+	for _, p := range []*corev1.Pod{p0, p1, p2} {
+		maps.Copy(p.Labels, sts.Spec.Selector.MatchLabels)
+	}
+	cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts, etcd, p0, p1, p2).Build()
 	r := &Reconciler{client: cl, logger: logr.Discard()}
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}})
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(result.Requeue).To(BeTrue())
+	g.Expect(result.Requeue || result.RequeueAfter > 0).To(BeTrue())
 
-	// Pod deleted from the fake client.
-	err = cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{})
+	// p0 deleted from the fake client.
+	err = cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})
 	g.Expect(err).To(HaveOccurred())
 }
 

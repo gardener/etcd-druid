@@ -6,6 +6,7 @@ package ondelete
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -19,6 +20,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -45,10 +47,20 @@ func TestPartitionByRevision(t *testing.T) {
 	pods := []corev1.Pod{*current1, *current2, *outdated, *terminatingOutdated, *terminatingCurrent}
 	outdatedGot, currentGot := partitionByRevision(pods, sts)
 
-	g.Expect(outdatedGot).To(HaveLen(1))
-	g.Expect(outdatedGot[0].Name).To(Equal(outdated.Name))
-	g.Expect(currentGot).To(HaveLen(2))
-	g.Expect([]string{currentGot[0].Name, currentGot[1].Name}).To(ConsistOf(current1.Name, current2.Name))
+	// partitionByRevision classifies strictly by controller-revision-hash;
+	// terminating pods are included in whichever partition they belong to.
+	// Callers apply their own DeletionTimestamp policy.
+	g.Expect(namesOf(outdatedGot)).To(ConsistOf(outdated.Name, terminatingOutdated.Name))
+	g.Expect(namesOf(currentGot)).To(ConsistOf(current1.Name, current2.Name, terminatingCurrent.Name))
+}
+
+// namesOf returns the names of the given pods (test-side helper).
+func namesOf(pods []corev1.Pod) []string {
+	names := make([]string, 0, len(pods))
+	for i := range pods {
+		names = append(names, pods[i].Name)
+	}
+	return names
 }
 
 func TestSelectNonParticipatingOutdated(t *testing.T) {
@@ -116,7 +128,7 @@ func TestSelectNonParticipatingOutdated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			pods := tc.buildPods()
-			got := selectNonParticipatingOutdated(pods)
+			got, _ := selectNonParticipatingOutdated(logr.Discard(), pods)
 			if tc.expectedName == "" {
 				g.Expect(got).To(BeNil())
 			} else {
@@ -127,27 +139,36 @@ func TestSelectNonParticipatingOutdated(t *testing.T) {
 	}
 }
 
-func TestFirstNonParticipatingCurrent(t *testing.T) {
+func TestUnreadyUpdatedPodNames(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 
-	t.Run("all participating -> nil", func(t *testing.T) {
+	t.Run("all participating -> empty", func(t *testing.T) {
 		pods := []corev1.Pod{
 			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-1", testStsNamespace, testRevNew, true),
 		}
-		g.Expect(firstNonParticipatingCurrent(pods)).To(BeNil())
+		g.Expect(unreadyUpdatedPodNames(pods)).To(BeEmpty())
 	})
 
-	t.Run("returns the first non-participating pod", func(t *testing.T) {
+	t.Run("returns the single non-participating pod's name", func(t *testing.T) {
+		pods := []corev1.Pod{
+			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
+			*makeStsPod("p-1", testStsNamespace, testRevNew, false),
+			*makeStsPod("p-2", testStsNamespace, testRevNew, true),
+		}
+		g.Expect(unreadyUpdatedPodNames(pods)).To(ConsistOf("p-1"))
+	})
+
+	t.Run("returns all non-participating pod names, preserving list order", func(t *testing.T) {
 		pods := []corev1.Pod{
 			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-1", testStsNamespace, testRevNew, false),
 			*makeStsPod("p-2", testStsNamespace, testRevNew, false),
+			*makeStsPod("p-3", testStsNamespace, testRevNew, true),
+			*makeStsPod("p-4", testStsNamespace, testRevNew, false),
 		}
-		got := firstNonParticipatingCurrent(pods)
-		g.Expect(got).ToNot(BeNil())
-		g.Expect(got.Name).To(Equal("p-1"))
+		g.Expect(unreadyUpdatedPodNames(pods)).To(Equal([]string{"p-1", "p-2", "p-4"}))
 	})
 }
 
@@ -158,17 +179,23 @@ func TestSelectParticipatingOutdated(t *testing.T) {
 		g := NewWithT(t)
 		r := &Reconciler{logger: logr.Discard()}
 		etcd := &druidv1alpha1.Etcd{Spec: druidv1alpha1.EtcdSpec{Replicas: 3}}
-		got, err := r.selectParticipatingOutdated(ctx, etcd, nil)
+		got, _, err := r.selectParticipatingOutdated(ctx, logr.Discard(), etcd, nil)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(got).To(BeNil())
 	})
 
-	t.Run("single-node shortcut returns the sole outdated pod", func(t *testing.T) {
+	t.Run("single-node cluster: general path returns the sole outdated pod", func(t *testing.T) {
 		g := NewWithT(t)
-		r := &Reconciler{logger: logr.Discard()}
-		etcd := &druidv1alpha1.Etcd{Spec: druidv1alpha1.EtcdSpec{Replicas: 1}}
+		etcd := &druidv1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
+			Spec:       druidv1alpha1.EtcdSpec{Replicas: 1},
+		}
 		pod := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
-		got, err := r.selectParticipatingOutdated(ctx, etcd, []corev1.Pod{*pod})
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(
+			leaseFor(pod.Name, testStsNamespace, "id-0:cid:Leader"),
+		).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard()}
+		got, _, err := r.selectParticipatingOutdated(ctx, logr.Discard(), etcd, []corev1.Pod{*pod})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(got).ToNot(BeNil())
 		g.Expect(got.Name).To(Equal(pod.Name))
@@ -190,7 +217,7 @@ func TestSelectParticipatingOutdated(t *testing.T) {
 		).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		got, err := r.selectParticipatingOutdated(ctx, etcd, []corev1.Pod{*p1, *p0, *p2})
+		got, _, err := r.selectParticipatingOutdated(ctx, logr.Discard(), etcd, []corev1.Pod{*p1, *p0, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(got).ToNot(BeNil())
 		g.Expect(got.Name).ToNot(Equal(p1.Name)) // must not be the leader
@@ -208,7 +235,7 @@ func TestSelectParticipatingOutdated(t *testing.T) {
 			leaseFor(p.Name, testStsNamespace, "id-0:cid:Leader"),
 		).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
-		got, err := r.selectParticipatingOutdated(ctx, etcd, []corev1.Pod{*p})
+		got, _, err := r.selectParticipatingOutdated(ctx, logr.Discard(), etcd, []corev1.Pod{*p})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(got).ToNot(BeNil())
 		g.Expect(got.Name).To(Equal(p.Name))
@@ -228,10 +255,35 @@ func TestSelectParticipatingOutdated(t *testing.T) {
 			leaseFor(p1.Name, testStsNamespace, "id-1:cid:Leader"),
 		).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
-		got, err := r.selectParticipatingOutdated(ctx, etcd, []corev1.Pod{*p0, *p1})
+		got, _, err := r.selectParticipatingOutdated(ctx, logr.Discard(), etcd, []corev1.Pod{*p0, *p1})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(got).ToNot(BeNil())
 		g.Expect(got.Name).To(Equal(p0.Name))
+	})
+
+	t.Run("five-replica cluster: still picks one follower before the leader", func(t *testing.T) {
+		g := NewWithT(t)
+		etcd := &druidv1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
+			Spec:       druidv1alpha1.EtcdSpec{Replicas: 5},
+		}
+		pods := make([]corev1.Pod, 0, 5)
+		objs := make([]client.Object, 0, 5)
+		for i := 0; i < 5; i++ {
+			p := makeStsPod(fmt.Sprintf("%s-%d", testStsName, i), testStsNamespace, testRevOld, true)
+			pods = append(pods, *p)
+			role := "Member"
+			if i == 2 {
+				role = "Leader"
+			}
+			objs = append(objs, leaseFor(p.Name, testStsNamespace, fmt.Sprintf("id-%d:cid:%s", i, role)))
+		}
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard()}
+		got, _, err := r.selectParticipatingOutdated(ctx, logr.Discard(), etcd, pods)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(got).ToNot(BeNil())
+		g.Expect(got.Name).ToNot(Equal(pods[2].Name)) // never the leader
 	})
 }
 
@@ -244,9 +296,9 @@ func TestDeleteSelected(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(pod).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		result, err := r.deleteSelected(ctx, logr.Discard(), pod, "Step2:test")
+		result, err := r.deleteSelected(ctx, logr.Discard(), pod)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{})).To(Succeed())
 	})
 
@@ -255,9 +307,9 @@ func TestDeleteSelected(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(pod).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		result, err := r.deleteSelected(ctx, logr.Discard(), pod, "Step4:test")
+		result, err := r.deleteSelected(ctx, logr.Discard(), pod)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 		// Pod should be gone from the fake client.
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{}))).To(BeTrue())
 	})
@@ -267,9 +319,9 @@ func TestDeleteSelected(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build() // pod not present
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		result, err := r.deleteSelected(ctx, logr.Discard(), pod, "Step2:test")
+		result, err := r.deleteSelected(ctx, logr.Discard(), pod)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 	})
 }
 
@@ -292,7 +344,7 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(requeued(result)).To(BeFalse())
 		// Verify no pods were deleted.
 		for _, p := range []*corev1.Pod{p0, p1, p2} {
 			g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})).To(Succeed())
@@ -310,7 +362,7 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 		// Dead outdated pod should be gone.
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{}))).To(BeTrue())
 		// Others still present.
@@ -327,7 +379,7 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1})
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 		// No pod deleted.
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
@@ -348,7 +400,7 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 		// Leader must still be present.
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
 		// Exactly one follower is gone.
@@ -371,15 +423,14 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), singleSts, singleEtcd, []corev1.Pod{*p})
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeTrue())
+		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{}))).To(BeTrue())
 	})
 
-	t.Run("Terminating outdated pod does not count toward selection", func(t *testing.T) {
+	t.Run("Terminating outdated pod holds Step 3, no delete this cycle", func(t *testing.T) {
 		g := NewWithT(t)
-		// All pods at target revision except one that is already terminating (its
-		// replacement will land at target revision on recreate). Nothing should be
-		// deleted; the reconciler considers the rollout complete.
+		// A prior cycle deleted p2; it is still terminating. The gate must hold
+		// until the STS controller recreates it at the new revision.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
 		p2 := withDeletionTimestamp(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false))
@@ -388,7 +439,39 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(result.Requeue).To(BeFalse())
+		g.Expect(requeued(result)).To(BeTrue())
+		// No pod deleted this cycle.
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
+	})
+
+	t.Run("Fresh rollout: second reconcile holds Step 3 while first delete is in flight", func(t *testing.T) {
+		g := NewWithT(t)
+		// Regression against a bug where Step 3 would not hold on a fresh rollout
+		// (no pods yet at target revision), letting successive fast reconciles
+		// delete multiple participating pods back-to-back.
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
+		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
+		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
+		// Simulate the state a second reconcile would see immediately after a
+		// prior cycle deleted p0: cache shows p0 with DeletionTimestamp set,
+		// STS controller has not yet recreated it.
+		p0Terminating := withDeletionTimestamp(p0.DeepCopy())
+
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(
+			p0Terminating, p1, p2,
+			leaseFor(p0.Name, testStsNamespace, "id-0:cid:Member"),
+			leaseFor(p1.Name, testStsNamespace, "id-1:cid:Leader"),
+			leaseFor(p2.Name, testStsNamespace, "id-2:cid:Member"),
+		).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard()}
+
+		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0Terminating, *p1, *p2})
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(requeued(result)).To(BeTrue())
+		// p1 and p2 must not be deleted while p0 is still terminating.
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{})).To(Succeed())
 	})
 
 	t.Run("At most one Delete per invocation (Step 2)", func(t *testing.T) {
@@ -397,22 +480,82 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}})
 		p1 := withContainerState(makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, false),
 			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}})
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1).Build()
+		p2 := withContainerState(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false),
+			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}})
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		_, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1})
+		_, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())
 
-		g0 := cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})
-		g1 := cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})
 		deleted := 0
-		if apierrors.IsNotFound(g0) {
-			deleted++
-		}
-		if apierrors.IsNotFound(g1) {
-			deleted++
+		for _, p := range []*corev1.Pod{p0, p1, p2} {
+			if apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})) {
+				deleted++
+			}
 		}
 		g.Expect(deleted).To(Equal(1))
+	})
+
+	t.Run("Scale-up in progress: top gate holds until pod count matches desired", func(t *testing.T) {
+		g := NewWithT(t)
+		// STS was just scaled 1 -> 3 with a template change; only p0 exists so
+		// far and it's on the old revision. Deleting p0 now would drop
+		// participation to zero. The top gate must hold.
+		threeSts := stsFixture(testStsName, testStsNamespace, testRevNew, 3)
+		threeEtcd := &druidv1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
+			Spec:       druidv1alpha1.EtcdSpec{Replicas: 3},
+		}
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard()}
+
+		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), threeSts, threeEtcd, []corev1.Pod{*p0})
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(requeued(result)).To(BeTrue())
+		// p0 must NOT be deleted while p1/p2 have not yet been created.
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
+	})
+
+	t.Run("Five-replica cluster: still deletes exactly one follower per invocation", func(t *testing.T) {
+		g := NewWithT(t)
+		fiveEtcd := &druidv1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
+			Spec:       druidv1alpha1.EtcdSpec{Replicas: 5},
+		}
+		fiveSts := stsFixture(testStsName, testStsNamespace, testRevNew, 5)
+		pods := make([]corev1.Pod, 0, 5)
+		objs := make([]client.Object, 0, 5)
+		for i := 0; i < 5; i++ {
+			p := makeStsPod(fmt.Sprintf("%s-%d", testStsName, i), testStsNamespace, testRevOld, true)
+			pods = append(pods, *p)
+			objs = append(objs, p)
+			role := "Member"
+			if i == 2 {
+				role = "Leader"
+			}
+			objs = append(objs, leaseFor(p.Name, testStsNamespace, fmt.Sprintf("id-%d:cid:%s", i, role)))
+		}
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard()}
+
+		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), fiveSts, fiveEtcd, pods)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(requeued(result)).To(BeTrue())
+
+		leader := &pods[2]
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(leader), &corev1.Pod{})).To(Succeed()) // leader untouched
+		deleted := 0
+		for i, p := range pods {
+			if i == 2 {
+				continue
+			}
+			if apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(&p), &corev1.Pod{})) {
+				deleted++
+			}
+		}
+		g.Expect(deleted).To(Equal(1)) // exactly one follower deleted
 	})
 }
 
@@ -422,6 +565,12 @@ func leaseFor(name, namespace, holderIdentity string) *coordinationv1.Lease {
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Spec:       coordinationv1.LeaseSpec{HolderIdentity: ptr.To(holderIdentity)},
 	}
+}
+
+// requeued reports whether the given result will cause controller-runtime to
+// re-run Reconcile (either via Requeue or a positive RequeueAfter).
+func requeued(result ctrl.Result) bool {
+	return result.Requeue || result.RequeueAfter > 0
 }
 
 // silence "imported and not used" if common ever unused after refactors

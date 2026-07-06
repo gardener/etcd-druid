@@ -10,8 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// containerState buckets the etcd container's runtime state for Step 2
-// sub-priority in DEP-07 Pod Update Procedure.
+// containerState classifies the etcd container's runtime state into buckets for step 2 of the pod update procedure relies on the sub-priorities.
 type containerState int
 
 const (
@@ -34,9 +33,7 @@ var waitingReasonsTransient = map[string]struct{}{
 	"PodInitializing":   {},
 }
 
-// classifyEtcdContainer buckets the etcd container's state per DEP-07
-// Health Assessment. The backup-restore sidecar is ignored: its health
-// does not affect quorum.
+// classifyEtcdContainer classifies the etcd container's state as per the health assessment done in docs/proposals/07-quorum-aware-pod-updates.md.
 func classifyEtcdContainer(pod *corev1.Pod) containerState {
 	status := findEtcdContainerStatus(pod)
 	if status == nil {
@@ -53,7 +50,7 @@ func classifyEtcdContainer(pod *corev1.Pod) containerState {
 		if _, ok := waitingReasonsTransient[reason]; ok {
 			return containerStateTransient
 		}
-		// Unrecognised Waiting reason: err on the side of "still coming up".
+		// Unrecognised Waiting reason: marking transiet to be on the side of "still coming up".
 		return containerStateTransient
 	}
 	if status.State.Running != nil {
@@ -62,11 +59,7 @@ func classifyEtcdContainer(pod *corev1.Pod) containerState {
 	return containerStateUnknown
 }
 
-// isParticipating reports whether the etcd container is contributing to quorum,
-// via its Ready field (its /readyz probe requires a linearizable read).
-// Pod-level readiness is intentionally avoided: it also folds in the
-// backup-restore sidecar, which is unrelated to quorum. Learners fail /readyz
-// and therefore land here as non-participating without special handling.
+// isParticipating reports whether the etcd container is contributing to quorum or not using its Ready field which is a linearizable call.
 func isParticipating(pod *corev1.Pod) bool {
 	status := findEtcdContainerStatus(pod)
 	if status == nil {

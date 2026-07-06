@@ -17,9 +17,7 @@ import (
 
 const controllerName = "ondelete-controller"
 
-// RegisterWithManager wires the OnDelete controller: it watches StatefulSets
-// filtered by onDeleteStrategy() and updateRevisionChanged(), and their owned
-// Pods so that pod-lifecycle transitions re-enqueue the parent StatefulSet.
+// RegisterWithManager registers the OnDelete controller with the given controller manager.
 func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 	return ctrl.
 		NewControllerManagedBy(mgr).
@@ -59,7 +57,7 @@ func onDeleteStrategy() predicate.Predicate {
 
 // updateRevisionChanged accepts every Create (so restarts pick up mid-rollouts
 // via artificial Create events on cache warmup) and Updates that change either
-// updateRevision or the strategy type. Status-only churn is filtered out.
+// updateRevision or the strategy type.
 func updateRevisionChanged() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(_ event.CreateEvent) bool { return true },
