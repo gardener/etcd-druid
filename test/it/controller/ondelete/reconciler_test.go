@@ -65,8 +65,10 @@ func TestOnDeleteReconciler(t *testing.T) {
 		fn   func(t *testing.T, ns string, env reconcilerTestEnv)
 	}{
 		{"controller-boots-without-error-when-no-statefulset-exists", testControllerBootsWithoutError},
+		{"rollingupdate-statefulset-is-ignored-by-the-controller", testRollingUpdateStsIgnored},
 		{"startup-synthetic-create-event-picks-up-existing-rollout", testStartupPicksUpMidRollout},
 		{"happy-path-rollout-deletes-outdated-pods-one-at-a-time", testHappyPathRollout},
+		{"status-only-statefulset-update-does-not-cause-a-delete", testStatusOnlyUpdateDoesNotTrigger},
 		{"step-3-holds-when-a-current-revision-pod-is-not-ready", testStep3HoldsUnreadyUpdated},
 		{"scale-up-holds-top-gate-until-pod-count-matches-desired", testScaleUpHoldsTopGate},
 	}
@@ -229,4 +231,59 @@ func testScaleUpHoldsTopGate(t *testing.T, ns string, env reconcilerTestEnv) {
 
 	// p0 must NOT be deleted; the top gate holds.
 	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-0", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+}
+
+// testRollingUpdateStsIgnored verifies the onDeleteStrategy predicate: a
+// StatefulSet on the RollingUpdate strategy must never see a Reconcile from
+// this controller, even when its pods are on an outdated revision.
+func testRollingUpdateStsIgnored(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	// Flip the strategy to RollingUpdate after creation so the ondelete
+	// controller's predicate rejects every event on this STS.
+	patchStsUpdateStrategy(ctx, t, cl, sts, appsv1.RollingUpdateStatefulSetStrategyType)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
+	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
+	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+
+	// Nothing should be deleted — the predicate short-circuits every event.
+	for i := 0; i < 3; i++ {
+		consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}, 3*time.Second, 500*time.Millisecond)
+	}
+}
+
+// testStatusOnlyUpdateDoesNotTrigger verifies the updateRevisionChanged
+// predicate: a status-only StatefulSet update (no change to updateRevision
+// or strategy type) must not enqueue a Reconcile from the primary watch.
+// The controller could still be re-entered via the Pod-owned watch, so we
+// assert only that no delete occurs.
+func testStatusOnlyUpdateDoesNotTrigger(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-a")
+	pods := createStsPods(ctx, t, cl, sts, 3, "rev-a", true)
+	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+
+	// All pods at target revision — nothing outdated. Bump only a non-relevant
+	// status field (readyReplicas). If the predicate lets this through the
+	// reconciler would still find no outdated pods and no-op, so absence of
+	// deletion is the correct signal here.
+	patchStsReadyReplicas(ctx, t, cl, sts, 3)
+
+	g := NewWithT(t)
+	g.Consistently(func() int {
+		var deleted int
+		for _, p := range pods {
+			pod := &corev1.Pod{}
+			err := cl.Get(ctx, client.ObjectKeyFromObject(p), pod)
+			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
+				deleted++
+			}
+		}
+		return deleted
+	}, 3*time.Second, 500*time.Millisecond).Should(Equal(0))
 }

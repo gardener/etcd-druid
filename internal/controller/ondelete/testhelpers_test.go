@@ -10,7 +10,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 )
 
@@ -73,11 +72,6 @@ func withDeletionTimestamp(pod *corev1.Pod) *corev1.Pod {
 	pod.DeletionTimestamp = &now
 	pod.Finalizers = []string{"kubernetes"}
 	return pod
-}
-
-// stsRef builds a NamespacedName pointing at an sts of the given name.
-func stsRef(name, namespace string) types.NamespacedName {
-	return types.NamespacedName{Name: name, Namespace: namespace}
 }
 
 // getStsLabels returns the label set the ondelete tests use for both STS

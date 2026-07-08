@@ -117,6 +117,36 @@ func setStsUpdateRevision(ctx context.Context, t *testing.T, cl client.Client, s
 	}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 }
 
+// patchStsUpdateStrategy patches sts.Spec.UpdateStrategy.Type. Used by the
+// RollingUpdate-ignored scenario to exercise the onDeleteStrategy predicate.
+func patchStsUpdateStrategy(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, strategy appsv1.StatefulSetUpdateStrategyType) {
+	g := NewWithT(t)
+	g.Eventually(func() error {
+		current := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(sts), current); err != nil {
+			return err
+		}
+		patch := current.DeepCopy()
+		patch.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: strategy}
+		return cl.Patch(ctx, patch, client.MergeFrom(current))
+	}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
+}
+
+// patchStsReadyReplicas bumps sts.Status.ReadyReplicas. Used by the
+// status-only-update scenario to exercise the updateRevisionChanged predicate.
+func patchStsReadyReplicas(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, ready int32) {
+	g := NewWithT(t)
+	g.Eventually(func() error {
+		current := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(sts), current); err != nil {
+			return err
+		}
+		patch := current.DeepCopy()
+		patch.Status.ReadyReplicas = ready
+		return cl.Status().Patch(ctx, patch, client.MergeFrom(current))
+	}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
+}
+
 // createStsPods creates `count` pods labelled to match the StatefulSet's
 // selector and carrying the given controller-revision-hash. Each pod is set to
 // Ready via a status patch, so isParticipating(pod) returns true.
@@ -234,23 +264,6 @@ func createMemberLeases(ctx context.Context, t *testing.T, cl client.Client, nam
 // common test scenario where any pod chosen for deletion should be a follower.
 func followerFor(_ int) druidv1alpha1.EtcdRole { return druidv1alpha1.EtcdRoleMember }
 
-// eventuallyPodDeleted waits until the pod either has a DeletionTimestamp set
-// or is fully absent from the API server.
-func eventuallyPodDeleted(ctx context.Context, t *testing.T, cl client.Client, key types.NamespacedName, timeout, poll time.Duration) {
-	g := NewWithT(t)
-	g.Eventually(func() bool {
-		pod := &corev1.Pod{}
-		err := cl.Get(ctx, key, pod)
-		if apierrorsNotFound(err) {
-			return true
-		}
-		if err != nil {
-			return false
-		}
-		return pod.DeletionTimestamp != nil
-	}, timeout, poll).Should(BeTrue())
-}
-
 // consistentlyPodNotDeleted asserts that within the window the pod is neither
 // terminating nor gone. Used to prove the reconciler is holding.
 func consistentlyPodNotDeleted(ctx context.Context, t *testing.T, cl client.Client, key types.NamespacedName, window, poll time.Duration) {
@@ -265,7 +278,7 @@ func consistentlyPodNotDeleted(ctx context.Context, t *testing.T, cl client.Clie
 	}, window, poll).Should(BeTrue())
 }
 
-// apiErrorsNotFound is a small adapter so eventuallyPodDeleted stays legible.
+// apierrorsNotFound reports whether the given error is a NotFound status error.
 func apierrorsNotFound(err error) bool {
 	return err != nil && client.IgnoreNotFound(err) == nil
 }
