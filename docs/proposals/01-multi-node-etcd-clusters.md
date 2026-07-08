@@ -66,7 +66,7 @@ The problem domain is larger including the following.
 
 ### Dynamic multi-node etcd cluster
 
-Though it is [not part of this proposal](#non-goal), it is conceivable to convert a single-node etcd cluster into a multi-node etcd cluster temporarily to perform some disruptive operation (etcd, `etcd-backup-restore` or `etcd-druid` updates, etcd cluster vertical scaling and perhaps even node rollout) and convert it back to a single-node etcd cluster once the disruptive operation has been completed. This will necessarily still involve a down-time because scaling from a single-node etcd cluster to a three-node etcd cluster will involve etcd pod restarts, it is still probable that it can be managed with a shorter down time than we see at present for single-node etcd clusters (on the other hand, converting a three-node etcd cluster to five node etcd cluster can be non-disruptive).
+Though it is not part of this proposal, it is conceivable to convert a single-node etcd cluster into a multi-node etcd cluster temporarily to perform some disruptive operation (etcd, `etcd-backup-restore` or `etcd-druid` updates, etcd cluster vertical scaling and perhaps even node rollout) and convert it back to a single-node etcd cluster once the disruptive operation has been completed. This will necessarily still involve a down-time because scaling from a single-node etcd cluster to a three-node etcd cluster will involve etcd pod restarts, it is still probable that it can be managed with a shorter down time than we see at present for single-node etcd clusters (on the other hand, converting a three-node etcd cluster to five node etcd cluster can be non-disruptive).
 
 This is _definitely not_ to argue in favour of such a dynamic approach in all cases (eventually, if/when dynamic multi-node etcd clusters are supported). On the contrary, it makes sense to make use of _static_ (fixed in size) multi-node etcd clusters for production scenarios because of the high-availability.
 
@@ -199,7 +199,7 @@ Hence, if incremental snapshots are required to be applied, the etcd cluster mus
 
 ![Component diagram](assets/01-multi-node-etcd.png)
 
-This approach makes it possible to satisfy the [assumption](#assumption) that the DNS for the individual members of the etcd cluster must be known/computable.
+This approach makes it possible to satisfy the [assumption](#assumptions) that the DNS for the individual members of the etcd cluster must be known/computable.
 This can be achieved by using a `headless` service (along with the statefulset) for each etcd cluster instance.
 Then we can address individual pods/etcd members via the predictable DNS name of `<statefulset_name>-{0|1|2|3|…|n}.<headless_service_name>` from within the Kubernetes namespace (or from outside the Kubernetes namespace by appending `.<namespace>.svc.<cluster_domain> suffix)`.
 The etcd-druid controller can compute the above configurations automatically based on the `spec.replicas` in the etcd resource. 
@@ -1219,7 +1219,7 @@ This can be further optimized in the future to handle the cases where rolling up
 
 ### Ephemeral Volumes
 
-See section _[Ephemeral Volumes](#Ephemeral_Volumes)_.
+See section _[Ephemeral Volumes](#ephemeral-volumes)_.
 
 ### Shoot Control-Plane Migration
 
@@ -1238,7 +1238,7 @@ There are already metrics exported by etcd and `etcd-backup-restore` which are v
 These might have hidden assumptions about single-node etcd clusters.
 These might need to be enhanced and potentially new metrics, dashboards and alerts configured to cover the multi-node etcd cluster scenario.
 
-Especially, a high priority alert must be raised if `BackupReady` [condition](#condition) becomes [`false`](#backup-failure).
+Especially, a high priority alert must be raised if `BackupReady` [condition](#conditions) becomes [`false`](#backup-failure).
 
 ### Costs
 

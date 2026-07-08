@@ -54,7 +54,7 @@ Record:
 > [!IMPORTANT]
 > The `PEER ADDRS` shown above are same-network examples. If source and target run in different network domains, replace them with peer URLs that the source cluster advertises and the target can dial.
 >
-> For an etcd-druid managed source, configure [`.spec.etcd.additionalAdvertisePeerURLs`](docs/usage/using-additional-advertise-peer-urls.md) on the source if extra reachable peer URLs are needed. For an externally managed source, prepare the advertised peer URLs outside etcd-druid. The target spec must use the source member names and peer URLs as advertised by the source member list.
+> For an etcd-druid managed source, configure [`.spec.etcd.additionalAdvertisePeerURLs`](../usage/using-additional-advertise-peer-urls.md) on the source if extra reachable peer URLs are needed. For an externally managed source, prepare the advertised peer URLs outside etcd-druid. The target spec must use the source member names and peer URLs as advertised by the source member list.
 
 ## Step 2: Create the target `Etcd` manifest
 
