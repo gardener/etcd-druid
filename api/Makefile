@@ -18,6 +18,8 @@ check-generate:
 .PHONY: generate-api-docs
 generate-api-docs: $(CRD_REF_DOCS)
 	@crd-ref-docs --source-path "$(REPO_ROOT)/api" --config "$(HACK_DIR)/api-reference/config.yaml" --output-path "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" --renderer markdown
+	@# crd-ref-docs emits stray "<nil>" strings for empty template fields (e.g., XValidation messageExpression).
+	@sed -i.bak -E 's/[[:space:]]*<nil>//g' "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md" && rm -f "$(REPO_ROOT)/docs/api-reference/etcd-druid-api.md.bak"
 
 .PHONY: check-apidiff
 check-apidiff: $(GO_APIDIFF)
