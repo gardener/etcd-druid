@@ -74,7 +74,8 @@ func TestAdmit(t *testing.T) {
 			continue
 		}
 		t.Run("duplicate-rejected-same-etcd-"+e2eutils.GetProviderSuffix(provider), testAdmitDuplicateRejected(provider))
-		t.Run("independent-different-etcd-"+e2eutils.GetProviderSuffix(provider), testAdmitIndependentEtcds(provider))
+		t.Run("independent-different-namespace-"+e2eutils.GetProviderSuffix(provider), testAdmitIndependentEtcds(provider, false))
+		t.Run("independent-same-namespace-"+e2eutils.GetProviderSuffix(provider), testAdmitIndependentEtcds(provider, true))
 	}
 }
 
@@ -108,12 +109,19 @@ func testAdmitDuplicateRejected(provider druidv1alpha1.StorageProvider) func(*te
 		logger.Info("successfully created Etcd resource")
 
 		logger.Info("loading data into etcd to ensure snapshot takes measurable time")
-		testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, 1000, timeoutDeployJob)
+		testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, 2000, 256*1024, timeoutLargeDeployJob)
 
 		firstTask := newOnDemandSnapshotTask(e2eutils.DefaultEtcdName+"-first-task", testNamespace, e2eutils.DefaultEtcdName, druidv1alpha1.OnDemandSnapshotTypeFull)
 
 		logger.Info("creating first EtcdOpsTask")
 		testEnv.CreateEtcdOpsTask(g, firstTask)
+
+		fetchedFirstTask, err := testEnv.GetEtcdOpsTask(firstTask.Name, firstTask.Namespace)
+		g.Expect(err).NotTo(HaveOccurred())
+		if fetchedFirstTask.Status.State == nil || *fetchedFirstTask.Status.State != druidv1alpha1.TaskStateInProgress {
+			logger.Info("waiting for first task to reach InProgress before creating the duplicate")
+			testEnv.CheckEtcdOpsTaskState(g, firstTask, druidv1alpha1.TaskStateInProgress, timeoutEtcdOpsTaskCompletion)
+		}
 
 		secondTask := newOnDemandSnapshotTask(e2eutils.DefaultEtcdName+"-second-task", testNamespace, e2eutils.DefaultEtcdName, druidv1alpha1.OnDemandSnapshotTypeFull)
 
@@ -128,61 +136,66 @@ func testAdmitDuplicateRejected(provider druidv1alpha1.StorageProvider) func(*te
 		testEnv.CheckEtcdOpsTaskDeleted(g, secondTask, defaultTaskDeletionTimeout)
 		logger.Info("second task deleted after TTL")
 
+		logger.Info("waiting for first task to be deleted after TTL")
+		testEnv.CheckEtcdOpsTaskDeleted(g, firstTask, defaultTaskDeletionTimeout)
+		logger.Info("first task deleted after TTL")
+
 		testSucceeded = true
 	}
 }
 
-func testAdmitIndependentEtcds(provider druidv1alpha1.StorageProvider) func(*testing.T) {
+func testAdmitIndependentEtcds(provider druidv1alpha1.StorageProvider, sameNamespace bool) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 		log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
 		var testSucceeded bool
 
-		tcName := fmt.Sprintf("admit-independent-different-etcd-%s", e2eutils.GetProviderSuffix(provider))
-		ns1 := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName+"-a", 4)
-		ns2 := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName+"-b", 4)
-		logger := log.WithName(tcName)
-		defer func() {
-			e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, ns1)
-			e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, ns2)
-		}()
+		layout := "different-namespace"
+		if sameNamespace {
+			layout = "same-namespace"
+		}
+		tcName := fmt.Sprintf("admit-independent-%s-%s", layout, e2eutils.GetProviderSuffix(provider))
 
 		etcdNameA := "etcd-a"
 		etcdNameB := "etcd-b"
 
-		e2eutils.InitializeTestCase(g, testEnv, logger, ns1, etcdNameA, provider)
-		e2eutils.InitializeTestCase(g, testEnv, logger, ns2, etcdNameB, provider)
+		var nsA, nsB string
+		if sameNamespace {
+			nsA = testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
+			nsB = nsA
+		} else {
+			nsA = testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName+"-a", 4)
+			nsB = testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName+"-b", 4)
+		}
+		logger := log.WithName(tcName)
+		defer func() {
+			e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, nsA)
+			if !sameNamespace {
+				e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, nsB)
+			}
+		}()
 
-		logger.Info("creating first Etcd resource", "namespace", ns1, "etcdName", etcdNameA)
-		etcdA := testutils.EtcdBuilderWithoutDefaults(etcdNameA, ns1).
-			WithReplicas(1).
-			WithEtcdClientPort(ptr.To[int32](2379)).
-			WithClientTLS().
-			WithPeerTLS().
-			WithDefaultBackup().
-			WithStorageProvider(provider, fmt.Sprintf("%s/%s", ns1, etcdNameA)).
-			WithBackupRestoreTLS().
-			Build()
+		if sameNamespace {
+			e2eutils.CreateNamespace(g, testEnv, logger, nsA)
+			e2eutils.CreateBackupSecret(g, testEnv, logger, nsA, provider)
+		} else {
+			e2eutils.InitializeTestCase(g, testEnv, logger, nsA, etcdNameA, provider)
+			e2eutils.InitializeTestCase(g, testEnv, logger, nsB, etcdNameB, provider)
+		}
+
+		logger.Info("creating first Etcd resource", "namespace", nsA, "etcdName", etcdNameA)
+		etcdA := buildIndependentEtcd(etcdNameA, nsA, provider, sameNamespace)
 		testEnv.CreateAndCheckEtcd(g, etcdA, timeoutEtcdCreation)
 
-		logger.Info("creating second Etcd resource", "namespace", ns2, "etcdName", etcdNameB)
-		etcdB := testutils.EtcdBuilderWithoutDefaults(etcdNameB, ns2).
-			WithReplicas(1).
-			WithEtcdClientPort(ptr.To[int32](2379)).
-			WithClientTLS().
-			WithPeerTLS().
-			WithDefaultBackup().
-			WithStorageProvider(provider, fmt.Sprintf("%s/%s", ns2, etcdNameB)).
-			WithBackupRestoreTLS().
-			Build()
+		logger.Info("creating second Etcd resource", "namespace", nsB, "etcdName", etcdNameB)
+		etcdB := buildIndependentEtcd(etcdNameB, nsB, provider, sameNamespace)
 		testEnv.CreateAndCheckEtcd(g, etcdB, timeoutEtcdCreation)
 
-		taskA := newOnDemandSnapshotTask(etcdNameA+"-task", ns1, etcdNameA, druidv1alpha1.OnDemandSnapshotTypeFull)
+		taskA := newOnDemandSnapshotTask(etcdNameA+"-task", nsA, etcdNameA, druidv1alpha1.OnDemandSnapshotTypeFull)
+		taskB := newOnDemandSnapshotTask(etcdNameB+"-task", nsB, etcdNameB, druidv1alpha1.OnDemandSnapshotTypeFull)
 
-		taskB := newOnDemandSnapshotTask(etcdNameB+"-task", ns2, etcdNameB, druidv1alpha1.OnDemandSnapshotTypeFull)
-
-		logger.Info("creating both EtcdOpsTask resources concurrently")
+		logger.Info("creating both EtcdOpsTask resources to be admitted and executed concurrently")
 		testEnv.CreateEtcdOpsTask(g, taskA)
 		testEnv.CreateEtcdOpsTask(g, taskB)
 
@@ -198,4 +211,16 @@ func testAdmitIndependentEtcds(provider druidv1alpha1.StorageProvider) func(*tes
 
 		testSucceeded = true
 	}
+}
+
+func buildIndependentEtcd(name, namespace string, provider druidv1alpha1.StorageProvider, sameNamespace bool) *druidv1alpha1.Etcd {
+	builder := testutils.EtcdBuilderWithoutDefaults(name, namespace).
+		WithReplicas(1).
+		WithEtcdClientPort(ptr.To[int32](2379)).
+		WithDefaultBackup().
+		WithStorageProvider(provider, fmt.Sprintf("%s/%s", namespace, name))
+	if !sameNamespace {
+		builder = builder.WithClientTLS().WithPeerTLS().WithBackupRestoreTLS()
+	}
+	return builder.Build()
 }

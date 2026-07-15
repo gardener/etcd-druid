@@ -73,13 +73,13 @@ func GeneratePKIResources(g *WithT, logger logr.Logger, testNamespace, etcdName 
 	logger.Info("generating PKI resources")
 	certDir := fmt.Sprintf("%s/%s", PKIResourcesDir, testNamespace)
 	etcdCertsDir := fmt.Sprintf("%s/etcd", certDir)
-	g.Expect(os.MkdirAll(etcdCertsDir, 0755)).To(Succeed()) // #nosec: G301
+	g.Expect(os.MkdirAll(etcdCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
 	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdCertsDir, etcdName, testNamespace)).To(Succeed())
 	etcdPeerCertsDir := fmt.Sprintf("%s/etcd-peer", certDir)
-	g.Expect(os.MkdirAll(etcdPeerCertsDir, 0755)).To(Succeed()) // #nosec: G301
+	g.Expect(os.MkdirAll(etcdPeerCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
 	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdPeerCertsDir, etcdName, testNamespace)).To(Succeed())
 	etcdbrCertsDir := fmt.Sprintf("%s/etcd-backup-restore", certDir)
-	g.Expect(os.MkdirAll(etcdbrCertsDir, 0755)).To(Succeed()) // #nosec: G301
+	g.Expect(os.MkdirAll(etcdbrCertsDir, 0755)).To(Succeed()) // #nosec: G301 -- local directory creation for test purposes.
 	g.Expect(testutils.GeneratePKIResourcesToDirectory(logger, etcdbrCertsDir, etcdName, testNamespace)).To(Succeed())
 	logger.Info("successfully generated PKI resources")
 	return etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir

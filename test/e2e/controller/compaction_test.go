@@ -115,7 +115,7 @@ func TestSnapshotCompaction(t *testing.T) {
 
 				if tc.revisionsForFullSnapshot > 0 {
 					logger.Info("creating EtcdLoader job to put data for full snapshot")
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForFullSnapshot, timeoutSnapshotCompaction)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForFullSnapshot, 0, timeoutSnapshotCompaction)
 					logger.Info("successfully put data for full snapshot")
 
 					logger.Info("triggering full snapshot")
@@ -127,7 +127,7 @@ func TestSnapshotCompaction(t *testing.T) {
 					g.Expect(tc.revisionsForDeltaSnapshot).To(BeNumerically(">", tc.revisionsForFullSnapshot))
 
 					logger.Info("creating EtcdLoader job to put data for delta snapshot")
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForDeltaSnapshot, timeoutSnapshotCompaction)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForDeltaSnapshot, 0, timeoutSnapshotCompaction)
 					logger.Info("successfully put data for delta snapshot")
 
 					logger.Info("triggering delta snapshot")

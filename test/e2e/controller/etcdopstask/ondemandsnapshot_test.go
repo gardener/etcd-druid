@@ -10,15 +10,11 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/test/e2e/testenv"
 	e2eutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr/testr"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
@@ -63,6 +59,7 @@ func TestOnDemandSnapshotLifecycle(t *testing.T) {
 			snapshotType:  druidv1alpha1.OnDemandSnapshotTypeFull,
 			backupEnabled: true,
 			replicas:      1,
+			loadKeys:      5000,
 			disruptEtcd:   true,
 			expectedState: druidv1alpha1.TaskStateFailed,
 		},
@@ -108,15 +105,12 @@ func TestOnDemandSnapshotLifecycle(t *testing.T) {
 	}
 
 	for _, provider := range providers {
-		for _, tc := range testCases {
-			if !tc.backupEnabled && provider != "none" {
-				continue
-			}
-			if tc.backupEnabled && provider == "none" {
-				continue
-			}
+		if provider == "none" {
+			continue
+		}
 
-			tcName := fmt.Sprintf("lifecycle-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
+		for _, tc := range testCases {
+			tcName := fmt.Sprintf("ondemsnap-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
@@ -171,8 +165,14 @@ func TestOnDemandSnapshotLifecycle(t *testing.T) {
 				}
 
 				if tc.loadKeys > 0 {
-					logger.Info("loading data into etcd", "keys", tc.loadKeys)
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.loadKeys, timeoutDeployJob)
+					valueSizeBytes := int64(0)
+					loadTimeout := timeoutDeployJob
+					if tc.disruptEtcd || tc.deleteMidFlight {
+						valueSizeBytes = 256 * 1024
+						loadTimeout = timeoutLargeDeployJob
+					}
+					logger.Info("loading data into etcd", "keys", tc.loadKeys, "valueSizeBytes", valueSizeBytes)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.loadKeys, valueSizeBytes, loadTimeout)
 				}
 
 				var fullRevBefore, deltaRevBefore int64
@@ -200,8 +200,10 @@ func TestOnDemandSnapshotLifecycle(t *testing.T) {
 				testEnv.CreateEtcdOpsTask(g, task)
 
 				if tc.disruptEtcd {
+					logger.Info("waiting for task to reach InProgress before disrupting etcd")
+					testEnv.CheckEtcdOpsTaskState(g, task, druidv1alpha1.TaskStateInProgress, timeoutEtcdOpsTaskCompletion)
 					logger.Info("scaling StatefulSet to 0 to disrupt etcd")
-					scaleStatefulSetToZero(g, testEnv, etcd)
+					e2eutils.ScaleStatefulSetToZero(g, testEnv, etcd)
 					logger.Info("StatefulSet scaled to 0")
 				}
 
@@ -241,28 +243,4 @@ func TestOnDemandSnapshotLifecycle(t *testing.T) {
 			})
 		}
 	}
-}
-
-func scaleStatefulSetToZero(g *WithT, testEnv *testenv.TestEnvironment, etcd *druidv1alpha1.Etcd) {
-	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
-	sts := &appsv1.StatefulSet{}
-	g.Expect(testEnv.Client().Get(testEnv.Context(), types.NamespacedName{
-		Name:      stsName,
-		Namespace: etcd.Namespace,
-	}, sts)).To(Succeed())
-
-	patch := client.MergeFrom(sts.DeepCopy())
-	sts.Spec.Replicas = ptr.To[int32](0)
-	g.Expect(testEnv.Client().Patch(testEnv.Context(), sts, patch)).To(Succeed())
-
-	g.Eventually(func() int32 {
-		updated := &appsv1.StatefulSet{}
-		if err := testEnv.Client().Get(testEnv.Context(), types.NamespacedName{
-			Name:      stsName,
-			Namespace: etcd.Namespace,
-		}, updated); err != nil {
-			return -1
-		}
-		return updated.Status.ReadyReplicas
-	}, 60*time.Second, 2*time.Second).Should(Equal(int32(0)))
 }

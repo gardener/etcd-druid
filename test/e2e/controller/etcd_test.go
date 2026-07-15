@@ -189,7 +189,7 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 	)
 
 	for _, provider := range providers {
-		tcName := fmt.Sprintf("bootstrap-existing-%s", getProviderSuffix(provider))
+		tcName := fmt.Sprintf("bootstrap-existing-%s", e2eutils.GetProviderSuffix(provider))
 		t.Run(tcName, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
@@ -198,9 +198,9 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 			testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 			logger := log.WithName(tcName).WithValues("namespace", testNamespace)
 			defer func() {
-				cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 			}()
-			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+			e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 			logger.Info("creating 3-member source Etcd")
 			sourceEtcd := testutils.EtcdBuilderWithoutDefaults(sourceEtcdName, testNamespace).
