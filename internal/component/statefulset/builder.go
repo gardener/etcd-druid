@@ -339,21 +339,17 @@ func (b *stsBuilder) getEtcdBackupVolumeMount() *corev1.VolumeMount {
 				MountPath: kubernetes.MountPathLocalStore(b.etcd, b.provider),
 			}
 		}
-	case druidstore.GCS:
+	case druidstore.GCS, druidstore.S3, druidstore.ABS, druidstore.OSS, druidstore.Swift, druidstore.OCS:
 		if b.etcd.Spec.Backup.Store.SecretRef == nil {
 			return nil
 		}
-		return &corev1.VolumeMount{
-			Name:      common.VolumeNameProviderBackupSecret,
-			MountPath: common.VolumeMountPathGCSBackupSecret,
-		}
-	case druidstore.S3, druidstore.ABS, druidstore.OSS, druidstore.Swift, druidstore.OCS:
-		if b.etcd.Spec.Backup.Store.SecretRef == nil {
-			return nil
+		mountPath := common.VolumeMountPathNonGCSProviderBackupSecret
+		if *b.provider == druidstore.GCS {
+			mountPath = common.VolumeMountPathGCSBackupSecret
 		}
 		return &corev1.VolumeMount{
 			Name:      common.VolumeNameProviderBackupSecret,
-			MountPath: common.VolumeMountPathNonGCSProviderBackupSecret,
+			MountPath: mountPath,
 		}
 	}
 	return nil
