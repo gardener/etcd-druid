@@ -16,7 +16,7 @@ reviewers:
 
 Today, `etcd-druid` blocks any decrease of `etcd.spec.replicas` other than to zero, so operators have no declarative way to shrink a multi-node etcd cluster.
 
-This proposal introduces safe scale-in support for multi-node etcd clusters managed by `etcd-druid`, enabling a cluster to shrink without risking quorum loss or leaving etcd membership in an inconsistent state. The user experience is symmetric with scale-out: declarative, quorum-safe, and free of `etcdctl` intervention.
+This proposal introduces safe scale-in support for multi-node etcd clusters managed by `etcd-druid`, enabling a cluster to shrink without risking quorum loss or leaving etcd membership in an inconsistent state. The user experience is symmetric with scale-out: the operator only changes the `Etcd` resource, and `etcd-druid` removes members safely.
 
 ## Terminology
 
@@ -52,24 +52,24 @@ This ordering, not the StatefulSet update strategy, is what makes scale-in safe.
 
 ## Proposal
 
+### Prerequisites
+
+* The etcd cluster should be running with all members healthy and quorum intact for scale-in to make progress. If quorum is not intact, the controller still records the scale operation but withholds every `MemberRemove`: the per-cycle quorum-safety check keeps requeuing with backoff until the cluster recovers, so no member is removed while quorum is degraded. The operator can either wait for quorum to be restored or declaratively roll back the change (increase `spec.replicas` / restore the bootstrap members again).
+
 ### Approach
 
-Scale-in is orchestrated by `etcd-druid` through the existing `etcd` controller (`internal/controller/etcd`). The process is driven by changes to the `Etcd` resource, and progress is tracked explicitly through the `ScaleOperationInProgress` status condition to ensure deterministic coordination across reconcile cycles.
-
-It aims to achieve safe scale-in by:
-
-- Removing etcd members one per reconcile cycle, in a quorum-safe order, before the underlying StatefulSet is shrunk.
-- Deleting freed PVCs during `StatefulSet.PreSync`, after etcd membership has converged, and allowing them to finalize when `StatefulSet.Sync` terminates the surplus pods.
-- Preventing removed members from silently rejoining by adding an anti-rejoin guard in `etcd-backup-restore`.
+Scale-in is orchestrated by `etcd-druid` through the existing [etcd controller](https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller). The process is driven by changes to the `Etcd` resource, and progress is tracked explicitly through the `ScaleOperationInProgress` status condition to ensure deterministic coordination across reconcile cycles.
 
 Scale-in is triggered when:
 
 - An operator decreases `etcd.spec.replicas`, or
 - An operator removes member entries from `etcd.spec.etcd.bootstrapWithExistingCluster.members` or unsets `etcd.spec.etcd.bootstrapWithExistingCluster`.
 
-### Prerequisites
+It aims to achieve safe scale-in by:
 
-* The etcd cluster should be running with all members healthy and quorum intact for scale-in to make progress. If quorum is not intact, the controller still records the scale operation but withholds every `MemberRemove`: the per-cycle quorum-safety check keeps requeuing with backoff until the cluster recovers, so no member is removed while quorum is degraded. The operator can either wait for quorum to be restored or declaratively roll back the change (increase `spec.replicas` / restore the bootstrap members again).
+- Removing etcd cluster members one per reconcile cycle, in a quorum-safe order, before the underlying StatefulSet is shrunk.
+- Deleting freed PVCs during `StatefulSet.PreSync`, after etcd membership has converged, and allowing them to finalize when `StatefulSet.Sync` terminates the surplus pods.
+- Preventing removed members from silently rejoining by adding an anti-rejoin guard in `etcd-backup-restore`.
 
 ### `etcd-druid` changes
 
@@ -280,9 +280,9 @@ Serial removal is intentional. It avoids parallel membership changes in the same
 
 A StatefulSet does not reclaim the PVCs of removed ordinals on scale-down — the default `persistentVolumeClaimRetentionPolicy` retains them — so `etcd-druid` must delete the surplus PVCs explicitly; Kubernetes does not do it for us.
 
-This deletion is kept in `StatefulSet.PreSync`, **grouped with the rest of the scale-in handling** (member removal, Step 4c), rather than split into `StatefulSet.Sync`. Scale-in is a single logical operation — remove the etcd members, then release the storage they backed — and keeping both halves in one place, gated on the same `ScaleOperationInProgress` condition and the same "membership has converged" check, keeps the flow cohesive and easy to reason about. Splitting PVC deletion into `Sync` would scatter one operation across two components and require `Sync` to re-derive the same scale-in state that `PreSync` already established.
+This deletion is kept in `StatefulSet.PreSync` because the scale-in context is already established there: the controller has just removed the surplus members and knows the `etcd.spec.replicas` < `StatefulSet.spec.replicas` delta that identifies exactly which ordinals are surplus. Moving PVC deletion into `StatefulSet.Sync` would force `Sync` to re-derive that same scale-in context, splitting one logical operation (remove the members, then release the storage they backed) across two components. Keeping both halves in `PreSync`, gated on the same `ScaleOperationInProgress` condition and the same "membership has converged" check, keeps the scale-in decision in one place.
 
-Keeping it in `PreSync` is also safe and correct: the only action taken here is issuing the `Delete` (stamping `deletionTimestamp`) — it does **not** reclaim the volume, which happens lazily once the surplus pod unmounts during `Sync`. Stamping the deletion intent in `PreSync`, immediately after membership has converged, persists that intent on the PVC object itself, so it survives a controller restart across the membership-removal → pod-termination boundary. There is therefore no ordering dependency that forces this into `Sync`.
+Deleting in `PreSync` is also safe: the only action taken here is issuing the `Delete` (stamping `deletionTimestamp`) — it does **not** reclaim the volume, which happens lazily once the surplus pod unmounts during `Sync`. Because the intent is persisted on the PVC object, it also survives a controller restart across the membership-removal → pod-termination boundary. There is therefore no ordering dependency that forces this into `Sync`.
 
 For `ScalingIn`, PVC deletion starts only after etcd membership has converged to the target set.
 
@@ -318,7 +318,7 @@ etcd records removed member IDs in the local boltdb `members_removed` bucket whe
 
 The startup check is:
 
-The guard inspects two on-disk artefacts of the local etcd data directory: the **WAL** — which records the local member's ID — and the boltdb backend's **`members_removed`** bucket. If the local member's own ID appears in `members_removed`, the cluster has explicitly removed it and the sidecar must not re-add it.
+The guard inspects two on-disk artefacts of the local etcd data directory: the **WAL** (under `<data-dir>/member/wal`) and the boltdb backend's **`members_removed`** bucket. The local member's own ID is read from the WAL's metadata record — the guard opens the WAL read-only (`wal.OpenForRead`), reads the metadata via `ReadAll()`, unmarshals it into an etcd `Metadata` message, and takes the `NodeID` field (this is the same sequence etcd itself uses on startup). It then checks whether that exact ID is present in the `members_removed` bucket. If it is, the cluster has explicitly removed this member and the sidecar must not re-add it.
 
 ```mermaid
 flowchart TD
@@ -341,12 +341,16 @@ The check is deliberately conservative:
 
 - If the WAL is missing, there is no local member ID to check, so normal initialization continues.
 - If the boltdb file is missing, normal initialization continues through the existing path.
-- If boltdb exists but cannot be opened, startup fails closed with `ErrMembershipCheckFailed`.
+- If boltdb exists but cannot be opened, the check is retried a few times (with backoff) to ride out transient I/O or lock contention; if it still cannot be opened, startup fails closed with `ErrMembershipCheckFailed`.
 - If the local member's own ID is present in `members_removed`, startup fails with `ErrMemberPermanentlyRemoved`.
 
 Only the local member's own ID is considered. Entries for other removed members are ignored.
 
 The check opens boltdb read-only via `mmap` and reads only the small membership buckets (`members` and `members_removed`), so the runtime and memory overhead is negligible. This follows the same access pattern already used by `etcd-backup-restore`'s data validator.
+
+##### Limitation
+
+The guard relies on the `members_removed` tombstone, which lives in the member's **own** data directory. If that data directory is wiped or corrupted — WAL or boltdb missing or unreadable — there is no tombstone to consult, so the member is treated as a fresh join and may be re-added as a learner. This case is outside the guard's reach by design (there is nothing on disk to read). The backstop here is the `etcd-druid` controller: scale-in detection re-derives the target set on every reconcile and removes the surplus member again under the per-cycle quorum-safety check, so a member restarting with a wiped/corrupted data directory cannot persist in the cluster after a scale-in.
 
 ## Alternatives
 
