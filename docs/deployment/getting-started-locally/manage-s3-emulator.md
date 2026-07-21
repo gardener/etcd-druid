@@ -10,7 +10,7 @@ Ensure that you have setup the development environment as per the [documentation
 
 > [!NOTE]
 > Deploying LocalStack requires a `LOCALSTACK_AUTH_TOKEN` environment variable to be set.
-> The project has a [LocalStack for Open Source](https://localstack.cloud/open-source) license. Ask a
+> The project has a [LocalStack for Open Source](https://www.localstack.cloud/localstack-open-source) license. Ask a
 > maintainer for the token, or apply for your own. Alternatively, the frozen community archive image
 > `localstack/localstack:s3-community-archive` can be used without a token, but it will not receive
 > updates or security patches.

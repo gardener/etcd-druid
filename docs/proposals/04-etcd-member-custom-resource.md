@@ -221,7 +221,7 @@ As described in [Issue#591](https://github.com/gardener/etcd-druid/issues/591) s
 
 Druid will now need information regarding snapshot sizes, and more importantly the total size of accumulated delta snapshots since the last full snapshot.
 
-The authors propose to enhance the proposed `snapshots` field described in [Use Case #3](#use-case-3-monitoring-backup-health) with the following additional field:
+The authors propose to enhance the proposed `snapshots` field described in the [Monitoring Backup Health](#monitoring-backup-health) section with the following additional field:
 
 ```yaml
 snapshots:

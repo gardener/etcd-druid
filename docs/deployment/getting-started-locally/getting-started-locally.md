@@ -168,7 +168,7 @@ For a multi-node etcd cluster, insert the key-value pair using the `etcd` contai
 
 ## 07-Updating Etcd CR
 
-`Etcd` CR can be updated with new changes. To ensure that `etcd-druid` reconciles the changes you can refer to options that etcd-druid provides [here](../../usage/managing-etcd-clusters.md#update-&-reconcile-an-etcd-cluster).
+`Etcd` CR can be updated with new changes. To ensure that `etcd-druid` reconciles the changes you can refer to options that etcd-druid provides [here](../../usage/managing-etcd-clusters.md#update--reconcile-an-etcd-cluster).
 
 ## 08-Cleaning up the setup
 
