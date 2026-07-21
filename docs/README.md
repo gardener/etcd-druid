@@ -52,3 +52,4 @@
 * [DEP-4: Etcd Member custom resource](proposals/04-etcd-member-custom-resource.md)
 * [DEP-5: EtcdOpsTask](proposals/05-etcdopstask.md)
 * [DEP-6: Immutable etcd Cluster Backups](proposals/06-immutable-etcd-backups.md)
+* [DEP-7: Quorum Aware Pod Updates](proposals/07-quorum-aware-pod-updates.md)
