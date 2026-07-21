@@ -97,6 +97,9 @@ An `Etcd` cluster provisioned via etcd-druid provides a capability to take regul
 !!! info
     This section is ***Optional***. If you have disabled backup functionality or if you are using local storage or one of the supported object store emulators then you can skip this section.
 
+!!! tip
+    On managed clusters where the etcd pod already has a cloud identity (for example, GKE/EKS/AKS workload identity), you can skip creating this Secret and omit `store.secretRef`. `backup-restore` then uses the pod's cloud identity via the provider SDK's default credential chain.
+
 A Kubernetes [Secret](https://kubernetes.io/docs/concepts/configuration/secret/) needs to be created for cloud provider Object Store access. You can refer to the Secret YAML templates [here](https://github.com/gardener/etcd-backup-restore/tree/master/example/storage-provider-secrets).  Replace the dummy values with the actual configuration and ensure that you have added the `metadata.name` and `metadata.namespace` to the secret.
 
 !!! tip
@@ -127,7 +130,7 @@ store:
 
 Brief explanation of the keys:
 
-* `secretRef.name` is the name of the secret that was applied as mentioned above.
+* `secretRef.name` is the name of the secret that was applied as mentioned above. It is optional: omit it to use the pod's cloud identity instead. Note that on clusters without such an identity configured, omitting it will cause `backup-restore` to fail to create the snapstore.
 * `store.container` is the object storage bucket name.
 * `store.provider` is the bucket provider. Pick from the options mentioned in comment.
 * `store.prefix` is the folder name that you want to use for your snapshots inside the bucket.

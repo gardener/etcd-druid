@@ -1265,7 +1265,7 @@ _Appears in:_
 | `endpointOverride` _string_ | EndpointOverride denotes the storage endpoint that will be used to override the storage provider's default endpoint. |  | Optional: \{\} <br /> |
 | `prefix` _string_ | Prefix is the prefix used for the store. |  | Required: \{\} <br /> |
 | `provider` _[StorageProvider](#storageprovider)_ | Provider is the name of the backup provider. |  | Optional: \{\} <br /> |
-| `secretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ | SecretRef is the reference to the secret which used to connect to the backup store. |  | Optional: \{\} <br /> |
+| `secretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ | SecretRef is the reference to the secret which is used to connect to the backup store.<br />It is optional: when omitted, backup-restore falls back to the pod's cloud identity<br />(the provider SDK's default credential chain). On clusters where no such identity is<br />configured, omitting SecretRef will cause backup-restore to fail to create the snapstore. |  | Optional: \{\} <br /> |
 
 
 #### TLSConfig
