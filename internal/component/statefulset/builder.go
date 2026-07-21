@@ -56,6 +56,11 @@ var (
 	defaultUpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
 )
 
+// localProviderInitContainer contains the init container that needs to run when local provider is chosen in e2e testing. No init container runs in normal deployments.
+var localProviderInitContainer = func(_ *druidv1alpha1.Etcd, _ *corev1.VolumeMount, _ string, _ *string) []corev1.Container {
+	return nil
+}
+
 type stsBuilder struct {
 	client                 client.Client
 	etcd                   *druidv1alpha1.Etcd
@@ -262,20 +267,8 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		return nil
 	}
 
-	return []corev1.Container{{
-		Name:            common.InitContainerNameChangeBackupBucketPermissions,
-		Image:           b.initContainerImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"sh", "-c", "--"},
-		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, kubernetes.MountPathLocalStore(b.etcd, b.provider))},
-		VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: ptr.To(false),
-			RunAsGroup:               ptr.To[int64](0),
-			RunAsNonRoot:             ptr.To(false),
-			RunAsUser:                ptr.To[int64](0),
-		},
-	}}
+	// Non-nil *only* when overriden to return the init container that chmod-s the backup directory to nonRootUser in e2e tests
+	return localProviderInitContainer(b.etcd, etcdBackupVolumeMount, b.initContainerImage, b.provider)
 }
 
 func (b *stsBuilder) getEtcdContainerVolumeMounts() []corev1.VolumeMount {
