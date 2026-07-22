@@ -56,7 +56,7 @@ spec:
     deltaSnapshotPeriod: 300s
     deltaSnapshotMemoryLimit: 1Gi
     # store:
-    #   secretRef: # optional: omit to use the pod's cloud identity (requires workload identity, else snapstore creation fails)
+    #   secretRef: # optional: omit to use the pod's cloud identity (requires workload identity, else snapshot object store creation will fail in backup-restore).
     #     name: etcd-backup-secret-name
     #   container: object-storage-container-name
     #   provider: local # options: aws,azure,gcp,openstack,alicloud,dell,openshift,local

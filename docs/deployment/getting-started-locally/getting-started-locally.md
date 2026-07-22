@@ -130,7 +130,7 @@ store:
 
 Brief explanation of the keys:
 
-* `secretRef.name` is the name of the secret that was applied as mentioned above. It is optional: omit it to use the pod's cloud identity instead. Note that on clusters without such an identity configured, omitting it will cause `backup-restore` to fail to create the snapstore.
+* `secretRef.name` is the name of the secret that was applied as mentioned above. It is optional: omit it to use the pod's cloud identity instead. Note that on clusters without such an identity configured, omitting it will cause `backup-restore` to fail in creation of the snapshot object store.
 * `store.container` is the object storage bucket name.
 * `store.provider` is the bucket provider. Pick from the options mentioned in comment.
 * `store.prefix` is the folder name that you want to use for your snapshots inside the bucket.
