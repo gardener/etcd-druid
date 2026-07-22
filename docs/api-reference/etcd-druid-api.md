@@ -1174,7 +1174,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `container` _string_ | Container is the name of the container the backup is stored at. |  |  |
+| `container` _string_ | Container is the name of the container the backup is stored at. |  | MaxLength: 63 <br />Pattern: `^[a-zA-Z0-9][a-zA-Z0-9._-]\{1,61\}[a-zA-Z0-9]$` <br /> |
 | `endpointOverride` _string_ | EndpointOverride denotes the storage endpoint that will be used to override the storage provider's default endpoint. |  |  |
 | `prefix` _string_ | Prefix is the prefix used for the store. |  |  |
 | `provider` _[StorageProvider](#storageprovider)_ | Provider is the name of the backup provider. |  |  |

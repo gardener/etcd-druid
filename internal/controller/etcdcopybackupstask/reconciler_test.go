@@ -864,6 +864,31 @@ func matchJobWithProviders(task *druidv1alpha1.EtcdCopyBackupsTask, sourceProvid
 		})
 		return And(matcher, volumeMatcher)
 	}
+	if targetProvider == druidstore.Local {
+		// With a Local target, druid adds a change-backup-bucket-permissions init container that
+		// chowns the source and target backup dirs. It must use the exec (argv) form, not sh -c,
+		// so that the container names cannot inject shell commands.
+		initContainerMatcher := MatchFields(IgnoreExtras, Fields{
+			"Spec": MatchFields(IgnoreExtras, Fields{
+				"Template": MatchFields(IgnoreExtras, Fields{
+					"Spec": MatchFields(IgnoreExtras, Fields{
+						"InitContainers": MatchAllElements(testutils.ContainerIterator, Elements{
+							"change-backup-bucket-permissions": MatchFields(IgnoreExtras, Fields{
+								"Name": Equal("change-backup-bucket-permissions"),
+								"Command": HaveExactElements(
+									"chown", "-R", "65532:65532",
+									fmt.Sprintf("/home/nonroot/%s", *task.Spec.TargetStore.Container),
+									fmt.Sprintf("/home/nonroot/%s", *task.Spec.SourceStore.Container),
+								),
+								"Args": BeEmpty(),
+							}),
+						}),
+					}),
+				}),
+			}),
+		})
+		return And(matcher, initContainerMatcher)
+	}
 	return matcher
 }
 
