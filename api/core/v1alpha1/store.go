@@ -24,7 +24,10 @@ type StoreSpec struct {
 	// Provider is the name of the backup provider.
 	// +optional
 	Provider *StorageProvider `json:"provider,omitempty"`
-	// SecretRef is the reference to the secret which used to connect to the backup store.
+	// SecretRef is the reference to the secret which is used to connect to the backup store.
+	// It is optional: when omitted, backup-restore falls back to the pod's cloud identity
+	// (the provider SDK's default credential chain). On clusters where no such identity is
+	// configured, omitting SecretRef will cause backup-restore to fail to create the snapstore.
 	// +optional
 	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
 }
