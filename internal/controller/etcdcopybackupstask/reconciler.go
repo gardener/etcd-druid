@@ -362,8 +362,7 @@ func (r *Reconciler) createJobObject(ctx context.Context, task *druidv1alpha1.Et
 			{
 				Name:         "change-backup-bucket-permissions",
 				Image:        *initContainerImage,
-				Command:      []string{"sh", "-c", "--"},
-				Args:         []string{fmt.Sprintf("%s%s%s%s", "chown -R 65532:65532 /home/nonroot/", *targetStore.Container, " /home/nonroot/", *sourceStore.Container)},
+				Command:      []string{"chown", "-R", "65532:65532", fmt.Sprintf("/home/nonroot/%s", *targetStore.Container), fmt.Sprintf("/home/nonroot/%s", *sourceStore.Container)},
 				VolumeMounts: volumeMounts,
 				SecurityContext: &corev1.SecurityContext{
 					AllowPrivilegeEscalation: ptr.To(false),

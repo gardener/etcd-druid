@@ -266,8 +266,7 @@ func (b *stsBuilder) getPodInitContainers() []corev1.Container {
 		Name:            common.InitContainerNameChangeBackupBucketPermissions,
 		Image:           b.initContainerImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"sh", "-c", "--"},
-		Args:            []string{fmt.Sprintf("chown -R %d:%d %s", nonRootUser, nonRootUser, kubernetes.MountPathLocalStore(b.etcd, b.provider))},
+		Command:         []string{"chown", "-R", fmt.Sprintf("%d:%d", nonRootUser, nonRootUser), kubernetes.MountPathLocalStore(b.etcd, b.provider)},
 		VolumeMounts:    []corev1.VolumeMount{*etcdBackupVolumeMount},
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr.To(false),
