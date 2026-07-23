@@ -11,6 +11,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -18,6 +19,10 @@ type allMembersUpdated struct {
 	cl client.Client
 }
 
+// Check evaluates AllMembersUpdated. RollingUpdate uses the fast field-comparison
+// path; OnDelete uses a pod-level check because K8s < v1.37 does not promote
+// status.currentRevision under OnDelete (kubernetes/kubernetes#73492, #106055;
+// fix in #136833). The pod-level path is not gated on K8s version.
 func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) Result {
 	res := &result{
 		conType: druidv1alpha1.ConditionTypeAllMembersUpdated,
@@ -36,8 +41,39 @@ func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) 
 		return res
 	}
 
-	if sts.Status.ObservedGeneration == sts.Generation &&
-		sts.Status.UpdatedReplicas == *sts.Spec.Replicas &&
+	if sts.Status.ObservedGeneration != sts.Generation {
+		res.status = druidv1alpha1.ConditionFalse
+		res.reason = "NotAllMembersUpdated"
+		res.message = "StatefulSet controller has not yet observed the latest generation"
+		return res
+	}
+
+	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+		allUpdated, unupdatedName, err := kubernetes.AreAllStsPodsAtUpdateRevision(ctx, a.cl, sts)
+		if err != nil {
+			res.status = druidv1alpha1.ConditionUnknown
+			res.reason = "UnableToDeterminePodRevisions"
+			res.message = fmt.Sprintf("Unable to compute pod-level revision state for StatefulSet %s: %s", sts.Name, err.Error())
+			return res
+		}
+		if allUpdated {
+			res.status = druidv1alpha1.ConditionTrue
+			res.reason = "AllMembersUpdated"
+			res.message = "All members reflect latest desired spec"
+			return res
+		}
+		res.status = druidv1alpha1.ConditionFalse
+		res.reason = "NotAllMembersUpdated"
+		if unupdatedName == "" {
+			res.message = "At least one member is not yet updated"
+		} else {
+			res.message = fmt.Sprintf("Pod %s is not at the target StatefulSet revision %s", unupdatedName, sts.Status.UpdateRevision)
+		}
+		return res
+	}
+
+	// RollingUpdate fast path.
+	if sts.Status.UpdatedReplicas == *sts.Spec.Replicas &&
 		sts.Status.UpdateRevision == sts.Status.CurrentRevision {
 		res.status = druidv1alpha1.ConditionTrue
 		res.reason = "AllMembersUpdated"

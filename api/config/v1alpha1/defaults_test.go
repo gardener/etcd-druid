@@ -440,3 +440,32 @@ func TestSetDefaults_LogConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestSetDefaults_OnDeleteControllerConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *OnDeleteControllerConfiguration
+		expected *OnDeleteControllerConfiguration
+	}{
+		{
+			name:     "sets default ConcurrentSyncs when unset",
+			config:   &OnDeleteControllerConfiguration{},
+			expected: &OnDeleteControllerConfiguration{ConcurrentSyncs: ptr.To(DefaultOnDeleteControllerConcurrentSyncs)},
+		},
+		{
+			name:     "does not overwrite an explicit ConcurrentSyncs",
+			config:   &OnDeleteControllerConfiguration{ConcurrentSyncs: ptr.To(7)},
+			expected: &OnDeleteControllerConfiguration{ConcurrentSyncs: ptr.To(7)},
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			SetDefaults_OnDeleteControllerConfiguration(test.config)
+			g.Expect(test.config).To(Equal(test.expected))
+		})
+	}
+}
