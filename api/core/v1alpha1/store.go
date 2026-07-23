@@ -13,6 +13,8 @@ type StorageProvider string
 type StoreSpec struct {
 	// Container is the name of the container the backup is stored at.
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][a-zA-Z0-9._-]{1,61}[a-zA-Z0-9]$`
 	Container *string `json:"container,omitempty"`
 	// EndpointOverride denotes the storage endpoint that will be used to override the storage provider's default endpoint.
 	// +optional
