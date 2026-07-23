@@ -15,6 +15,7 @@ import (
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -498,4 +499,21 @@ func simulatePreSyncTaskCompletion(ctx context.Context, t *testing.T, cl client.
 	task.Status.State = &state
 	task.Status.LastTransitionTime = ptr.To(metav1.Now())
 	g.Expect(cl.Status().Update(ctx, task)).To(Succeed())
+}
+
+// assertEtcdContainerImage waits until the StatefulSet's etcd container image matches the expected value.
+func assertEtcdContainerImage(ctx context.Context, t *testing.T, cl client.Client, stsObjectKey client.ObjectKey, expectedImage string, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	g.Eventually(func() string {
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, stsObjectKey, sts); err != nil {
+			return ""
+		}
+		for _, c := range sts.Spec.Template.Spec.Containers {
+			if c.Name == common.ContainerNameEtcd {
+				return c.Image
+			}
+		}
+		return ""
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(pollInterval).Should(Equal(expectedImage))
 }

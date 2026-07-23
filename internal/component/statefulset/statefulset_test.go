@@ -7,10 +7,10 @@ package statefulset
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -90,21 +90,22 @@ func TestGetExistingResourceNames(t *testing.T) {
 // ----------------------------------- PreSync -----------------------------------
 func TestPreSync(t *testing.T) {
 	const (
-		oldImage     = "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.2"
-		currentImage = ""
+		oldWrapperImage       = "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.2"
+		oldBackupRestoreImage = "europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl:v0.30.0"
+		oldInitImage          = "europe-docker.pkg.dev/gardener-project/public/3rd/alpine:3.18.4"
 	)
 
 	testCases := []struct {
-		name               string
-		backupEnabled      bool
-		stsExists          bool
-		featureGateEnabled bool
-		stsReplicas        int32
-		etcdReplicas       int32
-		etcdWrapperImage   string
-		existingTasks      []*druidv1alpha1.EtcdOpsTask
-		expectedErrCode    *druidapicommon.ErrorCode
+		name            string
+		backupEnabled   bool
+		stsExists       bool
+		stsReplicas     int32
+		etcdReplicas    int32
+		stsImages       map[string]string // keyed by container name; nil = use current image-vector defaults for all containers
+		existingTasks   []*druidv1alpha1.EtcdOpsTask
+		expectedErrCode *druidapicommon.ErrorCode
 	}{
+		// ---------------- No-op rows ----------------
 		{
 			name:          "returns nil when backup is disabled",
 			backupEnabled: false,
@@ -119,147 +120,142 @@ func TestPreSync(t *testing.T) {
 			etcdReplicas:  3,
 		},
 		{
-			name:               "returns nil when no hibernation and no upgrade",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       3,
-			etcdWrapperImage:   currentImage,
+			name:          "returns nil when STS replicas are 0",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   0,
+			etcdReplicas:  3,
 		},
 		{
-			name:               "hibernation succeeds when task completed",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: false,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   currentImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			name:          "returns nil when no image change and no replica change",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   3,
+			etcdReplicas:  3,
+		},
+		// ---------------- Hibernation rows ----------------
+		{
+			name:            "hibernation requeues when no task exists",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    0,
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
-			name:               "hibernation proceeds after max retries exceeded",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: false,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   currentImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			name:          "hibernation succeeds when task completed",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   3,
+			etcdReplicas:  0,
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
-			name:               "hibernation with upgrade succeeds when task completed",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			name:          "hibernation proceeds after max retries exceeded",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   3,
+			etcdReplicas:  0,
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+		},
+		// ---------------- Image-change rows ----------------
+		{
+			name:            "update requeues when wrapper image changed and no task exists",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
-			name:               "hibernation with upgrade proceeds after max retries exceeded",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			name:            "update requeues when backup-restore image changed and no task exists",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			stsImages:       map[string]string{common.ContainerNameEtcdBackupRestore: oldBackupRestoreImage},
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
-			name:               "upgrade succeeds when task completed",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       3,
-			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			name:            "update requeues when init-container image changed and no task exists",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			stsImages:       map[string]string{common.InitContainerNameChangeBackupBucketPermissions: oldInitImage},
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
-			name:               "upgrade proceeds after max retries exceeded",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       3,
-			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			name:          "update succeeds when task completed",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   3,
+			etcdReplicas:  3,
+			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
-			name:               "hibernation requeues when no task exists",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: false,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   currentImage,
-			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+			name:          "update proceeds after max retries exceeded",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   3,
+			etcdReplicas:  3,
+			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 		},
 		{
-			name:               "hibernation requeues when task is in progress",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: false,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   currentImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
-			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+			name:            "update requeues when task is in progress",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
-			name:               "hibernation requeues when task failed and retries remain",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: false,
-			stsReplicas:        3,
-			etcdReplicas:       0,
-			etcdWrapperImage:   currentImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+			name:            "update requeues when task failed and retries remain",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		// ---------------- Replica-change rows ----------------
+		{
+			name:            "update requeues when replicas scale up (3->5)",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    5,
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
-			name:               "upgrade requeues when no task exists",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       3,
-			etcdWrapperImage:   oldImage,
-			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+			name:            "update requeues when replicas scale down to non-zero (5->3)",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     5,
+			etcdReplicas:    3,
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
+		// ---------------- Combination row ----------------
 		{
-			name:               "upgrade requeues when task is in progress",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       3,
-			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
-			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
-		},
-		{
-			name:               "upgrade requeues when task failed and retries remain",
-			backupEnabled:      true,
-			stsExists:          true,
-			featureGateEnabled: true,
-			stsReplicas:        3,
-			etcdReplicas:       3,
-			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+			name:          "hibernation prefix wins when replicas go to 0 even if images also changed",
+			backupEnabled: true,
+			stsExists:     true,
+			stsReplicas:   3,
+			etcdReplicas:  0,
+			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
-				map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: tc.featureGateEnabled},
-			)
-			g.Expect(err).ToNot(HaveOccurred())
 
 			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
 				WithReplicas(tc.etcdReplicas)
@@ -270,15 +266,19 @@ func TestPreSync(t *testing.T) {
 
 			iv := testutils.CreateImageVector(true, true)
 
-			etcdWrapperImage := tc.etcdWrapperImage
-			if etcdWrapperImage == currentImage {
-				etcdWrapperImage, _, _, err = utils.GetEtcdImages(etcd, iv)
-				g.Expect(err).ToNot(HaveOccurred())
+			defaultWrapperImage, defaultBRImage, defaultInitImage, err := utils.GetEtcdImages(etcd, iv)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			stsImages := map[string]string{
+				common.ContainerNameEtcd:                              defaultWrapperImage,
+				common.ContainerNameEtcdBackupRestore:                 defaultBRImage,
+				common.InitContainerNameChangeBackupBucketPermissions: defaultInitImage,
 			}
+			maps.Copy(stsImages, tc.stsImages)
 
 			var existingObjects []client.Object
 			if tc.stsExists {
-				existingObjects = append(existingObjects, buildStatefulSetWithImage(etcd.ObjectMeta, tc.stsReplicas, etcdWrapperImage))
+				existingObjects = append(existingObjects, buildStatefulSetWithImages(etcd.ObjectMeta, tc.stsReplicas, stsImages))
 			}
 			for _, task := range tc.existingTasks {
 				existingObjects = append(existingObjects, task)
@@ -420,7 +420,27 @@ func buildPreSyncTask(prefix string, index int, state *druidv1alpha1.TaskState) 
 	return task
 }
 
-func buildStatefulSetWithImage(objMeta metav1.ObjectMeta, replicas int32, image string) *appsv1.StatefulSet {
+func buildStatefulSetWithImages(objMeta metav1.ObjectMeta, replicas int32, images map[string]string) *appsv1.StatefulSet {
+	containers := make([]corev1.Container, 0, 2)
+	if img, ok := images[common.ContainerNameEtcd]; ok {
+		containers = append(containers, corev1.Container{
+			Name:  common.ContainerNameEtcd,
+			Image: img,
+		})
+	}
+	if img, ok := images[common.ContainerNameEtcdBackupRestore]; ok {
+		containers = append(containers, corev1.Container{
+			Name:  common.ContainerNameEtcdBackupRestore,
+			Image: img,
+		})
+	}
+	var initContainers []corev1.Container
+	if img, ok := images[common.InitContainerNameChangeBackupBucketPermissions]; ok {
+		initContainers = append(initContainers, corev1.Container{
+			Name:  common.InitContainerNameChangeBackupBucketPermissions,
+			Image: img,
+		})
+	}
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      objMeta.Name,
@@ -436,12 +456,8 @@ func buildStatefulSetWithImage(objMeta metav1.ObjectMeta, replicas int32, image 
 			},
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  common.ContainerNameEtcd,
-							Image: image,
-						},
-					},
+					InitContainers: initContainers,
+					Containers:     containers,
 				},
 			},
 		},
