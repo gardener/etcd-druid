@@ -11,6 +11,7 @@ Etcd-druid currently consists of the following controllers, each having its own 
 - *etcd* : responsible for the reconciliation of the `Etcd` CR spec, which allows users to run etcd clusters within the specified Kubernetes cluster, and also responsible for periodically updating the `Etcd` CR status with the up-to-date state of the managed etcd cluster.
 - *compaction* : responsible for [snapshot compaction](../proposals/02-snapshot-compaction.md).
 - *etcdcopybackupstask* : responsible for the reconciliation of the `EtcdCopyBackupsTask` CR, which helps perform the job of copying snapshot backups from one object store to another.
+- *etcdopstask* : responsible for the reconciliation of the `EtcdOpsTask` CR, which allows operators to perform out-of-band tasks (such as on-demand snapshots) on an `Etcd` cluster without modifying its spec.
 - *secret* : responsible in making sure `Secret`s being referenced by `Etcd` resources are not deleted while in use.
 
 ## Package Structure
@@ -102,6 +103,22 @@ This controller reacts to create/update events arising from EtcdCopyBackupsTask 
 
 The number of worker threads for the *etcdcopybackupstask controller* needs to be greater than or equal to 0 (default being 3), controlled by the CLI flag `--etcd-copy-backups-task-workers`.
 This is unlike other controllers who need at least one worker thread for the proper functioning of etcd-druid as `EtcdCopyBackupsTask` is not a core functionality for the etcd clusters to be deployed.
+
+## EtcdOpsTask Controller
+
+The *etcdopstask controller* is responsible for the reconciliation of the [`EtcdOpsTask`](https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcdopstask.go) CR, which allows operators to perform out-of-band tasks on an `Etcd` cluster managed by etcd-druid. Out-of-band here means the task does not modify the `Etcd` resource spec; it operates against an existing cluster to perform an operational action such as triggering an on-demand snapshot. The controller is designed to be extensible: new task types can be added by implementing a task-specific handler. Refer to [using-etcdopstask.md](../usage/using-etcdopstask.md) for usage details and [implementing-new-etcdopstask.md](./implementing-new-etcdopstask.md) for guidance on adding new task types.
+
+The controller follows a unified reconciliation flow for all task types, with task-specific behavior isolated behind a *handler* abstraction. A *task handler registry* maps each `spec.config` union member (e.g., `OnDemandSnapshot`) to a concrete handler implementation. The reconciler selects the appropriate handler at runtime based on the task's configuration, and drives it through three phases:
+
+- **Admit**: Validates preconditions for the task (e.g., target etcd cluster readiness, no other in-progress task for the same cluster, required configuration). On success, the task transitions from `Pending` to `InProgress`; on failure, it is marked as `Rejected`. The Admit phase is invoked only once per task.
+- **Execute**: Performs the requested operation (e.g., triggering a snapshot via the backup-restore sidecar). This phase may be invoked repeatedly in case of transient errors or timeouts, controlled by the `Requeue` field returned by the handler. On a non-retryable success or failure, the task transitions to `Succeeded` or `Failed` respectively.
+- **Cleanup**: Invoked once the task reaches a terminal state (`Succeeded`, `Failed`, or `Rejected`) and its TTL (`spec.ttlSecondsAfterFinished`) has expired. Cleans up any resources created during task execution, after which the `EtcdOpsTask` resource itself is deleted. Handlers without owned resources may implement this as a no-op.
+
+The top-level task lifecycle is reflected in `status.state`, which follows the irreversible flow `Pending → InProgress → Succeeded | Failed`, with `Pending → Rejected` as a terminal branch out of admission. The controller maintains fine-grained progress within each phase in the `status.lastOperation` field, where `Type` reflects the current phase (`Admit`, `Execution`, `Cleanup`) and `State` reflects its progress (`InProgress`, `Completed`, `Failed`). A unique `RunID` is assigned per reconciliation run for traceability. Errors encountered during execution are appended to `status.lastErrors`, capped at the 10 most recent.
+
+A serialization invariant is enforced at admission: at most one `EtcdOpsTask` may be active (in `Pending` or `InProgress`) for a given target `Etcd` cluster at any time. Subsequent tasks targeting the same cluster are `Rejected` during the Admit phase. This avoids conflicting operations on the same etcd cluster.
+
+The number of worker threads for the *etcdopstask controller* must be at least 1 (default being 3), controlled by the CLI flag `--etcd-ops-task-workers`. Although user-submitted `EtcdOpsTask` resources are themselves out-of-band, the *etcd controller* relies on the *etcdopstask controller* to drive auto-triggered tasks during hibernation and etcd version upgrade flows; disabling it would silently break those flows.
 
 ## Secret Controller
 

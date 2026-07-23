@@ -9,14 +9,20 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/store"
+	"github.com/gardener/etcd-druid/test/e2e/testenv"
 
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/onsi/gomega"
 )
 
 var knownBackupProviders = []druidv1alpha1.StorageProvider{
@@ -70,4 +76,29 @@ func ParseBackupProviders(providers string) ([]druidv1alpha1.StorageProvider, er
 	}
 
 	return providerList, nil
+}
+
+// ScaleStatefulSetToZero scales the Etcd's StatefulSet down to zero replicas and waits until no replicas are ready.
+func ScaleStatefulSetToZero(g *WithT, testEnv *testenv.TestEnvironment, etcd *druidv1alpha1.Etcd) {
+	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
+	sts := &appsv1.StatefulSet{}
+	g.Expect(testEnv.Client().Get(testEnv.Context(), types.NamespacedName{
+		Name:      stsName,
+		Namespace: etcd.Namespace,
+	}, sts)).To(Succeed())
+
+	patch := client.MergeFrom(sts.DeepCopy())
+	sts.Spec.Replicas = ptr.To[int32](0)
+	g.Expect(testEnv.Client().Patch(testEnv.Context(), sts, patch)).To(Succeed())
+
+	g.Eventually(func() int32 {
+		updated := &appsv1.StatefulSet{}
+		if err := testEnv.Client().Get(testEnv.Context(), types.NamespacedName{
+			Name:      stsName,
+			Namespace: etcd.Namespace,
+		}, updated); err != nil {
+			return -1
+		}
+		return updated.Status.ReadyReplicas
+	}, 60*time.Second, 2*time.Second).Should(Equal(int32(0)))
 }
