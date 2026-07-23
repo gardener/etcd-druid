@@ -1,0 +1,81 @@
+/**
+ * SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and Gardener contributors
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* header */
+.md-header__button.md-logo {
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+  
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+    height: 3rem;
+    width: 3rem;
+}
+.md-header__title {
+    font-size: 1.5rem;
+    font-weight: normal;
+    height: 3.5rem;
+    line-height: 3.5rem;
+    font-family: "Zilla Slab";
+}
+
+/*  Navigation tabs */
+.md-tabs__list {
+    justify-content: left;
+}
+  
+.md-tabs__item {
+    height: 2.0rem;
+    padding-left: 1.0em;
+    padding-right: 1.0em;
+    font-family: "Roboto";
+}
+  
+.md-tabs__link {
+    font-size: 0.70rem;
+    font-weight: normal;
+}
+  
+/* search box */
+.md-search__form {
+    border: 1px solid var(--pg-light-border);
+    box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(0, 0, 0, 0.02) 0px 1px 2px -1px;
+    border-radius: 6px;
+    height: 1.6rem;
+}
+
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+    border-radius: 6px 6px 0 0;
+}
+
+.md-search__input {
+    font-size: .7rem;
+}
+
+/* show table borders */
+.md-typeset td:not([class]):not(:last-child) {
+	border: 0.05rem solid var(--md-typeset-table-color);
+}
+
+/* Highlight selected file in the left navigation pane*/
+.md-nav__link--active {
+    background-color: var(--md-code-bg-color);
+    border-radius: 0.3em;
+    padding: 0.2em;
+    outline: 0.1em;
+} 
+  
+/* Additional styling to fix glitches */
+.md-sidebar__inner {
+  padding-top: 0.1em;
+}
+  
+.md-nav--lifted > .md-nav__list > .md-nav__item--active > .md-nav__link {
+  box-shadow: initial;
+}
