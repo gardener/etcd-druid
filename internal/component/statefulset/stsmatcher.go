@@ -179,8 +179,7 @@ func (s StatefulSetMatcher) matchPodInitContainers() gomegatypes.GomegaMatcher {
 			"Name":            Equal(common.InitContainerNameChangeBackupBucketPermissions),
 			"Image":           Equal(s.initContainerImage),
 			"ImagePullPolicy": Equal(corev1.PullIfNotPresent),
-			"Command":         HaveExactElements("sh", "-c", "--"),
-			"Args":            HaveExactElements(fmt.Sprintf("chown -R 65532:65532 /home/nonroot/%s", *s.etcd.Spec.Backup.Store.Container)),
+			"Command":         HaveExactElements("chown", "-R", "65532:65532", fmt.Sprintf("/home/nonroot/%s", *s.etcd.Spec.Backup.Store.Container)),
 			"VolumeMounts":    ConsistOf(s.getEtcdBackupVolumeMountMatcher()),
 			"SecurityContext": matchPodInitContainerSecurityContext(),
 		})

@@ -90,6 +90,44 @@ func TestValidateSpecBackupCompressionPolicy(t *testing.T) {
 	}
 }
 
+// TestValidateSpecBackupStoreContainer validates the pattern/maxLength constraints on the
+// etcd.spec.backup.store.container field. The field flows into a root chown init container, so
+// it must reject shell metacharacters and path separators.
+func TestValidateSpecBackupStoreContainer(t *testing.T) {
+	tests := []struct {
+		name      string
+		etcdName  string
+		container string
+		expectErr bool
+	}{
+		{"valid: simple name", "etcd-c-1", "etcd-bucket", false},
+		{"valid: with dot", "etcd-c-2", "default.bkp", false},
+		{"valid: with hyphens", "etcd-c-3", "object-storage-container-name", false},
+		{"valid: three-char minimum", "etcd-c-4", "foo", false},
+		{"invalid: shell injection", "etcd-c-5", "x; id > /tmp/pwned; #", true},
+		{"invalid: contains space", "etcd-c-6", "a b", true},
+		{"invalid: leading hyphen", "etcd-c-7", "-rf", true},
+		{"invalid: path traversal", "etcd-c-8", "../etc", true},
+		{"invalid: command substitution", "etcd-c-9", "$(whoami)", true},
+		{"invalid: trailing hyphen", "etcd-c-10", "foo-", true},
+		{"invalid: trailing dot", "etcd-c-11", "foo.", true},
+		{"invalid: below minimum length", "etcd-c-12", "ab", true},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Backup.Store = &druidv1alpha1.StoreSpec{
+				Prefix:    test.etcdName,
+				Container: &test.container,
+			}
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
 // validates the duration passed into the etcd.spec.backup.deltaSnapshotRetentionPeriod field.
 func TestValidateSpecBackupDeltaSnapshotRetentionPeriod(t *testing.T) {
 	testNs, g := setupTestEnvironment(t)
