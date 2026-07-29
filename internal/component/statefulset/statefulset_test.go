@@ -311,6 +311,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		name                   string
 		replicas               int32
 		annotations            map[string]string
+		tolerations            []corev1.Toleration
 		createErr              *apierrors.StatusError
 		expectedErr            *druiderr.DruidError
 		expectedReplicas       *int32
@@ -325,6 +326,19 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		{
 			name:             "creates multiple replica sts for a multi-node etcd cluster",
 			replicas:         3,
+			expectedReplicas: ptr.To[int32](3),
+		},
+		{
+			name:     "creates sts with tolerations propagated from schedulingConstraints",
+			replicas: 3,
+			tolerations: []corev1.Toleration{
+				{
+					Key:      "dedicated",
+					Operator: corev1.TolerationOpEqual,
+					Value:    "etcd",
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			},
 			expectedReplicas: ptr.To[int32](3),
 		},
 		{
@@ -360,6 +374,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
 				WithReplicas(tc.replicas).
 				WithAnnotations(tc.annotations).
+				WithTolerations(tc.tolerations).
 				Build()
 
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))

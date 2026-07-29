@@ -523,6 +523,15 @@ func (eb *EtcdBuilder) WithSpecLabels(labels map[string]string) *EtcdBuilder {
 	return eb
 }
 
+// WithTolerations sets the spec.schedulingConstraints.tolerations field on the Etcd resource.
+func (eb *EtcdBuilder) WithTolerations(tolerations []corev1.Toleration) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.SchedulingConstraints.Tolerations = tolerations
+	return eb
+}
+
 // WithGRPCGatewayEnabled enables the gRPC gateway on the Etcd resource.
 func (eb *EtcdBuilder) WithGRPCGatewayEnabled() *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {

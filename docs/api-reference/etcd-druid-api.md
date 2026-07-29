@@ -1167,7 +1167,7 @@ _Appears in:_
 
 SchedulingConstraints defines the different scheduling constraints that must be applied to the
 pod spec in the etcd statefulset.
-Currently supported constraints are Affinity and TopologySpreadConstraints.
+Currently supported constraints are Affinity, TopologySpreadConstraints and Tolerations.
 
 
 
@@ -1178,6 +1178,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#affinity-v1-core)_ | Affinity defines the various affinity and anti-affinity rules for a pod<br />that are honoured by the kube-scheduler. |  | Optional: \{\} <br /> |
 | `topologySpreadConstraints` _[TopologySpreadConstraint](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#topologyspreadconstraint-v1-core) array_ | TopologySpreadConstraints describes how a group of pods ought to spread across topology domains,<br />that are honoured by the kube-scheduler. |  | Optional: \{\} <br /> |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#toleration-v1-core) array_ | Tolerations defines the pod tolerations that allow etcd pods to be scheduled<br />onto nodes with matching taints, that are honoured by the kube-scheduler. |  | Optional: \{\} <br /> |
 
 
 #### SecretReference

@@ -80,6 +80,11 @@ spec:
     #   labelSelector:
     #     matchLabels:
     #       app: etcd-statefulset
+    # tolerations:
+    # - key: dedicated
+    #   operator: Equal
+    #   value: etcd
+    #   effect: NoSchedule
 
   replicas: 3
   # priorityClassName: priority-class-name

@@ -158,6 +158,7 @@ func (s StatefulSetMatcher) matchPodSpec() gomegatypes.GomegaMatcher {
 		"SecurityContext":       s.matchEtcdPodSecurityContext(),
 		"Volumes":               s.matchPodVolumes(),
 		"PriorityClassName":     Equal(ptr.Deref(s.etcd.Spec.PriorityClassName, "")),
+		"Tolerations":           Equal(s.etcd.Spec.SchedulingConstraints.Tolerations),
 	}
 	if !s.expectNoServiceAccount {
 		fields["ServiceAccountName"] = Equal(druidv1alpha1.GetServiceAccountName(s.etcd.ObjectMeta))

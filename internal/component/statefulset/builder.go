@@ -178,6 +178,7 @@ func (b *stsBuilder) createPodTemplateSpec(ctx component.OperatorContext) error 
 			SecurityContext:           b.getPodSecurityContext(),
 			Affinity:                  b.etcd.Spec.SchedulingConstraints.Affinity,
 			TopologySpreadConstraints: b.etcd.Spec.SchedulingConstraints.TopologySpreadConstraints,
+			Tolerations:               b.etcd.Spec.SchedulingConstraints.Tolerations,
 			Volumes:                   podVolumes,
 			PriorityClassName:         ptr.Deref(b.etcd.Spec.PriorityClassName, ""),
 		},
