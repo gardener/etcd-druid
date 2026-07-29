@@ -36,8 +36,6 @@ An operator migrating an etcd cluster between seeds without downtime, once the d
 
 Both reduce to the same shape: a declarative signal that the cluster should shrink, and a controller that removes members from the etcd cluster in `StatefulSet.PreSync` — before `StatefulSet.Sync` lowers the StatefulSet's replica count. This proposal exposes one mechanism that handles both.
 
-This ordering, not the StatefulSet update strategy, is what makes scale-in safe. `UpdateStrategy` (`RollingUpdate` vs `OnDelete`) governs how pod-*template* changes roll out; it does not gate a replica decrease — the StatefulSet controller removes the highest-ordinal pods by ordinal under either strategy. Scale-in therefore needs no change to the current `RollingUpdate` strategy: the guarantee comes from member removal in `PreSync` completing before the replica count drops in `Sync`.
-
 ## Goals
 
 * Provide a declarative, safe scale-in path via the `Etcd` API, covering both triggers: an `etcd.spec.replicas` decrease and removal of source members joined via `bootstrapWithExistingCluster`.
@@ -68,7 +66,7 @@ Scale-in is triggered when:
 It aims to achieve safe scale-in by:
 
 - Removing etcd cluster members one per reconcile cycle, in a quorum-safe order, before the underlying StatefulSet is shrunk.
-- Deleting freed PVCs during `StatefulSet.PreSync`, after etcd membership has converged, and allowing them to finalize when `StatefulSet.Sync` terminates the surplus pods.
+- Deleting freed PVCs during `StatefulSet.Sync`, before the StatefulSet replica count is reduced, so the surplus PVCs are reclaimed as the pods are terminated.
 - Preventing removed members from silently rejoining by adding an anti-rejoin guard in `etcd-backup-restore`.
 
 ### `etcd-druid` changes
@@ -163,15 +161,14 @@ reconcileSpec()
             c. Scale-in member removal    — NEW: at most one removal per reconcile cycle
                  - ensureMemberRemoval()  via etcd v3 client
                  - next reconcile health-checks, picks next candidate
-            d. PVC deletion               — NEW: ScalingIn only; runs once after the
-                                                 final removal in this reconcile cycle.
-                                                 Issues Delete for each PVC of an ordinal
-                                                 beyond spec.replicas. Each PVC enters
-                                                 Terminating immediately but stays Bound
-                                                 until step 5 unmounts it.
   5. syncEtcdResources
        → ConfigMap.Sync()                  regenerate initial-cluster
-       → StatefulSet.Sync()                reconcile StatefulSet
+       → StatefulSet.Sync()                — NEW (ScalingIn): after membership has
+                                              converged, delete PVCs for ordinals
+                                              beyond spec.replicas, then reduce the
+                                              StatefulSet replica count. Each PVC enters
+                                              Terminating and is reclaimed as the surplus
+                                              pod is terminated by the replica reduction.
   6. cleanupEtcdResources
        → BootstrapMembersRemoval only: prune the just-removed entries from
                                                  status.bootstrapWithExistingClusterMembers.
@@ -213,19 +210,14 @@ sequenceDiagram
         P->>E: MemberRemove
         P-->>R: Requeue for next reconcile
     end
-
-    opt ScalingIn
-        Note over R,P: Step 4d StatefulSet.PreSync, after member removal is complete
-        P->>P: ensureSurplusPVCDeletion()
-        P->>P: Delete PVCs for ordinals beyond spec.replicas
-        Note over P: PVCs go Terminating, stay Bound until kubelet unmounts in step 5
-    end
     P-->>R: StatefulSet.PreSync complete
 
     Note over R,S: Step 5 StatefulSet.Sync, compute ConfigMap and reconcile StatefulSet
     R->>S: Run StatefulSet.Sync
     S->>S: Regenerate initial-cluster ConfigMap
     opt ScalingIn
+        Note over S: After membership has converged
+        S->>S: Delete PVCs for ordinals beyond spec.replicas
         S->>S: Shrink StatefulSet to spec.replicas
         Note over S: Surplus pods Terminate, kubelet unmounts each PVC, Terminating PVCs finalize
     end
@@ -242,7 +234,7 @@ sequenceDiagram
     R-->>C: Reconcile complete
 ```
 
-The relevant additions are described below. Existing steps (1–2, 4a–4b, 5) are unchanged and not described here.
+The relevant additions are described below. Existing steps (1–2, 4a–4b) are unchanged and not described here.
 
 ##### Detection (Step 3)
 
@@ -263,32 +255,28 @@ The condition is patched before component reconciliation starts, allowing CEL va
 
 Scale-in introduces direct etcd member removal from `etcd-druid` using an etcd v3 client. `ensureMemberRemoval` connects through the corresponding Etcd cluster's Kubernetes etcd client Service and uses client TLS credentials from the configured secret when client TLS is enabled. It uses the etcd client `MemberList()` API for membership discovery and removes at most one member per reconcile cycle with the etcd client `MemberRemove(id)` API. Each cycle recomputes the target set, so the operation can safely resume after controller restarts.
 
-The removal sequence is:
+The removal proceeds in two distinct steps — selecting the set of candidates, then ordering the removals within that set:
 
 1. Verify that removing another member keeps quorum intact.
-2. Recompute the members to remove:
-   - `ScalingIn`: members with pod ordinal `≥ spec.replicas`.
+2. **Select the candidate set** to remove:
+   - `ScalingIn`: members with pod ordinal `≥ spec.replicas` (the highest ordinals, which preserves contiguous ordinals for the members that remain).
    - `BootstrapMembersRemoval`: joined bootstrap members no longer present in spec, or all joined bootstrap members when `bootstrapWithExistingCluster` is unset.
-3. Select the next candidate: learners first, then non-leader voters, and the leader last if it is part of the removal set.
-4. Call the etcd client `MemberRemove(id)` API and requeue so the next reconcile observes the updated cluster state.
+3. **Order the removals within that already-selected set**: learners first, then non-leader voters, and the leader last if it is part of the set. This ordering applies only among the candidates chosen in step 2 — it does not change *which* members are removed, only the sequence in which they are removed (so the leader goes last, avoiding an unnecessary leadership change mid-operation).
+4. Call the etcd client `MemberRemove(id)` API for the next candidate and requeue so the following reconcile observes the updated cluster state.
 
-Serial removal is intentional. It avoids parallel membership changes in the same etcd cluster and gives the cluster one reconcile cycle to stabilize between removals. Conditions, events, and logs should reference member names; member IDs remain internal to the helper.
+Serial removal is intentional. It avoids parallel membership changes in the same etcd cluster and gives the cluster one reconcile cycle to stabilize between removals. Conditions and events should reference member names; logs may additionally include member IDs for debugging.
 
-##### PVC deletion in `StatefulSet.PreSync` (Step 4d)
+If the quorum check in step 1 determines that removing the next member would break quorum, the controller does not remove it and requeues. This is surfaced in the `Etcd` status: a `LastError` is recorded in `etcd.status.lastErrors` with a coded reason (for example `ERR_QUORUM_UNSAFE_MEMBER_REMOVAL`) and a description such as *"member `<name>` not removed: removal would break quorum; requeuing until the cluster is healthy"*, and `etcd.status.lastOperation.State` is set to `Error` so the operation is retried. `ScaleOperationInProgress` stays `True` (reason `ScalingIn`) because the operation is still in progress — the block is transient, and `lastErrors` is what surfaces *why* no member is being removed right now.
+
+##### PVC deletion in `StatefulSet.Sync`
 
 **This step runs only for `ScalingIn`**, since only an `etcd.spec.replicas` decrease frees PVCs that the controller owns. `BootstrapMembersRemoval` does not delete PVCs because the removed members belong to the source etcd cluster.
 
-A StatefulSet does not reclaim the PVCs of removed ordinals on scale-down — the default `persistentVolumeClaimRetentionPolicy` retains them — so `etcd-druid` must delete the surplus PVCs explicitly; Kubernetes does not do it for us.
+A StatefulSet does not reclaim the PVCs of removed ordinals on scale-in — the default `persistentVolumeClaimRetentionPolicy` retains them — so `etcd-druid` must delete the surplus PVCs explicitly; Kubernetes does not do it for us.
 
-This deletion is kept in `StatefulSet.PreSync` because the scale-in context is already established there: the controller has just removed the surplus members and knows the `etcd.spec.replicas` < `StatefulSet.spec.replicas` delta that identifies exactly which ordinals are surplus. Moving PVC deletion into `StatefulSet.Sync` would force `Sync` to re-derive that same scale-in context, splitting one logical operation (remove the members, then release the storage they backed) across two components. Keeping both halves in `PreSync`, gated on the same `ScaleOperationInProgress` condition and the same "membership has converged" check, keeps the scale-in decision in one place.
+`StatefulSet.Sync` determines the surplus ordinals from the `etcd.spec.replicas` vs `StatefulSet.spec.replicas` delta and, before it lowers the StatefulSet's replica count, deletes the PVCs of the ordinals being removed.
 
-Deleting in `PreSync` is also safe: the only action taken here is issuing the `Delete` (stamping `deletionTimestamp`) — it does **not** reclaim the volume, which happens lazily once the surplus pod unmounts during `Sync`. Because the intent is persisted on the PVC object, it also survives a controller restart across the membership-removal → pod-termination boundary. There is therefore no ordering dependency that forces this into `Sync`.
-
-For `ScalingIn`, PVC deletion starts only after etcd membership has converged to the target set.
-
-For each ordinal `i ≥ spec.replicas`, the controller derives the PVC name from `StatefulSet.Spec.VolumeClaimTemplates[*].Name` and the StatefulSet pod-ordinal naming convention (`{vctName}-{stsName}-{i}`), then issues an idempotent delete request.
-
-The surplus pods still mount these PVCs, so the PVCs enter `Terminating` but remain `Bound`. They finalize when `StatefulSet.Sync` shrinks the StatefulSet and the kubelet unmounts them. If the controller restarts in between, the PVC deletion intent remains durable through `deletionTimestamp`.
+For each ordinal `i ≥ spec.replicas`, the controller derives the PVC name from `StatefulSet.Spec.VolumeClaimTemplates[*].Name` and the StatefulSet pod-ordinal naming convention (`{vctName}-{stsName}-{i}`), then issues an idempotent delete request. The `Delete` only stamps `deletionTimestamp`; the volume is reclaimed once the surplus pod is terminated by the replica reduction that immediately follows in the same `Sync` and the kubelet unmounts it.
 
 ##### Status cleanup (Step 6)
 
@@ -351,6 +339,8 @@ The check opens boltdb read-only via `mmap` and reads only the small membership 
 ##### Limitation
 
 The guard relies on the `members_removed` tombstone, which lives in the member's **own** data directory. If that data directory is wiped or corrupted — WAL or boltdb missing or unreadable — there is no tombstone to consult, so the member is treated as a fresh join and may be re-added as a learner. This case is outside the guard's reach by design (there is nothing on disk to read). The backstop here is the `etcd-druid` controller: scale-in detection re-derives the target set on every reconcile and removes the surplus member again under the per-cycle quorum-safety check, so a member restarting with a wiped/corrupted data directory cannot persist in the cluster after a scale-in.
+
+The guard does not interfere with the normal single-member restoration path. It runs only on the scale-out/rejoin branch — i.e. when the member is **not present** in the live cluster's member list. A valid member whose data directory is merely corrupted is **still a member** of the cluster, so the guard is skipped and the existing single-member restoration flow runs unchanged. `ErrMembershipCheckFailed` (fail-closed on an unreadable boltdb) is reached only on that rejoin branch — for a member absent from the cluster — so it cannot block restoration of a valid member. Single-node clusters are a [Non-Goal](#non-goals) and the guard is gated on multi-node in any case.
 
 ## Alternatives
 
