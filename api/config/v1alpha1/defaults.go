@@ -177,6 +177,16 @@ func SetDefaults_SecretControllerConfiguration(secretCtrlConfig *SecretControlle
 	}
 }
 
+// DefaultOnDeleteControllerConcurrentSyncs is the default number of concurrent syncs for the OnDelete controller.
+const DefaultOnDeleteControllerConcurrentSyncs = 3
+
+// SetDefaults_OnDeleteControllerConfiguration sets defaults for the OnDelete controller configuration.
+func SetDefaults_OnDeleteControllerConfiguration(onDeleteCtrlConfig *OnDeleteControllerConfiguration) {
+	if onDeleteCtrlConfig.ConcurrentSyncs == nil {
+		onDeleteCtrlConfig.ConcurrentSyncs = ptr.To(DefaultOnDeleteControllerConcurrentSyncs)
+	}
+}
+
 const (
 	// DefaultEtcdOpsTaskControllerConcurrentSyncs is the default number of concurrent syncs for the etcd ops task controller.
 	DefaultEtcdOpsTaskControllerConcurrentSyncs = 3

@@ -25,7 +25,7 @@ import (
 // Reconciler reconciles secrets referenced in Etcd objects.
 type Reconciler struct {
 	client.Client
-	Config druidconfigv1alpha1.SecretControllerConfiguration
+	config druidconfigv1alpha1.SecretControllerConfiguration
 	logger logr.Logger
 }
 
@@ -33,8 +33,8 @@ type Reconciler struct {
 func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.SecretControllerConfiguration) *Reconciler {
 	return &Reconciler{
 		Client: mgr.GetClient(),
-		Config: config,
-		logger: log.Log.WithName("secret-controller"),
+		config: config,
+		logger: log.Log.WithName(controllerName),
 	}
 }
 

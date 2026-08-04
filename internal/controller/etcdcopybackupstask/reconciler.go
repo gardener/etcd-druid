@@ -64,7 +64,7 @@ func NewReconcilerWithImageVector(mgr manager.Manager, config druidconfigv1alpha
 		Client:      mgr.GetClient(),
 		Config:      config,
 		imageVector: imageVector,
-		logger:      log.Log.WithName("etcd-copy-backups-task-controller"),
+		logger:      log.Log.WithName(controllerName),
 	}
 }
 

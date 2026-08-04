@@ -20,7 +20,8 @@ tolerations: [ ]
 topologySpreadConstraints: [ ]
 
 featureGates: { 
-  UpgradeEtcdVersion: false
+  UpgradeEtcdVersion: false,
+  QuorumAwareUpdatesWithOnDelete: false
 }
 
 webhookPKI:
@@ -79,13 +80,16 @@ operatorConfig:
     etcdOpsTask:
       concurrentSyncs: 3
       requeueInterval: 15s
+    ondelete:
+      concurrentSyncs: 3
   webhooks:
     etcdComponentProtection:
       enabled: false
       exemptServiceAccounts:
         - system:serviceaccount:kube-system:generic-garbage-collector
   featureGates: { 
-    UpgradeEtcdVersion: false
+    UpgradeEtcdVersion: false,
+    QuorumAwareUpdatesWithOnDelete: false
   }
   logConfiguration:
     logLevel: info

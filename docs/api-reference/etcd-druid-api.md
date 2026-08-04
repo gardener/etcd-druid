@@ -67,6 +67,7 @@ _Appears in:_
 | `disableLeaseCache` _boolean_ | DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.<br />Deprecated: This field will be eventually removed. It is recommended to not use this.<br />It has only been introduced to allow for backward compatibility with the old CLI flags. |  | Optional: \{\} <br /> |
 | `etcd` _[EtcdControllerConfiguration](#etcdcontrollerconfiguration)_ | Etcd is the configuration for the Etcd controller. |  |  |
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
+| `ondelete` _[OnDeleteControllerConfiguration](#ondeletecontrollerconfiguration)_ | OnDelete is the configuration for the ondelete controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
 | `secret` _[SecretControllerConfiguration](#secretcontrollerconfiguration)_ | Secret is the configuration for the Secret controller. |  |  |
 | `etcdOpsTask` _[EtcdOpsTaskControllerConfiguration](#etcdopstaskcontrollerconfiguration)_ | EtcdOpsTask is the configuration for the EtcdOpsTask controller. |  |  |
@@ -236,6 +237,22 @@ _Appears in:_
 | `debug` | LogLevelDebug is the debug log level, i.e. the most verbose.<br /> |
 | `info` | LogLevelInfo is the default log level.<br /> |
 | `error` | LogLevelError is a log level where only errors are logged.<br /> |
+
+
+#### OnDeleteControllerConfiguration
+
+
+
+OnDeleteControllerConfiguration defines the configuration for the OnDelete controller.
+
+
+
+_Appears in:_
+- [ControllerConfiguration](#controllerconfiguration)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 
 
 

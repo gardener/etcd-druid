@@ -89,6 +89,18 @@ profiles:
         path: /deploy/helm/releases/0/setValues/operatorConfig
         value:
           webhooks.etcdComponentProtection.enabled: true
+  - name: enable-quorum-aware-updates-with-ondelete
+    activation:
+      - env: QUORUM_AWARE_UPDATES_WITH_ONDELETE=true
+    patches:
+      - op: add
+        path: /deploy/helm/releases/0/setValues/operatorConfig
+        value:
+          featureGates.QuorumAwareUpdatesWithOnDelete: true
+      - op: add
+        path: /deploy/helm/releases/0/setValues/featureGates
+        value:
+          QuorumAwareUpdatesWithOnDelete: true
 ---
 apiVersion: skaffold/v4beta12
 kind: Config

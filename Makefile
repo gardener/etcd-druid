@@ -165,6 +165,12 @@ test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
 	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind.sh
 
+# Same as ci-e2e-kind but deploys with the QuorumAwareUpdatesWithOnDelete
+# feature gate enabled to run the ondelete e2e test suite (TestOnDeleteRollout)
+.PHONY: ci-e2e-kind-ondelete
+ci-e2e-kind-ondelete: $(GINKGO) $(YQ) $(KIND)
+	@BUCKET_NAME=$(BUCKET_NAME) PROVIDERS=$(PROVIDERS) $(HACK_DIR)/ci-e2e-kind-ondelete.sh
+
 .PHONY: clean-e2e-test-resources
 clean-e2e-test-resources: $(KUBECTL)
 	@rm -rf $(REPO_ROOT)/test/e2e/controller/pki-resources/*

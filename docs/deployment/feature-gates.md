@@ -23,6 +23,7 @@ The following tables are a summary of the feature gates that you can set on etcd
 | Feature | Default | Stage | Since | Until |
 |---------|---------|-------|-------|-------|
 | `UpgradeEtcdVersion` | `false` | `Alpha` | `0.36` |       |
+| `QuorumAwareUpdatesWithOnDelete` | `false` | `Alpha` | `0.38` |       |
 
 ## Feature Gates for Graduated or Deprecated Features
 
@@ -75,4 +76,5 @@ This is also referred to as a *stable* feature which should have the following c
 | Feature               | Description                                                                                                                                                                                   |
 |-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `UpgradeEtcdVersion`  | Enables automatic in-place upgrade to etcd version 3.5.27 , ensuring a full on-demand snapshot is taken before the process begins.                      |
+| `QuorumAwareUpdatesWithOnDelete` | Hands over responsibility for propagating pod-template updates from the Kubernetes StatefulSet controller to a dedicated etcd-druid controller. The dedicated controller configures the StatefulSet with the `OnDelete` update strategy and deletes pods in a health-aware, quorum-preserving order (updates non-participating pods first, then followers, then the leader). Introduced by DEP-07 (`docs/proposals/07-quorum-aware-pod-updates.md`). Operator-wide (no per-cluster override). |
 | `UseEtcdWrapper`      | Enables the use of etcd-wrapper image and a compatible version of etcd-backup-restore, along with component-specific configuration changes necessary for the usage of the etcd-wrapper image. |

@@ -17,6 +17,10 @@ const (
 
 	// UpgradeEtcdVersion is the name of the feature which enables upgrade of etcd version to v3.5.
 	UpgradeEtcdVersion = "UpgradeEtcdVersion"
+
+	// QuorumAwareUpdatesWithOnDelete is the name of the feature which hands over the responsibility of ensuring quorum aware updates to the etcd cluster using the OnDelete update strategy on the StatefulSet.
+	// This feature is in Alpha state and is disabled by default.
+	QuorumAwareUpdatesWithOnDelete = "QuorumAwareUpdatesWithOnDelete"
 )
 
 // maturityLevelSpec is the specification of maturity level for a feature.
@@ -85,6 +89,7 @@ var DefaultFeatureGates = newFeatureGate()
 func init() {
 	DefaultFeatureGates.knownFeatures[UseEtcdWrapper] = maturityLevelSpecGA
 	DefaultFeatureGates.knownFeatures[UpgradeEtcdVersion] = maturityLevelSpecAlpha
+	DefaultFeatureGates.knownFeatures[QuorumAwareUpdatesWithOnDelete] = maturityLevelSpecAlpha
 }
 
 // IsEnabled checks if a feature is enabled.

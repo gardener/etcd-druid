@@ -33,15 +33,16 @@ const (
 	envBackupProviders     = "PROVIDERS"
 
 	// test parameters
-	timeoutTest                = 1 * time.Hour
-	timeoutEtcdCreation        = 5 * time.Minute
-	timeoutEtcdDeletion        = 2 * time.Minute
-	timeoutEtcdHibernation     = 2 * time.Minute
-	timeoutEtcdUnhibernation   = 5 * time.Minute
-	timeoutEtcdUpdation        = 10 * time.Minute
-	timeoutEtcdDisruptionStart = 30 * time.Second
-	timeoutEtcdRecovery        = 5 * time.Minute
-	timeoutDeployJob           = 2 * time.Minute
+	timeoutTest                   = 1 * time.Hour
+	timeoutEtcdCreation           = 5 * time.Minute
+	timeoutEtcdDeletion           = 2 * time.Minute
+	timeoutEtcdHibernation        = 2 * time.Minute
+	timeoutEtcdUnhibernation      = 5 * time.Minute
+	timeoutEtcdUpdation           = 10 * time.Minute
+	timeoutEtcdDisruptionStart    = 30 * time.Second
+	timeoutEtcdRecovery           = 5 * time.Minute
+	timeoutDeployJob              = 2 * time.Minute
+	timeoutDruidDeploymentRestart = 5 * time.Minute
 
 	testNamespacePrefix = "etcd-e2e"
 	defaultEtcdName     = "test"
