@@ -34,7 +34,10 @@ An operator who scaled a cluster out — either temporarily for a load spike, or
 **2. Migrating an etcd cluster with zero downtime.**
 An operator migrating an etcd cluster from one hosting Kubernetes cluster to another without downtime, once the new members have joined the existing cluster (via [`bootstrapWithExistingCluster`](../concepts/bootstrap-with-existing-cluster.md)), needs to decommission the original members declaratively — by removing them from `etcd.spec.etcd.bootstrapWithExistingCluster.members` — so the cluster ends up running only on the new members. Today this final removal step has no declarative path. Gardener's [Live Control Plane Migration (GEP-0039)](https://github.com/gardener/enhancements/tree/main/geps/0039-live-control-plane-migration#member-removal-from-the-cluster) is one concrete use of this pattern.
 
-Both reduce to the same shape: a declarative signal that the cluster should shrink, and a controller that safely removes the surplus etcd members before the underlying StatefulSet is resized. This proposal exposes one mechanism that handles both.
+**3. Zero-downtime update of a single-node etcd cluster.**
+An operator running a single-node (non-HA) etcd cluster needs to perform a disruptive change — such as a node/volume migration — without downtime. This can be done by temporarily scaling *out* (`1 → 2`) so a second member takes over serving, and then scaling *in* (`2 → 1`) once the change is complete. The scale-in half (`2 → 1`) is blocked today.
+
+These reduce to the same shape: a declarative signal that the cluster should shrink, and a controller that safely removes the surplus etcd members before the underlying StatefulSet is resized. This proposal exposes one mechanism that handles them.
 
 ## Goals
 
@@ -44,14 +47,14 @@ Both reduce to the same shape: a declarative signal that the cluster should shri
 
 ## Non-Goals
 
-* Scaling `replicas` to `0` (`replicas: N → 0`) — a distinct operation, out of scope for this DEP.
-* Single-node etcd clusters — no quorum-safe path to remove the sole member.
+* Supporting scale-in to zero (`replicas: N → 0`).
+* Supporting scale-in of a single-member cluster.
 
 ## Proposal
 
 ### Prerequisites
 
-* The etcd cluster should be running with all members healthy and quorum intact for scale-in to make progress. If quorum is not intact, the controller still records the scale operation but withholds every `MemberRemove`: the per-cycle quorum-safety check keeps requeuing with backoff until the cluster recovers, so no member is removed while quorum is degraded. The operator can either wait for quorum to be restored or declaratively roll back the change (increase `spec.replicas` / restore the bootstrap members again).
+The etcd cluster should be running with all members healthy and quorum intact for scale-in to make progress. If quorum is not intact, the controller still records the scale operation but withholds every `MemberRemove`: the per-cycle quorum-safety check keeps requeuing with backoff until the cluster recovers, so no member is removed while quorum is degraded.
 
 ### Approach
 
@@ -285,6 +288,12 @@ For each ordinal `i ≥ spec.replicas`, the controller derives the PVC name from
 ##### Clear condition (Step 7)
 
 `recordReconcileSuccessOperation` includes the `ScaleOperationInProgress=False` update in its existing status patch.
+
+##### Limitation
+
+Once a scale-in has removed at least one member, it cannot be aborted or reversed back to the original cluster size until it completes. Increasing `spec.replicas` again (or restoring the removed bootstrap members) while `ScaleOperationInProgress=True` is an opposite-direction change and is rejected by the CEL rules. So if a scale-in gets stuck — for example, it removed one member of a `5 → 3` and then cannot remove the next because doing so would break quorum — the only way forward is to restore the affected members to health so the scale-in can finish reaching the target size; there is no supported path to cancel it and return to the original size.
+
+This applies only once a member has actually been removed. A change reverted before any removal — such as the `3 → 2 → 3` case within the admission window described above — converges to a no-op, since no membership change has occurred.
 
 ### `etcd-backup-restore` changes
 
