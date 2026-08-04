@@ -54,7 +54,7 @@ These reduce to the same shape: a declarative signal that the cluster should shr
 
 ### Prerequisites
 
-The etcd cluster should be running with all members healthy and quorum intact for scale-in to make progress. If quorum is not intact, the controller still records the scale operation but withholds every `MemberRemove`: the per-cycle quorum-safety check keeps requeuing with backoff until the cluster recovers, so no member is removed while quorum is degraded.
+Scale-in makes progress as long as the cluster has quorum. Any member — including an unhealthy one — can be removed as long as the remaining members still form a quorum after the removal; the per-cycle quorum-safety check enforces this (removing a dead member is the safe case, since it was not contributing to quorum anyway). If a removal would drop the cluster below quorum, the controller withholds that `MemberRemove` and requeues with backoff until the removal is once again quorum-safe.
 
 ### Approach
 
