@@ -31,10 +31,10 @@ This proposal introduces safe scale-in support for multi-node etcd clusters mana
 **1. Shrinking an over-provisioned HA cluster.**
 An operator who scaled a cluster out — either temporarily for a load spike, or because it was originally provisioned for peak load — needs to reduce it back (for example 5 → 3) by lowering `etcd.spec.replicas`, and have `etcd-druid` remove the surplus members and resize the cluster without running `etcdctl` or risking quorum. Today this is impossible: any non-zero decrease of `etcd.spec.replicas` is rejected at admission.
 
-**2. Completing a live control-plane migration.**
-An operator migrating an etcd cluster between seeds without downtime, once the destination members have joined the source cluster (via `bootstrapWithExistingCluster`), needs to decommission the source members declaratively — by removing them from `etcd.spec.etcd.bootstrapWithExistingCluster.members` — so the cluster ends up running only on the destination. Today this final removal step has no declarative path. See [GEP-0039 — Member removal from the cluster](https://github.com/gardener/enhancements/tree/main/geps/0039-live-control-plane-migration#member-removal-from-the-cluster) for the full migration sequence.
+**2. Migrating an etcd cluster with zero downtime.**
+An operator migrating an etcd cluster from one hosting Kubernetes cluster to another without downtime, once the new members have joined the existing cluster (via [`bootstrapWithExistingCluster`](../concepts/bootstrap-with-existing-cluster.md)), needs to decommission the original members declaratively — by removing them from `etcd.spec.etcd.bootstrapWithExistingCluster.members` — so the cluster ends up running only on the new members. Today this final removal step has no declarative path. Gardener's [Live Control Plane Migration (GEP-0039)](https://github.com/gardener/enhancements/tree/main/geps/0039-live-control-plane-migration#member-removal-from-the-cluster) is one concrete use of this pattern.
 
-Both reduce to the same shape: a declarative signal that the cluster should shrink, and a controller that removes members from the etcd cluster in `StatefulSet.PreSync` — before `StatefulSet.Sync` lowers the StatefulSet's replica count. This proposal exposes one mechanism that handles both.
+Both reduce to the same shape: a declarative signal that the cluster should shrink, and a controller that safely removes the surplus etcd members before the underlying StatefulSet is resized. This proposal exposes one mechanism that handles both.
 
 ## Goals
 
@@ -46,7 +46,6 @@ Both reduce to the same shape: a declarative signal that the cluster should shri
 
 * Scaling `replicas` to `0` (`replicas: N → 0`) — a distinct operation, out of scope for this DEP.
 * Single-node etcd clusters — no quorum-safe path to remove the sole member.
-* Exposing member removal via any externally callable surface (EtcdOpsTask, HTTP endpoint, CLI subcommand, Job). Member removal is a sensitive operation that must remain internal to the controller's reconciliation flow. Exposing it as an external API would make it easy to leave the cluster below quorum, or hard to recover, through incorrect or ill-timed invocation.
 
 ## Proposal
 
@@ -75,7 +74,7 @@ This section describes the status, validation, and reconcile-flow changes requir
 
 #### Status condition
 
-##### Why this condition is required
+##### Why the `ScaleOperationInProgress` condition is required
 
 Scale-in removes etcd members one at a time before the StatefulSet is shrunk. Consider a `3 → 2` scale-in: the controller removes a member from the etcd cluster, but the StatefulSet has not yet been reduced. If a `2 → 3` scale-out lands in this window, the cluster is left in a conflicting state — a member has already been removed from etcd, yet `spec.replicas` is back to `3`. Looking only at `spec.replicas` and the StatefulSet replica count is no longer enough to decide whether the controller should finish the in-flight scale-in or treat the missing member as a fresh scale-out target. The safe behaviour is to **let an in-flight scale-in (or scale-out) complete and reject the opposite-direction scaling until it does**.
 
@@ -100,7 +99,7 @@ The `ScalingOut` reason does not change the existing scale-out mechanics from [D
 
 #### CEL validation rules
 
-The existing [field-level rule that blocks `replicas` decreases](https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcd.go#L385) will be removed so that multi-node clusters can be scaled in declaratively. Scaling to `replicas: 0` remains handled by the existing `replicas → 0` code path (see Non-Goals) and is unaffected by the new rules, which apply only when both `self.spec.replicas > 0` and `oldSelf.spec.replicas > 0`.
+The existing [field-level rule that blocks `replicas` decreases](https://github.com/gardener/etcd-druid/blob/5b90b4a7dc7da4f4d35ea9905103d8b60b9f6e8e/api/core/v1alpha1/etcd.go#L546) will be removed so that multi-node clusters can be scaled in declaratively. Scaling to `replicas: 0` remains handled by the existing `replicas → 0` code path (see Non-Goals) and is unaffected by the new rules, which apply only when both `self.spec.replicas > 0` and `oldSelf.spec.replicas > 0`.
 
 New object-level CEL rules will guard conflicting operations using the `ScaleOperationInProgress` condition. A `replicas` decrease while `bootstrapWithExistingCluster` is set is treated as a normal `ScalingIn`; bootstrap-member removal is tracked as a distinct operation and is not run concurrently with scale-in or scale-out.
 
@@ -187,7 +186,6 @@ sequenceDiagram
     participant P as StatefulSet.PreSync
     participant E as etcd
     participant S as StatefulSet.Sync
-    participant K as Cleanup
 
     C->>R: Spec change triggers reconciliation
 
@@ -223,11 +221,11 @@ sequenceDiagram
     end
     Note over S: BootstrapMembersRemoval keeps StatefulSet replicas unchanged
 
-    Note over R,K: Step 6 Cleanup
+    Note over R: Step 6 cleanupEtcdResources
     opt BootstrapMembersRemoval
-        R->>K: Prune removed entries from bootstrapWithExistingClusterMembers
+        R->>R: Prune removed entries from bootstrapWithExistingClusterMembers
     end
-    Note over R,K: status.members is re-derived by the health checker, not pruned here
+    Note over R: status.members is re-derived by the health checker, not pruned here
 
     Note over R: Step 7 recordReconcileSuccessOperation
     R->>R: Patch ScaleOperationInProgress=False (bundled with success patch)
@@ -364,7 +362,7 @@ Each alternative below adds an externally callable surface for member removal. E
 - [GEP-0039: Live Control Plane Migration](https://github.com/gardener/enhancements/tree/main/geps/0039-live-control-plane-migration) — live CPM context and source-member removal requirement.
 - [Issue #1239 — Support for bootstrapping with existing etcd cluster](https://github.com/gardener/etcd-druid/issues/1239) — original bootstrap-with-existing-cluster requirement.
 - [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md) — the join phase this DEP builds on; introduces `spec.etcd.bootstrapWithExistingCluster` and the `status.bootstrapWithExistingClusterMembers` list this proposal diffs against.
-- [Existing CEL rule blocking scale-in](https://github.com/gardener/etcd-druid/blob/7a5ac3182/api/core/v1alpha1/etcd.go#L385)
+- [Existing CEL rule blocking scale-in](https://github.com/gardener/etcd-druid/blob/5b90b4a7dc7da4f4d35ea9905103d8b60b9f6e8e/api/core/v1alpha1/etcd.go#L546)
 - [`Etcd` type declaration for object-level CEL rules](https://github.com/gardener/etcd-druid/blob/7a5ac3182/api/core/v1alpha1/etcd.go#L58-L62)
 - [`reconcileSpec` orchestration](https://github.com/gardener/etcd-druid/blob/7a5ac3182/internal/controller/etcd/reconcile_spec.go#L28-L48)
 
