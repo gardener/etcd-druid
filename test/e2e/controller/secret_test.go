@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	e2eutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr/testr"
@@ -27,27 +28,27 @@ func TestSecretFinalizers(t *testing.T) {
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
 
 	for _, provider := range providers {
-		tcName := fmt.Sprintf("secret-%s", getProviderSuffix(provider))
+		tcName := fmt.Sprintf("secret-%s", e2eutils.GetProviderSuffix(provider))
 		t.Run(tcName, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 			var testSucceeded bool
 
 			testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-			logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+			logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 			defer func() {
-				cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 			}()
-			initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+			e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 			logger.Info("running tests")
-			etcdBuilder := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+			etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 				WithReplicas(int32(0)).
 				WithClientTLS().
 				WithPeerTLS().
 				WithDefaultBackup().
 				WithBackupRestoreTLS().
-				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName))
+				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
 			etcd := etcdBuilder.Build()
 
 			referencedSecrets := []string{

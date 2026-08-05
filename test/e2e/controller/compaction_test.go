@@ -10,6 +10,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	e2eutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr/testr"
@@ -81,28 +82,28 @@ func TestSnapshotCompaction(t *testing.T) {
 			continue
 		}
 		for _, tc := range testCases {
-			tcName := fmt.Sprintf("compaction-%s-%s", tc.name, getProviderSuffix(provider))
+			tcName := fmt.Sprintf("compaction-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
 			t.Run(tcName, func(t *testing.T) {
 				t.Parallel()
 				g := NewWithT(t)
 				var testSucceeded bool
 
 				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-				logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
 				defer func() {
-					cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 				}()
-				initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, provider)
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcd := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+				etcd := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(1).
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
 					WithGRPCGatewayEnabled().
 					WithDefaultBackup().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, defaultEtcdName)).
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName)).
 					WithDeltaSnapshotPeriod(300*time.Hour).                                                                   // TODO: set to 0 (disable scheduled delta snapshots) after https://github.com/gardener/etcd-backup-restore/issues/965 is resolved
 					WithGarbageCollection(600*time.Hour, druidv1alpha1.GarbageCollectionPolicyLimitBased, ptr.To[int32](10)). // TODO: remove this line once we set delta snapshot period to 0 after https://github.com/gardener/etcd-backup-restore/issues/965 is resolved
 					WithBackupRestoreTLS().
@@ -114,7 +115,7 @@ func TestSnapshotCompaction(t *testing.T) {
 
 				if tc.revisionsForFullSnapshot > 0 {
 					logger.Info("creating EtcdLoader job to put data for full snapshot")
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForFullSnapshot, timeoutSnapshotCompaction)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForFullSnapshot, 0, timeoutSnapshotCompaction)
 					logger.Info("successfully put data for full snapshot")
 
 					logger.Info("triggering full snapshot")
@@ -126,7 +127,7 @@ func TestSnapshotCompaction(t *testing.T) {
 					g.Expect(tc.revisionsForDeltaSnapshot).To(BeNumerically(">", tc.revisionsForFullSnapshot))
 
 					logger.Info("creating EtcdLoader job to put data for delta snapshot")
-					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForDeltaSnapshot, timeoutSnapshotCompaction)
+					testEnv.DeployEtcdLoaderJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, tc.revisionsForDeltaSnapshot, 0, timeoutSnapshotCompaction)
 					logger.Info("successfully put data for delta snapshot")
 
 					logger.Info("triggering delta snapshot")
