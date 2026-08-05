@@ -47,8 +47,7 @@ These reduce to the same shape: a declarative signal that the cluster should shr
 
 ## Non-Goals
 
-* Supporting scale-in to zero (`replicas: N → 0`).
-* Supporting scale-in of a single-member cluster.
+* Supporting scale-in to zero (`replicas: N → 0`). This includes a single-member cluster, whose only scale-in would be `1 → 0`.
 
 ## Proposal
 
@@ -89,8 +88,8 @@ A new `ScaleOperationInProgress` condition is introduced in `etcd.status.conditi
 |----------------------------|--------|---------------------------|-------------|
 | `ScaleOperationInProgress` | True   | ScalingIn                 | `etcd.spec.replicas`-driven scale-in in progress |
 | `ScaleOperationInProgress` | True   | BootstrapMembersRemoval   | Removing source members joined via `bootstrapWithExistingCluster` |
-| `ScaleOperationInProgress` | True   | ScalingOut                | Scale-out in progress — set so the admission gate can reject a scale-in that races an in-flight scale-out (see below) |
-| `ScaleOperationInProgress` | False  | —                         | No scale operation in progress |
+| `ScaleOperationInProgress` | True   | ScalingOut                | Scale-out in progress — a `spec.replicas` increase, or a `bootstrapWithExistingCluster` join (which also adds members). Set so the admission gate can reject a scale-in that races an in-flight scale-out (see below) |
+| `ScaleOperationInProgress` | False  | NoScaleOperation          | No scale operation in progress |
 
 The condition is used by:
 
@@ -98,6 +97,8 @@ The condition is used by:
 - `StatefulSet.PreSync` to decide whether to run the member-removal branch.
 
 The `ScalingOut` reason does not change the existing scale-out mechanics from [DEP-03](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/03-scaling-up-an-etcd-cluster.md). Scale-out remains driven by a `spec.replicas` increase; new members join as learners via the `etcd-backup-restore` sidecar. The reason is introduced as a coordination marker for the symmetric admission gate: while a scale-out is in flight, a racing scale-in must be rejected for the same conflict reason described above. The controller therefore records `ScalingOut` for CEL to read, while the actual scale-out flow remains unchanged.
+
+A `bootstrapWithExistingCluster` join is also a scale-out — the target members are added to an existing cluster — so it likewise carries `ScaleOperationInProgress=True` with reason `ScalingOut`. In this case the condition is only cleared once all `bootstrapWithExistingCluster` members have joined, i.e. when `BootstrappedWithExistingCluster` becomes `True`.
 
 
 #### CEL validation rules
@@ -246,7 +247,7 @@ The relevant additions are described below. Existing steps (1–2, 4a–4b) are 
 | `etcd.spec.replicas < StatefulSet.spec.replicas` | `ScaleOperationInProgress=True`, reason `ScalingIn` |
 | `etcd.spec.replicas > StatefulSet.spec.replicas` | `ScaleOperationInProgress=True`, reason `ScalingOut` |
 | `bootstrapWithExistingCluster` is unset, or joined bootstrap members are removed from spec | `ScaleOperationInProgress=True`, reason `BootstrapMembersRemoval` |
-| No scale signal is present | `ScaleOperationInProgress=False` |
+| No scale signal is present | `ScaleOperationInProgress=False`, reason `NoScaleOperation` |
 
 The condition is patched before component reconciliation starts, allowing CEL validation to reject conflicting changes while the operation is in progress.
 
@@ -261,13 +262,21 @@ The removal proceeds in two distinct steps — selecting the set of candidates, 
 1. Verify that removing another member keeps quorum intact.
 2. **Select the candidate set** to remove:
    - `ScalingIn`: members with pod ordinal `≥ spec.replicas` (the highest ordinals, which preserves contiguous ordinals for the members that remain).
-   - `BootstrapMembersRemoval`: joined bootstrap members no longer present in spec, or all joined bootstrap members when `bootstrapWithExistingCluster` is unset.
+   - `BootstrapMembersRemoval`: only members recorded in `etcd.status.bootstrapWithExistingClusterMembers` are eligible for removal. From that set, the candidates are the ones no longer present in `spec.etcd.bootstrapWithExistingCluster.members` — or all of them when `bootstrapWithExistingCluster` is unset. A member that is not in `status.bootstrapWithExistingClusterMembers` is never removed by this operation.
 3. **Order the removals within that already-selected set**: learners first, then non-leader voters, and the leader last if it is part of the set. This ordering applies only among the candidates chosen in step 2 — it does not change *which* members are removed, only the sequence in which they are removed (so the leader goes last, avoiding an unnecessary leadership change mid-operation).
 4. Call the etcd client `MemberRemove(id)` API for the next candidate and requeue so the following reconcile observes the updated cluster state.
 
 Serial removal is intentional. It avoids parallel membership changes in the same etcd cluster and gives the cluster one reconcile cycle to stabilize between removals. Conditions and events should reference member names; logs may additionally include member IDs for debugging.
 
 If the quorum check in step 1 determines that removing the next member would break quorum, the controller does not remove it and requeues. This is surfaced in the `Etcd` status: a `LastError` is recorded in `etcd.status.lastErrors` with a coded reason (for example `ERR_QUORUM_UNSAFE_MEMBER_REMOVAL`) and a description such as *"member `<name>` not removed: removal would break quorum; requeuing until the cluster is healthy"*, and `etcd.status.lastOperation.State` is set to `Error` so the operation is retried. `ScaleOperationInProgress` stays `True` (reason `ScalingIn`) because the operation is still in progress — the block is transient, and `lastErrors` is what surfaces *why* no member is being removed right now.
+
+**Source cluster.** For `BootstrapMembersRemoval`, the members being removed belong to the source cluster. The source may be managed by another `etcd-druid` `Etcd` resource or by something outside `etcd-druid` entirely.
+
+> [!CAUTION]
+> After the target has joined the source (forming a single joint cluster), avoid performing any scale-in or scale-out operation on the source. The source and target share one etcd cluster, so scaling the source affects the target as well, and `etcd-druid` does not coordinate operations across the two — the CEL rules here are scoped to this `Etcd` resource only. Concurrent membership changes from both sides can cause churn or stall progress (etcd's own quorum check still prevents an outright quorum loss, but the operation is per-removal, not cluster-wide). Scaling the source while the migration is in progress is therefore not recommended.
+
+> [!NOTE]
+> Unsetting `spec.etcd.bootstrapWithExistingCluster` signals that the etcd cluster should become self-sustaining — running only on the members managed by this `Etcd` resource. To achieve that, the source members are decommissioned from the cluster. Once they are decommissioned, the source cluster becomes unusable (it no longer holds any members), and the cluster is left as a standalone, fully `etcd-druid`-managed cluster. This is the intended end state of the migration.
 
 ##### PVC deletion in `StatefulSet.Sync`
 
