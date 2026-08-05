@@ -20,7 +20,7 @@ This proposal introduces safe scale-in support for multi-node etcd clusters mana
 
 ## Terminology
 
-- **bootstrap-with-existing-cluster** — the mechanism by which a new `Etcd` joins an existing etcd cluster instead of forming its own. See [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md).
+- **`bootstrapWithExistingCluster`** — the mechanism by which a new `Etcd` joins an existing etcd cluster instead of forming its own, configured via `spec.etcd.bootstrapWithExistingCluster`. See [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md).
 
 ## Motivation
 
@@ -29,13 +29,13 @@ This proposal introduces safe scale-in support for multi-node etcd clusters mana
 ### Use cases
 
 **1. Shrinking an over-provisioned HA cluster.**
-An operator who scaled a cluster out — either temporarily for a load spike, or because it was originally provisioned for peak load — needs to reduce it back (for example 5 → 3) by lowering `etcd.spec.replicas`, and have `etcd-druid` remove the surplus members and resize the cluster without running `etcdctl` or risking quorum. Today this is impossible: any non-zero decrease of `etcd.spec.replicas` is rejected at admission.
+An operator may have temporarily increased the cluster size — for example, to improve fault tolerance during maintenance or upgrades, or to raise read throughput on a read-heavy cluster (more followers improve read throughput, though they can increase write latency). They may also have over-provisioned and later found the extra members costly (additional volumes and compute). In these cases the operator needs to reduce the cluster back (for example 5 → 3) by lowering `etcd.spec.replicas`, and have `etcd-druid` remove the surplus members and resize the cluster without running `etcdctl` or risking quorum. Today this is impossible: any non-zero decrease of `etcd.spec.replicas` is rejected at admission.
 
 **2. Migrating an etcd cluster with zero downtime.**
 An operator migrating an etcd cluster from one hosting Kubernetes cluster to another without downtime, once the new members have joined the existing cluster (via [`bootstrapWithExistingCluster`](../concepts/bootstrap-with-existing-cluster.md)), needs to decommission the original members declaratively — by removing them from `etcd.spec.etcd.bootstrapWithExistingCluster.members` — so the cluster ends up running only on the new members. Today this final removal step has no declarative path. Gardener's [Live Control Plane Migration (GEP-0039)](https://github.com/gardener/enhancements/tree/main/geps/0039-live-control-plane-migration#member-removal-from-the-cluster) is one concrete use of this pattern.
 
 **3. Zero-downtime update of a single-node etcd cluster.**
-An operator running a single-node (non-HA) etcd cluster needs to perform a disruptive change — such as a node/volume migration — without downtime. This can be done by temporarily scaling *out* (`1 → 2`) so a second member takes over serving, and then scaling *in* (`2 → 1`) once the change is complete. The scale-in half (`2 → 1`) is blocked today.
+An operator running a single-node (non-HA) etcd cluster needs to perform a disruptive change — such as a node/volume migration — without downtime. This can be done by temporarily scaling *out* (`1 → 3`) so the additional members take over serving, and then scaling *in* (`3 → 1`) once the change is complete. (An odd count such as 3 is used rather than 2 so the cluster can tolerate a member failure without losing quorum; a 2-member cluster cannot.) The scale-in half (`3 → 1`) is blocked today.
 
 These reduce to the same shape: a declarative signal that the cluster should shrink, and a controller that safely removes the surplus etcd members before the underlying StatefulSet is resized. This proposal exposes one mechanism that handles them.
 
@@ -57,7 +57,7 @@ Scale-in makes progress as long as the cluster has quorum. Any member — includ
 
 ### Approach
 
-Scale-in is orchestrated by `etcd-druid` through the existing [etcd controller](https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller). The process is driven by changes to the `Etcd` resource, and progress is tracked explicitly through the `ScaleOperationInProgress` status condition to ensure deterministic coordination across reconcile cycles.
+Scale-in is orchestrated by `etcd-druid` through the existing [etcd controller](https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller). The process is driven by changes to the `Etcd` resource, and progress is tracked explicitly through the `ScaleOperationInProgress` condition in the `Etcd.Status` to ensure deterministic coordination across reconcile cycles.
 
 Scale-in is triggered when:
 
@@ -80,7 +80,7 @@ This section describes the status, validation, and reconcile-flow changes requir
 
 Scale-in removes etcd members one at a time before the StatefulSet is shrunk. Consider a `3 → 2` scale-in: the controller removes a member from the etcd cluster, but the StatefulSet has not yet been reduced. If a `2 → 3` scale-out lands in this window, the cluster is left in a conflicting state — a member has already been removed from etcd, yet `spec.replicas` is back to `3`. Looking only at `spec.replicas` and the StatefulSet replica count is no longer enough to decide whether the controller should finish the in-flight scale-in or treat the missing member as a fresh scale-out target. The safe behaviour is to **let an in-flight scale-in (or scale-out) complete and reject the opposite-direction scaling until it does**.
 
-To enforce this at admission time without introducing an admission webhook, the controller records an explicit `ScaleOperationInProgress` condition on the `Etcd` resource before starting membership-changing work, and CEL validation rules on the CRD reject an opposite-direction change while that condition is set. The condition is therefore both the admission-time gate (read by CEL) and the in-flight signal (read by `StatefulSet.PreSync`). The admission gate is best-effort — see [Admission gate is best-effort; the controller is the guarantee](#admission-gate-is-best-effort-the-controller-is-the-guarantee) below for how the controller closes the remaining window.
+To enforce this at admission time without introducing an admission webhook, the controller records an explicit `ScaleOperationInProgress` condition on the `Etcd.Status` sub-resource before starting membership-changing work, and CEL validation rules on the CRD reject an opposite-direction change while that condition is set. The condition is therefore both the admission-time gate (read by CEL) and the in-flight signal (read by `StatefulSet.PreSync`). The admission gate is best-effort — see [Admission gate is best-effort; the controller is the guarantee](#admission-gate-is-best-effort-the-controller-is-the-guarantee) below for how the controller closes the remaining window.
 
 A new `ScaleOperationInProgress` condition is introduced in `etcd.status.conditions` to track scale operations. The `etcd` controller sets it to `True` when scale work starts and clears it on successful completion.
 
@@ -378,7 +378,7 @@ Each alternative below adds an externally callable surface for member removal. E
 - [DEP-03: Scaling Up an etcd Cluster](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/03-scaling-up-an-etcd-cluster.md) — existing scale-out behavior and `ScalingOut` condition reason.
 - [DEP-05: Operator Out-of-band Tasks](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/05-etcdopstask.md) — context for the rejected `EtcdOpsTask` alternative.
 - [GEP-0039: Live Control Plane Migration](https://github.com/gardener/enhancements/tree/main/geps/0039-live-control-plane-migration) — live CPM context and source-member removal requirement.
-- [Issue #1239 — Support for bootstrapping with existing etcd cluster](https://github.com/gardener/etcd-druid/issues/1239) — original bootstrap-with-existing-cluster requirement.
+- [Issue #1239 — Support for bootstrapping with existing etcd cluster](https://github.com/gardener/etcd-druid/issues/1239) — original `bootstrapWithExistingCluster` requirement.
 - [Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md) — the join phase this DEP builds on; introduces `spec.etcd.bootstrapWithExistingCluster` and the `status.bootstrapWithExistingClusterMembers` list this proposal diffs against.
 - [Existing CEL rule blocking scale-in](https://github.com/gardener/etcd-druid/blob/5b90b4a7dc7da4f4d35ea9905103d8b60b9f6e8e/api/core/v1alpha1/etcd.go#L546)
 - [`Etcd` type declaration for object-level CEL rules](https://github.com/gardener/etcd-druid/blob/7a5ac3182/api/core/v1alpha1/etcd.go#L58-L62)
