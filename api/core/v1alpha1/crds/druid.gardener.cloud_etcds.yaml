@@ -119,8 +119,12 @@ spec:
                       for the etcd-backup-restore-sidecar
                     type: boolean
                   env:
-                    description: EnvVar specifies additional environment variables
-                      for the backup-restore container.
+                    description: |-
+                      EnvVar specifies additional environment variables for the backup-restore container.
+                      These are appended after controller-managed env vars; duplicate names are not allowed.
+                      Example (used together with spec.volumes and spec.backup.volumeMounts):
+                        - name: ENDPOINTS
+                          value: /var/host/endpoints
                     items:
                       description: EnvVar represents an environment variable present
                         in a Container.
@@ -569,8 +573,13 @@ spec:
                     - tlsCASecretRef
                     type: object
                   volumeMounts:
-                    description: VolumeMounts specifies additional volume mounts for
-                      the backup-restore container.
+                    description: |-
+                      VolumeMounts specifies additional volume mounts for the backup-restore container.
+                      Each mountPath must be unique and the referenced volume name must appear in spec.volumes.
+                      Example (used together with spec.volumes and spec.backup.env):
+                        - name: host-volume
+                          mountPath: /var/host
+                          readOnly: true
                     items:
                       description: VolumeMount describes a mounting of a Volume within
                         a container.
@@ -884,8 +893,12 @@ spec:
                       for etcd.
                     type: boolean
                   env:
-                    description: EnvVar specifies additional environment variables
-                      for the etcd container.
+                    description: |-
+                      EnvVar specifies additional environment variables for the etcd container.
+                      These are appended after controller-managed env vars; duplicate names are not allowed.
+                      Example:
+                        - name: EXAMPLE_VAR
+                          value: example-value
                     items:
                       description: EnvVar represents an environment variable present
                         in a Container.
@@ -1227,8 +1240,13 @@ spec:
                     format: int64
                     type: integer
                   volumeMounts:
-                    description: VolumeMounts specifies additional volume mounts for
-                      the etcd container.
+                    description: |-
+                      VolumeMounts specifies additional volume mounts for the etcd container.
+                      Each mountPath must be unique and the referenced volume name must appear in spec.volumes.
+                      Example:
+                        - name: example-volume
+                          mountPath: /var/example
+                          readOnly: true
                     items:
                       description: VolumeMount describes a mounting of a Volume within
                         a container.
@@ -2610,7 +2628,13 @@ spec:
                 - message: etcd.spec.VolumeClaimTemplate is an immutable field
                   rule: self == oldSelf
               volumes:
-                description: Volumes specifies additional volumes for the pod.
+                description: |-
+                  Volumes specifies additional volumes for the pod.
+                  These are appended after controller-managed volumes; duplicate names are not allowed.
+                  Example (used together with spec.backup.volumeMounts and spec.backup.env):
+                    - name: host-volume
+                      hostPath:
+                        path: /var/host
                 items:
                   description: Volume represents a named volume in a pod that may
                     be accessed by any container in the pod.

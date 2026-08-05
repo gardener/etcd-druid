@@ -250,12 +250,21 @@ type BackupSpec struct {
 	// +optional
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
 	// EnvVar specifies additional environment variables for the backup-restore container.
+	// These are appended after controller-managed env vars; duplicate names are not allowed.
+	// Example (used together with spec.volumes and spec.backup.volumeMounts):
+	//   - name: ENDPOINTS
+	//     value: /var/host/endpoints
 	// +optional
 	// +listType=map
 	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=5
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
 	// VolumeMounts specifies additional volume mounts for the backup-restore container.
+	// Each mountPath must be unique and the referenced volume name must appear in spec.volumes.
+	// Example (used together with spec.volumes and spec.backup.env):
+	//   - name: host-volume
+	//     mountPath: /var/host
+	//     readOnly: true
 	// +optional
 	// +listType=map
 	// +listMapKey=mountPath
@@ -364,12 +373,21 @@ type EtcdConfig struct {
 	// +optional
 	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
 	// EnvVar specifies additional environment variables for the etcd container.
+	// These are appended after controller-managed env vars; duplicate names are not allowed.
+	// Example:
+	//   - name: EXAMPLE_VAR
+	//     value: example-value
 	// +optional
 	// +listType=map
 	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=5
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
 	// VolumeMounts specifies additional volume mounts for the etcd container.
+	// Each mountPath must be unique and the referenced volume name must appear in spec.volumes.
+	// Example:
+	//   - name: example-volume
+	//     mountPath: /var/example
+	//     readOnly: true
 	// +optional
 	// +listType=map
 	// +listMapKey=mountPath
@@ -603,6 +621,11 @@ type EtcdSpec struct {
 	// +listType=set
 	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`
 	// Volumes specifies additional volumes for the pod.
+	// These are appended after controller-managed volumes; duplicate names are not allowed.
+	// Example (used together with spec.backup.volumeMounts and spec.backup.env):
+	//   - name: host-volume
+	//     hostPath:
+	//       path: /var/host
 	// +optional
 	// +listType=map
 	// +listMapKey=name
