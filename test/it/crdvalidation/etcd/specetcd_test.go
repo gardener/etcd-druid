@@ -432,6 +432,96 @@ func TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerification(t *testing.T) {
 	validateEtcdCreation(g, etcd, false)
 }
 
+// TestValidateSpecEtcdEnvUniqueness validates that spec.etcd.env entries must be unique by name.
+func TestValidateSpecEtcdEnvUniqueness(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	tests := []struct {
+		name      string
+		etcdName  string
+		env       []corev1.EnvVar
+		expectErr bool
+	}{
+		{
+			name:     "Valid: unique env var names",
+			etcdName: "etcd-etcd-env-valid",
+			env: []corev1.EnvVar{
+				{Name: "FOO", Value: "foo"},
+				{Name: "BAR", Value: "bar"},
+			},
+			expectErr: false,
+		},
+		{
+			name:     "Invalid: duplicate env var name",
+			etcdName: "etcd-etcd-env-invalid",
+			env: []corev1.EnvVar{
+				{Name: "FOO", Value: "foo"},
+				{Name: "FOO", Value: "bar"},
+			},
+			expectErr: true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(1).Build()
+			etcd.Spec.Etcd.EnvVar = test.env
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
+// TestValidateSpecEtcdVolumeMountsUniqueness validates that spec.etcd.volumeMounts entries must be unique by mountPath.
+func TestValidateSpecEtcdVolumeMountsUniqueness(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	tests := []struct {
+		name         string
+		etcdName     string
+		volumes      []corev1.Volume
+		volumeMounts []corev1.VolumeMount
+		expectErr    bool
+	}{
+		{
+			name:     "Valid: unique mount paths",
+			etcdName: "etcd-etcd-vm-valid",
+			volumes: []corev1.Volume{
+				{Name: "vol-a", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "vol-b", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			volumeMounts: []corev1.VolumeMount{
+				{Name: "vol-a", MountPath: "/mnt/a"},
+				{Name: "vol-b", MountPath: "/mnt/b"},
+			},
+			expectErr: false,
+		},
+		{
+			name:     "Invalid: duplicate mount path",
+			etcdName: "etcd-etcd-vm-invalid",
+			volumes: []corev1.Volume{
+				{Name: "vol-a", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "vol-b", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			volumeMounts: []corev1.VolumeMount{
+				{Name: "vol-a", MountPath: "/mnt/same"},
+				{Name: "vol-b", MountPath: "/mnt/same"},
+			},
+			expectErr: true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(1).Build()
+			etcd.Spec.Volumes = test.volumes
+			etcd.Spec.Etcd.VolumeMounts = test.volumeMounts
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
 // TestValidateSpecEtcdBackendBboltFreelistType validates that
 // spec.etcd.backendBboltFreelistType only accepts the values "array" or "map",
 // and that leaving the field unset (nil) is also valid.
