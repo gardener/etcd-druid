@@ -251,11 +251,15 @@ type BackupSpec struct {
 	LeaderElection *LeaderElectionSpec `json:"leaderElection,omitempty"`
 	// EnvVar specifies additional environment variables for the backup-restore container.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="backup.env is an immutable field",rule="self == oldSelf"
+	// +listType=map
+	// +listMapKey=name
+	// +kubebuilder:validation:MaxItems=5
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
 	// VolumeMounts specifies additional volume mounts for the backup-restore container.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="backup.volumeMounts is an immutable field",rule="self == oldSelf"
+	// +listType=map
+	// +listMapKey=mountPath
+	// +kubebuilder:validation:MaxItems=5
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
@@ -361,11 +365,15 @@ type EtcdConfig struct {
 	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
 	// EnvVar specifies additional environment variables for the etcd container.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="etcd.env is an immutable field",rule="self == oldSelf"
+	// +listType=map
+	// +listMapKey=name
+	// +kubebuilder:validation:MaxItems=5
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
 	// VolumeMounts specifies additional volume mounts for the etcd container.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="etcd.volumeMounts is an immutable field",rule="self == oldSelf"
+	// +listType=map
+	// +listMapKey=mountPath
+	// +kubebuilder:validation:MaxItems=5
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
@@ -533,6 +541,8 @@ type SchedulingConstraints struct {
 // +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate field cannot be added or removed dynamically.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses length must equal to etcd.spec.replicas.",rule="has(self.externallyManagedMemberAddresses) ? self.replicas == self.externallyManagedMemberAddresses.size() : true"
 // +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field must only be set during creation.",rule="has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)"
+// +kubebuilder:validation:XValidation:message="all etcd.volumeMounts must reference a volume declared in spec.volumes",rule="!has(self.etcd.volumeMounts) || self.etcd.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name))"
+// +kubebuilder:validation:XValidation:message="all backup.volumeMounts must reference a volume declared in spec.volumes",rule="!has(self.backup.volumeMounts) || self.backup.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name))"
 type EtcdSpec struct {
 	// MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.
 	// The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
@@ -594,7 +604,9 @@ type EtcdSpec struct {
 	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`
 	// Volumes specifies additional volumes for the pod.
 	// +optional
-	// +kubebuilder:validation:XValidation:message="etcd.spec.volumes is an immutable field",rule="self == oldSelf"
+	// +listType=map
+	// +listMapKey=name
+	// +kubebuilder:validation:MaxItems=5
 	Volumes []corev1.Volume `json:"volumes,omitempty"`
 }
 

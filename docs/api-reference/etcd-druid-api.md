@@ -470,8 +470,8 @@ _Appears in:_
 | `enableProfiling` _boolean_ | EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar |  | Optional: \{\} <br /> |
 | `etcdSnapshotTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  | Optional: \{\} <br /> |
-| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the backup-restore container. |  | Optional: \{\} <br /> |
-| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the backup-restore container. |  | Optional: \{\} <br /> |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the backup-restore container. |  | MaxItems: 5 <br />Optional: \{\} <br /> |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the backup-restore container. |  | MaxItems: 5 <br />Optional: \{\} <br /> |
 
 
 #### BboltFreelistType
@@ -785,8 +785,8 @@ _Appears in:_
 | `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  | Optional: \{\} <br /> |
 | `backendBboltFreelistType` _[BboltFreelistType](#bboltfreelisttype)_ | BackendBboltFreelistType specifies the freelist-type used by the bbolt backend storage engine of etcd.<br />Supported values are 'array' (default) and 'map'.<br />It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x<br />Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"<br />because for "map", it has been observed to cause significant increase in total database size.<br />The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.<br />Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373 |  | Enum: [array map] <br />Optional: \{\} <br /> |
 | `bootstrapWithExistingCluster` _[BootstrapWithExistingCluster](#bootstrapwithexistingcluster)_ | BootstrapWithExistingCluster configures this etcd to join an existing cluster. |  | Optional: \{\} <br /> |
-| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the etcd container. |  | Optional: \{\} <br /> |
-| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the etcd container. |  | Optional: \{\} <br /> |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the etcd container. |  | MaxItems: 5 <br />Optional: \{\} <br /> |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the etcd container. |  | MaxItems: 5 <br />Optional: \{\} <br /> |
 
 
 #### EtcdCopyBackupsTask
@@ -1008,7 +1008,7 @@ _Appears in:_
 | `volumeClaimTemplate` _string_ | VolumeClaimTemplate defines the volume claim template to be created |  | Optional: \{\} <br /> |
 | `runAsRoot` _boolean_ | RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall<br />run as root. By default, they run as non-root with user 'nobody'. |  | Optional: \{\} <br /> |
 | `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified. |  | Optional: \{\} <br /> |
-| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volume-v1-core) array_ | Volumes specifies additional volumes for the pod. |  | Optional: \{\} <br /> |
+| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volume-v1-core) array_ | Volumes specifies additional volumes for the pod. |  | MaxItems: 5 <br />Optional: \{\} <br /> |
 
 
 #### EtcdStatus

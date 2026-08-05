@@ -257,7 +257,11 @@ spec:
                         required:
                           - name
                         type: object
+                      maxItems: 5
                       type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
                     etcdSnapshotTimeout:
                       description: EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation
                       pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
@@ -579,7 +583,11 @@ spec:
                           - mountPath
                           - name
                         type: object
+                      maxItems: 5
                       type: array
+                      x-kubernetes-list-map-keys:
+                        - mountPath
+                      x-kubernetes-list-type: map
                   type: object
                 etcd:
                   description: EtcdConfig defines the configuration for the etcd cluster to be deployed.
@@ -932,7 +940,11 @@ spec:
                         required:
                           - name
                         type: object
+                      maxItems: 5
                       type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
                     etcdDefragTimeout:
                       description: EtcdDefragTimeout defines the timeout duration for etcd defrag call
                       pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
@@ -1165,7 +1177,11 @@ spec:
                           - mountPath
                           - name
                         type: object
+                      maxItems: 5
                       type: array
+                      x-kubernetes-list-map-keys:
+                        - mountPath
+                      x-kubernetes-list-type: map
                     wrapperPort:
                       format: int32
                       type: integer
@@ -4194,7 +4210,11 @@ spec:
                     required:
                       - name
                     type: object
+                  maxItems: 5
                   type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
               required:
                 - backup
                 - etcd
