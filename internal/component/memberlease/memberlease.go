@@ -91,28 +91,36 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	}
 
 	if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
-		// Delete any extra member leases that are not needed anymore.
-		// This can happen if a member is removed/replaced when configured with externally managed members.
-		if existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta); err == nil {
-			desiredLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
-			deleteTasks := make([]utils.OperatorTask, 0)
-			for _, existingLeaseName := range existingLeaseNames {
-				if !slices.Contains(desiredLeaseNames, existingLeaseName) {
-					leaseObjKey := client.ObjectKey{Name: existingLeaseName, Namespace: etcd.Namespace}
-					deleteTasks = append(deleteTasks, utils.OperatorTask{
-						Name: "Delete-" + leaseObjKey.String(),
-						Fn: func(ctx component.OperatorContext) error {
-							return r.doDelete(ctx, leaseObjKey)
-						},
-					})
-				}
-			}
-			if errorList := utils.RunConcurrently(ctx, deleteTasks); len(errorList) > 0 {
-				for _, err := range errorList {
-					errs = multierror.Append(errs, err)
-				}
-			}
-		} else {
+		if err := r.deleteStaleMemberLeases(ctx, etcd); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs
+}
+
+// deleteStaleMemberLeases deletes member leases that exist but are no longer required.
+// This can happen if a member is removed/replaced when configured with externally managed members.
+func (r _resource) deleteStaleMemberLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta)
+	if err != nil {
+		return err
+	}
+	desiredLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcd)
+	deleteTasks := make([]utils.OperatorTask, 0)
+	for _, existingLeaseName := range existingLeaseNames {
+		if !slices.Contains(desiredLeaseNames, existingLeaseName) {
+			leaseObjKey := client.ObjectKey{Name: existingLeaseName, Namespace: etcd.Namespace}
+			deleteTasks = append(deleteTasks, utils.OperatorTask{
+				Name: "Delete-" + leaseObjKey.String(),
+				Fn: func(ctx component.OperatorContext) error {
+					return r.doDelete(ctx, leaseObjKey)
+				},
+			})
+		}
+	}
+	var errs error
+	if errorList := utils.RunConcurrently(ctx, deleteTasks); len(errorList) > 0 {
+		for _, err := range errorList {
 			errs = multierror.Append(errs, err)
 		}
 	}

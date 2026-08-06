@@ -51,7 +51,7 @@ func GetEnvVarFromSecret(name, secretName, secretKey string, optional bool) core
 }
 
 // GetBackupRestoreContainerEnvVars returns non-provider-specific environment variables for the backup-restore container.
-func GetBackupRestoreContainerEnvVars(etcd *druidv1alpha1.Etcd, store *druidv1alpha1.StoreSpec) ([]corev1.EnvVar, error) {
+func GetBackupRestoreContainerEnvVars(etcd *druidv1alpha1.Etcd) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 
 	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
@@ -63,11 +63,11 @@ func GetBackupRestoreContainerEnvVars(etcd *druidv1alpha1.Etcd, store *druidv1al
 	}
 	envVars = append(envVars, getEnvVarFromFieldPath(common.EnvPodNamespace, "metadata.namespace"))
 
-	if store == nil {
+	if etcd.Spec.Backup.Store == nil {
 		return envVars, nil
 	}
 
-	storageContainer := ptr.Deref(store.Container, "")
+	storageContainer := ptr.Deref(etcd.Spec.Backup.Store.Container, "")
 	envVars = append(envVars, GetEnvVarFromValue(common.EnvStorageContainer, storageContainer))
 
 	return envVars, nil
