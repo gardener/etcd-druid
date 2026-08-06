@@ -53,3 +53,4 @@
 * [DEP-5: EtcdOpsTask](proposals/05-etcdopstask.md)
 * [DEP-6: Immutable etcd Cluster Backups](proposals/06-immutable-etcd-backups.md)
 * [DEP-7: Quorum Aware Pod Updates](proposals/07-quorum-aware-pod-updates.md)
+* [DEP-8: Scaling-in a multi-node etcd cluster](proposals/08-scale-in.md)

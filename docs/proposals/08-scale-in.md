@@ -7,7 +7,8 @@ authors:
 - "@seshachalam-yv"
 - "@CaptainIRS"
 reviewers:
-- "etcd-druid-maintainers"
+- "@etcd-druid-maintainers"
+- "@acumino"
 ---
 
 # DEP-08: Scaling-in a multi-node etcd cluster managed by `etcd-druid`
