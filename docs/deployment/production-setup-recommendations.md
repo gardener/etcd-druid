@@ -99,7 +99,9 @@ To ensure that an `Etcd` cluster is highly available, following is recommended:
 ### Ensure that the `Etcd` cluster members are spread
 
 `Etcd` cluster members should always be spread across nodes. This provides you failure tolerance at the node level. For failure tolerance of a zone, it is recommended that you spread the `Etcd` cluster members across zones.
-We recommend that you use a combination of [TopologySpreadConstraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) and [Pod Anti-Affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity). To set the scheduling constraints you can either specify these constraints using [SchedulingConstraints](https://github.com/gardener/etcd-druid/blob/55efca1c8f6c852b0a4e97f08488ffec2eed0e68/api/v1alpha1/etcd.go#L257-L265) in the `Etcd` custom resource or use a [MutatingWebhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) to dynamically inject these into pods.
+We recommend that you use a combination of [TopologySpreadConstraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) and [Pod Anti-Affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity). To set the scheduling constraints you can either specify these constraints using [SchedulingConstraints](https://github.com/gardener/etcd-druid/blob/master/api/core/v1alpha1/etcd.go#L496-L512) in the `Etcd` custom resource or use a [MutatingWebhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) to dynamically inject these into pods.
+
+If you run `Etcd` clusters on dedicated, tainted node pools (to isolate them from general workloads), `SchedulingConstraints` also lets you set [Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) so that `Etcd` pods can be scheduled onto those nodes.
 
 An example of scheduling constraints for a multi-node cluster with zone failure tolerance will be:
 ```yaml

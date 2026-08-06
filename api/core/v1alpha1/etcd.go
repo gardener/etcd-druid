@@ -495,7 +495,7 @@ type SharedConfig struct {
 
 // SchedulingConstraints defines the different scheduling constraints that must be applied to the
 // pod spec in the etcd statefulset.
-// Currently supported constraints are Affinity and TopologySpreadConstraints.
+// Currently supported constraints are Affinity, TopologySpreadConstraints and Tolerations.
 type SchedulingConstraints struct {
 	// Affinity defines the various affinity and anti-affinity rules for a pod
 	// that are honoured by the kube-scheduler.
@@ -505,6 +505,10 @@ type SchedulingConstraints struct {
 	// that are honoured by the kube-scheduler.
 	// +optional
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+	// Tolerations defines the pod tolerations that allow etcd pods to be scheduled
+	// onto nodes with matching taints, that are honoured by the kube-scheduler.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // EtcdSpec defines the desired state of Etcd
