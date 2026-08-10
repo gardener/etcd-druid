@@ -37,6 +37,10 @@ The field is subject to the following validations:
 In the etcd-backup-restore sidecar,
 * If the "service-endpoints" field is not supplied, the endpoints used for creating the etcd client will be derived from the member IPs obtained from the config file as fallback (since the client service is not created in this scenario).
 
+
+> [!WARNING]
+> Currently, if member IPs are removed from the list, it would be the responsibility of the external actor to remove the etcd member from the cluster (using etcd's member remove API). This will be automated by etcd-druid after [DEP-08](https://github.com/gardener/etcd-druid/pull/1369) is implemented.
+
 Using externally managed members allows etcd-druid to support scenarios where etcd members are managed outside of its direct control, while still providing essential functionalities like backup/restore, maintenance, and monitoring. This allows for etcd-druid to be used for managing etcd clusters in use-cases like [self-hosted shoot clusters in Gardener](https://github.com/gardener/enhancements/tree/main/geps/0028-self-hosted-shoot-clusters), [kubeadm](https://kubernetes.io/docs/reference/setup-tools/kubeadm/), [k3s](https://k3s.io/), etc.
 
 Note that the changes introduced previously to disable runtime components for self-hosted shoot clusters (https://github.com/gardener/etcd-druid/pull/1117) will be subsumed by this new approach.

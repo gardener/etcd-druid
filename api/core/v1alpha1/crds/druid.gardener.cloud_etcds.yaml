@@ -2163,8 +2163,8 @@ spec:
                 to etcd.spec.replicas.
               rule: 'has(self.externallyManagedMemberAddresses) ? self.replicas ==
                 self.externallyManagedMemberAddresses.size() : true'
-            - message: etcd.spec.externallyManagedMemberAddresses field cannot be
-                added or removed dynamically.
+            - message: etcd.spec.externallyManagedMemberAddresses field must only
+                be set during creation.
               rule: has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)
           status:
             description: EtcdStatus defines the observed state of Etcd.
