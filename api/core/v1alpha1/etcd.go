@@ -515,7 +515,7 @@ type SchedulingConstraints struct {
 // +kubebuilder:validation:XValidation:message="etcd.spec.memberNamePrefix is an immutable field.",rule="has(oldSelf.memberNamePrefix) == has(self.memberNamePrefix)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.storageClass field cannot be added or removed dynamically.",rule="has(oldSelf.storageClass) ==  has(self.storageClass)"
 // +kubebuilder:validation:XValidation:message="etcd.spec.volumeClaimTemplate field cannot be added or removed dynamically.",rule="has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)"
-// +kubebuilder:validation:XValidation:message="etcd.spec.replicas must be equal to length of etcd.spec.externallyManagedMemberAddresses when etcd.spec.externallyManagedMemberAddresses is specified.",rule="has(self.externallyManagedMemberAddresses) ? self.replicas == self.externallyManagedMemberAddresses.size() : true"
+// +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses length must equal to etcd.spec.replicas.",rule="has(self.externallyManagedMemberAddresses) ? self.replicas == self.externallyManagedMemberAddresses.size() : true"
 // +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field cannot be added or removed dynamically.",rule="has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)"
 type EtcdSpec struct {
 	// MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.

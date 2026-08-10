@@ -2159,8 +2159,8 @@ spec:
             - message: etcd.spec.volumeClaimTemplate field cannot be added or removed
                 dynamically.
               rule: has(oldSelf.volumeClaimTemplate) == has(self.volumeClaimTemplate)
-            - message: etcd.spec.replicas must be equal to length of etcd.spec.externallyManagedMemberAddresses
-                when etcd.spec.externallyManagedMemberAddresses is specified.
+            - message: etcd.spec.externallyManagedMemberAddresses length must equal
+                to etcd.spec.replicas.
               rule: 'has(self.externallyManagedMemberAddresses) ? self.replicas ==
                 self.externallyManagedMemberAddresses.size() : true'
             - message: etcd.spec.externallyManagedMemberAddresses field cannot be
