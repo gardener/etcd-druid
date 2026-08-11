@@ -25,7 +25,7 @@ This proposal introduces safe scale-in support for multi-node etcd clusters mana
 
 ## Motivation
 
-`etcd-druid` supports scaling an etcd cluster *out* declaratively, but not *in*: the current admission rule rejects any decrease of `etcd.spec.replicas` other than to zero. Operators therefore have no safe, declarative way to shrink a multi-node cluster. Two concrete use cases need this.
+`etcd-druid` supports scaling an etcd cluster *out* declaratively, but not *in*: the current admission rule rejects any decrease of `etcd.spec.replicas` other than to zero. Operators therefore have no safe, declarative way to shrink a multi-node cluster. Three concrete use cases need this.
 
 ### Use cases
 
@@ -69,7 +69,7 @@ It aims to achieve safe scale-in by:
 
 - Removing etcd cluster members one per reconcile cycle, in a quorum-safe order, before the underlying StatefulSet is shrunk.
 - Deleting freed PVCs during `StatefulSet.Sync`, before the StatefulSet replica count is reduced, so the surplus PVCs are reclaimed as the pods are terminated.
-- Preventing removed members from silently rejoining by adding an anti-rejoin guard in `etcd-backup-restore`.
+- Preventing removed members from silently rejoining by adding an [anti-rejoin guard](#anti-rejoin-guard) in `etcd-backup-restore`.
 
 ### `etcd-druid` changes
 
@@ -386,7 +386,10 @@ Each alternative below adds an externally callable surface for member removal. E
 - [`reconcileSpec` orchestration](https://github.com/gardener/etcd-druid/blob/7a5ac3182/internal/controller/etcd/reconcile_spec.go#L28-L48)
 
 ### etcd internals (v3.5.27)
-- [`server.go` — `RemoveMember` quorum checks](https://github.com/etcd-io/etcd/blob/v3.5.27/server/etcdserver/server.go#L1721-L1738)
-- [`store.go` — removed member IDs are written to `members_removed`](https://github.com/etcd-io/etcd/blob/v3.5.27/server/etcdserver/api/membership/store.go#L71-L123)
-- [`bucket.go` — `members` and `members_removed` bucket definitions](https://github.com/etcd-io/etcd/blob/v3.5.27/server/mvcc/buckets/bucket.go#L31-L49)
-- [`storage.go` — WAL metadata contains the local member ID](https://github.com/etcd-io/etcd/blob/v3.5.27/server/etcdserver/storage.go#L117-L121)
+
+> The links below are pinned to the `v3.5.27` release commit (`62d8759`) so they remain stable across future etcd version bumps. These APIs are not expected to change across releases.
+
+- [`server.go` — `RemoveMember` quorum checks](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/etcdserver/server.go#L1721-L1738)
+- [`store.go` — removed member IDs are written to `members_removed`](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/etcdserver/api/membership/store.go#L71-L123)
+- [`bucket.go` — `members` and `members_removed` bucket definitions](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/mvcc/buckets/bucket.go#L31-L49)
+- [`storage.go` — WAL metadata contains the local member ID](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/etcdserver/storage.go#L117-L121)
