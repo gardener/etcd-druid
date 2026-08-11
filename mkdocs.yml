@@ -106,6 +106,7 @@ nav:
       - Scaling Etcd Clusters: proposals/03-scaling-up-an-etcd-cluster.md
       - Etcd Member: proposals/04-etcd-member-custom-resource.md
       - Etcd Operator Tasks: proposals/05-etcdopstasks.md
+      - Scaling-in an Etcd Cluster: proposals/08-scale-in.md
 extra:
   social:
     - icon: fontawesome/brands/github
