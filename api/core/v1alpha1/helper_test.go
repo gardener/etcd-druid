@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -33,14 +34,45 @@ func TestGetPeerServiceName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	peerServiceName := GetPeerServiceName(etcdObjMeta)
-	g.Expect(peerServiceName).To(Equal("etcd-test-peer"))
+	g.Expect(peerServiceName).To(Equal(etcdObjMeta.Name + "-peer"))
 }
 
 func TestGetClientServiceName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	clientServiceName := GetClientServiceName(etcdObjMeta)
-	g.Expect(clientServiceName).To(Equal("etcd-test-client"))
+	g.Expect(clientServiceName).To(Equal(etcdObjMeta.Name + "-client"))
+}
+
+func TestGetClientHostnameWithDruidManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+		},
+	}
+	clientHostname := GetClientHostname(etcd)
+	g.Expect(clientHostname).To(Equal(fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.Namespace)))
+}
+
+func TestGetClientHostnameWithExternallyManagedMembers(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+			ExternallyManagedMemberAddresses: []string{
+				"1.1.1.1",
+				"1.1.1.2",
+				"1.1.1.3",
+			},
+		},
+	}
+	clientHostname := GetClientHostname(etcd)
+	g.Expect(clientHostname).Should(BeElementOf([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}))
 }
 
 func TestGetServiceAccountName(t *testing.T) {
@@ -62,38 +94,41 @@ func TestGetCompactionJobName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	compactionJobName := GetCompactionJobName(etcdObjMeta)
-	g.Expect(compactionJobName).To(Equal("etcd-test-compactor"))
+	g.Expect(compactionJobName).To(Equal(etcdObjMeta.Name + "-compactor"))
 }
 
 func TestGetOrdinalPodName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	ordinalPodName := GetOrdinalPodName(etcdObjMeta, 1)
-	g.Expect(ordinalPodName).To(Equal("etcd-test-1"))
+	g.Expect(ordinalPodName).To(Equal(etcdObjMeta.Name + "-1"))
 }
 
 func TestGetDeltaSnapshotLeaseName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	deltaSnapshotLeaseName := GetDeltaSnapshotLeaseName(etcdObjMeta)
-	g.Expect(deltaSnapshotLeaseName).To(Equal("etcd-test-delta-snap"))
+	g.Expect(deltaSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-delta-snap"))
 }
 
 func TestGetFullSnapshotLeaseName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	fullSnapshotLeaseName := GetFullSnapshotLeaseName(etcdObjMeta)
-	g.Expect(fullSnapshotLeaseName).To(Equal("etcd-test-full-snap"))
+	g.Expect(fullSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-full-snap"))
 }
 
 func TestGetMemberLeaseNames(t *testing.T) {
 	tests := []struct {
-		name                 string
-		memberNamePrefix     *string
-		expectedMemberLeases func(etcdName string) []string
+		name                     string
+		replicas                 int
+		memberNamePrefix         *string
+		expectedMemberLeases     func(etcdName string) []string
+		externallyManagedMembers []string
 	}{
 		{
 			name:             "no member name prefix",
+			replicas:         3,
 			memberNamePrefix: nil,
 			expectedMemberLeases: func(etcdName string) []string {
 				return []string{etcdName + "-0", etcdName + "-1", etcdName + "-2"}
@@ -101,9 +136,28 @@ func TestGetMemberLeaseNames(t *testing.T) {
 		},
 		{
 			name:             "with member name prefix",
+			replicas:         3,
 			memberNamePrefix: ptr.To("myprefix"),
 			expectedMemberLeases: func(etcdName string) []string {
 				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1", "myprefix-" + etcdName + "-2"}
+			},
+		},
+		{
+			name:                     "externally managed with no member name prefix",
+			replicas:                 3,
+			memberNamePrefix:         nil,
+			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			expectedMemberLeases: func(etcdName string) []string {
+				return []string{etcdName + "-1.1.1.1", etcdName + "-1.1.1.2", etcdName + "-1.1.1.3"}
+			},
+		},
+		{
+			name:                     "externally managed with member name prefix",
+			replicas:                 3,
+			memberNamePrefix:         ptr.To("myprefix"),
+			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
+			expectedMemberLeases: func(etcdName string) []string {
+				return []string{"myprefix-" + etcdName + "-1.1.1.1", "myprefix-" + etcdName + "-1.1.1.2", "myprefix-" + etcdName + "-1.1.1.3"}
 			},
 		},
 	}
@@ -116,8 +170,9 @@ func TestGetMemberLeaseNames(t *testing.T) {
 			etcd := &Etcd{
 				ObjectMeta: etcdObjMeta,
 				Spec: EtcdSpec{
-					Replicas:         3,
-					MemberNamePrefix: test.memberNamePrefix,
+					Replicas:                         3,
+					MemberNamePrefix:                 test.memberNamePrefix,
+					ExternallyManagedMemberAddresses: test.externallyManagedMembers,
 				},
 			}
 			leaseNames := GetMemberLeaseNames(etcd)
@@ -126,25 +181,38 @@ func TestGetMemberLeaseNames(t *testing.T) {
 	}
 }
 
+func TestGetMemberNameFromAddress(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	etcd := &Etcd{
+		ObjectMeta: etcdObjMeta,
+		Spec: EtcdSpec{
+			Replicas: 3,
+		},
+	}
+	memberName := GetMemberNameFromAddress(etcd, "1.1.1.1")
+	g.Expect(memberName).To(Equal(etcdObjMeta.Name + "-1.1.1.1"))
+}
+
 func TestGetPodDisruptionBudgetName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	podDisruptionBudgetName := GetPodDisruptionBudgetName(etcdObjMeta)
-	g.Expect(podDisruptionBudgetName).To(Equal("etcd-test"))
+	g.Expect(podDisruptionBudgetName).To(Equal(etcdObjMeta.Name))
 }
 
 func TestGetRoleName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	roleName := GetRoleName(etcdObjMeta)
-	g.Expect(roleName).To(Equal("druid.gardener.cloud:etcd:etcd-test"))
+	g.Expect(roleName).To(Equal("druid.gardener.cloud:etcd:" + etcdObjMeta.Name))
 }
 
 func TestGetRoleBindingName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
 	roleBindingName := GetRoleBindingName(etcdObjMeta)
-	g.Expect(roleBindingName).To(Equal("druid.gardener.cloud:etcd:etcd-test"))
+	g.Expect(roleBindingName).To(Equal("druid.gardener.cloud:etcd:" + etcdObjMeta.Name))
 }
 
 func TestGetSuspendEtcdSpecReconcileAnnotationKey(t *testing.T) {
@@ -455,22 +523,21 @@ func TestGetReconcileOperationAnnotationKey(t *testing.T) {
 	}
 }
 
-func TestIsEtcdRuntimeComponentCreationEnabled(t *testing.T) {
+func TestIsPodManagementEnabled(t *testing.T) {
 	tests := []struct {
-		name        string
-		annotations map[string]string
-		expected    bool
+		name                        string
+		hasExternallyManagedMembers bool
+		expected                    bool
 	}{
 		{
-			name:     "Runtime component creation is enabled",
-			expected: true,
+			name:                        "Pod management is enabled",
+			hasExternallyManagedMembers: false,
+			expected:                    true,
 		},
 		{
-			name: "Runtime component creation is disabled",
-			annotations: map[string]string{
-				DisableEtcdRuntimeComponentCreationAnnotation: "",
-			},
-			expected: false,
+			name:                        "Pod management is disabled",
+			hasExternallyManagedMembers: true,
+			expected:                    false,
 		},
 	}
 
@@ -479,8 +546,20 @@ func TestIsEtcdRuntimeComponentCreationEnabled(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
-			actual := IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta)
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+			etcd := &Etcd{
+				ObjectMeta: etcdObjMeta,
+				Spec: EtcdSpec{
+					Replicas: 3,
+					ExternallyManagedMemberAddresses: func() []string {
+						if test.hasExternallyManagedMembers {
+							return []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}
+						}
+						return nil
+					}(),
+				},
+			}
+			actual := ArePodsManagedByEtcdDruid(etcd)
 			g.Expect(actual).To(Equal(test.expected))
 		})
 	}

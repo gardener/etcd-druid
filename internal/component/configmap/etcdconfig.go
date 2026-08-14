@@ -150,12 +150,23 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	domainName := fmt.Sprintf("%s.%s.%s", druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), etcd.Namespace, "svc")
 	serverPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)))
 	builder := strings.Builder{}
+
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+		for i := range int(etcd.Spec.Replicas) {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+			fmt.Fprintf(&builder, "%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)
+		}
+	} else {
+		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
+			fmt.Fprintf(&builder, "%s=%s://%s:%s,", memberName, peerScheme, memberAddress, serverPort)
+		}
+	}
+
 	for i := range int(etcd.Spec.Replicas) {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
-
-		fmt.Fprintf(&builder, "%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)
-
 		for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
 			if memberURLs.MemberName == podName {
 				for _, url := range memberURLs.URLs {
@@ -186,26 +197,34 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 		return nil
 	}
 	advUrlsMap := make(map[string][]string)
-	// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
-	domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
-	for i := range int(etcd.Spec.Replicas) {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 
-		// Start with internal service DNS URL
-		urls := []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+		// Headless service is created by etcd-druid, so we can use the DNS names of the pods.
+		domainName := fmt.Sprintf("%s.%s.%s", peerSvcName, etcd.Namespace, "svc")
+		for i := range int(etcd.Spec.Replicas) {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)}
+		}
+	} else {
+		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
+			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}
+		}
+	}
 
-		// Append additional peer URLs only for peer advertise URLs
-		if advertiseURLType == advertiseURLTypePeer {
+	// Append additional peer URLs only for peer advertise URLs
+	if advertiseURLType == advertiseURLTypePeer {
+		for i := range int(etcd.Spec.Replicas) {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 			for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs {
 				if memberURLs.MemberName == podName {
-					urls = append(urls, memberURLs.URLs...)
+					advUrlsMap[memberName] = append(advUrlsMap[memberName], memberURLs.URLs...)
 					break
 				}
 			}
 		}
-
-		advUrlsMap[memberName] = urls
 	}
 	return advUrlsMap
 }

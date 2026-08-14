@@ -1003,6 +1003,7 @@ _Appears in:_
 | `storageCapacity` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | StorageCapacity defines the size of persistent volume. |  | Optional: \{\} <br /> |
 | `volumeClaimTemplate` _string_ | VolumeClaimTemplate defines the volume claim template to be created |  | Optional: \{\} <br /> |
 | `runAsRoot` _boolean_ | RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall<br />run as root. By default, they run as non-root with user 'nobody'. |  | Optional: \{\} <br /> |
+| `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified. |  | Optional: \{\} <br /> |
 
 
 #### EtcdStatus

@@ -5,7 +5,9 @@
 package v1alpha1
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,6 +24,22 @@ func GetPeerServiceName(etcdObjMeta metav1.ObjectMeta) string {
 // GetClientServiceName returns the client service name for the Etcd cluster reachable by external clients.
 func GetClientServiceName(etcdObjMeta metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s-client", etcdObjMeta.Name)
+}
+
+// GetClientHostname returns the hostname of the client endpoint for the Etcd cluster. This is the client service hostname when the Etcd members
+// are managed by etcd-druid, else it is a randomly selected member address out of the externally managed member addresses.
+func GetClientHostname(etcd *Etcd) string {
+	if ArePodsManagedByEtcdDruid(etcd) {
+		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.Namespace)
+	} else {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
+		if err != nil {
+			// Fallback to first member address in case of an error
+			return etcd.Spec.ExternallyManagedMemberAddresses[0]
+		}
+		randomIndex := int(n.Int64())
+		return etcd.Spec.ExternallyManagedMemberAddresses[randomIndex]
+	}
 }
 
 // GetServiceAccountName returns the service account name for the Etcd.
@@ -54,6 +72,11 @@ func GetMemberName(memberNamePrefix *string, podName string) string {
 	return podName
 }
 
+// GetMemberNameFromAddress returns the name of the etcd member based on the address.
+func GetMemberNameFromAddress(etcd *Etcd, memberAddress string) string {
+	return GetMemberName(etcd.Spec.MemberNamePrefix, fmt.Sprintf("%s-%s", etcd.Name, memberAddress))
+}
+
 // GetAllPodNames returns the names of all pods for the Etcd.
 func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	podNames := make([]string, replicas)
@@ -65,12 +88,21 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 
 // GetMemberLeaseNames returns the name of member leases for the Etcd.
 func GetMemberLeaseNames(etcd *Etcd) []string {
-	leaseNames := make([]string, etcd.Spec.Replicas)
-	for i := range int(etcd.Spec.Replicas) {
-		podName := GetOrdinalPodName(etcd.ObjectMeta, i)
-		leaseNames[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+	if ArePodsManagedByEtcdDruid(etcd) {
+		leaseNames := make([]string, etcd.Spec.Replicas)
+		for i := range int(etcd.Spec.Replicas) {
+			podName := GetOrdinalPodName(etcd.ObjectMeta, i)
+			leaseNames[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+		}
+		return leaseNames
+	} else {
+		memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
+		leaseNames := make([]string, len(memberAddresses))
+		for i, memberAddress := range memberAddresses {
+			leaseNames[i] = GetMemberNameFromAddress(etcd, memberAddress)
+		}
+		return leaseNames
 	}
-	return leaseNames
 }
 
 // GetPodDisruptionBudgetName returns the name of the pod disruption budget for the Etcd.
@@ -177,7 +209,7 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 	delete(etcdObjMeta.Annotations, GardenerOperationAnnotation)
 }
 
-// IsEtcdRuntimeComponentCreationEnabled checks if the creation of runtime components is enabled for an Etcd resource.
-func IsEtcdRuntimeComponentCreationEnabled(etcdObjMeta metav1.ObjectMeta) bool {
-	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdRuntimeComponentCreationAnnotation)
+// ArePodsManagedByEtcdDruid checks if the management of pods is handled by etcd-druid for an Etcd resource.
+func ArePodsManagedByEtcdDruid(etcd *Etcd) bool {
+	return len(etcd.Spec.ExternallyManagedMemberAddresses) == 0
 }
