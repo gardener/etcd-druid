@@ -13,6 +13,7 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -53,16 +54,18 @@ const (
 )
 
 type _resource struct {
-	client      client.Client
-	imageVector imagevector.ImageVector
-	logger      logr.Logger
+	client              client.Client
+	imageVector         imagevector.ImageVector
+	memberClientFactory etcdclient.MemberClientFactory
+	logger              logr.Logger
 }
 
 // New returns a new statefulset component operator.
-func New(client client.Client, imageVector imagevector.ImageVector) component.Operator {
+func New(client client.Client, imageVector imagevector.ImageVector, memberClientFactory etcdclient.MemberClientFactory) component.Operator {
 	return &_resource{
-		client:      client,
-		imageVector: imageVector,
+		client:              client,
+		imageVector:         imageVector,
+		memberClientFactory: memberClientFactory,
 	}
 }
 
@@ -89,6 +92,13 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 
 // PreSync performs pre-sync operations for the statefulset component.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	// Before the StatefulSet is scaled in, remove one surplus etcd member
+	// per reconcile so the cluster never loses quorum. This must run irrespective
+	// of whether a backup store is configured.
+	if err := r.ensureMemberRemoval(ctx, etcd); err != nil {
+		return err
+	}
+
 	if !etcd.IsBackupStoreEnabled() {
 		return nil
 	}
@@ -259,7 +269,14 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		}
 	}
 
-	return r.createOrPatch(ctx, etcd)
+	if err = r.createOrPatch(ctx, etcd); err != nil {
+		return err
+	}
+
+	// After a scale-in shrinks the StatefulSet, delete the PVCs of the
+	// removed ordinals so their storage is not leaked. A StatefulSet does not
+	// reclaim its per-pod PVCs on scale-down.
+	return r.deleteSurplusPVCs(ctx, etcd)
 }
 
 // TriggerDelete triggers the deletion of the statefulset for the given Etcd.

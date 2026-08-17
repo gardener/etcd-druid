@@ -12,6 +12,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
@@ -248,7 +249,7 @@ func (t *TestEnvironment) getOperatorRegistry() (component.Registry, error) {
 	reg.Register(component.ClientServiceKind, clientservice.New(t.Client()))
 	reg.Register(component.PeerServiceKind, peerservice.New(t.Client()))
 	reg.Register(component.ConfigMapKind, configmap.New(t.Client()))
-	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector))
+	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector, etcdclient.NewMemberClientFactory()))
 
 	return reg, nil
 }
@@ -355,6 +356,22 @@ func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) ([]corev1.Persis
 		return nil, fmt.Errorf("failed to list PVCs: %w", err)
 	}
 	return pvcList.Items, nil
+}
+
+// CheckEtcdPVCCount asserts that the number of PVCs associated with the Etcd
+// cluster eventually equals expectedCount. It is used by the scale-in e2e test
+// to verify that surplus member PVCs are cleaned up after a scale-in (DEP-08).
+func (t *TestEnvironment) CheckEtcdPVCCount(g *WithT, etcd *druidv1alpha1.Etcd, expectedCount int, timeout time.Duration) {
+	g.Eventually(func() error {
+		pvcs, err := t.getEtcdPVCs(etcd)
+		if err != nil {
+			return fmt.Errorf("failed to get etcd PVCs: %w", err)
+		}
+		if len(pvcs) != expectedCount {
+			return fmt.Errorf("etcd %s has %d PVCs, expected %d", etcd.Name, len(pvcs), expectedCount)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // DeployZeroDowntimeValidatorJob deploys the zero downtime validator job.

@@ -25,6 +25,9 @@ func CreatePVC(sts *appsv1.StatefulSet, podName string, phase corev1.PersistentV
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", sts.Spec.VolumeClaimTemplates[0].Name, podName),
 			Namespace: sts.Namespace,
+			// A StatefulSet stamps its per-pod PVCs with the selector's match
+			// labels, so real member PVCs carry the etcd default labels.
+			Labels: sts.Spec.Selector.MatchLabels,
 		},
 		Spec: sts.Spec.VolumeClaimTemplates[0].Spec,
 		Status: corev1.PersistentVolumeClaimStatus{

@@ -74,7 +74,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
-			operator := New(cl, nil)
+			operator := New(cl, nil, nil)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
@@ -288,7 +288,7 @@ func TestPreSync(t *testing.T) {
 				WithScheme(kubernetes.Scheme).
 				WithObjects(existingObjects...).
 				Build()
-			operator := New(cl, iv)
+			operator := New(cl, iv, nil)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 
 			syncErr := operator.PreSync(opCtx, etcd)
@@ -380,7 +380,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tc.expectedReplicas).ToNot(BeNil())
 			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoService)
-			operator := New(cl, iv)
+			operator := New(cl, iv, nil)
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
