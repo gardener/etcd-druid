@@ -547,6 +547,12 @@ func (eb *EtcdBuilder) WithExternallyManagedMembers(addresses []string) *EtcdBui
 	return eb
 }
 
+// WithDynamicEndpoints configures IP-driven endpoint discovery via an ENDPOINTS file.
+func (eb *EtcdBuilder) WithDynamicEndpoints(spec druidv1alpha1.DynamicEndpointsSpec) *EtcdBuilder {
+	eb.etcd.Spec.Backup.DynamicEndpoints = &spec
+	return eb
+}
+
 // WithDefaultBackup creates a default backup spec and initializes etcd with it.
 func (eb *EtcdBuilder) WithDefaultBackup() *EtcdBuilder {
 	eb.etcd.Spec.Backup = getBackupSpec()
