@@ -202,6 +202,47 @@ Example:
 
 This status records source members that were present when the target completed bootstrap. `joinedAt` is a single timestamp for the whole snapshot — the moment etcd-druid recorded the successful bootstrap.
 
+## Step 7: Decommission the source members
+
+Once the target has joined and the combined cluster is healthy, the migration is completed by removing the source members so the cluster runs only on the target. This is declarative: remove the source entries from `spec.etcd.bootstrapWithExistingCluster.members`, or unset `spec.etcd.bootstrapWithExistingCluster` entirely to remove all of them.
+
+To remove a single source member, drop its entry from the `members` list:
+
+```bash
+kubectl -n target-ns patch etcd etcd-target --type merge \
+  -p '{"spec":{"etcd":{"bootstrapWithExistingCluster":{"members":[
+        {"name":"etcd-source-1","peerUrls":["https://etcd-source-1.etcd-source-peer.source-ns.svc:2380"]},
+        {"name":"etcd-source-2","peerUrls":["https://etcd-source-2.etcd-source-peer.source-ns.svc:2380"]}
+      ]}}}}'
+```
+
+To decommission **all** source members at once (the usual end of a migration), unset the field:
+
+```bash
+kubectl -n target-ns patch etcd etcd-target --type json \
+  -p '[{"op":"remove","path":"/spec/etcd/bootstrapWithExistingCluster"}]'
+```
+
+etcd-druid removes the corresponding etcd members **one per reconcile cycle**, and only while the cluster stays quorate. It tracks this with the `ScaleOperationComplete` condition, using reason `BootstrapMembersRemoval` (it uses positive polarity, so `False` means the removal is still in flight):
+
+```bash
+kubectl -n target-ns get etcd etcd-target \
+  -o jsonpath='{.status.conditions[?(@.type=="ScaleOperationComplete")]}{"\n"}'
+```
+
+```json
+{"type":"ScaleOperationComplete","status":"False","reason":"BootstrapMembersRemoval",
+ "message":"Removal of source members joined via bootstrapWithExistingCluster is in progress."}
+```
+
+As each source member is removed, its entry is pruned from `.status.bootstrapWithExistingCluster.members`. When the last one is removed, the whole `.status.bootstrapWithExistingCluster` field is cleared and the condition returns to `status: "True"`, `reason: NoScaleOperation`. At that point the cluster is a standalone, fully etcd-druid-managed cluster running only on the target members.
+
+> [!CAUTION]
+> While the target and source share one etcd cluster, do **not** scale the source (or the target's `spec.replicas`) during the removal. etcd-druid coordinates one membership-changing operation per `Etcd` resource and does not coordinate across the two resources; concurrent changes from both sides can stall progress. A conflicting `spec.replicas` change on the target is rejected at admission while `BootstrapMembersRemoval` is in flight.
+
+> [!NOTE]
+> Removing source members does not delete any target `PersistentVolumeClaim` — the removed members belong to the **source** cluster, not the target. See [DEP-08: Scaling-in a multi-node etcd cluster](../proposals/08-scale-in.md) and [Managing etcd clusters — Scaling in](managing-etcd-clusters.md#scaling-in) for the full scale-in behaviour.
+
 ## Related
 
 - [Concept doc: Bootstrap with an Existing etcd Cluster](../concepts/bootstrap-with-existing-cluster.md)

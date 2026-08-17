@@ -59,8 +59,37 @@ Alternatively, you can use the `/scale` subresource to scale an etcd cluster hor
 kubectl scale etcd <etcd-name> -n <namespace> --replicas=5
 ```
 
+An etcd cluster can be **scaled out** (for example `3 → 5`) to raise fault tolerance, and **scaled in** (for example `5 → 3`) to release surplus members once they are no longer needed. In both directions you only edit `spec.replicas`; etcd-druid drives the membership changes safely.
+
+#### Scaling in
+
+To shrink a multi-node cluster, decrease `spec.replicas` to the desired odd count. For example, to scale a 5-member cluster down to 3:
+
+```bash
+kubectl patch etcd <etcd-name> -n <namespace> --type merge -p '{"spec":{"replicas":3}}'
+```
+
+etcd-druid removes the surplus members **one per reconcile cycle**, highest pod ordinal first, and only when the removal keeps the cluster quorate. It removes the etcd member before the corresponding pod is terminated, then deletes the freed `PersistentVolumeClaim`, so no storage is leaked. Because members are removed serially, a `5 → 3` scale-in converges over a few reconcile cycles rather than at once.
+
+While a scale operation is in progress, etcd-druid records a `ScaleOperationComplete` condition on the `Etcd` status. It uses positive polarity, consistent with the other conditions: `True` (reason `NoScaleOperation`) means the cluster has converged, and `False` (with a reason such as `ScalingIn` or `ScalingOut`) means an operation is still in flight. You can watch it with:
+
+```bash
+kubectl get etcd <etcd-name> -n <namespace> \
+  -o jsonpath='{.status.conditions[?(@.type=="ScaleOperationComplete")]}{"\n"}'
+```
+
+```json
+{"type":"ScaleOperationComplete","status":"False","reason":"ScalingIn",
+ "message":"A scale-in of the etcd cluster is in progress."}
+```
+
+The condition returns to `status: "True"`, `reason: NoScaleOperation` once the target size is reached.
+
 !!! note
-    While an Etcd cluster can be scaled out, it cannot be scaled in, i.e., the replicas cannot be decreased to a non-zero value. An Etcd cluster can still be scaled to 0 replicas, indicating that the cluster is to be "hibernated". This is beneficial for use-cases where an etcd cluster is not needed for a certain period of time, and the user does not want to pay for the compute resources. A hibernated etcd cluster can be resumed later by scaling it back to a non-zero value. Please note that the data volumes backing an Etcd cluster will be retained during hibernation, and will still be charged for.
+    To protect quorum, etcd-druid serializes membership changes: a conflicting **opposite-direction** change is rejected at admission while an operation is in flight. For example, a scale-out request is rejected while a scale-in is still running (`ScaleOperationComplete=False`, reason `ScalingIn`), and vice versa. If a scale-in cannot make progress because the next removal would break quorum, it does **not** roll back — restore the affected members to health so the scale-in can finish reaching the target size. See [DEP-08: Scaling-in a multi-node etcd cluster](../proposals/08-scale-in.md) for the full design.
+
+!!! note
+    Scaling **to `0` replicas** is not a scale-in; it hibernates the cluster. This is beneficial for use-cases where an etcd cluster is not needed for a certain period of time, and the user does not want to pay for the compute resources. A hibernated etcd cluster can be resumed later by scaling it back to a non-zero value. Please note that the data volumes backing an Etcd cluster will be retained during hibernation, and will still be charged for.
 
 ### Scale the Etcd cluster vertically
 
