@@ -66,6 +66,16 @@ const (
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.clientEndpoints == oldSelf.spec.etcd.bootstrapWithExistingCluster.clientEndpoints",message="etcd.spec.etcd.bootstrapWithExistingCluster.clientEndpoints cannot be modified while the bootstrap is in progress"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m1, self.spec.etcd.bootstrapWithExistingCluster.members.filter(m2, m1.name == m2.name).size() == 1)",message="bootstrapWithExistingCluster.members[*].name must be unique"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m, has(self.spec.memberNamePrefix) ? !m.name.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : !m.name.startsWith(self.metadata.name + '-'))",message="bootstrapWithExistingCluster.members[*].name must not collide with a target member (must not start with the target Etcd's member-name prefix)"
+// Scale coordination rules. These read the ScaleOperationComplete status condition to reject
+// conflicting opposite-direction membership changes while an operation is in flight. The condition uses
+// positive polarity, so an in-flight operation is status == 'False' with the reason naming it. The two
+// replica-direction rules are gated on both self.spec.replicas > 0 and oldSelf.spec.replicas > 0 so that
+// transitions to/from 0 (the replicas -> 0 path and wake-up) are never blocked.
+// See docs/proposals/08-scale-in.md for the full design.
+// +kubebuilder:validation:XValidation:message="Cannot scale out while a scale-in or bootstrap members removal is in progress.",rule="(self.spec.replicas > oldSelf.spec.replicas && self.spec.replicas > 0 && oldSelf.spec.replicas > 0) ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingIn' || c.reason == 'BootstrapMembersRemoval'))) : true"
+// +kubebuilder:validation:XValidation:message="Cannot scale in while a scale-out or bootstrap members removal operation is in progress.",rule="(self.spec.replicas < oldSelf.spec.replicas && self.spec.replicas > 0 && oldSelf.spec.replicas > 0) ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingOut' || c.reason == 'BootstrapMembersRemoval'))) : true"
+// +kubebuilder:validation:XValidation:message="Cannot remove bootstrap members while scale-in or scale-out is in progress.",rule="has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && has(self.spec.etcd.bootstrapWithExistingCluster) && self.spec.etcd.bootstrapWithExistingCluster.members != oldSelf.spec.etcd.bootstrapWithExistingCluster.members ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingIn' || c.reason == 'ScalingOut'))) : true"
+// +kubebuilder:validation:XValidation:message="Cannot unset bootstrapWithExistingCluster while scale-in or scale-out is in progress.",rule="has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && !has(self.spec.etcd.bootstrapWithExistingCluster) ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingIn' || c.reason == 'ScalingOut'))) : true"
 
 // Etcd is the Schema for the etcds API
 type Etcd struct {
@@ -549,7 +559,6 @@ type EtcdSpec struct {
 	// If set to 0, the etcd cluster will be scaled down, i.e., it will cease to run.
 	// It can be scaled back up to the previously set value to continue running the etcd cluster.
 	// +required
-	// +kubebuilder:validation:XValidation:message="Replicas can either be increased or be downscaled to 0.",rule="self==0 ? true : self < oldSelf ? false : true"
 	Replicas int32 `json:"replicas"`
 	// PriorityClassName is the name of a priority class that shall be used for the etcd pods.
 	// +optional
@@ -614,6 +623,27 @@ const (
 	// to True once the target has successfully joined the existing cluster and remains
 	// sticky-True thereafter, surviving transient member outages.
 	ConditionTypeBootstrappedWithExistingCluster ConditionType = "BootstrappedWithExistingCluster"
+	// ConditionTypeScaleOperationComplete is a constant for a condition type indicating whether the
+	// etcd cluster is free of an in-flight membership-changing scale operation (scale-in, scale-out, or
+	// bootstrap-member removal). It uses positive polarity, consistent with the other conditions: True
+	// means no scale operation is in progress (the healthy, converged state), and False means an
+	// operation is in flight (with the reason naming it). The etcd controller sets it to False when an
+	// operation starts and back to True on successful completion. CEL validation rules read it to reject
+	// conflicting opposite-direction changes while an operation is in flight.
+	ConditionTypeScaleOperationComplete ConditionType = "ScaleOperationComplete"
+)
+
+const (
+	// ScaleOperationReasonScalingIn indicates an etcd.spec.replicas-driven scale-in is in progress.
+	ScaleOperationReasonScalingIn = "ScalingIn"
+	// ScaleOperationReasonScalingOut indicates a scale-out is in progress — a spec.replicas increase,
+	// or a bootstrapWithExistingCluster join (which also adds members).
+	ScaleOperationReasonScalingOut = "ScalingOut"
+	// ScaleOperationReasonBootstrapMembersRemoval indicates that source members joined via
+	// bootstrapWithExistingCluster are being removed.
+	ScaleOperationReasonBootstrapMembersRemoval = "BootstrapMembersRemoval"
+	// ScaleOperationReasonNoScaleOperation indicates that no scale operation is in progress.
+	ScaleOperationReasonNoScaleOperation = "NoScaleOperation"
 )
 
 // EtcdMemberConditionStatus is the status of an etcd cluster member.

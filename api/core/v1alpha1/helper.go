@@ -105,6 +105,41 @@ func GetMemberLeaseNames(etcd *Etcd) []string {
 	}
 }
 
+// GetBootstrapMemberNames returns the set of member names declared in
+// spec.etcd.bootstrapWithExistingCluster.members (empty when unset).
+func GetBootstrapMemberNames(etcd *Etcd) map[string]bool {
+	names := map[string]bool{}
+	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil {
+		return names
+	}
+	for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
+		names[m.Name] = true
+	}
+	return names
+}
+
+// GetBootstrapMemberNamesToDecommission returns the names of the members recorded as
+// joined in status.bootstrapWithExistingCluster.members that are no longer
+// present in spec.etcd.bootstrapWithExistingCluster.members. When the spec field
+// is unset, all joined members are returned (removing them decommissions the
+// source cluster). It returns nil when there is nothing to remove (no joined
+// members recorded, or every joined member is still present in spec).
+func GetBootstrapMemberNamesToDecommission(etcd *Etcd) []string {
+	statusBootstrap := etcd.Status.BootstrapWithExistingCluster
+	if statusBootstrap == nil || len(statusBootstrap.Members) == 0 {
+		return nil
+	}
+
+	specNames := GetBootstrapMemberNames(etcd)
+	var names []string
+	for _, joined := range statusBootstrap.Members {
+		if !specNames[joined.Name] {
+			names = append(names, joined.Name)
+		}
+	}
+	return names
+}
+
 // GetPodDisruptionBudgetName returns the name of the pod disruption budget for the Etcd.
 func GetPodDisruptionBudgetName(etcdObjMeta metav1.ObjectMeta) string {
 	return etcdObjMeta.Name
