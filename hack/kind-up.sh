@@ -97,6 +97,30 @@ nodes:
   - containerPort: 4443
     hostPort: 4443
     protocol: TCP
+- role: worker
+  image: kindest/node:v1.32.0
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        register-with-taints: "node.gardener.cloud/etcd-machine=true:NoSchedule"
+- role: worker
+  image: kindest/node:v1.32.0
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        register-with-taints: "node.gardener.cloud/etcd-machine=true:NoSchedule"
+- role: worker
+  image: kindest/node:v1.32.0
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        register-with-taints: "node.gardener.cloud/etcd-machine=true:NoSchedule"
 EOF
   if [ "${DEPLOY_REGISTRY}" = true ]; then
     printf -v reg '[plugins."io.containerd.grpc.v1.cri".registry]
@@ -177,6 +201,9 @@ function main() {
   fi
   generate_kind_config
   create_kind_cluster
+  # Remove control-plane taint so workloads (etcd-druid, localstack, etc.) can
+  # schedule on the control-plane node alongside the tainted worker nodes.
+  kubectl taint nodes "${CLUSTER_NAME}-control-plane" node-role.kubernetes.io/control-plane:NoSchedule- 2>/dev/null || true
   if [ "${DEPLOY_REGISTRY}" = true ]; then
     initialize_registry
     create_local_container_reg_configmap
