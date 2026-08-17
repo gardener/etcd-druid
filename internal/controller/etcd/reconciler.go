@@ -9,6 +9,7 @@ import (
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
 	"github.com/gardener/etcd-druid/internal/component/configmap"
@@ -80,7 +81,8 @@ type reconcileFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) c
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;watch
-// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;get;list
 
 // Reconcile manages the reconciliation of the Etcd component to align it with its desired specifications.
@@ -158,7 +160,7 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 	reg.Register(component.ClientServiceKind, clientservice.New(client))
 	reg.Register(component.PeerServiceKind, peerservice.New(client))
 	reg.Register(component.ConfigMapKind, configmap.New(client))
-	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector))
+	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, etcdclient.NewMemberClientFactory()))
 	return reg
 }
 

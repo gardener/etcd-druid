@@ -30,8 +30,10 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcd *druidv1a
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.ensureFinalizer,
+		r.detectAndRecordScaleOperation,
 		r.preSyncEtcdResources,
 		r.syncEtcdResources,
+		r.pruneBootstrapMembersStatus,
 		r.recordReconcileSuccessOperation,
 	}
 
@@ -96,6 +98,15 @@ func (r *Reconciler) recordReconcileStartOperation(ctx component.OperatorContext
 }
 
 func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	// A completed spec reconciliation means any scale operation has
+	// converged (surplus members removed, StatefulSet resized, PVCs cleaned up),
+	// so mark the ScaleOperationComplete condition True (no operation in progress).
+	if scaleConditionNeedsUpdate(etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation) {
+		if err := r.patchScaleOperationCondition(ctx, etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation); err != nil {
+			ctx.Logger.Error(err, "failed to mark ScaleOperationComplete condition")
+			return ctrlutils.ReconcileWithError(err)
+		}
+	}
 	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile success operation")
 		return ctrlutils.ReconcileWithError(err)
