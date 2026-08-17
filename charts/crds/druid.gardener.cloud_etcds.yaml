@@ -901,9 +901,6 @@ spec:
                   It can be scaled back up to the previously set value to continue running the etcd cluster.
                 format: int32
                 type: integer
-                x-kubernetes-validations:
-                - message: Replicas can either be increased or be downscaled to 0.
-                  rule: 'self==0 ? true : self < oldSelf ? false : true'
               runAsRoot:
                 description: |-
                   RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall
@@ -2475,6 +2472,33 @@ spec:
             has(self.spec.memberNamePrefix) ? !m.name.startsWith(self.spec.memberNamePrefix
             + ''-'' + self.metadata.name + ''-'') : !m.name.startsWith(self.metadata.name
             + ''-''))'
+        - message: Cannot scale out while a scale-in or bootstrap members removal
+            is in progress.
+          rule: '(self.spec.replicas > oldSelf.spec.replicas && self.spec.replicas
+            > 0 && oldSelf.spec.replicas > 0) ? (!has(self.status) || !has(self.status.conditions)
+            || !self.status.conditions.exists(c, c.type == ''ScaleOperationComplete''
+            && c.status == ''False'' && (c.reason == ''ScalingIn'' || c.reason ==
+            ''BootstrapMembersRemoval''))) : true'
+        - message: Cannot scale in while a scale-out or bootstrap members removal
+            operation is in progress.
+          rule: '(self.spec.replicas < oldSelf.spec.replicas && self.spec.replicas
+            > 0 && oldSelf.spec.replicas > 0) ? (!has(self.status) || !has(self.status.conditions)
+            || !self.status.conditions.exists(c, c.type == ''ScaleOperationComplete''
+            && c.status == ''False'' && (c.reason == ''ScalingOut'' || c.reason ==
+            ''BootstrapMembersRemoval''))) : true'
+        - message: Cannot remove bootstrap members while scale-in or scale-out is
+            in progress.
+          rule: 'has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && has(self.spec.etcd.bootstrapWithExistingCluster)
+            && self.spec.etcd.bootstrapWithExistingCluster.members != oldSelf.spec.etcd.bootstrapWithExistingCluster.members
+            ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c,
+            c.type == ''ScaleOperationComplete'' && c.status == ''False'' && (c.reason
+            == ''ScalingIn'' || c.reason == ''ScalingOut''))) : true'
+        - message: Cannot unset bootstrapWithExistingCluster while scale-in or scale-out
+            is in progress.
+          rule: 'has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && !has(self.spec.etcd.bootstrapWithExistingCluster)
+            ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c,
+            c.type == ''ScaleOperationComplete'' && c.status == ''False'' && (c.reason
+            == ''ScalingIn'' || c.reason == ''ScalingOut''))) : true'
     served: true
     storage: true
     subresources:
