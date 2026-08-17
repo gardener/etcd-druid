@@ -368,12 +368,28 @@ func TestScaleOut(t *testing.T) {
 				logger.Info("creating Etcd")
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
+				// A single-member cluster starts with exactly one member PVC.
+				testEnv.CheckEtcdPVCCount(g, etcd, 1, timeoutEtcdCreation)
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
 				updateEtcdTLSAndLabels(etcd, true, tc.peerTLSEnabledAfterScaleOut, true, tc.additionalLabelsAfterScaleOut)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
+				// A scaled-out cluster must have one PVC per member.
+				testEnv.CheckEtcdPVCCount(g, etcd, 3, timeoutEtcdUpdation)
+
+				// DEP-08: scale the cluster back in to a single member. The operator
+				// removes surplus members one per reconcile before shrinking the
+				// StatefulSet, so quorum is never lost; UpdateAndCheckEtcd waits until
+				// reconciliation converges (cluster ready, pod count matches, and every
+				// non-skipped status condition — including ScaleOperationComplete — is
+				// True). The surplus member PVCs must then be cleaned up.
+				logger.Info("scaling in Etcd to 1 replica")
+				etcd.Spec.Replicas = 1
+				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
+				testEnv.CheckEtcdPVCCount(g, etcd, 1, timeoutEtcdUpdation)
+				logger.Info("successfully scaled in Etcd to 1 replica and verified surplus PVCs were cleaned up")
 
 				logger.Info("finished running tests")
 				testSucceeded = true
