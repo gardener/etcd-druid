@@ -148,18 +148,23 @@ test-cov-clean:
 # - none,local: tests with both none and local providers.
 # - Default: none,local.
 # Set env var RETAIN_TEST_ARTIFACTS=[all|failed] to retain the test artifacts for all test cases or only the failed ones.
+# Set env var TEST_PATH to run e2e tests from a specific subfolder under test/e2e,
+# e.g. TEST_PATH=controller/etcdopstask runs only ./test/e2e/controller/etcdopstask/...
+# Default: all e2e tests (./test/e2e/...).
 # Set env var GO_TEST_ARGS to pass additional args to go test command, like "-run <TestName> -count=1 -v":
 # - Set -run <TestName> to run specific tests.
 # - Set -count=1 to not use cached results.
 # - Set -v for verbose logs.
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
+	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/$(if $(TEST_PATH),$(TEST_PATH)/,)... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
 
 # Set env var PROVIDERS to specify which providers to test. Current options are "none", "local" and "none,local".
 # Default: none,local.
 # Set env var RETAIN_TEST_ARTIFACTS=[all|failed] to retain the test artifacts for all test cases or only the failed ones.
 # Set env var RETAIN_KIND_CLUSTER=true to retain the kind cluster.
+# Set env var TEST_PATH to run e2e tests from a specific subfolder under test/e2e,
+# e.g. TEST_PATH=controller/etcdopstask. Default: all e2e tests.
 # Set env var GO_TEST_ARGS to pass additional args to go test command, like `-run <TestName> -count=1 -v`.
 .PHONY: ci-e2e-kind
 ci-e2e-kind: $(GINKGO) $(YQ) $(KIND)
