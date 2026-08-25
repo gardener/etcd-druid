@@ -310,8 +310,8 @@ func TestValidateSpecBackupFullSnapshotSchedule(t *testing.T) {
 	}
 }
 
-// TestValidateSpecBackupEnvUniqueness validates that spec.backup.env entries must be unique by name.
-func TestValidateSpecBackupEnvUniqueness(t *testing.T) {
+// TestValidateSpecBackupEnv validates that spec.backup.env entries must be unique by name.
+func TestValidateSpecBackupEnv(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name      string
@@ -350,8 +350,8 @@ func TestValidateSpecBackupEnvUniqueness(t *testing.T) {
 	}
 }
 
-// TestValidateSpecBackupVolumeMountsUniqueness validates that spec.backup.volumeMounts entries must be unique by mountPath.
-func TestValidateSpecBackupVolumeMountsUniqueness(t *testing.T) {
+// TestValidateSpecBackupVolumeMounts validates that spec.backup.volumeMounts entries must be unique by mountPath.
+func TestValidateSpecBackupVolumeMounts(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name         string

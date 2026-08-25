@@ -280,77 +280,64 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 	}
 }
 
-func TestGetCompactionJobVolumeMountsAppendsBackupVolumeMounts(t *testing.T) {
-	g := NewWithT(t)
-	s3Provider := druidv1alpha1.StorageProvider("aws")
-	etcd := &druidv1alpha1.Etcd{
-		Spec: druidv1alpha1.EtcdSpec{
-			Backup: druidv1alpha1.BackupSpec{
-				Store: &druidv1alpha1.StoreSpec{
-					Provider:  &s3Provider,
-					SecretRef: &corev1.SecretReference{Name: "test-secret"},
-				},
-				VolumeMounts: []corev1.VolumeMount{
-					{Name: "custom-br-vol", MountPath: "/custom/br"},
-				},
+func TestCompactionJobAppend(t *testing.T) {
+	tests := []struct {
+		name               string
+		backupVolumeMounts []corev1.VolumeMount
+		volumes            []corev1.Volume
+		backupEnvVars      []corev1.EnvVar
+	}{
+		{
+			name: "getCompactionJobVolumeMounts appends backup.volumeMounts",
+			backupVolumeMounts: []corev1.VolumeMount{
+				{Name: "custom-br-vol", MountPath: "/custom/br"},
 			},
 		},
-	}
-	vms, err := getCompactionJobVolumeMounts(etcd)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(vms).To(ContainElement(corev1.VolumeMount{Name: "custom-br-vol", MountPath: "/custom/br"}))
-}
-
-func TestGetCompactionJobVolumesAppendsSpecVolumes(t *testing.T) {
-	g := NewWithT(t)
-	s3Provider := druidv1alpha1.StorageProvider("aws")
-	etcd := &druidv1alpha1.Etcd{
-		Spec: druidv1alpha1.EtcdSpec{
-			Backup: druidv1alpha1.BackupSpec{
-				Store: &druidv1alpha1.StoreSpec{
-					Provider:  &s3Provider,
-					SecretRef: &corev1.SecretReference{Name: "test-secret"},
-				},
-			},
-			Volumes: []corev1.Volume{
+		{
+			name: "getCompactionJobVolumes appends spec.volumes",
+			volumes: []corev1.Volume{
 				{Name: "custom-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			},
 		},
-	}
-	vs, err := getCompactionJobVolumes(context.Background(), nil, logr.Discard(), etcd)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(vs).To(ContainElement(corev1.Volume{Name: "custom-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}))
-}
-
-func TestCreateCompactionJobAppendsBackupEnvVars(t *testing.T) {
-	g := NewWithT(t)
-	s3Provider := druidv1alpha1.StorageProvider("aws")
-	container := "test-bucket"
-	etcd := &druidv1alpha1.Etcd{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-etcd",
-			Namespace: "test-ns",
-			UID:       types.UID("test-uid"),
-		},
-		Spec: druidv1alpha1.EtcdSpec{
-			Backup: druidv1alpha1.BackupSpec{
-				Store: &druidv1alpha1.StoreSpec{
-					Provider:  &s3Provider,
-					Container: &container,
-					Prefix:    "test-prefix",
-					SecretRef: &corev1.SecretReference{Name: "test-secret"},
-				},
-				EnvVar: []corev1.EnvVar{
-					{Name: "CUSTOM_VAR", Value: "custom-value"},
-				},
+		{
+			name: "backup env vars are appended to compaction job env",
+			backupEnvVars: []corev1.EnvVar{
+				{Name: "CUSTOM_VAR", Value: "custom-value"},
 			},
 		},
 	}
 
-	env, err := utils.GetBackupRestoreContainerEnvVars(etcd)
-	g.Expect(err).NotTo(HaveOccurred())
-	env = append(env, etcd.Spec.Backup.EnvVar...)
-	g.Expect(env).To(ContainElement(corev1.EnvVar{Name: "CUSTOM_VAR", Value: "custom-value"}))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := testutils.EtcdBuilderWithoutDefaults("test-etcd", "test-ns").
+				WithProviderS3("test-prefix").
+				WithBackupVolumeMounts(tc.backupVolumeMounts).
+				WithVolumes(tc.volumes).
+				WithBackupEnv(tc.backupEnvVars).
+				Build()
+
+			if len(tc.backupVolumeMounts) > 0 {
+				vms, err := getCompactionJobVolumeMounts(etcd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(vms).To(ContainElements(tc.backupVolumeMounts))
+			}
+
+			if len(tc.volumes) > 0 {
+				vs, err := getCompactionJobVolumes(context.Background(), nil, logr.Discard(), etcd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(vs).To(ContainElements(tc.volumes))
+			}
+
+			if len(tc.backupEnvVars) > 0 {
+				env, err := utils.GetBackupRestoreContainerEnvVars(etcd)
+				g.Expect(err).NotTo(HaveOccurred())
+				env = append(env, etcd.Spec.Backup.EnvVar...)
+				g.Expect(env).To(ContainElements(tc.backupEnvVars))
+			}
+		})
+	}
 }
 
 func TestGetCompactionJobArgs(t *testing.T) {
