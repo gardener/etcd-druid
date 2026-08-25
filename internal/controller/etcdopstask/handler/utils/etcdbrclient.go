@@ -6,8 +6,7 @@ package utils
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -19,9 +18,6 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
-	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -35,10 +31,8 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 	}
 
 	httpScheme = "https"
-	etcdbrCASecret := &v1.Secret{}
 	dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
 
-	// TODO @Shreyas-s14: revert this change once the gardener/gardener issue has been fixed: https://github.com/gardener/gardener/issues/15004
 	sts, err := kutil.GetStatefulSet(ctx, k8sClient, etcd)
 	if err != nil {
 		errResult = &taskhandler.Result{
@@ -57,7 +51,7 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 		return
 	}
 
-	etcdbrCASecretName, ok := kutil.GetSecretNameFromVolume(sts, common.VolumeNameBackupRestoreCA)
+	brCASecretName, ok := kutil.GetSecretNameFromVolume(sts, common.VolumeNameBackupRestoreCA)
 	if !ok {
 		errResult = &taskhandler.Result{
 			Description: fmt.Sprintf("backup-restore CA volume %q not found on StatefulSet %s/%s", common.VolumeNameBackupRestoreCA, etcd.Namespace, etcd.Name),
@@ -67,44 +61,14 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 		return
 	}
 
-	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: etcdbrCASecretName}, etcdbrCASecret); err != nil {
-		requeue := true
-		if apierrors.IsNotFound(err) {
-			requeue = false
-		}
-		errResult = &taskhandler.Result{
-			Description: "Failed to get etcdbr CA secret",
-			Error:       druiderr.WrapError(err, taskhandler.ErrGetCASecret, string(phase), fmt.Sprintf("failed to get etcdbr CA secret %s/%s", etcd.Namespace, etcdbrCASecretName)),
-			Requeue:     requeue,
-		}
-		return
-	}
-
-	certData, ok := etcdbrCASecret.Data[dataKey]
-	if !ok {
-		errResult = &taskhandler.Result{
-			Description: "CA cert data key not found in secret",
-			Error:       druiderr.WrapError(fmt.Errorf("CA cert data key %q not found in secret %s/%s", dataKey, etcdbrCASecret.Namespace, etcdbrCASecret.Name), taskhandler.ErrCADataKeyNotFound, string(phase), "CA cert data key not found in secret"),
-			Requeue:     false,
-		}
-		return
-	}
-
-	caCerts := x509.NewCertPool()
-	if !caCerts.AppendCertsFromPEM(certData) {
-		errResult = &taskhandler.Result{
-			Description: "Failed to append CA certs from secret",
-			Error:       druiderr.WrapError(fmt.Errorf("failed to append CA certs from secret %s/%s", etcdbrCASecret.Namespace, etcdbrCASecret.Name), taskhandler.ErrAppendCACerts, string(phase), "failed to append CA certs from secret"),
-			Requeue:     false,
-		}
+	brTLSConfig, err := kutil.BuildBackupRestoreCATLSConfig(ctx, k8sClient, sts, etcd.Namespace, dataKey)
+	if err != nil {
+		errResult = classifyCAResolutionError(err, string(phase), etcd.Namespace, brCASecretName)
 		return
 	}
 
 	httpTransport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs:    caCerts,
-			MinVersion: tls.VersionTLS12,
-		},
+		TLSClientConfig: brTLSConfig,
 	}
 
 	httpClient = http.Client{
@@ -113,4 +77,36 @@ func ConfigureHTTPClientForEtcdBR(ctx context.Context, k8sClient client.Client, 
 	}
 
 	return httpClient, httpScheme, nil
+}
+
+// classifyCAResolutionError maps a CA resolution error from the shared TLS builder onto
+// the EtcdOpsTask error taxonomy, preserving the DruidError code, message, and requeue
+// semantics that callers of ConfigureHTTPClientForEtcdBR rely on.
+func classifyCAResolutionError(err error, phase, namespace, secretName string) *taskhandler.Result {
+	switch {
+	case errors.Is(err, kutil.ErrMissingDataKey):
+		return &taskhandler.Result{
+			Description: "CA cert data key not found in secret",
+			Error:       druiderr.WrapError(err, taskhandler.ErrCADataKeyNotFound, phase, "CA cert data key not found in secret"),
+			Requeue:     false,
+		}
+	case errors.Is(err, kutil.ErrAppendCACerts):
+		return &taskhandler.Result{
+			Description: "Failed to append CA certs from secret",
+			Error:       druiderr.WrapError(err, taskhandler.ErrAppendCACerts, phase, fmt.Sprintf("failed to append CA certs from secret %s/%s", namespace, secretName)),
+			Requeue:     false,
+		}
+	case errors.Is(err, kutil.ErrSecretNotFound):
+		return &taskhandler.Result{
+			Description: "Failed to get etcdbr CA secret",
+			Error:       druiderr.WrapError(err, taskhandler.ErrGetCASecret, phase, fmt.Sprintf("failed to get etcdbr CA secret %s/%s", namespace, secretName)),
+			Requeue:     false,
+		}
+	default:
+		return &taskhandler.Result{
+			Description: "Failed to get etcdbr CA secret",
+			Error:       druiderr.WrapError(err, taskhandler.ErrGetCASecret, phase, fmt.Sprintf("failed to get etcdbr CA secret %s/%s", namespace, secretName)),
+			Requeue:     true,
+		}
+	}
 }

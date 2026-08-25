@@ -87,10 +87,16 @@ func CreateStatefulSet(name, namespace string, etcdUID types.UID, replicas int32
 // AddBackupRestoreCAVolume appends the backup-restore-ca volume to the StatefulSet's pod
 // template, pointing at the named secret. Returns the StatefulSet for chaining.
 func AddBackupRestoreCAVolume(sts *appsv1.StatefulSet, etcdbrCASecretName string) *appsv1.StatefulSet {
+	return AddSecretVolume(sts, common.VolumeNameBackupRestoreCA, etcdbrCASecretName)
+}
+
+// AddSecretVolume appends a Secret-typed volume with the given name to the StatefulSet's
+// pod template, pointing at the named secret. Returns the StatefulSet for chaining.
+func AddSecretVolume(sts *appsv1.StatefulSet, volumeName, secretName string) *appsv1.StatefulSet {
 	sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, corev1.Volume{
-		Name: common.VolumeNameBackupRestoreCA,
+		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{SecretName: etcdbrCASecretName},
+			Secret: &corev1.SecretVolumeSource{SecretName: secretName},
 		},
 	})
 	return sts

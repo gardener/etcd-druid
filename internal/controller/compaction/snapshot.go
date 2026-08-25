@@ -6,8 +6,6 @@ package compaction
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"time"
@@ -15,10 +13,9 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	druidmetrics "github.com/gardener/etcd-druid/internal/metrics"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -83,23 +80,19 @@ func newHTTPClient(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Et
 
 	if tlsConfig := etcd.Spec.Backup.TLS; tlsConfig != nil {
 		httpScheme = "https"
-		etcdbrCASecret := &v1.Secret{}
 		dataKey := ptr.Deref(tlsConfig.TLSCASecretRef.DataKey, "bundle.crt")
-		if err := cl.Get(ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: tlsConfig.TLSCASecretRef.Name}, etcdbrCASecret); err != nil {
-			return nil, "", fmt.Errorf("failed to get etcdbr CA secret %s/%s: %w", etcd.Namespace, tlsConfig.TLSCASecretRef.Name, err)
+		sts, err := kutil.GetStatefulSet(ctx, cl, etcd)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get StatefulSet for etcd %s/%s to resolve backup-restore CA: %w", etcd.Namespace, etcd.Name, err)
 		}
-		certData, ok := etcdbrCASecret.Data[dataKey]
-		if !ok {
-			return nil, "", fmt.Errorf("CA cert data key %q not found in secret %s/%s", dataKey, etcdbrCASecret.Namespace, etcdbrCASecret.Name)
+		brTLSConfig, err := kutil.BuildBackupRestoreCATLSConfig(ctx, cl, sts, etcd.Namespace, dataKey)
+		if err != nil {
+			return nil, "", err
 		}
-		caCerts := x509.NewCertPool()
-		if !caCerts.AppendCertsFromPEM(certData) {
-			return nil, "", fmt.Errorf("failed to append CA certs from secret %s/%s", etcdbrCASecret.Namespace, etcdbrCASecret.Name)
+		if brTLSConfig == nil {
+			return nil, "", fmt.Errorf("backup TLS is enabled for etcd %s/%s but the backup-restore CA could not be resolved from the StatefulSet volumes", etcd.Namespace, etcd.Name)
 		}
-		httpTransport.TLSClientConfig = &tls.Config{
-			RootCAs:    caCerts,
-			MinVersion: tls.VersionTLS12,
-		}
+		httpTransport.TLSClientConfig = brTLSConfig
 	}
 
 	etcdFullSnapshotReqTimeout := defaultEtcdFullSnapshotReqTimeout
