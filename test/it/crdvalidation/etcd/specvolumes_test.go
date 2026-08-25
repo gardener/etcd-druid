@@ -14,8 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// TestValidateSpecVolumesUniqueness validates that spec.volumes entries must be unique by name.
-func TestValidateSpecVolumesUniqueness(t *testing.T) {
+// TestValidateSpecVolumes validates that spec.volumes entries must be unique by name.
+func TestValidateSpecVolumes(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name      string

@@ -432,8 +432,8 @@ func TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerification(t *testing.T) {
 	validateEtcdCreation(g, etcd, false)
 }
 
-// TestValidateSpecEtcdEnvUniqueness validates that spec.etcd.env entries must be unique by name.
-func TestValidateSpecEtcdEnvUniqueness(t *testing.T) {
+// TestValidateSpecEtcdEnv validates that spec.etcd.env entries must be unique by name.
+func TestValidateSpecEtcdEnv(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name      string
@@ -472,8 +472,8 @@ func TestValidateSpecEtcdEnvUniqueness(t *testing.T) {
 	}
 }
 
-// TestValidateSpecEtcdVolumeMountsUniqueness validates that spec.etcd.volumeMounts entries must be unique by mountPath.
-func TestValidateSpecEtcdVolumeMountsUniqueness(t *testing.T) {
+// TestValidateSpecEtcdVolumeMounts validates that spec.etcd.volumeMounts entries must be unique by mountPath.
+func TestValidateSpecEtcdVolumeMounts(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	tests := []struct {
 		name         string
