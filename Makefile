@@ -157,7 +157,8 @@ test-cov-clean:
 # - Set -v for verbose logs.
 .PHONY: test-e2e
 test-e2e: $(KUBECTL) $(HELM) $(SKAFFOLD)
-	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/$(if $(TEST_PATH),$(TEST_PATH)/,)... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
+	$(eval TEST_PATH_CLEAN := $(patsubst /%,%,$(patsubst %/,%,$(subst \,/,$(TEST_PATH)))))
+	@SETUP_ENVTEST="false" PROVIDERS=$(PROVIDERS) "$(HACK_DIR)/test-go.sh" ./test/e2e/$(if $(TEST_PATH_CLEAN),$(TEST_PATH_CLEAN)/,)... -parallel 10 -timeout 1h $(GO_TEST_ARGS)
 
 # Set env var PROVIDERS to specify which providers to test. Current options are "none", "local" and "none,local".
 # Default: none,local.
