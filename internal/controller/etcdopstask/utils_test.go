@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightcext: Copyright Contributors to the Gardener project
+// SPDX-FileCopyrightcext: Contributors to the Gardener project
 //
 // SPDX-License-Identifier: Apache-2.0
 
