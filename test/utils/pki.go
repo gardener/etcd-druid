@@ -90,6 +90,30 @@ func GenerateCACert(name string) ([]byte, error) {
 	return certPEM, nil
 }
 
+// GenerateClientCert generates a self-signed client certificate and key, returning
+// both as PEM-encoded bytes. Suitable for use in test TLS configurations.
+func GenerateClientCert(name string) (certPEM, keyPEM []byte, err error) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate client key: %w", err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: name},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(0, 0, defaultCertExpiryDays),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create client certificate: %w", err)
+	}
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	return certPEM, keyPEM, nil
+}
+
 // generateRawCAKeyCert generates a raw CA certificate.
 func generateRawCAKeyCert(name string) (*rsa.PrivateKey, []byte, error) {
 	// Generate private key
