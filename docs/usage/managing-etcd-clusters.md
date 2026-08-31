@@ -60,7 +60,35 @@ kubectl scale etcd <etcd-name> -n <namespace> --replicas=5
 ```
 
 !!! note
-    While an Etcd cluster can be scaled out, it cannot be scaled in, i.e., the replicas cannot be decreased to a non-zero value. An Etcd cluster can still be scaled to 0 replicas, indicating that the cluster is to be "hibernated". This is beneficial for use-cases where an etcd cluster is not needed for a certain period of time, and the user does not want to pay for the compute resources. A hibernated etcd cluster can be resumed later by scaling it back to a non-zero value. Please note that the data volumes backing an Etcd cluster will be retained during hibernation, and will still be charged for.
+    An Etcd cluster can be scaled to 0 replicas to "hibernate" it. A hibernated cluster retains its data volumes and can be resumed by scaling back to a non-zero value. Storage costs continue to apply during hibernation.
+
+#### Scaling in
+
+To reduce the replica count of a running cluster, decrease `spec.replicas` to the desired non-zero value:
+
+```bash
+kubectl patch etcd <etcd-name> -n <namespace> --type merge -p '{"spec":{"replicas":3}}'
+```
+
+etcd-druid coordinates the scale-in safely:
+
+1. It records a `ScaleOperationComplete=False/ScalingIn` condition on the `Etcd` resource.
+2. Before shrinking the StatefulSet, it removes surplus etcd members **one per reconcile cycle**, waiting for the cluster to confirm quorum after each removal. If removing the next candidate would break quorum, the operation is held until the cluster recovers.
+3. Once all surplus members are removed from the etcd cluster, the surplus `PersistentVolumeClaims` are deleted and the StatefulSet is shrunk to the desired replica count.
+4. When the StatefulSet has converged, the condition is cleared back to `ScaleOperationComplete=True/NoScaleOperation`.
+
+You can monitor progress:
+
+```bash
+kubectl -n <namespace> get etcd <etcd-name> \
+  -o jsonpath='{.status.conditions[?(@.type=="ScaleOperationComplete")]}{"\n"}'
+```
+
+!!! warning
+    Do not decrease `spec.replicas` by more than the cluster's fault-tolerance margin in one step (e.g. 5→1 in a single change). etcd-druid removes one member per reconcile and holds if quorum is at risk, but starting from a healthy majority is required for the operation to complete at all. Reduce replicas incrementally if in doubt (5→3, then 3→1).
+
+!!! note
+    The `PersistentVolumeClaims` of removed members are deleted as part of scale-in. Hibernation (scaling to 0) does **not** delete any PVCs; all data is preserved for wake-up.
 
 ### Scale the Etcd cluster vertically
 
