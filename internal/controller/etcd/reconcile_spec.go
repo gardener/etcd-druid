@@ -11,6 +11,7 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
+	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
@@ -30,8 +31,10 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcd *druidv1a
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.ensureFinalizer,
+		r.detectAndRecordScaleOperation,
 		r.preSyncEtcdResources,
 		r.syncEtcdResources,
+		r.pruneBootstrapMembersStatus,
 		r.recordReconcileSuccessOperation,
 	}
 
@@ -60,9 +63,18 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcd *d
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.PreSync(ctx, etcd); err != nil {
-			if derr := druiderr.AsDruidError(err); derr != nil && derr.Code == druiderr.ErrRequeueAfter {
-				ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
-				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("requeueing pre-sync of component %s to be retried after %s", kind, syncRetryInterval.String()))
+			if derr := druiderr.AsDruidError(err); derr != nil {
+				switch derr.Code {
+				case druiderr.ErrRequeueAfter:
+					ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
+					return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("requeueing pre-sync of component %s to be retried after %s", kind, syncRetryInterval.String()))
+				case statefulset.ErrQuorumUnsafeMemberRemoval:
+					// ErrQuorumUnsafeMemberRemoval originates only from the StatefulSet
+					// PreSync member-removal branch (removeOneSurplusMember); this is its
+					// sole handler. Requeue with the error recorded in status.lastErrors.
+					ctx.Logger.Info("holding pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
+					return ctrlutils.ReconcileWithErrorAfter(syncRetryInterval, err)
+				}
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
@@ -76,9 +88,12 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcd *drui
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
-			if derr := druiderr.AsDruidError(err); derr != nil && derr.Code == druiderr.ErrRequeueAfter {
-				ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
-				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, syncRetryInterval.String()))
+			if derr := druiderr.AsDruidError(err); derr != nil {
+				switch derr.Code {
+				case druiderr.ErrRequeueAfter:
+					ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
+					return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, syncRetryInterval.String()))
+				}
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
@@ -96,6 +111,17 @@ func (r *Reconciler) recordReconcileStartOperation(ctx component.OperatorContext
 }
 
 func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	// A completed spec reconciliation means any scale operation has converged
+	// (surplus members removed, StatefulSet resized, PVCs cleaned up), so mark
+	// the ScaleOperationComplete condition True (no operation in progress).
+	// This is patched before RecordSuccess so that a partial failure never
+	// leaves LastOperation=Succeeded while the scale condition still says False.
+	if scaleConditionNeedsUpdate(etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation) {
+		if err := r.patchScaleOperationCondition(ctx, etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation); err != nil {
+			ctx.Logger.Error(err, "failed to mark ScaleOperationComplete condition")
+			return ctrlutils.ReconcileWithError(err)
+		}
+	}
 	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile success operation")
 		return ctrlutils.ReconcileWithError(err)

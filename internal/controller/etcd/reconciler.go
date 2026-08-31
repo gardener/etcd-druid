@@ -9,9 +9,9 @@ import (
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
-	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/component/configmap"
 	"github.com/gardener/etcd-druid/internal/component/memberlease"
 	"github.com/gardener/etcd-druid/internal/component/peerservice"
@@ -55,9 +55,14 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.EtcdControlle
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with the given image vector.
-func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector) (*Reconciler, error) {
+// An optional memberClientFactory may be provided to override the default factory (useful in tests).
+func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector, memberClientFactory ...etcdclient.MemberClientFactory) (*Reconciler, error) {
 	logger := log.Log.WithName(controllerName)
-	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv)
+	var mcf etcdclient.MemberClientFactory
+	if len(memberClientFactory) > 0 && memberClientFactory[0] != nil {
+		mcf = memberClientFactory[0]
+	}
+	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv, mcf)
 	lastOpErrRecorder := ctrlutils.NewLastOperationAndLastErrorsRecorder(mgr.GetClient(), logger)
 	return &Reconciler{
 		client:            mgr.GetClient(),
@@ -81,7 +86,8 @@ type reconcileFn func(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) c
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;watch
-// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;get;list
 
 // Reconcile manages the reconciliation of the Etcd component to align it with its desired specifications.
@@ -148,7 +154,7 @@ func (r *Reconciler) GetOperatorRegistry() component.Registry {
 	return r.operatorRegistry
 }
 
-func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector) component.Registry {
+func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector, memberClientFactory etcdclient.MemberClientFactory) component.Registry {
 	reg := component.NewRegistry()
 	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
 	reg.Register(component.RoleKind, role.New(client))
@@ -159,7 +165,10 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 	reg.Register(component.ClientServiceKind, clientservice.New(client))
 	reg.Register(component.PeerServiceKind, peerservice.New(client))
 	reg.Register(component.ConfigMapKind, configmap.New(client))
-	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, etcdclient.NewMemberClientFactory()))
+	if memberClientFactory == nil {
+		memberClientFactory = etcdclient.NewMemberClientFactory()
+	}
+	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, memberClientFactory))
 	return reg
 }
 
