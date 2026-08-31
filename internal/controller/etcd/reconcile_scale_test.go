@@ -46,6 +46,7 @@ const (
 // polarity: True/NoScaleOperation is converged, and an in-flight operation is
 // False with the reason naming it.
 func TestDetermineScaleOperation(t *testing.T) {
+	t.Parallel()
 	bootstrapStatus := func(names ...string) *druidv1alpha1.BootstrapWithExistingClusterStatus {
 		members := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(names))
 		for _, n := range names {
@@ -156,6 +157,7 @@ func TestDetermineScaleOperation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -182,6 +184,7 @@ func TestDetermineScaleOperation(t *testing.T) {
 }
 
 func TestDetermineScaleOperationPreservesExistingConditionOnStatefulSetGetError(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -217,6 +220,7 @@ func TestDetermineScaleOperationPreservesExistingConditionOnStatefulSetGetError(
 // when there is an operation to record, and it must be a no-op (no condition
 // added) for a brand-new resource with no scale operation in progress.
 func TestDetectAndRecordScaleOperation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		specReplicas int32
@@ -271,6 +275,7 @@ func TestDetectAndRecordScaleOperation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -320,6 +325,7 @@ func TestDetectAndRecordScaleOperation(t *testing.T) {
 // The guard in scaleConditionNeedsUpdate should short-circuit when the existing
 // condition already matches the determined (status, reason) pair.
 func TestDetectAndRecordScaleOperationIsIdempotent(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -356,12 +362,80 @@ func TestDetectAndRecordScaleOperationIsIdempotent(t *testing.T) {
 	g.Expect(patchCount).To(Equal(0), "no Status().Patch should be issued when condition already matches")
 }
 
+// TestDetectAndRecordScaleOperationDoesNotClearCondition enforces the condition
+// lifecycle invariant: the detector only ever *sets* an in-flight operation
+// (status False); clearing the condition back to True/NoScaleOperation is done
+// exclusively at the end of a successful reconcile by
+// recordReconcileSuccessOperation. Here the StatefulSet has already converged to
+// spec.replicas, so determineScaleOperation reports True/NoScaleOperation, yet an
+// existing False/ScalingIn condition must be left untouched by the detector (it
+// must not clear it, or an opposite-direction change could be admitted before the
+// operation has actually completed at end-of-reconcile).
+func TestDetectAndRecordScaleOperationDoesNotClearCondition(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		reason string
+	}{
+		{name: "converged StatefulSet leaves an in-flight ScalingIn condition set", reason: druidv1alpha1.ScaleOperationReasonScalingIn},
+		{name: "converged StatefulSet leaves an in-flight ScalingOut condition set", reason: druidv1alpha1.ScaleOperationReasonScalingOut},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
+				WithReplicas(3).
+				Build()
+			etcd.UID = scaleTestEtcdUID
+			etcd.Status.Conditions = []druidv1alpha1.Condition{{
+				Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
+				Status: druidv1alpha1.ConditionFalse,
+				Reason: tc.reason,
+			}}
+
+			cl := fakeclient.NewClientBuilder().
+				WithScheme(clientkubernetes.Scheme).
+				WithObjects(etcd).
+				WithStatusSubresource(etcd).
+				Build()
+			// StatefulSet has already converged to spec.replicas: determineScaleOperation
+			// reports True/NoScaleOperation, which the detector must NOT act on.
+			sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), scaleTestNamespace, scaleTestEtcdUID, 3)
+			sts.Spec.Replicas = ptr.To(int32(3))
+			g.Expect(cl.Create(context.Background(), sts)).To(Succeed())
+
+			r := &Reconciler{client: cl}
+			res := r.detectAndRecordScaleOperation(newScaleTestOperatorContext(), etcd)
+			g.Expect(res.HasErrors()).To(BeFalse())
+
+			// In-memory state must be unchanged.
+			idx := findScaleCondition(etcd.Status.Conditions)
+			g.Expect(idx).To(BeNumerically(">=", 0))
+			g.Expect(etcd.Status.Conditions[idx].Status).To(Equal(druidv1alpha1.ConditionFalse))
+			g.Expect(etcd.Status.Conditions[idx].Reason).To(Equal(tc.reason))
+
+			// Persisted state must be unchanged too (the detector must not have patched).
+			persisted := &druidv1alpha1.Etcd{}
+			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: scaleTestEtcdName, Namespace: scaleTestNamespace}, persisted)).To(Succeed())
+			pIdx := findScaleCondition(persisted.Status.Conditions)
+			g.Expect(pIdx).To(BeNumerically(">=", 0), "detector must not remove the in-flight condition")
+			g.Expect(persisted.Status.Conditions[pIdx].Status).To(Equal(druidv1alpha1.ConditionFalse),
+				"detector must not clear the condition to True; only recordReconcileSuccessOperation may")
+			g.Expect(persisted.Status.Conditions[pIdx].Reason).To(Equal(tc.reason))
+		})
+	}
+}
+
 // TestPruneBootstrapMembersStatus verifies that joined source members no longer
 // present in spec.etcd.bootstrapWithExistingCluster are dropped from
 // status.bootstrapWithExistingCluster.members, that the whole status field is
 // cleared once nothing remains, and that it is a no-op when every joined member
 // is still in spec (or nothing has joined at all).
 func TestPruneBootstrapMembersStatus(t *testing.T) {
+	t.Parallel()
 	joined := func(names ...string) []druidv1alpha1.BootstrapJoinedMember {
 		members := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(names))
 		for _, n := range names {
@@ -416,6 +490,7 @@ func TestPruneBootstrapMembersStatus(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -459,6 +534,7 @@ func TestPruneBootstrapMembersStatus(t *testing.T) {
 // True/NoScaleOperation, and that it does not add the condition when none was
 // recorded.
 func TestRecordReconcileSuccessClearsScaleCondition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		// existingCondition, when non-nil, seeds a ScaleOperationComplete
@@ -480,6 +556,17 @@ func TestRecordReconcileSuccessClearsScaleCondition(t *testing.T) {
 			wantReason:           druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
+			name: "in-flight scale-out condition is marked complete (True/NoScaleOperation)",
+			existingCondition: &druidv1alpha1.Condition{
+				Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
+				Status: druidv1alpha1.ConditionFalse,
+				Reason: druidv1alpha1.ScaleOperationReasonScalingOut,
+			},
+			wantConditionPresent: true,
+			wantStatus:           druidv1alpha1.ConditionTrue,
+			wantReason:           druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+		},
+		{
 			name:                 "no condition recorded -> success does not add one",
 			existingCondition:    nil,
 			wantConditionPresent: false,
@@ -488,6 +575,7 @@ func TestRecordReconcileSuccessClearsScaleCondition(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -579,6 +667,7 @@ func (o quorumUnsafePreSyncOperator) PreSync(_ component.OperatorContext, _ *dru
 //  2. the step result requeues after an interval (a transient hold) rather than
 //     as an immediate error requeue.
 func TestQuorumUnsafeErrorSurvivesReconcileRecording(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
