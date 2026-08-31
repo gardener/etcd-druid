@@ -12,6 +12,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
@@ -23,7 +24,6 @@ import (
 	"github.com/gardener/etcd-druid/internal/component/rolebinding"
 	"github.com/gardener/etcd-druid/internal/component/serviceaccount"
 	"github.com/gardener/etcd-druid/internal/component/snapshotlease"
-	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	"github.com/gardener/etcd-druid/internal/images"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -347,6 +347,22 @@ func (t *TestEnvironment) getEtcdPods(etcd *druidv1alpha1.Etcd) ([]corev1.Pod, e
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 	return podList.Items, nil
+}
+
+// CheckEtcdPVCCount asserts that the number of PVCs associated with the Etcd
+// cluster eventually equals expectedCount. It is used by the scale-in e2e test
+// to verify that surplus member PVCs are cleaned up after a scale-in (DEP-08).
+func (t *TestEnvironment) CheckEtcdPVCCount(g *WithT, etcd *druidv1alpha1.Etcd, expectedCount int, timeout time.Duration) {
+	g.Eventually(func() error {
+		pvcs, err := t.getEtcdPVCs(etcd)
+		if err != nil {
+			return fmt.Errorf("failed to get etcd PVCs: %w", err)
+		}
+		if len(pvcs) != expectedCount {
+			return fmt.Errorf("etcd %s has %d PVCs, expected %d", etcd.Name, len(pvcs), expectedCount)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // getEtcdPVCs returns the PVCs associated with the Etcd pods.
