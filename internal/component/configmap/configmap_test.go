@@ -294,16 +294,17 @@ func TestPrepareInitialCluster(t *testing.T) {
 
 func TestGetAdvertiseURLs(t *testing.T) {
 	testCases := []struct {
-		name                        string
-		etcdReplicas                int32
-		peerTLSEnabled              bool
-		advertiseURLType            string
-		scheme                      string
-		serverPort                  *int32
-		clientPort                  *int32
-		memberNamePrefix            *string
-		additionalAdvertisePeerURLs []druidv1alpha1.MemberPeerURLs
-		expectedURLs                map[string][]string
+		name                          string
+		etcdReplicas                  int32
+		peerTLSEnabled                bool
+		advertiseURLType              string
+		scheme                        string
+		serverPort                    *int32
+		clientPort                    *int32
+		memberNamePrefix              *string
+		additionalAdvertisePeerURLs   []druidv1alpha1.MemberPeerURLs
+		additionalAdvertiseClientURLs *druidv1alpha1.AdditionalClientURLsSpec
+		expectedURLs                  map[string][]string
 	}{
 		{
 			name:             "should return peer advertise URLs without prefix",
@@ -432,6 +433,117 @@ func TestGetAdvertiseURLs(t *testing.T) {
 				"etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2380"},
 			},
 		},
+		{
+			name:             "should append additional client URLs for client type",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypeClient,
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(false),
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"etcd-test-0": {"http://etcd-test-0.etcd-test-peer.test-ns.svc:2379", "http://10.0.0.1:2379"},
+				"etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2379"},
+			},
+		},
+		{
+			name:             "should override default client URL when overrideDefaultURL is true",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypeClient,
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"etcd-test-0": {"http://10.0.0.1:2379"},
+				"etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2379"},
+			},
+		},
+		{
+			name:             "should not append additional client URLs for peer type",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypePeer,
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(false),
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"etcd-test-0": {"http://etcd-test-0.etcd-test-peer.test-ns.svc:2380"},
+				"etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2380"},
+			},
+		},
+		{
+			name:             "should ignore non-matching member name for client URLs",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypeClient,
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "non-existing-member", URLs: []string{"http://10.0.0.99:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"etcd-test-0": {"http://etcd-test-0.etcd-test-peer.test-ns.svc:2379"},
+				"etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2379"},
+			},
+		},
+		{
+			name:             "should append multiple additional client URLs",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypeClient,
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "etcd-test-1", URLs: []string{"http://lb-a.example.com:2379", "http://lb-b.example.com:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"etcd-test-0": {"http://etcd-test-0.etcd-test-peer.test-ns.svc:2379"},
+				"etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2379", "http://lb-a.example.com:2379", "http://lb-b.example.com:2379"},
+			},
+		},
+		{
+			name:             "should append additional client URLs with memberNamePrefix",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypeClient,
+			memberNamePrefix: ptr.To("pfx"),
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"pfx-etcd-test-0": {"http://etcd-test-0.etcd-test-peer.test-ns.svc:2379", "http://10.0.0.1:2379"},
+				"pfx-etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2379"},
+			},
+		},
+		{
+			name:             "should override default client URL with memberNamePrefix",
+			etcdReplicas:     2,
+			peerTLSEnabled:   false,
+			advertiseURLType: advertiseURLTypeClient,
+			memberNamePrefix: ptr.To("pfx"),
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members: []druidv1alpha1.MemberClientURLs{
+					{MemberName: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+				},
+			},
+			expectedURLs: map[string][]string{
+				"pfx-etcd-test-0": {"http://10.0.0.1:2379"},
+				"pfx-etcd-test-1": {"http://etcd-test-1.etcd-test-peer.test-ns.svc:2379"},
+			},
+		},
 	}
 	g := NewWithT(t)
 	t.Parallel()
@@ -444,6 +556,9 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
 			if tc.additionalAdvertisePeerURLs != nil {
 				etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = tc.additionalAdvertisePeerURLs
+			}
+			if tc.additionalAdvertiseClientURLs != nil {
+				etcd.Spec.Etcd.AdditionalAdvertiseClientURLs = tc.additionalAdvertiseClientURLs
 			}
 			scheme := tc.scheme
 			if scheme == "" {
@@ -786,6 +901,20 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
 			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}
+		}
+	}
+	if advertiseURLType == advertiseURLTypeClient && druidv1alpha1.IsAdditionalClientURLConfigured(etcd) {
+		for i := 0; i < int(etcd.Spec.Replicas); i++ {
+			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+			memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+			additionalURLs, overrideDefault := druidv1alpha1.GetAdditionalAdvertiseClientURLs(etcd, podName)
+			if len(additionalURLs) > 0 {
+				if overrideDefault {
+					advUrlsMap[memberName] = additionalURLs
+				} else {
+					advUrlsMap[memberName] = append(advUrlsMap[memberName], additionalURLs...)
+				}
+			}
 		}
 	}
 	return advUrlsMap
