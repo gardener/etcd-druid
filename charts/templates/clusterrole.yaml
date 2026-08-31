@@ -126,6 +126,7 @@ rules:
   - get
   - list
   - watch
+  - delete
 - apiGroups:
   - coordination.k8s.io
   resourceNames:

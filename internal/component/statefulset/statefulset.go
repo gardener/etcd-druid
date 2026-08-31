@@ -13,14 +13,13 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
 	"github.com/gardener/etcd-druid/internal/utils/imagevector"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
-
-	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
