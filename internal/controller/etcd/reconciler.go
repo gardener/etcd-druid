@@ -11,6 +11,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/component/configmap"
 	"github.com/gardener/etcd-druid/internal/component/memberlease"
 	"github.com/gardener/etcd-druid/internal/component/peerservice"
@@ -158,7 +159,7 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 	reg.Register(component.ClientServiceKind, clientservice.New(client))
 	reg.Register(component.PeerServiceKind, peerservice.New(client))
 	reg.Register(component.ConfigMapKind, configmap.New(client))
-	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector))
+	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, etcdclient.NewMemberClientFactory()))
 	return reg
 }
 

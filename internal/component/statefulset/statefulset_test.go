@@ -12,7 +12,8 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	etcdfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
+	clientkubernetes "github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -34,6 +35,7 @@ import (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
+	t.Parallel()
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
 		name             string
@@ -65,7 +67,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -74,7 +75,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
-			operator := New(cl, nil)
+			operator := New(cl, nil, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
@@ -89,6 +90,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- PreSync -----------------------------------
 func TestPreSync(t *testing.T) {
+	t.Parallel()
 	const (
 		oldImage     = "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.2"
 		currentImage = ""
@@ -285,10 +287,10 @@ func TestPreSync(t *testing.T) {
 			}
 
 			cl := testutils.NewTestClientBuilder().
-				WithScheme(kubernetes.Scheme).
+				WithScheme(clientkubernetes.Scheme).
 				WithObjects(existingObjects...).
 				Build()
-			operator := New(cl, iv)
+			operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 
 			syncErr := operator.PreSync(opCtx, etcd)
@@ -307,6 +309,7 @@ func TestPreSync(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoSTSExists(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                        string
 		replicas                    int32
@@ -361,7 +364,6 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
 	iv := testutils.CreateImageVector(true, true)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -380,7 +382,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tc.expectedReplicas).ToNot(BeNil())
 			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoService)
-			operator := New(cl, iv)
+			operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
