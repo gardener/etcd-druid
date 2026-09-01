@@ -24,11 +24,11 @@ import (
 )
 
 const (
-	// ErrListMemberLease indicates an error in listing the member lease resources.
+	// ErrListMemberLease is the error code returned when listing member leases fails.
 	ErrListMemberLease druidapicommon.ErrorCode = "ERR_LIST_MEMBER_LEASE"
-	// ErrSyncMemberLease indicates an error in syncing the member lease resources.
+	// ErrSyncMemberLease is the error code returned when creating or updating a member lease fails.
 	ErrSyncMemberLease druidapicommon.ErrorCode = "ERR_SYNC_MEMBER_LEASE"
-	// ErrDeleteMemberLease indicates an error in deleting the member lease resources.
+	// ErrDeleteMemberLease is the error code returned when deleting a member lease fails.
 	ErrDeleteMemberLease druidapicommon.ErrorCode = "ERR_DELETE_MEMBER_LEASE"
 )
 
@@ -67,27 +67,32 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	return resourceNames, nil
 }
 
-// PreSync is a no-op for the member lease component.
 func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
 
-// Sync creates or updates the member leases for the given Etcd.
+// Sync creates or updates member leases and removes surplus leases after a scale-in.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
-	createTasks := make([]utils.OperatorTask, len(objectKeys))
+	if err := r.createOrUpdateLeases(ctx, etcd, objectKeys); err != nil {
+		return err
+	}
+	return r.deleteSurplusLeases(ctx, etcd, objectKeys)
+}
+
+// createOrUpdateLeases uses RunConcurrently for all desired member ordinals.
+func (r _resource) createOrUpdateLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objectKeys []client.ObjectKey) error {
+	tasks := make([]utils.OperatorTask, len(objectKeys))
 	var errs error
 
 	for i, objKey := range objectKeys {
-		createTasks[i] = utils.OperatorTask{
+		tasks[i] = utils.OperatorTask{
 			Name: "CreateOrUpdate-" + objKey.String(),
 			Fn: func(ctx component.OperatorContext) error {
 				return r.doCreateOrUpdate(ctx, etcd, objKey)
 			},
 		}
 	}
-	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
-		for _, err := range errorList {
-			errs = multierror.Append(errs, err)
-		}
+	for _, err := range utils.RunConcurrently(ctx, tasks) {
+		errs = multierror.Append(errs, err)
 	}
 
 	if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
@@ -98,8 +103,8 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	return errs
 }
 
-// deleteStaleMemberLeases deletes member leases that exist but are no longer required.
-// This can happen if a member is removed/replaced when configured with externally managed members.
+// deleteStaleMemberLeases handles the case where a member is removed or
+// replaced when the Etcd is configured with externally managed members.
 func (r _resource) deleteStaleMemberLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta)
 	if err != nil {
@@ -146,7 +151,7 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 func (r _resource) doDelete(ctx component.OperatorContext, objectKey client.ObjectKey) error {
 	if err := r.client.Delete(ctx, emptyMemberLease(objectKey)); err != nil {
 		if errors.IsNotFound(err) {
-			ctx.Logger.Info("No member lease found, Deletion is a No-Op", "objectKey", objectKey)
+			ctx.Logger.Info("member lease not found, deletion is a no-op", "objectKey", objectKey)
 			return nil
 		}
 		return druiderr.WrapError(err,
@@ -156,6 +161,61 @@ func (r _resource) doDelete(ctx component.OperatorContext, objectKey client.Obje
 	}
 	ctx.Logger.Info("deleted", "component", "member-lease", "objectKey", objectKey)
 	return nil
+}
+
+// deleteSurplusLeases skips deletion when replicas=0 to avoid wiping
+// member lease state needed to wake a hibernated cluster.
+func (r _resource) deleteSurplusLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objectKeys []client.ObjectKey) error {
+	// A transition to zero replicas is hibernation, not a scale-in. The desired
+	// lease set is empty at replicas=0, so deleting surplus leases here would
+	// wipe every member lease and lose the state needed to wake the cluster up.
+	// Leave the leases intact, mirroring the guard in deleteSurplusPVCs.
+	if etcd.Spec.Replicas <= 0 {
+		return nil
+	}
+	desired := desiredLeaseNames(objectKeys)
+	existing, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta)
+	if err != nil {
+		return err
+	}
+	var tasks []utils.OperatorTask
+	for _, name := range existing {
+		if _, ok := desired[name]; !ok {
+			leaseObjKey := client.ObjectKey{Name: name, Namespace: etcd.Namespace}
+			tasks = append(tasks, utils.OperatorTask{
+				Name: "Delete-" + name,
+				Fn: func(ctx component.OperatorContext) error {
+					return r.doDeleteLease(ctx, etcd, leaseObjKey)
+				},
+			})
+		}
+	}
+	var errs error
+	for _, err := range utils.RunConcurrently(ctx, tasks) {
+		errs = multierror.Append(errs, err)
+	}
+	return errs
+}
+
+// doDeleteLease deletes a single surplus member lease and logs on success.
+func (r _resource) doDeleteLease(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objKey client.ObjectKey) error {
+	lease := emptyMemberLease(objKey)
+	if err := r.client.Delete(ctx, lease); client.IgnoreNotFound(err) != nil {
+		return druiderr.WrapError(err,
+			ErrDeleteMemberLease,
+			component.OperationSync,
+			fmt.Sprintf("Failed to delete surplus member lease %s for etcd: %v", objKey.Name, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
+	}
+	ctx.Logger.Info("deleted surplus member lease", "name", objKey.Name)
+	return nil
+}
+
+func desiredLeaseNames(objectKeys []client.ObjectKey) map[string]struct{} {
+	names := make(map[string]struct{}, len(objectKeys))
+	for _, k := range objectKeys {
+		names[k.Name] = struct{}{}
+	}
+	return names
 }
 
 // TriggerDelete deletes the member leases for the given Etcd.

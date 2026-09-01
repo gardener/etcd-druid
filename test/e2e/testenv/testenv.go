@@ -23,6 +23,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component/rolebinding"
 	"github.com/gardener/etcd-druid/internal/component/serviceaccount"
 	"github.com/gardener/etcd-druid/internal/component/snapshotlease"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	"github.com/gardener/etcd-druid/internal/images"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -248,7 +249,7 @@ func (t *TestEnvironment) getOperatorRegistry() (component.Registry, error) {
 	reg.Register(component.ClientServiceKind, clientservice.New(t.Client()))
 	reg.Register(component.PeerServiceKind, peerservice.New(t.Client()))
 	reg.Register(component.ConfigMapKind, configmap.New(t.Client()))
-	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector))
+	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector, etcdclient.NewMemberClientFactory()))
 
 	return reg, nil
 }
