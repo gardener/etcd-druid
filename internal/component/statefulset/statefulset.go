@@ -270,8 +270,10 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 	}
 
 	// During a scale-in, surplus PVCs are deleted before the StatefulSet is
-	// shrunk. deleteSurplusPVCs returns ErrRequeueAfter after issuing deletes so
-	// the next reconcile confirms termination. Outside a scale-in it is a no-op.
+	// shrunk. deleteSurplusPVCs issues the deletes and returns nil (fire-and-forget);
+	// createOrPatch below then shrinks the StatefulSet in the same pass, which
+	// deletes the surplus pods and lets the Terminating PVCs be reclaimed. Outside
+	// a scale-in it is a no-op.
 	if err := r.deleteSurplusPVCs(ctx, etcd); err != nil {
 		return err
 	}
