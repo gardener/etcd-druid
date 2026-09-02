@@ -103,7 +103,10 @@ func TestPreSync(t *testing.T) {
 		etcdReplicas    int32
 		stsImages       map[string]string // keyed by container name; nil = use current image-vector defaults for all containers
 		existingTasks   []*druidv1alpha1.EtcdOpsTask
+		skipAnnotation  bool // when true, sets the skip-next-update-snapshot annotation on the Etcd
 		expectedErrCode *druidapicommon.ErrorCode
+		expectNoTasks   bool // when true, asserts that no EtcdOpsTask exists after PreSync
+		expectExhausted bool // when true, asserts the exhaustion flag is set in OperatorContext.Data
 	}{
 		// ---------------- No-op rows ----------------
 		{
@@ -151,12 +154,13 @@ func TestPreSync(t *testing.T) {
 			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
-			name:          "hibernation proceeds after max retries exceeded",
-			backupEnabled: true,
-			stsExists:     true,
-			stsReplicas:   3,
-			etcdReplicas:  0,
-			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			name:            "hibernation proceeds after max retries exceeded",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    0,
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectExhausted: true,
 		},
 		// ---------------- Image-change rows ----------------
 		{
@@ -196,13 +200,14 @@ func TestPreSync(t *testing.T) {
 			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
-			name:          "update proceeds after max retries exceeded",
-			backupEnabled: true,
-			stsExists:     true,
-			stsReplicas:   3,
-			etcdReplicas:  3,
-			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
-			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			name:            "update proceeds after max retries exceeded",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectExhausted: true,
 		},
 		{
 			name:            "update requeues when task is in progress",
@@ -251,6 +256,26 @@ func TestPreSync(t *testing.T) {
 			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
 			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
+		// ---------------- Skip-annotation rows ----------------
+		{
+			name:           "update skipped when skip annotation present (image change)",
+			backupEnabled:  true,
+			stsExists:      true,
+			stsReplicas:    3,
+			etcdReplicas:   3,
+			stsImages:      map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			skipAnnotation: true,
+			expectNoTasks:  true,
+		},
+		{
+			name:           "update skipped when skip annotation present (replica change)",
+			backupEnabled:  true,
+			stsExists:      true,
+			stsReplicas:    3,
+			etcdReplicas:   5,
+			skipAnnotation: true,
+			expectNoTasks:  true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -261,6 +286,9 @@ func TestPreSync(t *testing.T) {
 				WithReplicas(tc.etcdReplicas)
 			if !tc.backupEnabled {
 				etcdBuilder = etcdBuilder.WithoutProvider()
+			}
+			if tc.skipAnnotation {
+				etcdBuilder = etcdBuilder.WithAnnotations(map[string]string{druidv1alpha1.SkipNextUpdateSnapshotAnnotation: ""})
 			}
 			etcd := etcdBuilder.Build()
 
@@ -277,6 +305,10 @@ func TestPreSync(t *testing.T) {
 			maps.Copy(stsImages, tc.stsImages)
 
 			var existingObjects []client.Object
+			if tc.skipAnnotation {
+				// The annotation-removal patch in PreSync requires the Etcd object to exist in the API.
+				existingObjects = append(existingObjects, etcd)
+			}
 			if tc.stsExists {
 				existingObjects = append(existingObjects, buildStatefulSetWithImages(etcd.ObjectMeta, tc.stsReplicas, stsImages))
 			}
@@ -301,6 +333,22 @@ func TestPreSync(t *testing.T) {
 				g.Expect(druidErr).ToNot(BeNil())
 				g.Expect(druidErr.Code).To(Equal(*tc.expectedErrCode))
 			}
+
+			if tc.expectNoTasks {
+				taskList := &druidv1alpha1.EtcdOpsTaskList{}
+				g.Expect(cl.List(opCtx, taskList, client.InNamespace(etcd.Namespace))).To(Succeed())
+				g.Expect(taskList.Items).To(BeEmpty(), "expected no EtcdOpsTask to be created when the update snapshot is skipped")
+			}
+
+			if tc.skipAnnotation {
+				// The one-shot annotation must be removed by PreSync once the skip is applied.
+				updatedEtcd := &druidv1alpha1.Etcd{}
+				g.Expect(cl.Get(opCtx, client.ObjectKeyFromObject(etcd), updatedEtcd)).To(Succeed())
+				g.Expect(updatedEtcd.Annotations).ToNot(HaveKey(druidv1alpha1.SkipNextUpdateSnapshotAnnotation))
+			}
+
+			_, exhausted := opCtx.Data[common.KeyPreSyncSnapshotExhausted]
+			g.Expect(exhausted).To(Equal(tc.expectExhausted))
 		})
 	}
 }

@@ -607,6 +607,8 @@ func TestPreSyncImageChange(t *testing.T) {
 		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
 	}{
 		{"should succeed with image change after presync task completes", testPreSyncImageChangeSucceeds},
+		{"should skip the presync snapshot when the skip annotation is present", testPreSyncImageChangeSkippedViaAnnotation},
+		{"should proceed with image change and surface the failure after max retries exceeded", testPreSyncImageChangeProceedsAfterMaxRetries},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -667,6 +669,115 @@ func testPreSyncImageChangeSucceeds(t *testing.T, testNs string, reconcilerTestE
 
 	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
 	t.Log("StatefulSet etcd container image successfully rolled to new tag")
+}
+
+func testPreSyncImageChangeSkippedViaAnnotation(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 3
+		pollingInterval = time.Second * 2
+		// consistentlyDuration is how long we assert that no pre-sync task is created.
+		consistentlyDuration = time.Second * 10
+	)
+
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		Build()
+	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
+	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+
+	// mark member leases as TLS-enabled so subsequent reconciles do not requeue on the peer-URL TLS check.
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance)
+	mlcs := []etcdMemberLeaseConfig{
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+	}
+	updateMemberLeases(ctx, t, cl, testNs, mlcs)
+
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	newImage := "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.99-test"
+	etcdInstance.Spec.Etcd.Image = &newImage
+	etcdInstance.Annotations = map[string]string{
+		druidv1alpha1.DruidOperationAnnotation:         druidv1alpha1.DruidOperationReconcile,
+		druidv1alpha1.SkipNextUpdateSnapshotAnnotation: "",
+	}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	t.Log("triggered image change with skip-next-update-snapshot annotation set")
+
+	// No pre-sync snapshot task should be created since the snapshot is skipped.
+	assertPreSyncTaskNotCreated(ctx, t, cl, testNs, "presync-snapshot-update-0", consistentlyDuration, pollingInterval)
+	t.Log("verified no presync etcdopstask created when skip annotation is present")
+
+	// The StatefulSet should still roll to the new image.
+	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
+	t.Log("StatefulSet etcd container image rolled to new tag despite skipping the snapshot")
+
+	// The one-shot annotation must be removed by druid.
+	g.Eventually(func() bool {
+		updated := &druidv1alpha1.Etcd{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), updated); err != nil {
+			return true
+		}
+		return druidv1alpha1.HasSkipNextUpdateSnapshotAnnotation(updated.ObjectMeta)
+	}).Within(timeout).WithPolling(pollingInterval).Should(BeFalse(), "expected skip-next-update-snapshot annotation to be removed")
+	t.Log("skip-next-update-snapshot annotation removed by druid (one-shot)")
+}
+
+func testPreSyncImageChangeProceedsAfterMaxRetries(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 5
+		pollingInterval = time.Second * 2
+	)
+
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		Build()
+	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
+	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance)
+	mlcs := []etcdMemberLeaseConfig{
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+	}
+	updateMemberLeases(ctx, t, cl, testNs, mlcs)
+
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	newImage := "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.99-test"
+	etcdInstance.Spec.Etcd.Image = &newImage
+	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	t.Log("triggered image change by patching Spec.Etcd.Image")
+
+	for i := range 3 {
+		taskName := fmt.Sprintf("presync-snapshot-update-%d", i)
+		assertPreSyncTaskCreated(ctx, t, cl, testNs, taskName, timeout, pollingInterval)
+		simulatePreSyncTaskCompletion(ctx, t, cl, testNs, taskName, druidv1alpha1.TaskStateFailed)
+		t.Logf("simulated presync task %s completion with Failed state", taskName)
+	}
+
+	// Despite the snapshot failing, the StatefulSet must still roll to the new image.
+	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
+	t.Log("StatefulSet etcd container image rolled to new tag after max retries exceeded")
+
+	// The failure must be surfaced via a Warning event so operators are aware the update proceeded without a snapshot.
+	assertPreSyncSnapshotFailedEventRecorded(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), timeout, pollingInterval)
+	t.Log("PreSyncSnapshotFailed warning event recorded")
 }
 
 // ------------------------------ reconcile status tests ------------------------------

@@ -273,6 +273,39 @@ func TestAreManagedResourcesProtected(t *testing.T) {
 	}
 }
 
+func TestHasSkipNextUpdateSnapshotAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    bool
+	}{
+		{
+			name:        "no annotation is set",
+			annotations: nil,
+			expected:    false,
+		},
+		{
+			name:        "SkipNextUpdateSnapshotAnnotation is set with empty value",
+			annotations: map[string]string{SkipNextUpdateSnapshotAnnotation: ""},
+			expected:    true,
+		},
+		{
+			name:        "SkipNextUpdateSnapshotAnnotation is set with a value",
+			annotations: map[string]string{SkipNextUpdateSnapshotAnnotation: "true"},
+			expected:    true,
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
+			g.Expect(HasSkipNextUpdateSnapshotAnnotation(etcdObjMeta)).To(Equal(test.expected))
+		})
+	}
+}
+
 func TestGetDefaultLabels(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)

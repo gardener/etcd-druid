@@ -43,6 +43,8 @@ const (
 	ErrCreateEtcdOpsTask druidapicommon.ErrorCode = "ERR_CREATE_ETCDOPSTASK"
 	// ErrGetEtcdWrapperImage indicates an error in getting the etcd wrapper image from the image vector.
 	ErrGetEtcdWrapperImage druidapicommon.ErrorCode = "ERR_GET_ETCD_WRAPPER_IMAGE"
+	// ErrRemoveSkipAnnotation indicates an error in removing the skip-next-update-snapshot annotation from the Etcd resource.
+	ErrRemoveSkipAnnotation druidapicommon.ErrorCode = "ERR_REMOVE_SKIP_ANNOTATION"
 
 	// Pre-sync snapshot task constants
 	preSyncTaskPrefixHibernation = "presync-snapshot-hibernation-"
@@ -88,6 +90,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 
 // PreSync performs pre-sync operations for the statefulset component.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	r.logger = ctx.Logger.WithValues("component", component.StatefulSetKind, "operation", component.OperationPreSync)
 	if !etcd.IsBackupStoreEnabled() {
 		return nil
 	}
@@ -109,13 +112,29 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	changed, err := r.hasImageOrReplicaChanged(etcd, existingSts)
 	if err != nil {
 		return druiderr.WrapError(err, ErrGetEtcdWrapperImage, component.OperationPreSync,
-			fmt.Sprintf("Error getting etcd images for etcd: %v", client.ObjectKeyFromObject(etcd)))
+			fmt.Sprintf("Error getting component images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 	if changed {
+		if druidv1alpha1.HasSkipNextUpdateSnapshotAnnotation(etcd.ObjectMeta) {
+			r.logger.Info("Skipping pre-sync snapshot for pending update due to presence of annotation", "annotation", druidv1alpha1.SkipNextUpdateSnapshotAnnotation)
+			if err := r.removeSkipNextUpdateSnapshotAnnotation(ctx, etcd); err != nil {
+				return druiderr.WrapError(err, ErrRemoveSkipAnnotation, component.OperationPreSync,
+					fmt.Sprintf("Failed to remove %s annotation for etcd: %v", druidv1alpha1.SkipNextUpdateSnapshotAnnotation, client.ObjectKeyFromObject(etcd)))
+			}
+			return nil
+		}
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixUpdate)
 	}
 
 	return nil
+}
+
+// removeSkipNextUpdateSnapshotAnnotation removes the skip-next-update-snapshot annotation from the Etcd resource so that
+// it only applies to the immediately pending update (only once). It patches the object metadata.
+func (r _resource) removeSkipNextUpdateSnapshotAnnotation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	originalEtcd := etcd.DeepCopy()
+	delete(etcd.Annotations, druidv1alpha1.SkipNextUpdateSnapshotAnnotation)
+	return r.client.Patch(ctx, etcd, client.MergeFrom(originalEtcd))
 }
 
 // collectExpectedImages returns the expected images keyed by container name for the etcd pod template.
@@ -179,6 +198,9 @@ func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *dr
 		if latestIndex != nil && *latestIndex >= maxPreSyncRetries-1 {
 			r.logger.Error(fmt.Errorf("max retries exceeded"), "Pre-sync snapshot failed after max attempts",
 				"etcd", client.ObjectKeyFromObject(etcd), "lastTask", latestTask.Name, "lastState", *latestTask.Status.State)
+			// Signal the exhaustion to the controller (via the per-run OperatorContext.Data) so it can surface the
+			// failure via a warning event, while still proceeding with the sync.
+			ctx.Data[common.KeyPreSyncSnapshotExhausted] = etcd.Name
 			return nil
 		}
 		nextIndex := 0
