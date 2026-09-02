@@ -212,11 +212,6 @@ func matchRole(g *WithT, etcd *druidv1alpha1.Etcd, actualRole rbacv1.Role) {
 				Verbs:     []string{"get", "list", "patch", "update", "watch"},
 			},
 			rbacv1.PolicyRule{
-				APIGroups: []string{"apps"},
-				Resources: []string{"statefulsets"},
-				Verbs:     []string{"get", "list", "patch", "update", "watch"},
-			},
-			rbacv1.PolicyRule{
 				APIGroups: []string{""},
 				Resources: []string{"pods"},
 				Verbs:     []string{"get", "list", "watch"},

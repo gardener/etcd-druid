@@ -127,11 +127,6 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 			Verbs:     []string{"get", "list", "patch", "update", "watch"},
 		},
 		{
-			APIGroups: []string{"apps"},
-			Resources: []string{"statefulsets"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		{
 			APIGroups: []string{""},
 			Resources: []string{"pods"},
 			Verbs:     []string{"get", "list", "watch"},
