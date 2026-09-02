@@ -372,7 +372,7 @@ type EtcdConfig struct {
 	// BootstrapWithExistingCluster configures this etcd to join an existing cluster.
 	// +optional
 	BootstrapWithExistingCluster *BootstrapWithExistingCluster `json:"bootstrapWithExistingCluster,omitempty"`
-	// EnvVar specifies additional environment variables for the etcd container.
+	// EnvVar specifies additional environment variables for the etcd-wrapper container.
 	// These are appended after controller-managed env vars; duplicate names are not allowed.
 	// Example:
 	//   - name: EXAMPLE_VAR
@@ -382,7 +382,7 @@ type EtcdConfig struct {
 	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=5
 	EnvVar []corev1.EnvVar `json:"env,omitempty"`
-	// VolumeMounts specifies additional volume mounts for the etcd container.
+	// VolumeMounts specifies additional volume mounts for the etcd-wrapper container.
 	// Each mountPath must be unique and the referenced volume name must appear in spec.volumes.
 	// Example:
 	//   - name: example-volume

@@ -807,7 +807,7 @@ spec:
                       type: boolean
                     env:
                       description: |-
-                        EnvVar specifies additional environment variables for the etcd container.
+                        EnvVar specifies additional environment variables for the etcd-wrapper container.
                         These are appended after controller-managed env vars; duplicate names are not allowed.
                         Example:
                           - name: EXAMPLE_VAR
@@ -1133,7 +1133,7 @@ spec:
                       type: integer
                     volumeMounts:
                       description: |-
-                        VolumeMounts specifies additional volume mounts for the etcd container.
+                        VolumeMounts specifies additional volume mounts for the etcd-wrapper container.
                         Each mountPath must be unique and the referenced volume name must appear in spec.volumes.
                         Example:
                           - name: example-volume
