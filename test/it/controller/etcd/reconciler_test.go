@@ -585,6 +585,90 @@ func testPreSyncHibernationProceedsAfterMaxRetries(t *testing.T, testNs string, 
 	t.Log("StatefulSet replicas successfully scaled to 0 after max retries exceeded")
 }
 
+// ------------------------------ presync image change tests ------------------------------
+
+func TestPreSyncImageChange(t *testing.T) {
+	g := NewWithT(t)
+
+	// A different IT test environment is required since an additional CRD for the EtcdOpsTask needs to be installed.
+	k8sVersion, err := assets.GetK8sVersionFromEnv()
+	g.Expect(err).ToNot(HaveOccurred())
+	etcdCrd, err := assets.GetEtcdCrd(k8sVersion)
+	g.Expect(err).ToNot(HaveOccurred())
+	etcdOpsTaskCrd, err := assets.GetEtcdOpsTaskCrd(k8sVersion)
+	g.Expect(err).ToNot(HaveOccurred())
+	itTestEnv, itTestEnvCloser, err := setup.NewDruidTestEnvironment("etcd-presync-image-change", []*apiextensionsv1.CustomResourceDefinition{etcdCrd, etcdOpsTaskCrd})
+	g.Expect(err).ToNot(HaveOccurred())
+	defer itTestEnvCloser()
+
+	reconcilerTestEnv := initializeEtcdReconcilerTestEnv(t, "etcd-controller-presync-image-change", itTestEnv, false, testutils.NewTestClientBuilder())
+	tests := []struct {
+		name string
+		fn   func(t *testing.T, testNamespace string, reconcilerTestEnv ReconcilerTestEnv)
+	}{
+		{"should succeed with image change after presync task completes", testPreSyncImageChangeSucceeds},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testNs := testutils.GenerateTestNamespaceName(t, testNamespacePrefix, 8)
+			t.Logf("successfully create namespace: %s to run test => '%s'", testNs, t.Name())
+			g.Expect(itTestEnv.CreateTestNamespace(testNs)).To(Succeed())
+			test.fn(t, testNs, reconcilerTestEnv)
+		})
+	}
+}
+
+func testPreSyncImageChangeSucceeds(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {
+	const (
+		timeout         = time.Minute * 3
+		pollingInterval = time.Second * 2
+	)
+
+	g := NewWithT(t)
+	etcdInstance := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testNs).
+		WithClientTLS().
+		WithPeerTLS().
+		WithReplicas(3).
+		Build()
+	g.Expect(etcdInstance.Spec.Backup.Store).ToNot(BeNil())
+	g.Expect(etcdInstance.Spec.Backup.Store.SecretRef).ToNot(BeNil())
+	cl := reconcilerTestEnv.itTestEnv.GetClient()
+	ctx := context.Background()
+	g.Expect(testutils.CreateSecrets(ctx, cl, testNs, etcdInstance.Spec.Backup.Store.SecretRef.Name)).To(Succeed())
+	createAndAssertEtcdReconciliation(ctx, t, reconcilerTestEnv, etcdInstance)
+
+	// mark member leases as TLS-enabled so subsequent reconciles do not requeue on the peer-URL TLS check.
+	memberLeaseNames := druidv1alpha1.GetMemberLeaseNames(etcdInstance)
+	mlcs := []etcdMemberLeaseConfig{
+		{name: memberLeaseNames[0], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[1], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+		{name: memberLeaseNames[2], annotations: map[string]string{common.LeaseAnnotationKeyPeerURLTLSEnabled: "true"}},
+	}
+	updateMemberLeases(ctx, t, cl, testNs, mlcs)
+
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	newImage := "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.99-test"
+	etcdInstance.Spec.Etcd.Image = &newImage
+	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	t.Log("triggered image change by patching Spec.Etcd.Image")
+
+	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshot-update-0", timeout, pollingInterval)
+	t.Log("presync etcdopstask created")
+
+	task := &druidv1alpha1.EtcdOpsTask{}
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: "presync-snapshot-update-0", Namespace: testNs}, task)).To(Succeed())
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Expect(task.OwnerReferences).To(ContainElement(druidv1alpha1.GetAsOwnerReference(etcdInstance.ObjectMeta)))
+	t.Log("presync etcdopstask has correct owner reference to etcd instance")
+
+	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshot-update-0", druidv1alpha1.TaskStateSucceeded)
+	t.Log("simulated presync task completion with Succeeded state")
+
+	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
+	t.Log("StatefulSet etcd container image successfully rolled to new tag")
+}
+
 // ------------------------------ reconcile status tests ------------------------------
 
 func TestEtcdStatusReconciliation(t *testing.T) {
