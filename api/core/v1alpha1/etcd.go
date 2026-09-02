@@ -311,11 +311,7 @@ type EtcdConfig struct {
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
 	// AdditionalAdvertisePeerURLs holds extra per-member peer URLs added to
 	// initial-advertise-peer-urls, and a flag controlling whether the default
-	// internal peer service URL is suppressed. Each entry maps a member name to its
-	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
-	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
-	// When spec.memberNamePrefix is set, member names become
-	// `<memberNamePrefix>-<podName>`.
+	// internal peer service URL is suppressed.
 	// Updating this field on a running cluster triggers a ConfigMap update
 	// and a rolling restart of the StatefulSet.
 	// +optional
@@ -387,6 +383,7 @@ type AdditionalPeerURLsSpec struct {
 	// +required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=10
+	// +listType=atomic
 	Members []MemberPeerURLs `json:"members"`
 }
 

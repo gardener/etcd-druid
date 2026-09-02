@@ -1028,6 +1028,7 @@ func TestOverrideDefaultURLRendering(t *testing.T) {
 	testCases := []struct {
 		name               string
 		overrideDefaultURL *bool
+		members            []druidv1alpha1.MemberPeerURLs
 		// member-0 expectations
 		wantDefaultURL    bool
 		wantAdditionalURL bool
@@ -1035,20 +1036,30 @@ func TestOverrideDefaultURLRendering(t *testing.T) {
 		{
 			name:               "overrideDefaultURL=nil — default URL and additional URL both present",
 			overrideDefaultURL: nil,
+			members:            []druidv1alpha1.MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{additionalURL}}},
 			wantDefaultURL:     true,
 			wantAdditionalURL:  true,
 		},
 		{
 			name:               "overrideDefaultURL=false — default URL and additional URL both present",
 			overrideDefaultURL: ptr.To(false),
+			members:            []druidv1alpha1.MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{additionalURL}}},
 			wantDefaultURL:     true,
 			wantAdditionalURL:  true,
 		},
 		{
 			name:               "overrideDefaultURL=true — only additional URL present, default URL dropped",
 			overrideDefaultURL: ptr.To(true),
+			members:            []druidv1alpha1.MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{additionalURL}}},
 			wantDefaultURL:     false,
 			wantAdditionalURL:  true,
+		},
+		{
+			name:               "member not configured — default URL present, no additional URL",
+			overrideDefaultURL: nil,
+			members:            []druidv1alpha1.MemberPeerURLs{{Name: "etcd-test-1", URLs: []string{additionalURL}}},
+			wantDefaultURL:     true,
+			wantAdditionalURL:  false,
 		},
 	}
 
@@ -1061,9 +1072,7 @@ func TestOverrideDefaultURLRendering(t *testing.T) {
 				WithReplicas(2).Build()
 			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = &druidv1alpha1.AdditionalPeerURLsSpec{
 				OverrideDefaultURL: tc.overrideDefaultURL,
-				Members: []druidv1alpha1.MemberPeerURLs{
-					{Name: "etcd-test-0", URLs: []string{additionalURL}},
-				},
+				Members:            tc.members,
 			}
 
 			cm := emptyConfigMap(getObjectKey(etcd.ObjectMeta))
@@ -1091,6 +1100,8 @@ func TestOverrideDefaultURLRendering(t *testing.T) {
 			}
 			if tc.wantAdditionalURL {
 				g.Expect(urlStrings).To(ContainElement(additionalURL), "additional URL must be present")
+			} else {
+				g.Expect(urlStrings).NotTo(ContainElement(additionalURL), "additional URL must be absent")
 			}
 
 			// member-1 has no additional URL configured — always keeps the default.

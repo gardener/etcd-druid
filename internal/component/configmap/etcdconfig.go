@@ -155,25 +155,18 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 		for i := range int(etcd.Spec.Replicas) {
 			podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
 			memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
-			_, overrideDefault := druidv1alpha1.GetAdditionalAdvertisePeerURLs(etcd, podName)
-			// Emit the default peer service URL unless the member overrides it.
+			additionalURLs, overrideDefault := druidv1alpha1.GetAdditionalAdvertisePeerURLs(etcd, podName)
 			if !overrideDefault {
 				fmt.Fprintf(&builder, "%s=%s://%s.%s:%s,", memberName, peerScheme, podName, domainName, serverPort)
+			}
+			for _, url := range additionalURLs {
+				fmt.Fprintf(&builder, "%s=%s,", memberName, url)
 			}
 		}
 	} else {
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
 			fmt.Fprintf(&builder, "%s=%s://%s:%s,", memberName, peerScheme, memberAddress, serverPort)
-		}
-	}
-
-	for i := range int(etcd.Spec.Replicas) {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
-		memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
-		additionalURLs, _ := druidv1alpha1.GetAdditionalAdvertisePeerURLs(etcd, podName)
-		for _, url := range additionalURLs {
-			fmt.Fprintf(&builder, "%s=%s,", memberName, url)
 		}
 	}
 	if etcd.Spec.Etcd.BootstrapWithExistingCluster != nil {
