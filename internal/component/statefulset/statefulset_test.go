@@ -175,7 +175,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       3,
 			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
 			name:               "upgrade proceeds after max retries exceeded",
@@ -185,7 +185,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       3,
 			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 		},
 		{
 			name:               "hibernation requeues when no task exists",
@@ -237,7 +237,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       3,
 			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
 			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
@@ -248,7 +248,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:        3,
 			etcdReplicas:       3,
 			etcdWrapperImage:   oldImage,
-			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpgrade, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			existingTasks:      []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectedErrCode:    ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 	}
