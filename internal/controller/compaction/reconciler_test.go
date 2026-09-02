@@ -13,6 +13,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
+	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -275,6 +276,66 @@ func TestGetPodFailureReasonAndLastTransitionTime(t *testing.T) {
 			reason, lastTransitionTime := getPodFailureReasonAndLastTransitionTime(pod)
 			g.Expect(reason).To(Equal(test.expectedReason))
 			g.Expect(lastTransitionTime).To(BeTemporally("~", test.expectedTransitionTime, time.Second))
+		})
+	}
+}
+
+func TestCompactionJobAppend(t *testing.T) {
+	tests := []struct {
+		name               string
+		backupVolumeMounts []corev1.VolumeMount
+		volumes            []corev1.Volume
+		backupEnvVars      []corev1.EnvVar
+	}{
+		{
+			name: "getCompactionJobVolumeMounts appends backup.volumeMounts",
+			backupVolumeMounts: []corev1.VolumeMount{
+				{Name: "custom-br-vol", MountPath: "/custom/br"},
+			},
+		},
+		{
+			name: "getCompactionJobVolumes appends spec.volumes",
+			volumes: []corev1.Volume{
+				{Name: "custom-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+		},
+		{
+			name: "backup env vars are appended to compaction job env",
+			backupEnvVars: []corev1.EnvVar{
+				{Name: "CUSTOM_VAR", Value: "custom-value"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := testutils.EtcdBuilderWithoutDefaults("test-etcd", "test-ns").
+				WithProviderS3("test-prefix").
+				WithBackupVolumeMounts(tc.backupVolumeMounts).
+				WithVolumes(tc.volumes).
+				WithBackupEnv(tc.backupEnvVars).
+				Build()
+
+			if len(tc.backupVolumeMounts) > 0 {
+				vms, err := getCompactionJobVolumeMounts(etcd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(vms).To(ContainElements(tc.backupVolumeMounts))
+			}
+
+			if len(tc.volumes) > 0 {
+				vs, err := getCompactionJobVolumes(context.Background(), nil, logr.Discard(), etcd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(vs).To(ContainElements(tc.volumes))
+			}
+
+			if len(tc.backupEnvVars) > 0 {
+				env, err := utils.GetBackupRestoreContainerEnvVars(etcd)
+				g.Expect(err).NotTo(HaveOccurred())
+				env = append(env, etcd.Spec.Backup.EnvVar...)
+				g.Expect(env).To(ContainElements(tc.backupEnvVars))
+			}
 		})
 	}
 }

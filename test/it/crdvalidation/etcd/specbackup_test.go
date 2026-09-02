@@ -11,6 +11,8 @@ import (
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // TestValidateGarbageCollectionPolicy tests the validation of `Spec.Backup.GarbageCollectionPolicy` field in the Etcd resource.
@@ -303,6 +305,96 @@ func TestValidateSpecBackupFullSnapshotSchedule(t *testing.T) {
 			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
 			etcd.Spec.Backup.FullSnapshotSchedule = &test.value
 
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
+// TestValidateSpecBackupEnv validates that spec.backup.env entries must be unique by name.
+func TestValidateSpecBackupEnv(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	tests := []struct {
+		name      string
+		etcdName  string
+		env       []corev1.EnvVar
+		expectErr bool
+	}{
+		{
+			name:     "Valid: unique env var names",
+			etcdName: "etcd-backup-env-valid",
+			env: []corev1.EnvVar{
+				{Name: "FOO", Value: "foo"},
+				{Name: "BAR", Value: "bar"},
+			},
+			expectErr: false,
+		},
+		{
+			name:     "Invalid: duplicate env var name",
+			etcdName: "etcd-backup-env-invalid",
+			env: []corev1.EnvVar{
+				{Name: "FOO", Value: "foo"},
+				{Name: "FOO", Value: "bar"},
+			},
+			expectErr: true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(1).Build()
+			etcd.Spec.Backup.EnvVar = test.env
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
+// TestValidateSpecBackupVolumeMounts validates that spec.backup.volumeMounts entries must be unique by mountPath.
+func TestValidateSpecBackupVolumeMounts(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	tests := []struct {
+		name         string
+		etcdName     string
+		volumes      []corev1.Volume
+		volumeMounts []corev1.VolumeMount
+		expectErr    bool
+	}{
+		{
+			name:     "Valid: unique mount paths",
+			etcdName: "etcd-backup-vm-valid",
+			volumes: []corev1.Volume{
+				{Name: "vol-a", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "vol-b", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			volumeMounts: []corev1.VolumeMount{
+				{Name: "vol-a", MountPath: "/mnt/a"},
+				{Name: "vol-b", MountPath: "/mnt/b"},
+			},
+			expectErr: false,
+		},
+		{
+			name:     "Invalid: duplicate mount path",
+			etcdName: "etcd-backup-vm-invalid",
+			volumes: []corev1.Volume{
+				{Name: "vol-a", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: "vol-b", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			},
+			volumeMounts: []corev1.VolumeMount{
+				{Name: "vol-a", MountPath: "/mnt/same"},
+				{Name: "vol-b", MountPath: "/mnt/same"},
+			},
+			expectErr: true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(1).Build()
+			etcd.Spec.Volumes = test.volumes
+			etcd.Spec.Backup.VolumeMounts = test.volumeMounts
 			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}
