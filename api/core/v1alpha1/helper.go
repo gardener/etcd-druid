@@ -160,11 +160,9 @@ func AreManagedResourcesProtected(etcdObjMeta metav1.ObjectMeta) bool {
 	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdComponentProtectionAnnotation)
 }
 
-// HasSkipNextUpdateSnapshotAnnotation returns true if the Etcd resource has the
-// `druid.gardener.cloud/skip-next-update-snapshot` annotation set, indicating that the pre-sync full snapshot for the
-// next pending StatefulSet update should be skipped.
-func HasSkipNextUpdateSnapshotAnnotation(etcdObjMeta metav1.ObjectMeta) bool {
-	return metav1.HasAnnotation(etcdObjMeta, SkipNextUpdateSnapshotAnnotation)
+// HasSkipSpecUpdateSnapshotAnnotation returns true if the Etcd resource has the `druid.gardener.cloud/skip-spec-update-snapshot` annotation set
+func HasSkipSpecUpdateSnapshotAnnotation(etcdObjMeta metav1.ObjectMeta) bool {
+	return metav1.HasAnnotation(etcdObjMeta, SkipSpecUpdateSnapshotAnnotation)
 }
 
 // GetDefaultLabels returns the default labels for etcd.

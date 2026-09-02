@@ -273,7 +273,7 @@ func TestAreManagedResourcesProtected(t *testing.T) {
 	}
 }
 
-func TestHasSkipNextUpdateSnapshotAnnotation(t *testing.T) {
+func TestHasSkipSpecUpdateSnapshotAnnotation(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
@@ -285,13 +285,13 @@ func TestHasSkipNextUpdateSnapshotAnnotation(t *testing.T) {
 			expected:    false,
 		},
 		{
-			name:        "SkipNextUpdateSnapshotAnnotation is set with empty value",
-			annotations: map[string]string{SkipNextUpdateSnapshotAnnotation: ""},
+			name:        "annotation set with empty value",
+			annotations: map[string]string{SkipSpecUpdateSnapshotAnnotation: ""},
 			expected:    true,
 		},
 		{
-			name:        "SkipNextUpdateSnapshotAnnotation is set with a value",
-			annotations: map[string]string{SkipNextUpdateSnapshotAnnotation: "true"},
+			name:        "annotation set with a value (value is ignored)",
+			annotations: map[string]string{SkipSpecUpdateSnapshotAnnotation: "true"},
 			expected:    true,
 		},
 	}
@@ -301,7 +301,7 @@ func TestHasSkipNextUpdateSnapshotAnnotation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), test.annotations, nil, false)
-			g.Expect(HasSkipNextUpdateSnapshotAnnotation(etcdObjMeta)).To(Equal(test.expected))
+			g.Expect(HasSkipSpecUpdateSnapshotAnnotation(etcdObjMeta)).To(Equal(test.expected))
 		})
 	}
 }

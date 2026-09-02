@@ -706,10 +706,10 @@ func testPreSyncImageChangeSkippedViaAnnotation(t *testing.T, testNs string, rec
 	etcdInstance.Spec.Etcd.Image = &newImage
 	etcdInstance.Annotations = map[string]string{
 		druidv1alpha1.DruidOperationAnnotation:         druidv1alpha1.DruidOperationReconcile,
-		druidv1alpha1.SkipNextUpdateSnapshotAnnotation: "",
+		druidv1alpha1.SkipSpecUpdateSnapshotAnnotation: "",
 	}
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-	t.Log("triggered image change with skip-next-update-snapshot annotation set")
+	t.Log("triggered image change with skip-spec-update-snapshot annotation set")
 
 	// No pre-sync snapshot task should be created since the snapshot is skipped.
 	assertPreSyncTaskNotCreated(ctx, t, cl, testNs, "presync-snapshot-update-0", consistentlyDuration, pollingInterval)
@@ -719,15 +719,15 @@ func testPreSyncImageChangeSkippedViaAnnotation(t *testing.T, testNs string, rec
 	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
 	t.Log("StatefulSet etcd container image rolled to new tag despite skipping the snapshot")
 
-	// The one-shot annotation must be removed by druid.
-	g.Eventually(func() bool {
+	// etcd-druid must NOT remove the skip annotation; it persists on the resource.
+	g.Consistently(func() bool {
 		updated := &druidv1alpha1.Etcd{}
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), updated); err != nil {
-			return true
+			return false
 		}
-		return druidv1alpha1.HasSkipNextUpdateSnapshotAnnotation(updated.ObjectMeta)
-	}).Within(timeout).WithPolling(pollingInterval).Should(BeFalse(), "expected skip-next-update-snapshot annotation to be removed")
-	t.Log("skip-next-update-snapshot annotation removed by druid (one-shot)")
+		return druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(updated.ObjectMeta)
+	}).Within(consistentlyDuration).WithPolling(pollingInterval).Should(BeTrue(), "expected skip-spec-update-snapshot annotation to be retained by druid")
+	t.Log("skip-spec-update-snapshot annotation retained by druid (persistent)")
 }
 
 func testPreSyncImageChangeProceedsAfterMaxRetries(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {

@@ -97,6 +97,35 @@ kubectl annotate etcd <etcd-name> gardener.cloud/operation=reconcile -n <namespa
 
 This option is sometimes recommeded as you would like avoid auto-reconciliation of accidental changes to `Etcd` resources outside the maintenance time window, thus preventing a potential transient quorum loss due to misconfiguration, attach-detach issues of persistent volumes etc.
 
+### Full snapshot before a StatefulSet update
+
+Before `etcd-druid` rolls the etcd `StatefulSet` due to a container image change or a replica count change (in both HA and non-HA setups), it triggers a full snapshot via an `EtcdOpsTask`. This ensures there is a recent, safe state to restore from should the rollout run into data corruption or data loss. The snapshot is attempted a bounded number of times; if all attempts fail, `etcd-druid` proceeds with the update regardless (so that a persistently failing snapshot does not block updates indefinitely).
+
+#### Skip the snapshot before updates
+
+If snapshots are known to be failing, or you need changes to roll out quickly without waiting for a snapshot, you can instruct `etcd-druid` to skip the pre-update snapshot by annotating the `Etcd` resource with `druid.gardener.cloud/skip-spec-update-snapshot`:
+
+```bash
+   kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/skip-spec-update-snapshot=
+```
+
+This annotation is:
+
+- **Presence-only**: the annotation value is ignored; simply having the key present enables the skip.
+- **Persistent**: while the annotation is present, the pre-update snapshot is always skipped. `etcd-druid` does not remove it — remove the annotation yourself to re-enable pre-update snapshots.
+- **Scoped to image/replica updates**: it does not affect the full snapshot taken before hibernation (scaling the cluster to zero replicas).
+
+#### Surfacing snapshot failures
+
+When the pre-update snapshot exhausts its retries and `etcd-druid` proceeds with the update without a fresh snapshot, it records a `Warning` event with reason `PreSyncSnapshotFailed` on the `Etcd` resource so operators are aware. You can see it via:
+
+```bash
+   kubectl describe etcd <etcd-name> -n <namespace>
+```
+
+!!! note
+    A `PreSyncSnapshotFailed` event means the update proceeded without a fresh snapshot. Inspect the `presync-snapshot-update-*` `EtcdOpsTask` resources and the backup configuration to find out why the snapshot failed.
+
 ## Overwrite Container OCI Images
 
 To find out image versions of `etcd-backup-restore` and `etcd-wrapper` used by a specific version of `etcd-druid` one way is look for the image versions in [images.yaml](https://github.com/gardener/etcd-druid/blob/master/internal/images/images.yaml). There are times that you might wish to override these images that come bundled with `etcd-druid`. There are two ways in which you can do that:
@@ -185,31 +214,3 @@ Now you are free to make changes to any managed etcd cluster resource.
 !!! note
     As long as the above two annotations are there, no reconciliation will be done for this etcd cluster by `etcd-druid`. Therefore it is essential that you remove this annotations eventually.
 
-## Full snapshot before a StatefulSet update
-
-Before `etcd-druid` rolls the etcd `StatefulSet` due to a container image change or a replica count change (in both HA and non-HA setups), it triggers a full snapshot via an `EtcdOpsTask`. This ensures there is a recent, safe state to restore from should the rollout run into data corruption or data loss. The snapshot is attempted a bounded number of times; if all attempts fail, `etcd-druid` proceeds with the update regardless (so that a persistently failing snapshot does not block updates indefinitely).
-
-### Skip the snapshot for the next update
-
-If snapshots are known to be failing, or you need a change to roll out quickly without waiting for a snapshot, you can instruct `etcd-druid` to skip the pre-update snapshot for the immediately pending update by annotating the `Etcd` resource:
-
-```bash
-   kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/skip-next-update-snapshot=
-```
-
-This annotation is:
-
-- **One-shot**: `etcd-druid` removes it as soon as the skip is applied, so it only affects the next pending update. Any subsequent image or replica change will again trigger a full snapshot.
-- **Presence-only**: the annotation value is ignored; simply having the key present enables the skip.
-- **Scoped to image/replica updates**: it does not affect the full snapshot taken before hibernation (scaling the cluster to zero replicas).
-
-### Surfacing snapshot failures
-
-When the pre-update snapshot exhausts its retries and `etcd-druid` proceeds with the update without a fresh snapshot, it records a `Warning` event with reason `PreSyncSnapshotFailed` on the `Etcd` resource so operators are aware. You can see it via:
-
-```bash
-   kubectl describe etcd <etcd-name> -n <namespace>
-```
-
-!!! note
-    A `PreSyncSnapshotFailed` event means the update proceeded without a fresh snapshot. Inspect the `presync-snapshot-update-*` `EtcdOpsTask` resources and the backup configuration to find out why the snapshot failed.

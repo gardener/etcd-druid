@@ -43,8 +43,6 @@ const (
 	ErrCreateEtcdOpsTask druidapicommon.ErrorCode = "ERR_CREATE_ETCDOPSTASK"
 	// ErrGetEtcdWrapperImage indicates an error in getting the etcd wrapper image from the image vector.
 	ErrGetEtcdWrapperImage druidapicommon.ErrorCode = "ERR_GET_ETCD_WRAPPER_IMAGE"
-	// ErrRemoveSkipAnnotation indicates an error in removing the skip-next-update-snapshot annotation from the Etcd resource.
-	ErrRemoveSkipAnnotation druidapicommon.ErrorCode = "ERR_REMOVE_SKIP_ANNOTATION"
 
 	// Pre-sync snapshot task constants
 	preSyncTaskPrefixHibernation = "presync-snapshot-hibernation-"
@@ -105,8 +103,17 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 		return nil
 	}
 
+	// TODO: currently replicas == 0 is used as a proxy for "the cluster is being hibernated". Once native
+	// hibernation support [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922) is implemented,
+	// we need to switch to the dedicated hibernation signal on the Etcd resource instead of inferring it from the replica count.
 	if etcd.Spec.Replicas == 0 {
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixHibernation)
+	}
+
+	if druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(etcd.ObjectMeta) {
+		r.logger.Info("Skipping pre-sync snapshot for update due to presence of annotation",
+			"annotation", druidv1alpha1.SkipSpecUpdateSnapshotAnnotation)
+		return nil
 	}
 
 	changed, err := r.hasImageOrReplicaChanged(etcd, existingSts)
@@ -115,26 +122,10 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error getting component images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 	if changed {
-		if druidv1alpha1.HasSkipNextUpdateSnapshotAnnotation(etcd.ObjectMeta) {
-			r.logger.Info("Skipping pre-sync snapshot for pending update due to presence of annotation", "annotation", druidv1alpha1.SkipNextUpdateSnapshotAnnotation)
-			if err := r.removeSkipNextUpdateSnapshotAnnotation(ctx, etcd); err != nil {
-				return druiderr.WrapError(err, ErrRemoveSkipAnnotation, component.OperationPreSync,
-					fmt.Sprintf("Failed to remove %s annotation for etcd: %v", druidv1alpha1.SkipNextUpdateSnapshotAnnotation, client.ObjectKeyFromObject(etcd)))
-			}
-			return nil
-		}
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixUpdate)
 	}
 
 	return nil
-}
-
-// removeSkipNextUpdateSnapshotAnnotation removes the skip-next-update-snapshot annotation from the Etcd resource so that
-// it only applies to the immediately pending update (only once). It patches the object metadata.
-func (r _resource) removeSkipNextUpdateSnapshotAnnotation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	originalEtcd := etcd.DeepCopy()
-	delete(etcd.Annotations, druidv1alpha1.SkipNextUpdateSnapshotAnnotation)
-	return r.client.Patch(ctx, etcd, client.MergeFrom(originalEtcd))
 }
 
 // collectExpectedImages returns the expected images keyed by container name for the etcd pod template.
@@ -155,21 +146,28 @@ func (r _resource) hasImageOrReplicaChanged(etcd *druidv1alpha1.Etcd, sts *appsv
 	if etcd.Spec.Replicas != ptr.Deref(sts.Spec.Replicas, 0) {
 		return true, nil
 	}
-	expected, err := r.collectExpectedImages(etcd)
+	expectedImages, err := r.collectExpectedImages(etcd)
 	if err != nil {
 		return false, err
 	}
-	for _, c := range sts.Spec.Template.Spec.InitContainers {
-		if want, ok := expected[c.Name]; ok && want != c.Image {
-			return true, nil
-		}
+	if imagesChanged(sts.Spec.Template.Spec.InitContainers, expectedImages) {
+		return true, nil
 	}
-	for _, c := range sts.Spec.Template.Spec.Containers {
-		if want, ok := expected[c.Name]; ok && want != c.Image {
-			return true, nil
-		}
+	if imagesChanged(sts.Spec.Template.Spec.Containers, expectedImages) {
+		return true, nil
 	}
 	return false, nil
+}
+
+// imagesChanged reports whether any container's image differs from the expected image for that container name.
+// Container names not present in expectedImages are ignored.
+func imagesChanged(containers []corev1.Container, expectedImages map[string]string) bool {
+	for _, container := range containers {
+		if expectedImage, ok := expectedImages[container.Name]; ok && expectedImage != container.Image {
+			return true
+		}
+	}
+	return false
 }
 
 // ensurePreSyncSnapshot ensures a pre-sync snapshot is taken via an etcdopstask with retry logic up to maxPreSyncRetries attempts.

@@ -103,7 +103,7 @@ func TestPreSync(t *testing.T) {
 		etcdReplicas    int32
 		stsImages       map[string]string // keyed by container name; nil = use current image-vector defaults for all containers
 		existingTasks   []*druidv1alpha1.EtcdOpsTask
-		skipAnnotation  bool // when true, sets the skip-next-update-snapshot annotation on the Etcd
+		skipAnnotation  bool // when true, sets the skip-spec-update-snapshot annotation on the Etcd
 		expectedErrCode *druidapicommon.ErrorCode
 		expectNoTasks   bool // when true, asserts that no EtcdOpsTask exists after PreSync
 		expectExhausted bool // when true, asserts the exhaustion flag is set in OperatorContext.Data
@@ -276,6 +276,15 @@ func TestPreSync(t *testing.T) {
 			skipAnnotation: true,
 			expectNoTasks:  true,
 		},
+		{
+			name:           "skip annotation short-circuits even when no image or replica change",
+			backupEnabled:  true,
+			stsExists:      true,
+			stsReplicas:    3,
+			etcdReplicas:   3,
+			skipAnnotation: true,
+			expectNoTasks:  true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -288,7 +297,7 @@ func TestPreSync(t *testing.T) {
 				etcdBuilder = etcdBuilder.WithoutProvider()
 			}
 			if tc.skipAnnotation {
-				etcdBuilder = etcdBuilder.WithAnnotations(map[string]string{druidv1alpha1.SkipNextUpdateSnapshotAnnotation: ""})
+				etcdBuilder = etcdBuilder.WithAnnotations(map[string]string{druidv1alpha1.SkipSpecUpdateSnapshotAnnotation: ""})
 			}
 			etcd := etcdBuilder.Build()
 
@@ -305,10 +314,6 @@ func TestPreSync(t *testing.T) {
 			maps.Copy(stsImages, tc.stsImages)
 
 			var existingObjects []client.Object
-			if tc.skipAnnotation {
-				// The annotation-removal patch in PreSync requires the Etcd object to exist in the API.
-				existingObjects = append(existingObjects, etcd)
-			}
 			if tc.stsExists {
 				existingObjects = append(existingObjects, buildStatefulSetWithImages(etcd.ObjectMeta, tc.stsReplicas, stsImages))
 			}
@@ -341,10 +346,8 @@ func TestPreSync(t *testing.T) {
 			}
 
 			if tc.skipAnnotation {
-				// The one-shot annotation must be removed by PreSync once the skip is applied.
-				updatedEtcd := &druidv1alpha1.Etcd{}
-				g.Expect(cl.Get(opCtx, client.ObjectKeyFromObject(etcd), updatedEtcd)).To(Succeed())
-				g.Expect(updatedEtcd.Annotations).ToNot(HaveKey(druidv1alpha1.SkipNextUpdateSnapshotAnnotation))
+				// etcd-druid never removes the skip annotation; it must remain on the resource after PreSync.
+				g.Expect(etcd.Annotations).To(HaveKey(druidv1alpha1.SkipSpecUpdateSnapshotAnnotation))
 			}
 
 			_, exhausted := opCtx.Data[common.KeyPreSyncSnapshotExhausted]

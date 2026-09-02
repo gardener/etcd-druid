@@ -39,12 +39,11 @@ const (
 	// This value will only be effective if etcd-druid is not configured with auto-reconciliation of Etcd resource specification via
 	// --enable-etcd-spec-auto-reconcile CLI flag.
 	DruidOperationReconcile = "reconcile"
-	// SkipNextUpdateSnapshotAnnotation, when present on an Etcd resource, instructs etcd-druid to skip the pre-sync
-	// full snapshot for the immediately pending StatefulSet update triggered by a container image or replica change.
-	// It's a one-shot annotation: etcd-druid removes it as soon as the skip is applied, so it only affects the next
-	// immediate pending update. Its presence alone is sufficient; the annotation value is ignored. It does not affect the
-	// snapshot taken before hibernation.
-	SkipNextUpdateSnapshotAnnotation = "druid.gardener.cloud/skip-next-update-snapshot"
+	// SkipSpecUpdateSnapshotAnnotation is an annotation when present on an Etcd resource, instructs the etcd-druid to skip the pre-sync full
+	// snapshot which would otherwise be taken before the etcd StatefulSet is rolled due to a container image or replica change.
+	// Its presence alone is sufficient; the annotation value is ignored. While the annotation is present the snapshot is always skipped, and etcd-druid does not remove the annotation.
+	// It does not affect the full snapshot taken before hibernation.
+	SkipSpecUpdateSnapshotAnnotation = "druid.gardener.cloud/skip-spec-update-snapshot"
 )
 
 // Compaction Job/Pod reasons that are used to set the reason for a pod condition in the status of an Etcd resource.
