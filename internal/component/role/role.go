@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -131,6 +132,17 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 			Resources: []string{"pods"},
 			Verbs:     []string{"get", "list", "watch"},
 		},
+	}
+	// The etcd-backup-restore versions used before the UpgradeEtcdVersion feature gate was enabled still
+	// require access to the STS resource. Once the feature gate is enabled, the newer
+	// etcd-backup-restore image is used, so this permission can be dropped.
+	// See https://github.com/gardener/etcd-backup-restore/pull/1040 for details
+	if !druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		role.Rules = append(role.Rules, rbacv1.PolicyRule{
+			APIGroups: []string{"apps"},
+			Resources: []string{"statefulsets"},
+			Verbs:     []string{"get", "list", "patch", "update", "watch"},
+		})
 	}
 }
 
