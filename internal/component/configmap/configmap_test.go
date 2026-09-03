@@ -211,7 +211,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 					URLs: []string{"http://10.0.0.1:2380"},
 				},
 			},
-			expectedInitialCluster: "etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380,etcd-test-0=http://10.0.0.1:2380",
+			expectedInitialCluster: "etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,etcd-test-0=http://10.0.0.1:2380,etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380",
 		},
 		{
 			name:           "should append multiple additional peer URLs for single member",
@@ -239,7 +239,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 					URLs: []string{"http://10.0.0.3:2380"},
 				},
 			},
-			expectedInitialCluster: "etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380,etcd-test-2=http://etcd-test-2.etcd-test-peer.test-ns.svc:2380,etcd-test-0=http://10.0.0.1:2380,etcd-test-2=http://10.0.0.3:2380",
+			expectedInitialCluster: "etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,etcd-test-0=http://10.0.0.1:2380,etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380,etcd-test-2=http://etcd-test-2.etcd-test-peer.test-ns.svc:2380,etcd-test-2=http://10.0.0.3:2380",
 		},
 		{
 			name:           "should ignore non-matching member names",
@@ -272,7 +272,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 					URLs: []string{"http://10.0.0.1:2380"},
 				},
 			},
-			expectedInitialCluster: "myprefix-etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,myprefix-etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380,myprefix-etcd-test-0=http://10.0.0.1:2380",
+			expectedInitialCluster: "myprefix-etcd-test-0=http://etcd-test-0.etcd-test-peer.test-ns.svc:2380,myprefix-etcd-test-0=http://10.0.0.1:2380,myprefix-etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380",
 		},
 		{
 			name:               "should advertise only the additional peer URL when overrideDefaultURL is true",
@@ -285,7 +285,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 					URLs: []string{"http://10.0.0.1:2380"},
 				},
 			},
-			expectedInitialCluster: "etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380,etcd-test-0=http://10.0.0.1:2380",
+			expectedInitialCluster: "etcd-test-0=http://10.0.0.1:2380,etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380",
 		},
 		{
 			name:               "should advertise only the additional peer URL with member name prefix when overrideDefaultURL is true",
@@ -299,7 +299,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 					URLs: []string{"http://10.0.0.1:2380"},
 				},
 			},
-			expectedInitialCluster: "myprefix-etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380,myprefix-etcd-test-0=http://10.0.0.1:2380",
+			expectedInitialCluster: "myprefix-etcd-test-0=http://10.0.0.1:2380,myprefix-etcd-test-1=http://etcd-test-1.etcd-test-peer.test-ns.svc:2380",
 		},
 	}
 	t.Parallel()
