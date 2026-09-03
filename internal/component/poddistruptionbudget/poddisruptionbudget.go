@@ -114,7 +114,9 @@ func buildResource(etcd *druidv1alpha1.Etcd, pdb *policyv1.PodDisruptionBudget) 
 		Type:   intstr.Int,
 	}
 	pdb.Spec.Selector = &metav1.LabelSelector{
-		MatchLabels: druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta),
+		MatchLabels: utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta), map[string]string{
+			druidv1alpha1.LabelComponentKey: common.ComponentNameStatefulSet,
+		}),
 	}
 	if metav1.HasAnnotation(etcd.ObjectMeta, annotationAllowUnhealthyPodEviction) {
 		pdb.Spec.UnhealthyPodEvictionPolicy = ptr.To(policyv1.AlwaysAllow)
