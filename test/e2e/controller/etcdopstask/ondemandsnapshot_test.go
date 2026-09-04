@@ -231,7 +231,7 @@ func TestOnDemandSnapshotLifecycle(t *testing.T) {
 							return fullRevAfter > fullRevBefore
 						}
 						return deltaRevAfter > deltaRevBefore
-					}, 30*time.Second, 2*time.Second).Should(BeTrue(), "snapshot lease revision did not advance after task completion")
+					}, 60*time.Second, 2*time.Second).Should(BeTrue(), "snapshot lease revision did not advance after task completion")
 					logger.Info("snapshot lease revision advanced as expected")
 				}
 

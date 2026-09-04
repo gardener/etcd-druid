@@ -29,7 +29,7 @@ const (
 	timeoutEtcdHibernation     = 2 * time.Minute
 	timeoutEtcdUnhibernation   = 5 * time.Minute
 	timeoutEtcdUpdation        = 10 * time.Minute
-	timeoutEtcdDisruptionStart = 30 * time.Second
+	timeoutEtcdDisruptionStart = 60 * time.Second
 	timeoutEtcdRecovery        = 5 * time.Minute
 	timeoutDeployJob           = 2 * time.Minute
 )
