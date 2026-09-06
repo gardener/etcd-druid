@@ -108,7 +108,6 @@ func TestPreSync(t *testing.T) {
 		expectNoTasks   bool // when true, asserts that no EtcdOpsTask exists after PreSync
 		expectExhausted bool // when true, asserts the exhaustion flag is set in OperatorContext.Data
 	}{
-		// ---------------- No-op rows ----------------
 		{
 			name:          "returns nil when backup is disabled",
 			backupEnabled: false,
@@ -136,7 +135,6 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:   3,
 			etcdReplicas:  3,
 		},
-		// ---------------- Hibernation rows ----------------
 		{
 			name:            "hibernation requeues when no task exists",
 			backupEnabled:   true,
@@ -162,7 +160,6 @@ func TestPreSync(t *testing.T) {
 			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectExhausted: true,
 		},
-		// ---------------- Image-change rows ----------------
 		{
 			name:            "update requeues when wrapper image changed and no task exists",
 			backupEnabled:   true,
@@ -229,7 +226,6 @@ func TestPreSync(t *testing.T) {
 			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
-		// ---------------- Replica-change rows ----------------
 		{
 			name:            "update requeues when replicas scale up (3->5)",
 			backupEnabled:   true,
@@ -246,7 +242,6 @@ func TestPreSync(t *testing.T) {
 			etcdReplicas:    3,
 			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
-		// ---------------- Combination row ----------------
 		{
 			name:          "hibernation prefix wins when replicas go to 0 even if images also changed",
 			backupEnabled: true,
@@ -256,7 +251,6 @@ func TestPreSync(t *testing.T) {
 			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
 			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
-		// ---------------- Skip-annotation rows ----------------
 		{
 			name:           "update skipped when skip annotation present (image change)",
 			backupEnabled:  true,
