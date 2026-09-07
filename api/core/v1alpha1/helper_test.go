@@ -565,6 +565,99 @@ func TestIsPodManagementEnabled(t *testing.T) {
 	}
 }
 
+func TestIsAdditionalClientURLConfigured(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name           string
+		clientURLsSpec *AdditionalClientURLsSpec
+		expected       bool
+	}{
+		{
+			name:           "nil spec — returns false",
+			clientURLsSpec: nil,
+			expected:       false,
+		},
+		{
+			name: "empty members — returns false",
+			clientURLsSpec: &AdditionalClientURLsSpec{
+				Members: []MemberClientURLs{},
+			},
+			expected: false,
+		},
+		{
+			name: "one member — returns true",
+			clientURLsSpec: &AdditionalClientURLsSpec{
+				Members: []MemberClientURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+				},
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{}
+			etcd.Spec.Etcd.AdditionalAdvertiseClientURLs = tc.clientURLsSpec
+			g.Expect(IsAdditionalClientURLConfigured(etcd)).To(Equal(tc.expected))
+		})
+	}
+}
+
+func TestIsOverrideDefaultClientURLEnabled(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name           string
+		clientURLsSpec *AdditionalClientURLsSpec
+		expected       bool
+	}{
+		{
+			name:           "nil spec — returns false",
+			clientURLsSpec: nil,
+			expected:       false,
+		},
+		{
+			name: "overrideDefaultURL unset — returns false",
+			clientURLsSpec: &AdditionalClientURLsSpec{
+				Members: []MemberClientURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "overrideDefaultURL explicitly false — returns false",
+			clientURLsSpec: &AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(false),
+				Members: []MemberClientURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "overrideDefaultURL true — returns true",
+			clientURLsSpec: &AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members: []MemberClientURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+				},
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{}
+			etcd.Spec.Etcd.AdditionalAdvertiseClientURLs = tc.clientURLsSpec
+			g.Expect(IsOverrideDefaultClientURLEnabled(etcd)).To(Equal(tc.expected))
+		})
+	}
+}
+
 func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 	t.Parallel()
 	const testEtcdName = "etcd-main"
@@ -590,7 +683,19 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 			podName: "etcd-main-0",
 			clientURLsSpec: &AdditionalClientURLsSpec{
 				Members: []MemberClientURLs{
-					{MemberName: "etcd-main-1", URLs: []string{"http://1.2.3.4:2379"}},
+					{Name: "etcd-main-1", URLs: []string{"http://1.2.3.4:2379"}},
+				},
+			},
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+		{
+			name:    "member not found, overrideDefaultURL true — override still false",
+			podName: "etcd-main-0",
+			clientURLsSpec: &AdditionalClientURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members: []MemberClientURLs{
+					{Name: "etcd-main-1", URLs: []string{"http://1.2.3.4:2379"}},
 				},
 			},
 			expectedURLs:     nil,
@@ -602,7 +707,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 			clientURLsSpec: &AdditionalClientURLsSpec{
 				OverrideDefaultURL: ptr.To(false),
 				Members: []MemberClientURLs{
-					{MemberName: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
 				},
 			},
 			expectedURLs:     []string{"http://1.2.3.4:2379"},
@@ -614,7 +719,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 			clientURLsSpec: &AdditionalClientURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []MemberClientURLs{
-					{MemberName: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
 				},
 			},
 			expectedURLs:     []string{"http://1.2.3.4:2379"},
@@ -626,7 +731,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 			memberNamePrefix: ptr.To("pfx"),
 			clientURLsSpec: &AdditionalClientURLsSpec{
 				Members: []MemberClientURLs{
-					{MemberName: "pfx-etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
+					{Name: "pfx-etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
 				},
 			},
 			expectedURLs:     []string{"http://1.2.3.4:2379"},

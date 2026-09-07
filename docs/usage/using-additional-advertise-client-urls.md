@@ -35,22 +35,22 @@ The `initial-advertise-peer-urls` and `initial-cluster` fields are **not** affec
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `overrideDefaultURL` | `bool` | No (default `false`) | When `true`, suppresses the default internal client service URL for configured members. |
+| `overrideDefaultURL` | `bool` | No (default `false`) | When `true`, suppresses the default internal client service URL for configured members. Only honored for members that have URLs configured — members without a matching entry in `members` always use the default internal URL. |
 | `members` | `[]MemberClientURLs` | Yes | Per-member list of additional client URLs. Minimum 1, maximum 10 entries. |
 
 Each `members` entry:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `memberName` | `string` | Yes | Name of the etcd member. Must match the pattern `{etcd-cr-name}-{index}` (e.g., `etcd-main-0`). |
+| `name` | `string` | Yes | Name of the etcd member. Must match the pattern `{etcd-cr-name}-{index}` (e.g., `etcd-main-0`). |
 | `urls` | `[]string` | Yes | One or more additional client URLs. Maximum 5 per member. |
 
 ### Validation Rules
 
 The following validations are enforced at admission time via [CEL](https://kubernetes.io/docs/reference/using-api/cel/) expressions:
 
-- The `memberName` must start with the `Etcd` resource name followed by a dash (e.g., for an `Etcd` named `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.).
-- The numeric index at the end of `memberName` must be less than `spec.replicas`.
+- The `name` must start with the `Etcd` resource name followed by a dash (e.g., for an `Etcd` named `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.).
+- The numeric index at the end of `name` must be less than `spec.replicas`.
 - A maximum of **10** member entries may be specified.
 - A maximum of **5** URLs may be specified per member.
 - When `spec.etcd.clientUrlTls` is configured, all URLs **must** use the `https://` scheme.
@@ -76,13 +76,13 @@ spec:
     additionalAdvertiseClientURLs:
       overrideDefaultURL: false
       members:
-        - memberName: etcd-main-0
+        - name: etcd-main-0
           urls:
             - http://10.0.0.1:2379
-        - memberName: etcd-main-1
+        - name: etcd-main-1
           urls:
             - http://10.0.0.2:2379
-        - memberName: etcd-main-2
+        - name: etcd-main-2
           urls:
             - http://10.0.0.3:2379
 ```
@@ -107,13 +107,13 @@ Use `overrideDefaultURL: true` when the internal DNS would collide with another 
     additionalAdvertiseClientURLs:
       overrideDefaultURL: true
       members:
-        - memberName: etcd-main-0
+        - name: etcd-main-0
           urls:
             - https://10.0.0.1:2379
-        - memberName: etcd-main-1
+        - name: etcd-main-1
           urls:
             - https://10.0.0.2:2379
-        - memberName: etcd-main-2
+        - name: etcd-main-2
           urls:
             - https://10.0.0.3:2379
 ```
@@ -127,7 +127,7 @@ You do not need to configure additional URLs for every member. Only members requ
 ```yaml
     additionalAdvertiseClientURLs:
       members:
-        - memberName: etcd-main-0
+        - name: etcd-main-0
           urls:
             - https://10.0.0.1:2379
 ```
@@ -137,7 +137,7 @@ Members without an entry continue to use only their default internal service DNS
 ## Troubleshooting
 
 **Validation error: member name must start with Etcd resource name**
-: Ensure `memberName` starts with the `Etcd` resource name followed by a dash. For `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.
+: Ensure `name` starts with the `Etcd` resource name followed by a dash. For `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.
 
 **Validation error: member name index must be less than replicas**
 : The numeric index must be within bounds. For `spec.replicas: 3`, valid indices are `0`, `1`, and `2`.

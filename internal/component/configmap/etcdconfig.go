@@ -219,6 +219,10 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 			advUrlsMap[memberName] = urls
 		}
 	} else {
+		// For externally managed members, addresses are provided explicitly via
+		// spec.externallyManagedMemberAddresses. additionalAdvertiseClientURLs is
+		// not applied here because external members are already reachable at their
+		// configured addresses and do not use the internal headless service DNS.
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
 			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}

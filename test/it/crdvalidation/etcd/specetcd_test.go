@@ -190,7 +190,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMemberName(t *testing.T) {
 			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: test.memberName,
-					URLs:       test.urls,
+					URLs: test.urls,
 				},
 			}
 
@@ -297,7 +297,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsTLSScheme(t *testing.T) {
 			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: test.memberName,
-					URLs:       test.urls,
+					URLs: test.urls,
 				},
 			}
 
@@ -508,8 +508,8 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsTLSScheme(t *testing.T) {
 			etcd.Spec.Etcd.AdditionalAdvertiseClientURLs = &druidv1alpha1.AdditionalClientURLsSpec{
 				Members: []druidv1alpha1.MemberClientURLs{
 					{
-						MemberName: test.memberName,
-						URLs:       test.urls,
+						Name: test.memberName,
+						URLs: test.urls,
 					},
 				},
 			}
@@ -537,9 +537,9 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			etcdName: "etcd-mc",
 			replicas: 3,
 			clientURLs: []druidv1alpha1.MemberClientURLs{
-				{MemberName: "etcd-mc-0", URLs: []string{"http://10.0.0.1:2379"}},
-				{MemberName: "etcd-mc-1", URLs: []string{"http://10.0.0.2:2379"}},
-				{MemberName: "etcd-mc-2", URLs: []string{"http://10.0.0.3:2379"}},
+				{Name: "etcd-mc-0", URLs: []string{"http://10.0.0.1:2379"}},
+				{Name: "etcd-mc-1", URLs: []string{"http://10.0.0.2:2379"}},
+				{Name: "etcd-mc-2", URLs: []string{"http://10.0.0.3:2379"}},
 			},
 			expectErr: false,
 		},
@@ -548,8 +548,8 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			etcdName: "etcd-mc-sub",
 			replicas: 5,
 			clientURLs: []druidv1alpha1.MemberClientURLs{
-				{MemberName: "etcd-mc-sub-0", URLs: []string{"http://10.0.0.1:2379"}},
-				{MemberName: "etcd-mc-sub-2", URLs: []string{"http://10.0.0.3:2379"}},
+				{Name: "etcd-mc-sub-0", URLs: []string{"http://10.0.0.1:2379"}},
+				{Name: "etcd-mc-sub-2", URLs: []string{"http://10.0.0.3:2379"}},
 			},
 			expectErr: false,
 		},
@@ -558,8 +558,8 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			etcdName: "etcd-mc-pfx",
 			replicas: 3,
 			clientURLs: []druidv1alpha1.MemberClientURLs{
-				{MemberName: "etcd-mc-pfx-0", URLs: []string{"http://10.0.0.1:2379"}},
-				{MemberName: "other-mc-1", URLs: []string{"http://10.0.0.2:2379"}},
+				{Name: "etcd-mc-pfx-0", URLs: []string{"http://10.0.0.1:2379"}},
+				{Name: "other-mc-1", URLs: []string{"http://10.0.0.2:2379"}},
 			},
 			expectErr: true,
 		},
@@ -568,8 +568,8 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			etcdName: "etcd-mc-oob",
 			replicas: 3,
 			clientURLs: []druidv1alpha1.MemberClientURLs{
-				{MemberName: "etcd-mc-oob-0", URLs: []string{"http://10.0.0.1:2379"}},
-				{MemberName: "etcd-mc-oob-5", URLs: []string{"http://10.0.0.6:2379"}},
+				{Name: "etcd-mc-oob-0", URLs: []string{"http://10.0.0.1:2379"}},
+				{Name: "etcd-mc-oob-5", URLs: []string{"http://10.0.0.6:2379"}},
 			},
 			expectErr: true,
 		},
@@ -579,8 +579,8 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			replicas:         2,
 			memberNamePrefix: ptr.To("src"),
 			clientURLs: []druidv1alpha1.MemberClientURLs{
-				{MemberName: "src-etcd-mc-mp-0", URLs: []string{"http://10.0.0.1:2379"}},
-				{MemberName: "src-etcd-mc-mp-1", URLs: []string{"http://10.0.0.2:2379"}},
+				{Name: "src-etcd-mc-mp-0", URLs: []string{"http://10.0.0.1:2379"}},
+				{Name: "src-etcd-mc-mp-1", URLs: []string{"http://10.0.0.2:2379"}},
 			},
 			expectErr: false,
 		},
@@ -590,7 +590,7 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			replicas:         2,
 			memberNamePrefix: ptr.To("src"),
 			clientURLs: []druidv1alpha1.MemberClientURLs{
-				{MemberName: "etcd-mc-mpbad-0", URLs: []string{"http://10.0.0.1:2379"}},
+				{Name: "etcd-mc-mpbad-0", URLs: []string{"http://10.0.0.1:2379"}},
 			},
 			expectErr: true,
 		},

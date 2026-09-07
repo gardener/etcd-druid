@@ -100,7 +100,7 @@ func GetAdditionalAdvertiseClientURLs(etcd *Etcd, podName string) ([]string, boo
 	}
 	memberName := GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 	for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertiseClientURLs.Members {
-		if memberURLs.MemberName == memberName {
+		if memberURLs.Name == memberName {
 			return memberURLs.URLs, IsOverrideDefaultClientURLEnabled(etcd)
 		}
 	}

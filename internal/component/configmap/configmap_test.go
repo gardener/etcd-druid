@@ -441,7 +441,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				OverrideDefaultURL: ptr.To(false),
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+					{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{
@@ -457,7 +457,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+					{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{
@@ -473,7 +473,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				OverrideDefaultURL: ptr.To(false),
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+					{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{
@@ -488,7 +488,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			advertiseURLType: advertiseURLTypeClient,
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "non-existing-member", URLs: []string{"http://10.0.0.99:2379"}},
+					{Name: "non-existing-member", URLs: []string{"http://10.0.0.99:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{
@@ -503,7 +503,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			advertiseURLType: advertiseURLTypeClient,
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "etcd-test-1", URLs: []string{"http://lb-a.example.com:2379", "http://lb-b.example.com:2379"}},
+					{Name: "etcd-test-1", URLs: []string{"http://lb-a.example.com:2379", "http://lb-b.example.com:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{
@@ -519,7 +519,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			memberNamePrefix: ptr.To("pfx"),
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+					{Name: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{
@@ -536,7 +536,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []druidv1alpha1.MemberClientURLs{
-					{MemberName: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
+					{Name: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
 				},
 			},
 			expectedURLs: map[string][]string{

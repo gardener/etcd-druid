@@ -62,8 +62,8 @@ const (
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertiseClientURLs) || self.spec.etcd.additionalAdvertiseClientURLs.members.all(m, has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertiseClientURLs member names must start with the Etcd resource name followed by a dash"
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertiseClientURLs) || self.spec.etcd.additionalAdvertiseClientURLs.members.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertiseClientURLs member name index must be less than replicas"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertiseClientURLs) || self.spec.etcd.additionalAdvertiseClientURLs.members.all(m, has(self.spec.memberNamePrefix) ? m.name.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.name.startsWith(self.metadata.name + '-'))",message="additionalAdvertiseClientURLs member names must start with the Etcd resource name followed by a dash"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertiseClientURLs) || self.spec.etcd.additionalAdvertiseClientURLs.members.all(m, int(m.name.substring(m.name.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertiseClientURLs member name index must be less than replicas"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.members == oldSelf.spec.etcd.bootstrapWithExistingCluster.members",message="etcd.spec.etcd.bootstrapWithExistingCluster.members cannot be modified while the bootstrap is in progress"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.clientEndpoints == oldSelf.spec.etcd.bootstrapWithExistingCluster.clientEndpoints",message="etcd.spec.etcd.bootstrapWithExistingCluster.clientEndpoints cannot be modified while the bootstrap is in progress"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m1, self.spec.etcd.bootstrapWithExistingCluster.members.filter(m2, m1.name == m2.name).size() == 1)",message="bootstrapWithExistingCluster.members[*].name must be unique"
@@ -459,6 +459,9 @@ type AdditionalClientURLsSpec struct {
 	// needed when two clusters share an Etcd resource name and their internal
 	// client service DNS would otherwise collide.
 	// Defaults to false, meaning the listed URLs are appended to the internal service URL.
+	// Note: this flag is only honored for members that have URLs configured under `members`.
+	// Members without a matching entry always use the default internal URL, regardless of
+	// this flag.
 	// +optional
 	// +kubebuilder:default=false
 	OverrideDefaultURL *bool `json:"overrideDefaultURL,omitempty"`
@@ -470,13 +473,13 @@ type AdditionalClientURLsSpec struct {
 	// +required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=10
+	// +listType=atomic
 	Members []MemberClientURLs `json:"members"`
 }
 
 // MemberClientURLs specifies additional client URLs for a specific etcd member.
 type MemberClientURLs struct {
-	// MemberName is the etcd member name.
-	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
+	// Name is the etcd member name (e.g., etcd-main-0).
 	// When spec.memberNamePrefix is set, the member name becomes
 	// `<memberNamePrefix>-<podName>`. The top-level CEL rules on
 	// Etcd already incorporate the prefix when validating these names.
@@ -484,7 +487,7 @@ type MemberClientURLs struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$`
-	MemberName string `json:"memberName"`
+	Name string `json:"name"`
 
 	// URLs is a list of additional client URLs for this member.
 	// These are appended to the member's internal client service URL, unless
