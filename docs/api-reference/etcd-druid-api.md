@@ -454,7 +454,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only<br />its listed URLs and omit the default internal client service URL. This is<br />needed when two clusters share an Etcd resource name and their internal<br />client service DNS would otherwise collide.<br />Defaults to false, meaning the listed URLs are appended to the internal service URL. | false | Optional: \{\} <br /> |
+| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only<br />its listed URLs and omit the default internal client service URL. This is<br />needed when two clusters share an Etcd resource name and their internal<br />client service DNS would otherwise collide.<br />Defaults to false, meaning the listed URLs are appended to the internal service URL.<br />Note: this flag is only honored for members that have URLs configured under `members`.<br />Members without a matching entry always use the default internal URL, regardless of<br />this flag. | false | Optional: \{\} <br /> |
 | `members` _[MemberClientURLs](#memberclienturls) array_ | Members contains per-member additional client URLs.<br />Member names must follow the pattern \{etcd-name\}-\{index\}, where index is<br />0 to (replicas-1) (e.g. etcd-main-0). When spec.memberNamePrefix is set,<br />member names become `<memberNamePrefix>-<podName>`. |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
 
 
@@ -1103,7 +1103,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `memberName` _string_ | MemberName is the etcd member name.<br />Must match the etcd member name of the cluster (e.g., etcd-main-0).<br />When spec.memberNamePrefix is set, the member name becomes<br />`<memberNamePrefix>-<podName>`. The top-level CEL rules on<br />Etcd already incorporate the prefix when validating these names. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br />Required: \{\} <br /> |
+| `name` _string_ | Name is the etcd member name (e.g., etcd-main-0).<br />When spec.memberNamePrefix is set, the member name becomes<br />`<memberNamePrefix>-<podName>`. The top-level CEL rules on<br />Etcd already incorporate the prefix when validating these names. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br />Required: \{\} <br /> |
 | `urls` _string array_ | URLs is a list of additional client URLs for this member.<br />These are appended to the member's internal client service URL, unless<br />AdditionalClientURLsSpec.OverrideDefaultURL is true, in which case only<br />these URLs are advertised.<br />A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).<br />Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2379). |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)\} <br />Required: \{\} <br /> |
 
 

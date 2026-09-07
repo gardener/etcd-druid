@@ -677,10 +677,9 @@ spec:
                           description: MemberClientURLs specifies additional client
                             URLs for a specific etcd member.
                           properties:
-                            memberName:
+                            name:
                               description: |-
-                                MemberName is the etcd member name.
-                                Must match the etcd member name of the cluster (e.g., etcd-main-0).
+                                Name is the etcd member name (e.g., etcd-main-0).
                                 When spec.memberNamePrefix is set, the member name becomes
                                 `<memberNamePrefix>-<podName>`. The top-level CEL rules on
                                 Etcd already incorporate the prefix when validating these names.
@@ -708,12 +707,13 @@ spec:
                               type: array
                               x-kubernetes-list-type: set
                           required:
-                          - memberName
+                          - name
                           - urls
                           type: object
                         maxItems: 10
                         minItems: 1
                         type: array
+                        x-kubernetes-list-type: atomic
                       overrideDefaultURL:
                         default: false
                         description: |-
@@ -722,6 +722,9 @@ spec:
                           needed when two clusters share an Etcd resource name and their internal
                           client service DNS would otherwise collide.
                           Defaults to false, meaning the listed URLs are appended to the internal service URL.
+                          Note: this flag is only honored for members that have URLs configured under `members`.
+                          Members without a matching entry always use the default internal URL, regardless of
+                          this flag.
                         type: boolean
                     required:
                     - members
@@ -4937,13 +4940,13 @@ spec:
         - message: additionalAdvertiseClientURLs member names must start with the
             Etcd resource name followed by a dash
           rule: '!has(self.spec.etcd.additionalAdvertiseClientURLs) || self.spec.etcd.additionalAdvertiseClientURLs.members.all(m,
-            has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix
-            + ''-'' + self.metadata.name + ''-'') : m.memberName.startsWith(self.metadata.name
+            has(self.spec.memberNamePrefix) ? m.name.startsWith(self.spec.memberNamePrefix
+            + ''-'' + self.metadata.name + ''-'') : m.name.startsWith(self.metadata.name
             + ''-''))'
         - message: additionalAdvertiseClientURLs member name index must be less than
             replicas
           rule: '!has(self.spec.etcd.additionalAdvertiseClientURLs) || self.spec.etcd.additionalAdvertiseClientURLs.members.all(m,
-            int(m.memberName.substring(m.memberName.lastIndexOf(''-'')+1)) < self.spec.replicas)'
+            int(m.name.substring(m.name.lastIndexOf(''-'')+1)) < self.spec.replicas)'
         - message: etcd.spec.etcd.bootstrapWithExistingCluster.members cannot be modified
             while the bootstrap is in progress
           rule: '!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster)

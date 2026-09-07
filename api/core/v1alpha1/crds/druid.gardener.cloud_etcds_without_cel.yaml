@@ -623,10 +623,9 @@ spec:
                           items:
                             description: MemberClientURLs specifies additional client URLs for a specific etcd member.
                             properties:
-                              memberName:
+                              name:
                                 description: |-
-                                  MemberName is the etcd member name.
-                                  Must match the etcd member name of the cluster (e.g., etcd-main-0).
+                                  Name is the etcd member name (e.g., etcd-main-0).
                                   When spec.memberNamePrefix is set, the member name becomes
                                   `<memberNamePrefix>-<podName>`. The top-level CEL rules on
                                   Etcd already incorporate the prefix when validating these names.
@@ -649,12 +648,13 @@ spec:
                                 type: array
                                 x-kubernetes-list-type: set
                             required:
-                              - memberName
+                              - name
                               - urls
                             type: object
                           maxItems: 10
                           minItems: 1
                           type: array
+                          x-kubernetes-list-type: atomic
                         overrideDefaultURL:
                           default: false
                           description: |-
@@ -663,6 +663,9 @@ spec:
                             needed when two clusters share an Etcd resource name and their internal
                             client service DNS would otherwise collide.
                             Defaults to false, meaning the listed URLs are appended to the internal service URL.
+                            Note: this flag is only honored for members that have URLs configured under `members`.
+                            Members without a matching entry always use the default internal URL, regardless of
+                            this flag.
                           type: boolean
                       required:
                         - members
