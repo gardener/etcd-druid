@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -127,15 +128,23 @@ func buildResource(etcd *druidv1alpha1.Etcd, role *rbacv1.Role) {
 			Verbs:     []string{"get", "list", "patch", "update", "watch"},
 		},
 		{
-			APIGroups: []string{"apps"},
-			Resources: []string{"statefulsets"},
-			Verbs:     []string{"get", "list", "patch", "update", "watch"},
-		},
-		{
 			APIGroups: []string{""},
 			Resources: []string{"pods"},
 			Verbs:     []string{"get", "list", "watch"},
 		},
+	}
+
+	// TODO - The condition check will be removed once the feature gate is GAed.
+	// When the UpgradeEtcdVersion feature-gate is disabled, the older version of etcd-backup-restore
+	// version is used, which requires access to the StatefulSet resource. When enabled,
+	// the updated etcd-backup-restore version is used which no longer requires this StatefulSet access.
+	// See https://github.com/gardener/etcd-backup-restore/pull/1040 for details
+	if !druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		role.Rules = append(role.Rules, rbacv1.PolicyRule{
+			APIGroups: []string{"apps"},
+			Resources: []string{"statefulsets"},
+			Verbs:     []string{"get", "list", "patch", "update", "watch"},
+		})
 	}
 }
 

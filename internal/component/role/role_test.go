@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -85,12 +86,17 @@ func TestGetExistingResourceNames(t *testing.T) {
 func TestSync(t *testing.T) {
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
-		name        string
-		createErr   *apierrors.StatusError
-		expectedErr *druiderr.DruidError
+		name               string
+		featureGateEnabled bool
+		createErr          *apierrors.StatusError
+		expectedErr        *druiderr.DruidError
 	}{
 		{
-			name: "create role when none exists",
+			name: "create role with statefulset access when UpgradeEtcdVersion feature gate is disabled",
+		},
+		{
+			name:               "create role without statefulset access when UpgradeEtcdVersion feature gate is enabled",
+			featureGateEnabled: true,
 		},
 		{
 			name:      "create role fails when client create fails",
@@ -104,11 +110,19 @@ func TestSync(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+				map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: tc.featureGateEnabled},
+			)
+			g.Expect(err).ToNot(HaveOccurred())
+			t.Cleanup(func() {
+				_ = druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+					map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: false},
+				)
+			})
+
 			cl := testutils.CreateTestFakeClientForObjects(nil, tc.createErr, nil, nil, nil, getObjectKey(etcd.ObjectMeta))
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
@@ -121,7 +135,7 @@ func TestSync(t *testing.T) {
 				g.Expect(syncErr).ToNot(HaveOccurred())
 				g.Expect(getErr).ToNot(HaveOccurred())
 				g.Expect(latestRole).ToNot(BeNil())
-				matchRole(g, etcd, *latestRole)
+				matchRole(g, etcd, *latestRole, tc.featureGateEnabled)
 			}
 		})
 	}
@@ -197,7 +211,28 @@ func getLatestRole(cl client.Client, etcd *druidv1alpha1.Etcd) (*rbacv1.Role, er
 	return role, err
 }
 
-func matchRole(g *WithT, etcd *druidv1alpha1.Etcd, actualRole rbacv1.Role) {
+func matchRole(g *WithT, etcd *druidv1alpha1.Etcd, actualRole rbacv1.Role, upgradeEtcdVersionEnabled bool) {
+	expectedRules := []interface{}{
+		rbacv1.PolicyRule{
+			APIGroups: []string{"coordination.k8s.io"},
+			Resources: []string{"leases"},
+			Verbs:     []string{"get", "list", "patch", "update", "watch"},
+		},
+		rbacv1.PolicyRule{
+			APIGroups: []string{""},
+			Resources: []string{"pods"},
+			Verbs:     []string{"get", "list", "watch"},
+		},
+	}
+	// When the UpgradeEtcdVersion feature gate is disabled, the older etcd-backup-restore image is used,
+	// which still requires access to the StatefulSet object.
+	if !upgradeEtcdVersionEnabled {
+		expectedRules = append(expectedRules, rbacv1.PolicyRule{
+			APIGroups: []string{"apps"},
+			Resources: []string{"statefulsets"},
+			Verbs:     []string{"get", "list", "patch", "update", "watch"},
+		})
+	}
 	g.Expect(actualRole).To(MatchFields(IgnoreExtras, Fields{
 		"ObjectMeta": MatchFields(IgnoreExtras, Fields{
 			"Name":            Equal(druidv1alpha1.GetRoleName(etcd.ObjectMeta)),
@@ -205,22 +240,6 @@ func matchRole(g *WithT, etcd *druidv1alpha1.Etcd, actualRole rbacv1.Role) {
 			"Labels":          testutils.MatchResourceLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
 			"OwnerReferences": testutils.MatchEtcdOwnerReference(etcd.Name, etcd.UID),
 		}),
-		"Rules": ConsistOf(
-			rbacv1.PolicyRule{
-				APIGroups: []string{"coordination.k8s.io"},
-				Resources: []string{"leases"},
-				Verbs:     []string{"get", "list", "patch", "update", "watch"},
-			},
-			rbacv1.PolicyRule{
-				APIGroups: []string{"apps"},
-				Resources: []string{"statefulsets"},
-				Verbs:     []string{"get", "list", "patch", "update", "watch"},
-			},
-			rbacv1.PolicyRule{
-				APIGroups: []string{""},
-				Resources: []string{"pods"},
-				Verbs:     []string{"get", "list", "watch"},
-			},
-		),
+		"Rules": ConsistOf(expectedRules...),
 	}))
 }
