@@ -617,6 +617,88 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 	}
 }
 
+// TestValidateSpecEtcdAdditionalAdvertiseClientUrlsOverrideDefaultURL validates the
+// overrideDefaultURL field on spec.etcd.additionalAdvertiseClientURLs:
+//   - The field is optional (defaulting to false); omitting it is valid.
+//   - Explicitly setting it to true or false is valid.
+//   - The TLS scheme CEL rules still fire when overrideDefaultURL is set — URLs
+//     must match the client TLS configuration regardless of the flag.
+func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsOverrideDefaultURL(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+
+	tests := []struct {
+		name               string
+		etcdName           string
+		tlsEnabled         bool
+		overrideDefaultURL *bool
+		urls               []string
+		expectErr          bool
+	}{
+		{
+			name:               "Valid: overrideDefaultURL omitted (defaults to false)",
+			etcdName:           "etcd-c-override-omitted",
+			tlsEnabled:         false,
+			overrideDefaultURL: nil,
+			urls:               []string{"http://10.0.0.1:2379"},
+			expectErr:          false,
+		},
+		{
+			name:               "Valid: overrideDefaultURL=false explicitly",
+			etcdName:           "etcd-c-override-false",
+			tlsEnabled:         false,
+			overrideDefaultURL: ptr.To(false),
+			urls:               []string{"http://10.0.0.1:2379"},
+			expectErr:          false,
+		},
+		{
+			name:               "Valid: overrideDefaultURL=true with http URLs and no TLS",
+			etcdName:           "etcd-c-override-true-http",
+			tlsEnabled:         false,
+			overrideDefaultURL: ptr.To(true),
+			urls:               []string{"http://10.0.0.1:2379"},
+			expectErr:          false,
+		},
+		{
+			name:               "Valid: overrideDefaultURL=true with https URLs and TLS enabled",
+			etcdName:           "etcd-c-override-true-https",
+			tlsEnabled:         true,
+			overrideDefaultURL: ptr.To(true),
+			urls:               []string{"https://10.0.0.1:2379"},
+			expectErr:          false,
+		},
+		{
+			name:               "Invalid: overrideDefaultURL=true but https URL without TLS — scheme CEL fires",
+			etcdName:           "etcd-c-override-true-scheme-mismatch",
+			tlsEnabled:         false,
+			overrideDefaultURL: ptr.To(true),
+			urls:               []string{"https://10.0.0.1:2379"},
+			expectErr:          true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			builder := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3)
+			if test.tlsEnabled {
+				builder = builder.WithClientTLS()
+			}
+			etcd := builder.Build()
+			etcd.Spec.Etcd.AdditionalAdvertiseClientURLs = &druidv1alpha1.AdditionalClientURLsSpec{
+				OverrideDefaultURL: test.overrideDefaultURL,
+				Members: []druidv1alpha1.MemberClientURLs{
+					{
+						Name: test.etcdName + "-0",
+						URLs: test.urls,
+					},
+				},
+			}
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
 // TestValidateSpecEtcdPeerUrlTLSSkipClientSANVerification is a smoke test
 // confirming that the new peer-only field
 // spec.etcd.peerUrlTls.skipClientSANVerification is accepted by the
