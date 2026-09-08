@@ -10,7 +10,7 @@ RUN make build
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static-debian11:nonroot AS druid
+FROM gcr.io/distroless/static-debian12:nonroot AS druid
 WORKDIR /
 COPY --from=builder /go/src/github.com/gardener/etcd-druid/bin/etcd-druid /etcd-druid
 COPY charts charts
