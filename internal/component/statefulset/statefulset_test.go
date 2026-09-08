@@ -106,7 +106,7 @@ func TestPreSync(t *testing.T) {
 		skipAnnotation  bool // when true, sets the skip-spec-update-snapshot annotation on the Etcd
 		expectedErrCode *druidapicommon.ErrorCode
 		expectNoTasks   bool // when true, asserts that no EtcdOpsTask exists after PreSync
-		expectExhausted bool // when true, asserts the exhaustion flag is set in OperatorContext.Data
+		expectedFailure bool // when true, asserts the failure flag is set in OperatorContext.Data
 	}{
 		{
 			name:          "returns nil when backup is disabled",
@@ -149,7 +149,7 @@ func TestPreSync(t *testing.T) {
 			stsExists:     true,
 			stsReplicas:   3,
 			etcdReplicas:  0,
-			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskHibernationPrefix, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
 			name:            "hibernation proceeds after max retries exceeded",
@@ -157,8 +157,8 @@ func TestPreSync(t *testing.T) {
 			stsExists:       true,
 			stsReplicas:     3,
 			etcdReplicas:    0,
-			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectExhausted: true,
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskHibernationPrefix, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedFailure: true,
 		},
 		{
 			name:            "update requeues when wrapper image changed and no task exists",
@@ -194,7 +194,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:   3,
 			etcdReplicas:  3,
 			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
-			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskUpdatePrefix, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
 			name:            "update proceeds after max retries exceeded",
@@ -203,8 +203,8 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:     3,
 			etcdReplicas:    3,
 			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
-			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
-			expectExhausted: true,
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskUpdatePrefix, maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedFailure: true,
 		},
 		{
 			name:            "update requeues when task is in progress",
@@ -213,7 +213,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:     3,
 			etcdReplicas:    3,
 			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
-			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskUpdatePrefix, 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
 			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
@@ -223,7 +223,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:     3,
 			etcdReplicas:    3,
 			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
-			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixUpdate, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskUpdatePrefix, 1, ptr.To(druidv1alpha1.TaskStateFailed))},
 			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
 		},
 		{
@@ -249,7 +249,7 @@ func TestPreSync(t *testing.T) {
 			stsReplicas:   3,
 			etcdReplicas:  0,
 			stsImages:     map[string]string{common.ContainerNameEtcd: oldWrapperImage},
-			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskPrefixHibernation, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+			existingTasks: []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(preSyncTaskHibernationPrefix, 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
 		},
 		{
 			name:           "update skipped when skip annotation present (image change)",
@@ -344,8 +344,8 @@ func TestPreSync(t *testing.T) {
 				g.Expect(etcd.Annotations).To(HaveKey(druidv1alpha1.SkipSpecUpdateSnapshotAnnotation))
 			}
 
-			_, exhausted := opCtx.Data[common.KeyPreSyncSnapshotExhausted]
-			g.Expect(exhausted).To(Equal(tc.expectExhausted))
+			_, isSnapshotFailed := opCtx.Data[common.KeyPreSyncSnapshotFailed]
+			g.Expect(isSnapshotFailed).To(Equal(tc.expectedFailure))
 		})
 	}
 }

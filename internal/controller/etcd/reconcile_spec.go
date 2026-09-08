@@ -71,7 +71,7 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcd *d
 	}
 	// If a pre-sync snapshot exhausted its retries, the component proceeded with the update without a fresh snapshot.
 	// Surface this via a warning event so operators are aware the update rolled without a safety snapshot.
-	if _, exhausted := ctx.Data[common.KeyPreSyncSnapshotExhausted]; exhausted {
+	if _, isSnapshotFailed := ctx.Data[common.KeyPreSyncSnapshotFailed]; isSnapshotFailed {
 		r.recorder.Eventf(etcd, corev1.EventTypeWarning, "PreSyncSnapshotFailed",
 			"pre-sync full snapshot for %s/%s failed after max attempts; proceeding with StatefulSet update without a fresh snapshot",
 			etcd.Namespace, etcd.Name)

@@ -9,10 +9,10 @@ const (
 	// place an annotation on the StatefulSet pods. The value contains the check-sum of the latest configmap that
 	// should be reflected on the pods.
 	CheckSumKeyConfigMap = "checksum/etcd-configmap"
-	// KeyPreSyncSnapshotExhausted is a key set in OperatorContext.Data by the StatefulSet component's PreSync when a
+	// KeyPreSyncSnapshotFailed is a key set in OperatorContext.Data by the StatefulSet component's PreSync when a
 	// pre-sync full snapshot has exhausted its retries and etcd-druid is proceeding with the update without a fresh
 	// snapshot. The etcd controller reads this key after pre-sync to surface the failure via a warning event.
-	KeyPreSyncSnapshotExhausted = "presync-snapshot-exhausted"
+	KeyPreSyncSnapshotFailed = "presync-snapshot-failed"
 )
 
 // LeaseAnnotationKeyPeerURLTLSEnabled is the annotation key present on the member lease.

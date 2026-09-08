@@ -45,8 +45,8 @@ const (
 	ErrGetEtcdWrapperImage druidapicommon.ErrorCode = "ERR_GET_ETCD_WRAPPER_IMAGE"
 
 	// Pre-sync snapshot task constants
-	preSyncTaskPrefixHibernation = "presync-snapshot-hibernation-"
-	preSyncTaskPrefixUpdate      = "presync-snapshot-update-"
+	preSyncTaskHibernationPrefix = "presync-snapshot-hibernation-"
+	preSyncTaskUpdatePrefix      = "presync-snapshot-update-"
 	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the sync.
 	maxPreSyncRetries = 3
 )
@@ -107,7 +107,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	// hibernation support [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922) is implemented,
 	// we need to switch to the dedicated hibernation signal on the Etcd resource instead of inferring it from the replica count.
 	if etcd.Spec.Replicas == 0 {
-		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixHibernation)
+		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskHibernationPrefix)
 	}
 
 	if druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(etcd.ObjectMeta) {
@@ -122,7 +122,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error getting component images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 	if changed {
-		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixUpdate)
+		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskUpdatePrefix)
 	}
 
 	return nil
@@ -198,7 +198,7 @@ func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *dr
 				"etcd", client.ObjectKeyFromObject(etcd), "lastTask", latestTask.Name, "lastState", *latestTask.Status.State)
 			// Signal the exhaustion to the controller (via the per-run OperatorContext.Data) so it can surface the
 			// failure via a warning event, while still proceeding with the sync.
-			ctx.Data[common.KeyPreSyncSnapshotExhausted] = etcd.Name
+			ctx.Data[common.KeyPreSyncSnapshotFailed] = etcd.Name
 			return nil
 		}
 		nextIndex := 0
