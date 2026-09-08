@@ -353,6 +353,9 @@ type EtcdConfig struct {
 	// When spec.memberNamePrefix is set, member names become `<memberNamePrefix>-<podName>`.
 	// Updating this field on a running cluster triggers a ConfigMap update
 	// and a rolling restart of the StatefulSet.
+	// Note: this field only applies to pods managed by etcd-druid. For externally
+	// managed members (spec.externallyManagedMemberAddresses), the provided addresses
+	// are used directly and this field has no effect.
 	// +optional
 	AdditionalAdvertiseClientURLs *AdditionalClientURLsSpec `json:"additionalAdvertiseClientURLs,omitempty"`
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.

@@ -17,6 +17,8 @@ The `overrideDefaultURL` field controls whether the default internal client serv
 | `false` (default) | Additional URLs are **appended** to the default internal URL. |
 | `true` | Only the additional URLs are advertised; the default internal URL is **suppressed**. |
 
+> **Note:** `overrideDefaultURL` is only honored for members that have a matching entry in `members`. Members with no matching entry always use the default internal URL, regardless of this flag.
+
 Set `overrideDefaultURL: true` when two clusters share an `Etcd` resource name and their internal client service DNS names would otherwise collide — for example, during a live control-plane migration where the source and target clusters both use the same `Etcd` CR name.
 
 ### Affected ConfigMap Field
