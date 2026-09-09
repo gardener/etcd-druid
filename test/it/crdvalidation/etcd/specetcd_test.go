@@ -190,7 +190,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMemberName(t *testing.T) {
 			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: test.memberName,
-					URLs: test.urls,
+					URLs:       test.urls,
 				},
 			}
 
@@ -297,7 +297,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsTLSScheme(t *testing.T) {
 			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
 				{
 					MemberName: test.memberName,
-					URLs: test.urls,
+					URLs:       test.urls,
 				},
 			}
 
