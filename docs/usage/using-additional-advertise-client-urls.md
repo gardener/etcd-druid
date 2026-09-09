@@ -8,6 +8,9 @@ By default, `etcd-druid` configures each etcd member's `--advertise-client-urls`
 
 When `additionalAdvertiseClientURLs` is configured, `etcd-druid` appends the specified URLs to `advertise-client-urls` for matching members. Peer URLs are **not** affected — only client advertise URLs are extended.
 
+> [!NOTE]
+> This field applies only to pods managed by etcd-druid. For externally managed members configured via `spec.externallyManagedMemberAddresses`, the provided addresses are used directly and `additionalAdvertiseClientURLs` has no effect.
+
 ### `overrideDefaultURL`
 
 The `overrideDefaultURL` field controls whether the default internal client service URL is included:
@@ -18,7 +21,7 @@ The `overrideDefaultURL` field controls whether the default internal client serv
 | `true` | Only the additional URLs are advertised; the default internal URL is **suppressed**. |
 
 > [!NOTE]
-> `overrideDefaultURL` applies only to members listed in `members`. Members without an entry continue to advertise their default internal service DNS URL, regardless of this flag.
+> `overrideDefaultURL` applies only to members listed in `members`. Members without an entry always use the default internal service DNS URL, regardless of this flag. When `additionalAdvertiseClientURLs` is not set at all, `overrideDefaultURL` has no effect — all members continue to advertise their default internal service URL.
 
 Set `overrideDefaultURL: true` when two clusters share an `Etcd` resource name and their internal client service DNS names would otherwise collide — for example, during a live control-plane migration where the source and target clusters both use the same `Etcd` CR name.
 
