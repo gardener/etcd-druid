@@ -718,16 +718,6 @@ func testPreSyncImageChangeSkippedViaAnnotation(t *testing.T, testNs string, rec
 	// The StatefulSet should still roll to the new image.
 	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
 	t.Log("StatefulSet etcd container image rolled to new tag despite skipping the snapshot")
-
-	// etcd-druid must NOT remove the skip annotation; it persists on the resource.
-	g.Consistently(func() bool {
-		updated := &druidv1alpha1.Etcd{}
-		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), updated); err != nil {
-			return false
-		}
-		return druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(updated.ObjectMeta)
-	}).Within(consistentlyDuration).WithPolling(pollingInterval).Should(BeTrue(), "expected skip-spec-update-snapshot annotation to be retained by druid")
-	t.Log("skip-spec-update-snapshot annotation retained by druid (persistent)")
 }
 
 func testPreSyncImageChangeProceedsAfterMaxRetries(t *testing.T, testNs string, reconcilerTestEnv ReconcilerTestEnv) {

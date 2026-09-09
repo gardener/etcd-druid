@@ -133,6 +133,9 @@ kubectl describe etcd <etcd-name> -n <namespace>
 > [!NOTE]
 > A `PreSyncSnapshotFailed` event means that the update proceeded without a fresh snapshot. Inspect the `presync-snapshot-update-*` [`EtcdOpsTask`](using-etcdopstask.md) resources and the backup configuration to determine why the snapshot failed.
 
+> [!WARNING]
+> `etcd-druid` detects a container image change by comparing the images it expects (derived from the `Etcd` resource and the configured image vector) against the images currently set on the `StatefulSet`. Always customize container images declaratively via the `Etcd` spec (see [Overwrite Container OCI Images](#overwrite-container-oci-images)) so that `etcd-druid` applies them as part of its own reconciliation. Do **not** mutate the images on the managed `StatefulSet` out-of-band through a mutating admission webhook, etc since such mutations are not reconciled by `etcd-druid`, so every reconciliation will detect an image difference and repeatedly trigger a pre-update snapshot.
+
 ## Overwrite Container OCI Images
 
 To find out image versions of `etcd-backup-restore` and `etcd-wrapper` used by a specific version of `etcd-druid` one way is look for the image versions in [images.yaml](https://github.com/gardener/etcd-druid/blob/master/internal/images/images.yaml). There are times that you might wish to override these images that come bundled with `etcd-druid`. There are two ways in which you can do that:
