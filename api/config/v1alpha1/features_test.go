@@ -50,7 +50,7 @@ func TestDefaultFeatureGate(t *testing.T) {
 			},
 		},
 		{
-			name: "UpgradeEtcdVersion can be disabled (alpha feature)",
+			name: "UpgradeEtcdVersion can be disabled",
 			enabledFeatures: map[string]bool{
 				UpgradeEtcdVersion: false,
 			},
