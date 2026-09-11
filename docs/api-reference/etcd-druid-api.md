@@ -20,7 +20,7 @@ ClientConnectionConfiguration defines the configuration for constructing a clien
 
 
 _Appears in:_
-- [OperatorConfiguration](#operatorconfiguration)
+- [OperatorConfiguration](#configdruidgardenercloudv1alpha1)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -60,7 +60,7 @@ ControllerConfiguration defines the configuration for the controllers.
 
 
 _Appears in:_
-- [OperatorConfiguration](#operatorconfiguration)
+- [OperatorConfiguration](#configdruidgardenercloudv1alpha1)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -174,7 +174,7 @@ it will not really serve any purpose.
 
 
 _Appears in:_
-- [OperatorConfiguration](#operatorconfiguration)
+- [OperatorConfiguration](#configdruidgardenercloudv1alpha1)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -195,7 +195,7 @@ LogConfiguration contains the configuration for logging.
 
 
 _Appears in:_
-- [OperatorConfiguration](#operatorconfiguration)
+- [OperatorConfiguration](#configdruidgardenercloudv1alpha1)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -283,7 +283,7 @@ ServerConfiguration contains the server configurations.
 
 
 _Appears in:_
-- [OperatorConfiguration](#operatorconfiguration)
+- [OperatorConfiguration](#configdruidgardenercloudv1alpha1)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -336,7 +336,7 @@ WebhookConfiguration defines the configuration for admission webhooks.
 
 
 _Appears in:_
-- [OperatorConfiguration](#operatorconfiguration)
+- [OperatorConfiguration](#configdruidgardenercloudv1alpha1)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1337,5 +1337,4 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `enabled` _boolean_ | Enabled specifies whether to wait for a final full snapshot before copying backups. |  |  |
 | `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups<br />will be performed anyway. No timeout or 0 means wait forever. |  | Pattern: `^(0\|([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+)$` <br />Type: string <br />Optional: \{\} <br /> |
-
 
