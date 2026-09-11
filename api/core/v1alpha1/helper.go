@@ -105,6 +105,41 @@ func GetMemberLeaseNames(etcd *Etcd) []string {
 	}
 }
 
+// GetBootstrapMemberNames returns the set of member names declared in
+// spec.etcd.bootstrapWithExistingCluster.members (empty when unset).
+func GetBootstrapMemberNames(etcd *Etcd) map[string]bool {
+	names := map[string]bool{}
+	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil {
+		return names
+	}
+	for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
+		names[m.Name] = true
+	}
+	return names
+}
+
+// GetBootstrapMemberNamesToDecommission returns the names of the members recorded as
+// joined in status.bootstrapWithExistingCluster.members that are no longer
+// present in spec.etcd.bootstrapWithExistingCluster.members. When the spec field
+// is unset, all joined members are returned (removing them decommissions the
+// source cluster). It returns nil when there is nothing to remove (no joined
+// members recorded, or every joined member is still present in spec).
+func GetBootstrapMemberNamesToDecommission(etcd *Etcd) []string {
+	statusBootstrap := etcd.Status.BootstrapWithExistingCluster
+	if statusBootstrap == nil || len(statusBootstrap.Members) == 0 {
+		return nil
+	}
+
+	specNames := GetBootstrapMemberNames(etcd)
+	var names []string
+	for _, joined := range statusBootstrap.Members {
+		if !specNames[joined.Name] {
+			names = append(names, joined.Name)
+		}
+	}
+	return names
+}
+
 // GetPodDisruptionBudgetName returns the name of the pod disruption budget for the Etcd.
 func GetPodDisruptionBudgetName(etcdObjMeta metav1.ObjectMeta) string {
 	return etcdObjMeta.Name
@@ -133,6 +168,11 @@ func GetFullSnapshotLeaseName(etcdObjMeta metav1.ObjectMeta) string {
 // GetStatefulSetName returns the name of the StatefulSet for the Etcd.
 func GetStatefulSetName(etcdObjMeta metav1.ObjectMeta) string {
 	return etcdObjMeta.Name
+}
+
+// GetClientPort returns the etcd client port, defaulting to 2379 when unset.
+func GetClientPort(etcd *Etcd) int32 {
+	return ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379)
 }
 
 // --------------- Miscellaneous helper functions ---------------
@@ -212,4 +252,22 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 // ArePodsManagedByEtcdDruid checks if the management of pods is handled by etcd-druid for an Etcd resource.
 func ArePodsManagedByEtcdDruid(etcd *Etcd) bool {
 	return len(etcd.Spec.ExternallyManagedMemberAddresses) == 0
+}
+
+// GetCondition returns the condition with the given type from the Etcd status,
+// or nil when no such condition is present.
+func GetCondition(etcd *Etcd, condType ConditionType) *Condition {
+	for i := range etcd.Status.Conditions {
+		if etcd.Status.Conditions[i].Type == condType {
+			return &etcd.Status.Conditions[i]
+		}
+	}
+	return nil
+}
+
+// IsScaleInInProgress reports whether a scale-in operation is currently recorded
+// in the Etcd status (ScaleOperationComplete=False/ScalingIn).
+func IsScaleInInProgress(etcd *Etcd) bool {
+	cond := GetCondition(etcd, ConditionTypeScaleOperationComplete)
+	return cond != nil && cond.Status == ConditionFalse && cond.Reason == ScaleOperationReasonScalingIn
 }

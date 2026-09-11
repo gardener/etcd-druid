@@ -712,6 +712,7 @@ _Appears in:_
 | `DataVolumesReady` | ConditionTypeDataVolumesReady is a constant for a condition type indicating that the etcd data volumes are ready.<br /> |
 | `ClusterIDMismatch` | ConditionTypeClusterIDMismatch is a constant for a condition type indicating that the etcd cluster has multiple cluster IDs.<br /> |
 | `BootstrappedWithExistingCluster` | ConditionTypeBootstrappedWithExistingCluster indicates the bootstrap join state<br />of all members configured in spec.etcd.bootstrapWithExistingCluster. It transitions<br />to True once the target has successfully joined the existing cluster and remains<br />sticky-True thereafter, surviving transient member outages.<br /> |
+| `ScaleOperationComplete` | ConditionTypeScaleOperationComplete indicates whether the etcd cluster is free of an in-flight<br />scale operation (scale-in, scale-out, or bootstrap-member removal). Positive polarity: True when<br />no operation is in progress, False while one is in flight (with the reason naming it).<br /> |
 | `Succeeded` | EtcdCopyBackupsTaskSucceeded is a condition type indicating that a EtcdCopyBackupsTask has succeeded.<br /> |
 | `Failed` | EtcdCopyBackupsTaskFailed is a condition type indicating that a EtcdCopyBackupsTask has failed.<br /> |
 
