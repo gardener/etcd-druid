@@ -60,8 +60,10 @@ const (
 // +kubebuilder:printcolumn:name="Cluster Size",type=integer,JSONPath=`.spec.replicas`,priority=1
 // +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.currentReplicas`,priority=1
 // +kubebuilder:printcolumn:name="Ready Replicas",type=integer,JSONPath=`.status.readyReplicas`,priority=1
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, has(self.spec.memberNamePrefix) ? m.memberName.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.memberName.startsWith(self.metadata.name + '-'))",message="additionalAdvertisePeerURLs member names must start with the Etcd resource name followed by a dash"
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisePeerURLs) || self.spec.etcd.additionalAdvertisePeerURLs.all(m, int(m.memberName.substring(m.memberName.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisePeerURLs member name index must be less than replicas"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisedURLs) || !has(self.spec.etcd.additionalAdvertisedURLs.peerURLs) || self.spec.etcd.additionalAdvertisedURLs.peerURLs.members.all(m, has(self.spec.memberNamePrefix) ? m.name.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.name.startsWith(self.metadata.name + '-'))",message="additionalAdvertisedURLs.peerURLs member names must start with the Etcd resource name followed by a dash"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisedURLs) || !has(self.spec.etcd.additionalAdvertisedURLs.peerURLs) || self.spec.etcd.additionalAdvertisedURLs.peerURLs.members.all(m, int(m.name.substring(m.name.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisedURLs.peerURLs member name index must be less than replicas"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisedURLs) || !has(self.spec.etcd.additionalAdvertisedURLs.clientURLs) || self.spec.etcd.additionalAdvertisedURLs.clientURLs.members.all(m, has(self.spec.memberNamePrefix) ? m.name.startsWith(self.spec.memberNamePrefix + '-' + self.metadata.name + '-') : m.name.startsWith(self.metadata.name + '-'))",message="additionalAdvertisedURLs.clientURLs member names must start with the Etcd resource name followed by a dash"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.additionalAdvertisedURLs) || !has(self.spec.etcd.additionalAdvertisedURLs.clientURLs) || self.spec.etcd.additionalAdvertisedURLs.clientURLs.members.all(m, int(m.name.substring(m.name.lastIndexOf('-')+1)) < self.spec.replicas)",message="additionalAdvertisedURLs.clientURLs member name index must be less than replicas"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.members == oldSelf.spec.etcd.bootstrapWithExistingCluster.members",message="etcd.spec.etcd.bootstrapWithExistingCluster.members cannot be modified while the bootstrap is in progress"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || !has(oldSelf.spec.etcd.bootstrapWithExistingCluster) || !has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'BootstrappedWithExistingCluster' && c.status == 'False') || self.spec.etcd.bootstrapWithExistingCluster.clientEndpoints == oldSelf.spec.etcd.bootstrapWithExistingCluster.clientEndpoints",message="etcd.spec.etcd.bootstrapWithExistingCluster.clientEndpoints cannot be modified while the bootstrap is in progress"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.etcd.bootstrapWithExistingCluster) || self.spec.etcd.bootstrapWithExistingCluster.members.all(m1, self.spec.etcd.bootstrapWithExistingCluster.members.filter(m2, m1.name == m2.name).size() == 1)",message="bootstrapWithExistingCluster.members[*].name must be unique"
@@ -287,8 +289,12 @@ type SnapshotCompactionSpec struct {
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerURLs) || !has(self.peerUrlTls) || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisePeerURLs) || has(self.peerUrlTls) || self.additionalAdvertisePeerURLs.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs) || !has(self.additionalAdvertisedURLs.peerURLs.overrideDefaultURL) || !self.additionalAdvertisedURLs.peerURLs.overrideDefaultURL || self.additionalAdvertisedURLs.peerURLs.members.size() > 0",message="additionalAdvertisedURLs.peerURLs.overrideDefaultURL=true requires at least one member with URLs"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.clientURLs) || !has(self.additionalAdvertisedURLs.clientURLs.overrideDefaultURL) || !self.additionalAdvertisedURLs.clientURLs.overrideDefaultURL || self.additionalAdvertisedURLs.clientURLs.members.size() > 0",message="additionalAdvertisedURLs.clientURLs.overrideDefaultURL=true requires at least one member with URLs"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs) || !has(self.peerUrlTls) || self.additionalAdvertisedURLs.peerURLs.members.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs) || has(self.peerUrlTls) || self.additionalAdvertisedURLs.peerURLs.members.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.clientURLs) || !has(self.clientUrlTls) || self.additionalAdvertisedURLs.clientURLs.members.all(m, m.urls.all(u, u.startsWith('https://')))",message="when clientUrlTls is enabled, all additional advertise client URLs must use https://"
+// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.clientURLs) || has(self.clientUrlTls) || self.additionalAdvertisedURLs.clientURLs.members.all(m, m.urls.all(u, u.startsWith('http://')))",message="when clientUrlTls is not enabled, all additional advertise client URLs must use http://"
 // +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || !has(self.peerUrlTls) || self.bootstrapWithExistingCluster.members.all(m, m.peerUrls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all bootstrapWithExistingCluster member peer URLs must use https://"
 // +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || has(self.peerUrlTls) || self.bootstrapWithExistingCluster.members.all(m, m.peerUrls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all bootstrapWithExistingCluster member peer URLs must use http://"
 // +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || !has(self.clientUrlTls) || self.bootstrapWithExistingCluster.clientEndpoints.all(u, u.startsWith('https://'))",message="when clientUrlTls is enabled, all bootstrapWithExistingCluster clientEndpoints must use https://"
@@ -330,17 +336,12 @@ type EtcdConfig struct {
 	// ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
-	// AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
-	// to initial-advertise-peer-urls. Each entry maps a member name to its
-	// additional URLs. The member name must follow the pattern {etcd-name}-{index}
-	// where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
-	// When spec.memberNamePrefix is set, member names become
-	// `<memberNamePrefix>-<podName>`.
-	// Updating this field on a running cluster triggers a ConfigMap update
-	// and a rolling restart of the StatefulSet.
+	// AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
+	// advertisement. ClientURLs and PeerURLs are configured independently.
+	// Has no effect on externally managed members
+	// (spec.externallyManagedMemberAddresses).
 	// +optional
-	// +kubebuilder:validation:MaxItems=10
-	AdditionalAdvertisePeerURLs []MemberPeerURLs `json:"additionalAdvertisePeerURLs,omitempty"`
+	AdditionalAdvertisedURLs *AdditionalAdvertiseURLsSpec `json:"additionalAdvertisedURLs,omitempty"`
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.
 	// Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.
 	// In addition to the base TLSConfig fields it also exposes the peer-only
@@ -410,29 +411,73 @@ type ClientService struct {
 	TrafficDistribution *string `json:"trafficDistribution,omitempty"`
 }
 
-// MemberPeerURLs specifies additional peer URLs for a specific etcd member.
-type MemberPeerURLs struct {
-	// MemberName is the etcd member name.
-	// Must match the etcd member name of the cluster (e.g., etcd-main-0).
-	// When spec.memberNamePrefix is set, the member name becomes
-	// `<memberNamePrefix>-<podName>`. The top-level CEL rules on
-	// Etcd already incorporate the prefix when validating these names.
+// AdditionalAdvertiseURLsSpec is the top-level container for extra per-member
+// client and peer URLs. ClientURLs and PeerURLs are independent.
+type AdditionalAdvertiseURLsSpec struct {
+	// ClientURLs contains extra per-member client URLs. See AdditionalClientURLsSpec.
+	// +optional
+	ClientURLs *AdditionalClientURLsSpec `json:"clientURLs,omitempty"`
+	// PeerURLs contains extra per-member peer URLs. See AdditionalPeerURLsSpec.
+	// +optional
+	PeerURLs *AdditionalPeerURLsSpec `json:"peerURLs,omitempty"`
+}
+
+// AdditionalPeerURLsSpec holds extra per-member peer URLs.
+type AdditionalPeerURLsSpec struct {
+	// OverrideDefaultURL, when true, makes each configured member advertise only its
+	// listed peer URLs, dropping the default internal pod DNS peer URL. When false
+	// (default), the listed URLs are appended to the default. Members with no entry
+	// in Members always use the default URL.
+	// +optional
+	// +kubebuilder:default=false
+	OverrideDefaultURL *bool `json:"overrideDefaultURL,omitempty"`
+
+	// Members lists additional peer URLs per member. See MemberURLs for the name format.
+	// +required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=10
+	// +listType=atomic
+	Members []MemberURLs `json:"members"`
+}
+
+// AdditionalClientURLsSpec holds extra per-member client URLs.
+type AdditionalClientURLsSpec struct {
+	// OverrideDefaultURL, when true, makes each configured member advertise only its
+	// listed client URLs, dropping the default internal client service URL. When false
+	// (default), the listed URLs are appended to the default. Members with no entry
+	// in Members always use the default URL.
+	// +optional
+	// +kubebuilder:default=false
+	OverrideDefaultURL *bool `json:"overrideDefaultURL,omitempty"`
+
+	// Members lists additional client URLs per member. See MemberURLs for the name format.
+	// +required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=10
+	// +listType=atomic
+	Members []MemberURLs `json:"members"`
+}
+
+// MemberURLs specifies additional URLs for a single etcd member.
+type MemberURLs struct {
+	// Name is the etcd member name, for example etcd-main-0.
+	// Must match {etcd-name}-{index} where index is 0 to (replicas-1).
+	// When spec.memberNamePrefix is set, the name must be
+	// {memberNamePrefix}-{etcd-name}-{index}.
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$`
-	MemberName string `json:"memberName"`
+	Name string `json:"name"`
 
-	// URLs is a list of additional peer URLs for this member.
-	// These will be appended to the default internal service URL.
-	// A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
-	// Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380).
+	// URLs is the list of additional URLs for this member. Each entry must be a valid
+	// http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379).
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5
 	// +kubebuilder:validation:items:MaxLength=2048
-	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)"
+	// +kubebuilder:validation:items:XValidation:rule="(self.startsWith('http://') || self.startsWith('https://')) && isURL(self)",message="must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)"
 	// +listType=set
 	URLs []string `json:"urls"`
 }
