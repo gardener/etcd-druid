@@ -22,11 +22,11 @@
       - `Requeue` (bool): Indicates if the task should be requeued.
       - `Error` (error): Any error encountered during processing.
       - `Description` (string): A human-readable description of the current state or error.
-    >NOTE: 
+    >NOTE:
     > 1) The `Admit` method is run when the task is created to validate preconditions. If it fails, the task is marked as `Rejected`. If it succeeds, the task moves to `InProgress` state and this method is not called again.
     > 2) The `Execute` method is called repeatedly in case of timeouts/transient errors until the task execution is successful or a non-retryable error occurs. Once this is done the task moves to `Succeeded` or `Failed` state respectively.  
     > 3) The `Cleanup` method is called when the task reaches a terminal state (Succeeded/Failed/Rejected) to clean up any resources created during the task execution. This can be a no-op if there are no resources to clean up. (Refer the [on-demand-snapshot handler implementation](https://github.com/gardener/etcd-druid/tree/master/internal/controller/etcdopstask/handler/ondemandsnapshot/ondemandsnapshot.go) for reference).
-    > 4) Refer the etcdopstask [api](https://gitthub.com/gardener/etcd-druid/tree/master/api/core/v1alpha1/etcdopstask.go) for details regarding the etcdopstask state transitions and status fields.
+    > 4) Refer the etcdopstask [api](https://github.com/gardener/etcd-druid/tree/master/api/core/v1alpha1/etcdopstask.go) for details regarding the etcdopstask state transitions and status fields.
     - Transient error handling is to be done via setting the `requeue` field in the return type from the corresponsing methods with appropriate `Error` and `Description` field clearly indicating the reason. Common error codes are defined in [types.go](https://github.com/gardener/etcd-druid/tree/master/internal/controller/etcdopstask/handler/types.go). Introduce new error codes if necessary.
     This will then be reflected in the `LastOperation` and/or the `LastErrors` field in the `etcdopstask.status` field accordingly.
     - Once the `requeue` field is set to false, the task will move to the next phase or terminal state as applicable.
