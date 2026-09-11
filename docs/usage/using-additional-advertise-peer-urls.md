@@ -29,6 +29,8 @@ By default, `etcd-druid` configures each etcd member's `--initial-advertise-peer
 
 When `additionalAdvertisePeerURLs` is configured, `etcd-druid` appends the specified URLs to these flags for matching members. Each member then advertises both its internal DNS URL **and** the additional external URLs (e.g., LoadBalancer IPs), making it reachable from outside the cluster. Client advertise URLs are **not** affected — only peer URLs are extended.
 
+Setting `overrideDefaultURL: true` changes this behavior: matching members advertise **only** their additional URLs and the default internal peer service URL is suppressed. This is required for cross-cluster scenarios where two clusters share the same `Etcd` resource name and their internal peer service DNS would otherwise collide.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Kubernetes Cluster                        │
@@ -102,20 +104,27 @@ Note that each additional URL produces a separate `member=url` entry in `initial
 
 ## Field Reference
 
-`spec.etcd.additionalAdvertisePeerURLs` is a list of `MemberPeerURLs` entries:
+`spec.etcd.additionalAdvertisePeerURLs` is an object with the following fields:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `memberName` | `string` | Yes | Name of the etcd member. Must match the pattern `{etcd-cr-name}-{index}` (e.g., `etcd-main-0`). |
+| `overrideDefaultURL` | `bool` | No | When `true`, configured members advertise only their listed URLs and the default internal peer service URL is suppressed. Defaults to `false`, meaning the listed URLs are appended to the internal service URL. |
+| `members` | `[]MemberPeerURLs` | Yes | Per-member additional peer URLs. Maximum 10 entries. |
+
+Each `members` entry is a `MemberPeerURLs`:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Name of the etcd member. Must match the pattern `{etcd-cr-name}-{index}` (e.g., `etcd-main-0`). When `spec.memberNamePrefix` is set, the name becomes `<memberNamePrefix>-<podName>`. |
 | `urls` | `[]string` | Yes | One or more additional peer URLs to advertise for this member. Maximum 5 per member. |
 
 ### Validation Rules
 
 The following validations are enforced at admission time via [CEL](https://kubernetes.io/docs/reference/using-api/cel/) expressions:
 
-- The `memberName` must start with the `Etcd` resource name followed by a dash (e.g., for an `Etcd` named `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.).
-- The numeric index at the end of `memberName` must be less than `spec.replicas`.
-- A maximum of **10** entries may be specified.
+- The `name` must start with the `Etcd` resource name followed by a dash (e.g., for an `Etcd` named `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.). When `spec.memberNamePrefix` is set, the name must start with `<prefix>-<etcd-name>-`.
+- The numeric index at the end of `name` must be less than `spec.replicas`.
+- At least **1** and at most **10** `members` entries may be specified.
 - A maximum of **5** URLs may be specified per member.
 - When `spec.etcd.peerUrlTls` is configured, all URLs **must** use the `https://` scheme.
 - When `spec.etcd.peerUrlTls` is not configured, all URLs **must** use the `http://` scheme.
@@ -146,15 +155,16 @@ spec:
         cpu: 100m
         memory: 200Mi
     additionalAdvertisePeerURLs:
-      - memberName: etcd-main-0
-        urls:
-          - http://10.0.0.1:2380
-      - memberName: etcd-main-1
-        urls:
-          - http://10.0.0.2:2380
-      - memberName: etcd-main-2
-        urls:
-          - http://10.0.0.3:2380
+      members:
+        - name: etcd-main-0
+          urls:
+            - http://10.0.0.1:2380
+        - name: etcd-main-1
+          urls:
+            - http://10.0.0.2:2380
+        - name: etcd-main-2
+          urls:
+            - http://10.0.0.3:2380
   backup:
     port: 8080
     fullSnapshotSchedule: "0 */24 * * *"
@@ -177,15 +187,16 @@ When `spec.etcd.peerUrlTls` is configured, all additional peer URLs must use `ht
         name: etcd-peer-server-tls
         namespace: default
     additionalAdvertisePeerURLs:
-      - memberName: etcd-main-0
-        urls:
-          - https://10.0.0.1:2380
-      - memberName: etcd-main-1
-        urls:
-          - https://10.0.0.2:2380
-      - memberName: etcd-main-2
-        urls:
-          - https://10.0.0.3:2380
+      members:
+        - name: etcd-main-0
+          urls:
+            - https://10.0.0.1:2380
+        - name: etcd-main-1
+          urls:
+            - https://10.0.0.2:2380
+        - name: etcd-main-2
+          urls:
+            - https://10.0.0.3:2380
 ```
 
 > [!WARNING]
@@ -197,13 +208,14 @@ Each member supports up to 5 additional URLs. This is useful when a member needs
 
 ```yaml
     additionalAdvertisePeerURLs:
-      - memberName: etcd-main-0
-        urls:
-          - https://10.0.0.1:2380
-          - https://lb-primary.example.com:2380
-      - memberName: etcd-main-1
-        urls:
-          - https://10.0.0.2:2380
+      members:
+        - name: etcd-main-0
+          urls:
+            - https://10.0.0.1:2380
+            - https://lb-primary.example.com:2380
+        - name: etcd-main-1
+          urls:
+            - https://10.0.0.2:2380
 ```
 
 ### Partial Configuration
@@ -212,12 +224,39 @@ You do not need to configure additional URLs for every member. Only members that
 
 ```yaml
     additionalAdvertisePeerURLs:
-      - memberName: etcd-main-0
-        urls:
-          - https://10.0.0.1:2380
+      members:
+        - name: etcd-main-0
+          urls:
+            - https://10.0.0.1:2380
 ```
 
 Members without an entry use only their default internal service DNS URL.
+
+### Overriding the Default Peer URL
+
+By default, additional URLs are **appended** to each member's internal peer service URL. Setting `overrideDefaultURL: true` instead makes configured members advertise **only** their listed URLs and suppresses the internal peer service URL in both `initial-advertise-peer-urls` and `initial-cluster`.
+
+This is required for cross-cluster scenarios where two clusters share the same `Etcd` resource name — their internal peer service DNS names (`<pod>.<name>-peer.<namespace>.svc`) would otherwise be identical and collide.
+
+```yaml
+    additionalAdvertisePeerURLs:
+      overrideDefaultURL: true
+      members:
+        - name: etcd-main-0
+          urls:
+            - http://10.0.0.1:2380
+        - name: etcd-main-1
+          urls:
+            - http://10.0.0.2:2380
+        - name: etcd-main-2
+          urls:
+            - http://10.0.0.3:2380
+```
+
+With the above, `etcd-main-0`'s `initial-advertise-peer-urls` contains only `http://10.0.0.1:2380` — the internal `http://etcd-main-0.etcd-main-peer.default.svc:2380` URL is dropped.
+
+> [!NOTE]
+> `overrideDefaultURL` applies to all members listed in `members`. Members without an entry are unaffected and continue to advertise their default internal service DNS URL.
 
 ## Exposing Members via LoadBalancer Services
 
@@ -270,11 +309,13 @@ To add or update `additionalAdvertisePeerURLs` on an existing `Etcd` resource:
 kubectl patch etcd etcd-main -n default --type merge -p '{
   "spec": {
     "etcd": {
-      "additionalAdvertisePeerURLs": [
-        {"memberName": "etcd-main-0", "urls": ["http://10.0.0.1:2380"]},
-        {"memberName": "etcd-main-1", "urls": ["http://10.0.0.2:2380"]},
-        {"memberName": "etcd-main-2", "urls": ["http://10.0.0.3:2380"]}
-      ]
+      "additionalAdvertisePeerURLs": {
+        "members": [
+          {"name": "etcd-main-0", "urls": ["http://10.0.0.1:2380"]},
+          {"name": "etcd-main-1", "urls": ["http://10.0.0.2:2380"]},
+          {"name": "etcd-main-2", "urls": ["http://10.0.0.3:2380"]}
+        ]
+      }
     }
   }
 }'
@@ -285,7 +326,7 @@ Reconciliation is triggered automatically on `Etcd` resource updates (post `v0.2
 ## Troubleshooting
 
 **Validation error: member name must start with Etcd resource name**
-: Ensure `memberName` starts with the `Etcd` resource name followed by a dash. For `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.
+: Ensure `name` starts with the `Etcd` resource name followed by a dash. For `etcd-main`, valid names are `etcd-main-0`, `etcd-main-1`, etc.
 
 **Validation error: member name index must be less than replicas**
 : The numeric index must be within bounds. For `spec.replicas: 3`, valid indices are `0`, `1`, and `2`.

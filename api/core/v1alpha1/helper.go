@@ -77,6 +77,36 @@ func GetMemberNameFromAddress(etcd *Etcd, memberAddress string) string {
 	return GetMemberName(etcd.Spec.MemberNamePrefix, fmt.Sprintf("%s-%s", etcd.Name, memberAddress))
 }
 
+// IsAdditionalPeerURLConfigured returns true if additionalAdvertisePeerURLs is set
+// with at least one member entry.
+func IsAdditionalPeerURLConfigured(etcd *Etcd) bool {
+	return etcd.Spec.Etcd.AdditionalAdvertisePeerURLs != nil &&
+		len(etcd.Spec.Etcd.AdditionalAdvertisePeerURLs.Members) > 0
+}
+
+// IsOverrideDefaultURLEnabled returns true if additionalAdvertisePeerURLs is set
+// with its OverrideDefaultURL flag explicitly true.
+func IsOverrideDefaultURLEnabled(etcd *Etcd) bool {
+	return etcd.Spec.Etcd.AdditionalAdvertisePeerURLs != nil &&
+		ptr.Deref(etcd.Spec.Etcd.AdditionalAdvertisePeerURLs.OverrideDefaultURL, false)
+}
+
+// GetAdditionalAdvertisePeerURLs returns the additional peer URLs for the member
+// backing podName, and whether that member suppresses the default internal peer
+// service URL. The lookup accounts for spec.memberNamePrefix.
+func GetAdditionalAdvertisePeerURLs(etcd *Etcd, podName string) ([]string, bool) {
+	if !IsAdditionalPeerURLConfigured(etcd) {
+		return nil, false
+	}
+	memberName := GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+	for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisePeerURLs.Members {
+		if memberURLs.Name == memberName {
+			return memberURLs.URLs, IsOverrideDefaultURLEnabled(etcd)
+		}
+	}
+	return nil, false
+}
+
 // GetAllPodNames returns the names of all pods for the Etcd.
 func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	podNames := make([]string, replicas)
