@@ -22,7 +22,8 @@ The following tables are a summary of the feature gates that you can set on etcd
 
 | Feature | Default | Stage | Since | Until |
 |---------|---------|-------|-------|-------|
-| `UpgradeEtcdVersion` | `false` | `Alpha` | `0.36` |       |
+| `UpgradeEtcdVersion` | `false` | `Alpha` | `0.36` | `0.38` |
+| `UpgradeEtcdVersion` | `true`  | `Beta`  | `0.39` |       |
 
 ## Feature Gates for Graduated or Deprecated Features
 
