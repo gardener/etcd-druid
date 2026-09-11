@@ -603,48 +603,108 @@ spec:
                 etcd:
                   description: EtcdConfig defines the configuration for the etcd cluster to be deployed.
                   properties:
-                    additionalAdvertisePeerURLs:
+                    additionalAdvertisedURLs:
                       description: |-
-                        AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
-                        to initial-advertise-peer-urls. Each entry maps a member name to its
-                        additional URLs. The member name must follow the pattern {etcd-name}-{index}
-                        where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
-                        When spec.memberNamePrefix is set, member names become
-                        `<memberNamePrefix>-<podName>`.
-                        Updating this field on a running cluster triggers a ConfigMap update
-                        and a rolling restart of the StatefulSet.
-                      items:
-                        description: MemberPeerURLs specifies additional peer URLs for a specific etcd member.
-                        properties:
-                          memberName:
-                            description: |-
-                              MemberName is the etcd member name.
-                              Must match the etcd member name of the cluster (e.g., etcd-main-0).
-                              When spec.memberNamePrefix is set, the member name becomes
-                              `<memberNamePrefix>-<podName>`. The top-level CEL rules on
-                              Etcd already incorporate the prefix when validating these names.
-                            maxLength: 253
-                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
-                            type: string
-                          urls:
-                            description: |-
-                              URLs is a list of additional peer URLs for this member.
-                              These will be appended to the default internal service URL.
-                              A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
-                              Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380).
-                            items:
-                              maxLength: 2048
-                              type: string
-                            maxItems: 5
-                            minItems: 1
-                            type: array
-                            x-kubernetes-list-type: set
-                        required:
-                          - memberName
-                          - urls
-                        type: object
-                      maxItems: 10
-                      type: array
+                        AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
+                        advertisement. ClientURLs and PeerURLs are configured independently.
+                        Has no effect on externally managed members
+                        (spec.externallyManagedMemberAddresses).
+                      properties:
+                        clientURLs:
+                          description: ClientURLs contains extra per-member client URLs. See AdditionalClientURLsSpec.
+                          properties:
+                            members:
+                              description: Members lists additional client URLs per member. See MemberURLs for the name format.
+                              items:
+                                description: MemberURLs specifies additional URLs for a single etcd member.
+                                properties:
+                                  name:
+                                    description: |-
+                                      Name is the etcd member name, for example etcd-main-0.
+                                      Must match {etcd-name}-{index} where index is 0 to (replicas-1).
+                                      When spec.memberNamePrefix is set, the name must be
+                                      {memberNamePrefix}-{etcd-name}-{index}.
+                                    maxLength: 253
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
+                                    type: string
+                                  urls:
+                                    description: |-
+                                      URLs is the list of additional URLs for this member. Each entry must be a valid
+                                      http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379).
+                                    items:
+                                      maxLength: 2048
+                                      type: string
+                                    maxItems: 5
+                                    minItems: 1
+                                    type: array
+                                    x-kubernetes-list-type: set
+                                required:
+                                  - name
+                                  - urls
+                                type: object
+                              maxItems: 10
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            overrideDefaultURL:
+                              default: false
+                              description: |-
+                                OverrideDefaultURL, when true, makes each configured member advertise only its
+                                listed client URLs, dropping the default internal client service URL. When false
+                                (default), the listed URLs are appended to the default. Members with no entry
+                                in Members always use the default URL.
+                              type: boolean
+                          required:
+                            - members
+                          type: object
+                        peerURLs:
+                          description: PeerURLs contains extra per-member peer URLs. See AdditionalPeerURLsSpec.
+                          properties:
+                            members:
+                              description: Members lists additional peer URLs per member. See MemberURLs for the name format.
+                              items:
+                                description: MemberURLs specifies additional URLs for a single etcd member.
+                                properties:
+                                  name:
+                                    description: |-
+                                      Name is the etcd member name, for example etcd-main-0.
+                                      Must match {etcd-name}-{index} where index is 0 to (replicas-1).
+                                      When spec.memberNamePrefix is set, the name must be
+                                      {memberNamePrefix}-{etcd-name}-{index}.
+                                    maxLength: 253
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
+                                    type: string
+                                  urls:
+                                    description: |-
+                                      URLs is the list of additional URLs for this member. Each entry must be a valid
+                                      http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379).
+                                    items:
+                                      maxLength: 2048
+                                      type: string
+                                    maxItems: 5
+                                    minItems: 1
+                                    type: array
+                                    x-kubernetes-list-type: set
+                                required:
+                                  - name
+                                  - urls
+                                type: object
+                              maxItems: 10
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            overrideDefaultURL:
+                              default: false
+                              description: |-
+                                OverrideDefaultURL, when true, makes each configured member advertise only its
+                                listed peer URLs, dropping the default internal pod DNS peer URL. When false
+                                (default), the listed URLs are appended to the default. Members with no entry
+                                in Members always use the default URL.
+                              type: boolean
+                          required:
+                            - members
+                          type: object
+                      type: object
                     authSecretRef:
                       description: |-
                         SecretReference represents a Secret Reference. It has enough information to retrieve secret
