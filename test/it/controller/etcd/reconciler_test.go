@@ -528,18 +528,21 @@ func testPreSyncHibernationSucceeds(t *testing.T, testNs string, reconcilerTestE
 	etcdInstance.Spec.Replicas = 0
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	// read the etcdInstance freshly to get the updated generation
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	presyncHibernationTaskName0 := fmt.Sprintf("presync-snapshot-hibernation-%d-0", etcdInstance.Generation)
 	t.Log("triggered hibernation by setting replicas to 0")
 
-	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshot-hibernation-0", timeout, pollingInterval)
+	assertPreSyncTaskCreated(ctx, t, cl, testNs, presyncHibernationTaskName0, timeout, pollingInterval)
 	t.Log("presync etcdopstask created")
 
 	task := &druidv1alpha1.EtcdOpsTask{}
-	g.Expect(cl.Get(ctx, client.ObjectKey{Name: "presync-snapshot-hibernation-0", Namespace: testNs}, task)).To(Succeed())
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: presyncHibernationTaskName0, Namespace: testNs}, task)).To(Succeed())
 	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	g.Expect(task.OwnerReferences).To(ContainElement(druidv1alpha1.GetAsOwnerReference(etcdInstance.ObjectMeta)))
 	t.Log("presync etcdopstask has correct owner reference to etcd instance")
 
-	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshot-hibernation-0", druidv1alpha1.TaskStateSucceeded)
+	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, presyncHibernationTaskName0, druidv1alpha1.TaskStateSucceeded)
 	t.Log("simulated presync task completion with Succeeded state")
 
 	assertStatefulSetReplicas(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), 0, timeout, pollingInterval)
@@ -570,10 +573,12 @@ func testPreSyncHibernationProceedsAfterMaxRetries(t *testing.T, testNs string, 
 	etcdInstance.Spec.Replicas = 0
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	// read the etcdInstance freshly to get the updated generation
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	t.Log("triggered hibernation by setting replicas to 0")
 
 	for i := range 3 {
-		taskName := fmt.Sprintf("presync-snapshot-hibernation-%d", i)
+		taskName := fmt.Sprintf("presync-snapshot-hibernation-%d-%d", etcdInstance.Generation, i)
 		assertPreSyncTaskCreated(ctx, t, cl, testNs, taskName, timeout, pollingInterval)
 		t.Logf("presync etcdopstask  created")
 
@@ -653,18 +658,21 @@ func testPreSyncImageChangeSucceeds(t *testing.T, testNs string, reconcilerTestE
 	etcdInstance.Spec.Etcd.Image = &newImage
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	// read the etcdInstance freshly to get the updated generation
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	presyncUpdateTaskName0 := fmt.Sprintf("presync-snapshot-update-%d-0", etcdInstance.Generation)
 	t.Log("triggered image change by patching Spec.Etcd.Image")
 
-	assertPreSyncTaskCreated(ctx, t, cl, testNs, "presync-snapshot-update-0", timeout, pollingInterval)
+	assertPreSyncTaskCreated(ctx, t, cl, testNs, presyncUpdateTaskName0, timeout, pollingInterval)
 	t.Log("presync etcdopstask created")
 
 	task := &druidv1alpha1.EtcdOpsTask{}
-	g.Expect(cl.Get(ctx, client.ObjectKey{Name: "presync-snapshot-update-0", Namespace: testNs}, task)).To(Succeed())
+	g.Expect(cl.Get(ctx, client.ObjectKey{Name: presyncUpdateTaskName0, Namespace: testNs}, task)).To(Succeed())
 	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	g.Expect(task.OwnerReferences).To(ContainElement(druidv1alpha1.GetAsOwnerReference(etcdInstance.ObjectMeta)))
 	t.Log("presync etcdopstask has correct owner reference to etcd instance")
 
-	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, "presync-snapshot-update-0", druidv1alpha1.TaskStateSucceeded)
+	simulatePreSyncTaskCompletion(ctx, t, cl, testNs, presyncUpdateTaskName0, druidv1alpha1.TaskStateSucceeded)
 	t.Log("simulated presync task completion with Succeeded state")
 
 	assertEtcdContainerImage(ctx, t, cl, client.ObjectKeyFromObject(etcdInstance), newImage, timeout, pollingInterval)
@@ -709,10 +717,12 @@ func testPreSyncImageChangeSkippedViaAnnotation(t *testing.T, testNs string, rec
 		druidv1alpha1.SkipSpecUpdateSnapshotAnnotation: "",
 	}
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	// read the etcdInstance freshly to get the updated generation
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	t.Log("triggered image change with skip-spec-update-snapshot annotation set")
 
 	// No pre-sync snapshot task should be created since the snapshot is skipped.
-	assertPreSyncTaskNotCreated(ctx, t, cl, testNs, "presync-snapshot-update-0", consistentlyDuration, pollingInterval)
+	assertPreSyncTaskNotCreated(ctx, t, cl, testNs, fmt.Sprintf("presync-snapshot-update-%d-0", etcdInstance.Generation), consistentlyDuration, pollingInterval)
 	t.Log("verified no presync etcdopstask created when skip annotation is present")
 
 	// The StatefulSet should still roll to the new image.
@@ -752,10 +762,12 @@ func testPreSyncImageChangeProceedsAfterMaxRetries(t *testing.T, testNs string, 
 	etcdInstance.Spec.Etcd.Image = &newImage
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
+	// read the etcdInstance freshly to get the updated generation
+	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	t.Log("triggered image change by patching Spec.Etcd.Image")
 
 	for i := range 3 {
-		taskName := fmt.Sprintf("presync-snapshot-update-%d", i)
+		taskName := fmt.Sprintf("presync-snapshot-update-%d-%d", etcdInstance.Generation, i)
 		assertPreSyncTaskCreated(ctx, t, cl, testNs, taskName, timeout, pollingInterval)
 		simulatePreSyncTaskCompletion(ctx, t, cl, testNs, taskName, druidv1alpha1.TaskStateFailed)
 		t.Logf("simulated presync task %s completion with Failed state", taskName)

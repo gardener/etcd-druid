@@ -107,7 +107,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	// hibernation support [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922) is implemented,
 	// we need to switch to the dedicated hibernation signal on the Etcd resource instead of inferring it from the replica count.
 	if etcd.Spec.Replicas == 0 {
-		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskHibernationPrefix)
+		return r.ensurePreSyncSnapshot(ctx, etcd, fmt.Sprintf("%s%d-", preSyncTaskHibernationPrefix, etcd.Generation))
 	}
 
 	if druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(etcd.ObjectMeta) {
@@ -122,7 +122,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error getting component images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 	if changed {
-		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskUpdatePrefix)
+		return r.ensurePreSyncSnapshot(ctx, etcd, fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, etcd.Generation))
 	}
 
 	return nil
