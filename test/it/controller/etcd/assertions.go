@@ -15,6 +15,7 @@ import (
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/utils"
@@ -487,6 +488,41 @@ func assertPreSyncTaskCreated(ctx context.Context, t *testing.T, cl client.Clien
 	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).WithContext(ctx).Should(Succeed())
 }
 
+// assertPreSyncTaskNotCreated asserts that no pre-sync EtcdOpsTask with the given name is created within the given duration.
+func assertPreSyncTaskNotCreated(ctx context.Context, t *testing.T, cl client.Client, namespace, taskName string, duration, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		task := &druidv1alpha1.EtcdOpsTask{}
+		err := cl.Get(ctx, client.ObjectKey{Name: taskName, Namespace: namespace}, task)
+		if err == nil {
+			return fmt.Errorf("expected EtcdOpsTask %s to not be created, but it exists", taskName)
+		}
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+	g.Consistently(checkFn).Within(duration).WithPolling(pollInterval).WithContext(ctx).Should(Succeed())
+}
+
+// assertPreSyncSnapshotFailedEventRecorded asserts that a Warning event with reason PreSyncSnapshotFailed is recorded on the Etcd resource.
+func assertPreSyncSnapshotFailedEventRecorded(ctx context.Context, t *testing.T, cl client.Client, etcdObjectKey client.ObjectKey, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	checkFn := func() error {
+		events := &corev1.EventList{}
+		if err := cl.List(ctx, events, client.InNamespace(etcdObjectKey.Namespace), client.MatchingFields{"involvedObject.name": etcdObjectKey.Name, "type": "Warning"}); err != nil {
+			return err
+		}
+		for _, e := range events.Items {
+			if e.Reason == "PreSyncSnapshotFailed" {
+				return nil
+			}
+		}
+		return fmt.Errorf("expected a Warning event with reason PreSyncSnapshotFailed, found none")
+	}
+	g.Eventually(checkFn).Within(timeout).WithPolling(pollInterval).Should(Succeed())
+}
+
 // simulatePreSyncTaskCompletion simulates the completion of a pre-sync task by updating its status to the given state.
 func simulatePreSyncTaskCompletion(ctx context.Context, t *testing.T, cl client.Client, namespace, taskName string, state druidv1alpha1.TaskState) {
 	g := NewWithT(t)
@@ -495,4 +531,21 @@ func simulatePreSyncTaskCompletion(ctx context.Context, t *testing.T, cl client.
 	task.Status.State = &state
 	task.Status.LastTransitionTime = ptr.To(metav1.Now())
 	g.Expect(cl.Status().Update(ctx, task)).To(Succeed())
+}
+
+// assertEtcdContainerImage waits until the StatefulSet's etcd container image matches the expected value.
+func assertEtcdContainerImage(ctx context.Context, t *testing.T, cl client.Client, stsObjectKey client.ObjectKey, expectedImage string, timeout, pollInterval time.Duration) {
+	g := NewWithT(t)
+	g.Eventually(func() string {
+		sts := &appsv1.StatefulSet{}
+		if err := cl.Get(ctx, stsObjectKey, sts); err != nil {
+			return ""
+		}
+		for _, c := range sts.Spec.Template.Spec.Containers {
+			if c.Name == common.ContainerNameEtcd {
+				return c.Image
+			}
+		}
+		return ""
+	}).WithContext(ctx).WithTimeout(timeout).WithPolling(pollInterval).Should(Equal(expectedImage))
 }

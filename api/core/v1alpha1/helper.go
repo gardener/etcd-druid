@@ -160,6 +160,11 @@ func AreManagedResourcesProtected(etcdObjMeta metav1.ObjectMeta) bool {
 	return !metav1.HasAnnotation(etcdObjMeta, DisableEtcdComponentProtectionAnnotation)
 }
 
+// HasSkipSpecUpdateSnapshotAnnotation returns true if the Etcd resource has the `druid.gardener.cloud/skip-spec-update-snapshot` annotation set
+func HasSkipSpecUpdateSnapshotAnnotation(etcdObjMeta metav1.ObjectMeta) bool {
+	return metav1.HasAnnotation(etcdObjMeta, SkipSpecUpdateSnapshotAnnotation)
+}
+
 // GetDefaultLabels returns the default labels for etcd.
 func GetDefaultLabels(etcdObjMeta metav1.ObjectMeta) map[string]string {
 	return map[string]string{

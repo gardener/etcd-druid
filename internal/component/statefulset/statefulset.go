@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -46,9 +45,9 @@ const (
 	ErrGetEtcdWrapperImage druidapicommon.ErrorCode = "ERR_GET_ETCD_WRAPPER_IMAGE"
 
 	// Pre-sync snapshot task constants
-	preSyncTaskPrefixHibernation = "presync-snapshot-hibernation-"
-	preSyncTaskPrefixUpgrade     = "presync-snapshot-upgrade-"
-	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the upgrade.
+	preSyncTaskHibernationPrefix = "presync-snapshot-hibernation-"
+	preSyncTaskUpdatePrefix      = "presync-snapshot-update-"
+	// maxPreSyncRetries defines the maximum number of pre-sync snapshot attempts before giving up and proceeding with the sync.
 	maxPreSyncRetries = 3
 )
 
@@ -89,6 +88,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 
 // PreSync performs pre-sync operations for the statefulset component.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	r.logger = ctx.Logger.WithValues("component", component.StatefulSetKind, "operation", component.OperationPreSync)
 	if !etcd.IsBackupStoreEnabled() {
 		return nil
 	}
@@ -103,33 +103,71 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 		return nil
 	}
 
+	// TODO: currently replicas == 0 is used as a proxy for "the cluster is being hibernated". Once native
+	// hibernation support [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922) is implemented,
+	// we need to switch to the dedicated hibernation signal on the Etcd resource instead of inferring it from the replica count.
 	if etcd.Spec.Replicas == 0 {
-		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixHibernation)
+		return r.ensurePreSyncSnapshot(ctx, etcd, fmt.Sprintf("%s%d-", preSyncTaskHibernationPrefix, etcd.Generation))
 	}
 
-	if !druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+	if druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(etcd.ObjectMeta) {
+		r.logger.Info("Skipping pre-sync snapshot for update due to presence of annotation",
+			"annotation", druidv1alpha1.SkipSpecUpdateSnapshotAnnotation)
 		return nil
 	}
 
-	etcdWrapperImageFromImageVector, _, _, err := utils.GetEtcdImages(etcd, r.imageVector)
+	changed, err := r.hasImageOrReplicaChanged(etcd, existingSts)
 	if err != nil {
 		return druiderr.WrapError(err, ErrGetEtcdWrapperImage, component.OperationPreSync,
-			fmt.Sprintf("Error getting etcd images for etcd: %v", client.ObjectKeyFromObject(etcd)))
+			fmt.Sprintf("Error getting component images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
-
-	var existingWrapperImageFromSts string
-	for _, c := range existingSts.Spec.Template.Spec.Containers {
-		if c.Name == common.ContainerNameEtcd {
-			existingWrapperImageFromSts = c.Image
-			break
-		}
-	}
-
-	if existingWrapperImageFromSts != "" && etcdWrapperImageFromImageVector != existingWrapperImageFromSts {
-		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixUpgrade)
+	if changed {
+		return r.ensurePreSyncSnapshot(ctx, etcd, fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, etcd.Generation))
 	}
 
 	return nil
+}
+
+// collectExpectedImages returns the expected images keyed by container name for the etcd pod template.
+func (r _resource) collectExpectedImages(etcd *druidv1alpha1.Etcd) (map[string]string, error) {
+	wrapperImg, brImg, initImg, err := utils.GetEtcdImages(etcd, r.imageVector)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{
+		common.ContainerNameEtcd:                              wrapperImg,
+		common.ContainerNameEtcdBackupRestore:                 brImg,
+		common.InitContainerNameChangeBackupBucketPermissions: initImg,
+	}, nil
+}
+
+// hasImageOrReplicaChanged reports whether the etcd spec replicas differ from the STS, or any tracked container/init-container image differs from the expected image vector.
+func (r _resource) hasImageOrReplicaChanged(etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (bool, error) {
+	if etcd.Spec.Replicas != ptr.Deref(sts.Spec.Replicas, 0) {
+		return true, nil
+	}
+	expectedImages, err := r.collectExpectedImages(etcd)
+	if err != nil {
+		return false, err
+	}
+	if imagesChanged(sts.Spec.Template.Spec.InitContainers, expectedImages) {
+		return true, nil
+	}
+	if imagesChanged(sts.Spec.Template.Spec.Containers, expectedImages) {
+		return true, nil
+	}
+	return false, nil
+}
+
+// imagesChanged reports whether any container's image differs from the expected image for that container name.
+// Container names not present in expectedImages are ignored.
+func imagesChanged(containers []corev1.Container, expectedImages map[string]string) bool {
+	for _, container := range containers {
+		if expectedImage, ok := expectedImages[container.Name]; ok && expectedImage != container.Image {
+			return true
+		}
+	}
+	return false
 }
 
 // ensurePreSyncSnapshot ensures a pre-sync snapshot is taken via an etcdopstask with retry logic up to maxPreSyncRetries attempts.
@@ -158,6 +196,9 @@ func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *dr
 		if latestIndex != nil && *latestIndex >= maxPreSyncRetries-1 {
 			r.logger.Error(fmt.Errorf("max retries exceeded"), "Pre-sync snapshot failed after max attempts",
 				"etcd", client.ObjectKeyFromObject(etcd), "lastTask", latestTask.Name, "lastState", *latestTask.Status.State)
+			// Signal the exhaustion to the controller (via the per-run OperatorContext.Data) so it can surface the
+			// failure via a warning event, while still proceeding with the sync.
+			ctx.Data[common.KeyPreSyncSnapshotFailed] = etcd.Name
 			return nil
 		}
 		nextIndex := 0
