@@ -1,0 +1,41 @@
+title Scaling-up non-HA etcd cluster to HA etcd cluster
+
+
+database etcd resource
+participant etcd-druid controller
+database etcd configuration template
+participant etcd member lease object
+participant etcd statefulSet
+participant etcd-backup-restore sidecar container
+participant etcd container
+
+
+activate etcd resource
+note over etcd resource: .spec.replicas: 1 -> 3
+etcd resource -> etcd-druid controller: Cluster  has been marked for scale-up
+activate etcd-druid controller
+activate etcd statefulSet
+activate etcd member lease object
+
+
+etcd-druid controller ->etcd configuration template: updates config-map
+activate etcd configuration template
+etcd-druid controller -> etcd member lease object : checks member lease object's annotation
+note over etcd member lease object: \n kind: Lease\n metadata: \n   annotations: \n      member.etcd.gardener.cloud/tls-enabled: "false"\n spec: . . .
+etcd-druid controller -> etcd-druid controller : calculates whether TLS \nis enabled for peerUrl or not
+note over etcd-druid controller: If peerUrl is not TLS enabled,\netcd-druid will make sure to enable TLS for \npeerUrl before marking the cluster for scale-up.
+etcd-druid controller ->> etcd-backup-restore sidecar container: restart(1) etcd pod
+activate etcd-backup-restore sidecar container
+etcd-druid controller ->> etcd container: restart(1) etcd pod
+activate etcd container
+etcd-backup-restore sidecar container ->etcd container: memberUpdate API call\nto update peerUrl
+etcd-backup-restore sidecar container ->etcd container: checks etcd's health status
+etcd-backup-restore sidecar container ->etcd member lease object: update member lease annotation
+note over etcd member lease object: kind: Lease\n metadata: \n   annotations: \n      member.etcd.gardener.cloud/tls-enabled: "true"\n spec: . . .
+etcd-druid controller ->> etcd-backup-restore sidecar container: restart(2) etcd pod
+etcd-druid controller ->> etcd container: restart(2) etcd pod
+etcd-druid controller ->etcd-druid controller: peerUrl is now TLS enabled \nmake sure first cluster member \nis running fine. 
+etcd-druid controller ->etcd statefulSet: mark the cluster for scale-up \nupdates .spec.replicas `1`-> `3` \nadds scale-up annotation 
+note over etcd statefulSet: apiVersion: apps/v1\nkind: StatefulSet\nmetadata:\n    annotation: \n      gardener.cloud/scaled-to-multi-node: "\" \n spec:\n   replicas: 3\n  ....
+etcd statefulSet ->etcd statefulSet: statefulSet controller \n brings 2 new etcd pods
+
