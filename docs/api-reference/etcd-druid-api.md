@@ -440,6 +440,24 @@ Package v1alpha1 contains API Schema definitions for the druid v1alpha1 API grou
 
 
 
+#### AdditionalClientURLsSpec
+
+
+
+AdditionalClientURLsSpec holds extra per-member client URLs and a flag controlling
+whether the default internal client service URL is suppressed for the configured members.
+
+
+
+_Appears in:_
+- [EtcdConfig](#etcdconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only<br />its listed URLs and omit the default internal client service URL. This is<br />needed when two clusters share an Etcd resource name and their internal<br />client service DNS would otherwise collide.<br />Defaults to false, meaning the listed URLs are appended to the internal service URL.<br />Note: this flag is only honored for members that have URLs configured under `members`.<br />Members without a matching entry always use the default internal URL, regardless of<br />this flag. | false | Optional: \{\} <br /> |
+| `members` _[MemberClientURLs](#memberclienturls) array_ | Members contains per-member additional client URLs.<br />Member names must follow the pattern \{etcd-name\}-\{index\}, where index is<br />0 to (replicas-1) (e.g. etcd-main-0). When spec.memberNamePrefix is set,<br />member names become `<memberNamePrefix>-<podName>`. |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
+
+
 #### BackupSpec
 
 
@@ -779,6 +797,7 @@ _Appears in:_
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  | Optional: \{\} <br /> |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  | Optional: \{\} <br /> |
 | `additionalAdvertisePeerURLs` _[MemberPeerURLs](#memberpeerurls) array_ | AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append<br />to initial-advertise-peer-urls. Each entry maps a member name to its<br />additional URLs. The member name must follow the pattern \{etcd-name\}-\{index\}<br />where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).<br />When spec.memberNamePrefix is set, member names become<br />`<memberNamePrefix>-<podName>`.<br />Updating this field on a running cluster triggers a ConfigMap update<br />and a rolling restart of the StatefulSet. |  | MaxItems: 10 <br />Optional: \{\} <br /> |
+| `additionalAdvertiseClientURLs` _[AdditionalClientURLsSpec](#additionalclienturlsspec)_ | AdditionalAdvertiseClientURLs holds extra per-member client URLs added to<br />advertise-client-urls, and a flag controlling whether the default internal<br />client service URL is suppressed. Each entry maps a member name to its<br />additional URLs. The member name must follow the pattern \{etcd-name\}-\{index\}<br />where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).<br />When spec.memberNamePrefix is set, member names become `<memberNamePrefix>-<podName>`.<br />Updating this field on a running cluster triggers a ConfigMap update<br />and a rolling restart of the StatefulSet.<br />Note: this field only applies to pods managed by etcd-druid. For externally<br />managed members (spec.externallyManagedMemberAddresses), the provided addresses<br />are used directly and this field has no effect. |  | Optional: \{\} <br /> |
 | `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerification knob (see PeerTLSConfig). |  | Optional: \{\} <br /> |
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
@@ -1069,6 +1088,23 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `reelectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `etcdConnectionTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+
+
+#### MemberClientURLs
+
+
+
+MemberClientURLs specifies additional client URLs for a specific etcd member.
+
+
+
+_Appears in:_
+- [AdditionalClientURLsSpec](#additionalclienturlsspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the etcd member name (e.g., etcd-main-0).<br />When spec.memberNamePrefix is set, the member name becomes<br />`<memberNamePrefix>-<podName>`. The top-level CEL rules on<br />Etcd already incorporate the prefix when validating these names. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br />Required: \{\} <br /> |
+| `urls` _string array_ | URLs is a list of additional client URLs for this member.<br />These are appended to the member's internal client service URL, unless<br />AdditionalClientURLsSpec.OverrideDefaultURL is true, in which case only<br />these URLs are advertised.<br />A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).<br />Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2379). |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)\} <br />Required: \{\} <br /> |
 
 
 #### MemberPeerURLs

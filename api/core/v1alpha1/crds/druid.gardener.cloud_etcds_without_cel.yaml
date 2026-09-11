@@ -603,6 +603,76 @@ spec:
                 etcd:
                   description: EtcdConfig defines the configuration for the etcd cluster to be deployed.
                   properties:
+                    additionalAdvertiseClientURLs:
+                      description: |-
+                        AdditionalAdvertiseClientURLs holds extra per-member client URLs added to
+                        advertise-client-urls, and a flag controlling whether the default internal
+                        client service URL is suppressed. Each entry maps a member name to its
+                        additional URLs. The member name must follow the pattern {etcd-name}-{index}
+                        where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
+                        When spec.memberNamePrefix is set, member names become `<memberNamePrefix>-<podName>`.
+                        Updating this field on a running cluster triggers a ConfigMap update
+                        and a rolling restart of the StatefulSet.
+                        Note: this field only applies to pods managed by etcd-druid. For externally
+                        managed members (spec.externallyManagedMemberAddresses), the provided addresses
+                        are used directly and this field has no effect.
+                      properties:
+                        members:
+                          description: |-
+                            Members contains per-member additional client URLs.
+                            Member names must follow the pattern {etcd-name}-{index}, where index is
+                            0 to (replicas-1) (e.g. etcd-main-0). When spec.memberNamePrefix is set,
+                            member names become `<memberNamePrefix>-<podName>`.
+                          items:
+                            description: MemberClientURLs specifies additional client URLs for a specific etcd member.
+                            properties:
+                              name:
+                                description: |-
+                                  Name is the etcd member name (e.g., etcd-main-0).
+                                  When spec.memberNamePrefix is set, the member name becomes
+                                  `<memberNamePrefix>-<podName>`. The top-level CEL rules on
+                                  Etcd already incorporate the prefix when validating these names.
+                                maxLength: 253
+                                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
+                                type: string
+                              urls:
+                                description: |-
+                                  URLs is a list of additional client URLs for this member.
+                                  These are appended to the member's internal client service URL, unless
+                                  AdditionalClientURLsSpec.OverrideDefaultURL is true, in which case only
+                                  these URLs are advertised.
+                                  A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
+                                  Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2379).
+                                items:
+                                  maxLength: 2048
+                                  type: string
+                                maxItems: 5
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: set
+                            required:
+                              - name
+                              - urls
+                            type: object
+                          maxItems: 10
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        overrideDefaultURL:
+                          default: false
+                          description: |-
+                            OverrideDefaultURL, when true, makes each configured member advertise only
+                            its listed URLs and omit the default internal client service URL. This is
+                            needed when two clusters share an Etcd resource name and their internal
+                            client service DNS would otherwise collide.
+                            Defaults to false, meaning the listed URLs are appended to the internal service URL.
+                            Note: this flag is only honored for members that have URLs configured under `members`.
+                            Members without a matching entry always use the default internal URL, regardless of
+                            this flag.
+                          type: boolean
+                      required:
+                        - members
+                      type: object
                     additionalAdvertisePeerURLs:
                       description: |-
                         AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
