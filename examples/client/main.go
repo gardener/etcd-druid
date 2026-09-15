@@ -53,7 +53,7 @@ func main() {
 			VolumeClaimTemplate: ptr.To("etcd-test"),
 			Common: druidv1alpha1.SharedConfig{
 				AutoCompactionMode:      ptr.To(druidv1alpha1.Periodic),
-				AutoCompactionRetention: ptr.To("30m"),
+				AutoCompactionRetention: ptr.To("15m"),
 			},
 			Etcd: druidv1alpha1.EtcdConfig{
 				Quota:                   ptr.To(resource.MustParse("8Gi")),

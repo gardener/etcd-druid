@@ -70,7 +70,7 @@ spec:
 
   sharedConfig:
     autoCompactionMode: periodic
-    autoCompactionRetention: "30m"
+    autoCompactionRetention: "15m"
   # schedulingConstraints:
     # affinity: {}
     # topologySpreadConstraints:

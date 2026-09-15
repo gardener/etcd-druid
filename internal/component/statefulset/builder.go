@@ -34,7 +34,7 @@ const (
 	defaultSnapshotMemoryLimit     int64 = 100 * 1024 * 1024      // 100Mi
 	defaultHeartbeatDuration             = "10s"
 	defaultGbcPolicy                     = "LimitBased"
-	defaultAutoCompactionRetention       = "30m"
+	defaultAutoCompactionRetention       = "15m"
 	defaultEtcdSnapshotTimeout           = "15m"
 	defaultEtcdDefragTimeout             = "15m"
 	defaultAutoCompactionMode            = "periodic"
