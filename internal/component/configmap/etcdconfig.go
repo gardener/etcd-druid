@@ -19,7 +19,7 @@ import (
 // default values
 const (
 	defaultDBQuotaBytes            = int64(8 * 1024 * 1024 * 1024) // 8Gi
-	defaultAutoCompactionRetention = "30m"
+	defaultAutoCompactionRetention = "15m"
 	defaultInitialClusterToken     = "etcd-cluster"
 	defaultInitialClusterState     = "new"
 	// For more information refer to https://etcd.io/docs/v3.4/op-guide/maintenance/#raft-log-retention
