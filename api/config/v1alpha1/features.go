@@ -84,7 +84,7 @@ var DefaultFeatureGates = newFeatureGate()
 // If and when a new feature is introduced then it should be ensured that it is added to the featureGate using this function.
 func init() {
 	DefaultFeatureGates.knownFeatures[UseEtcdWrapper] = maturityLevelSpecGA
-	DefaultFeatureGates.knownFeatures[UpgradeEtcdVersion] = maturityLevelSpecAlpha
+	DefaultFeatureGates.knownFeatures[UpgradeEtcdVersion] = maturityLevelSpecBeta
 }
 
 // IsEnabled checks if a feature is enabled.
