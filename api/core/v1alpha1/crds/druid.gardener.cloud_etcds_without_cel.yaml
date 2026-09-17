@@ -606,15 +606,15 @@ spec:
                     additionalAdvertisedURLs:
                       description: |-
                         AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
-                        advertisement. ClientURLs and PeerURLs are configured independently.
+                        advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.
                         Has no effect on externally managed members
                         (spec.externallyManagedMemberAddresses).
                       properties:
                         clientURLs:
-                          description: ClientURLs contains extra per-member client URLs. See AdditionalClientURLsSpec.
+                          description: ClientURLs contains extra per-member client URLs. See AdditionalURLsSpec.
                           properties:
                             members:
-                              description: Members lists additional client URLs per member. See MemberURLs for the name format.
+                              description: Members lists additional URLs per member. See MemberURLs for the name format.
                               items:
                                 description: MemberURLs specifies additional URLs for a single etcd member.
                                 properties:
@@ -650,7 +650,7 @@ spec:
                               default: false
                               description: |-
                                 OverrideDefaultURL, when true, makes each configured member advertise only its
-                                listed client URLs, dropping the default internal client service URL. When false
+                                listed URLs, dropping the default internal service/pod DNS URL. When false
                                 (default), the listed URLs are appended to the default. Members with no entry
                                 in Members always use the default URL.
                               type: boolean
@@ -658,10 +658,10 @@ spec:
                             - members
                           type: object
                         peerURLs:
-                          description: PeerURLs contains extra per-member peer URLs. See AdditionalPeerURLsSpec.
+                          description: PeerURLs contains extra per-member peer URLs. See AdditionalURLsSpec.
                           properties:
                             members:
-                              description: Members lists additional peer URLs per member. See MemberURLs for the name format.
+                              description: Members lists additional URLs per member. See MemberURLs for the name format.
                               items:
                                 description: MemberURLs specifies additional URLs for a single etcd member.
                                 properties:
@@ -697,7 +697,7 @@ spec:
                               default: false
                               description: |-
                                 OverrideDefaultURL, when true, makes each configured member advertise only its
-                                listed peer URLs, dropping the default internal pod DNS peer URL. When false
+                                listed URLs, dropping the default internal service/pod DNS URL. When false
                                 (default), the listed URLs are appended to the default. Members with no entry
                                 in Members always use the default URL.
                               type: boolean

@@ -188,7 +188,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMemberName(t *testing.T) {
 				Build()
 
 			etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-				PeerURLs: &druidv1alpha1.AdditionalPeerURLsSpec{
+				PeerURLs: &druidv1alpha1.AdditionalURLsSpec{
 					Members: []druidv1alpha1.MemberURLs{
 						{
 							Name: test.memberName,
@@ -299,7 +299,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsTLSScheme(t *testing.T) {
 			etcd := builder.Build()
 
 			etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-				PeerURLs: &druidv1alpha1.AdditionalPeerURLsSpec{
+				PeerURLs: &druidv1alpha1.AdditionalURLsSpec{
 					Members: []druidv1alpha1.MemberURLs{
 						{
 							Name: test.memberName,
@@ -405,7 +405,7 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 				Build()
 
 			etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-				PeerURLs: &druidv1alpha1.AdditionalPeerURLsSpec{
+				PeerURLs: &druidv1alpha1.AdditionalURLsSpec{
 					Members: test.peerURLs,
 				},
 			}
@@ -518,7 +518,7 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsTLSScheme(t *testing.T) {
 			etcd := builder.Build()
 
 			etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-				ClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				ClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 					Members: []druidv1alpha1.MemberURLs{
 						{
 							Name: test.memberName,
@@ -623,7 +623,7 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 			}
 
 			etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-				ClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				ClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 					Members: test.clientURLs,
 				},
 			}
@@ -637,8 +637,6 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsMultipleMembers(t *testing
 // overrideDefaultURL field on additionalAdvertisedURLs.clientURLs:
 //   - The field is optional (defaulting to false); omitting it is valid.
 //   - Explicitly setting it to true or false is valid.
-//   - The TLS scheme CEL rules still fire when overrideDefaultURL is set — URLs
-//     must match the client TLS configuration regardless of the flag.
 func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsOverrideDefaultURL(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 
@@ -702,7 +700,7 @@ func TestValidateSpecEtcdAdditionalAdvertiseClientUrlsOverrideDefaultURL(t *test
 			}
 			etcd := builder.Build()
 			etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-				ClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+				ClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 					OverrideDefaultURL: test.overrideDefaultURL,
 					Members: []druidv1alpha1.MemberURLs{
 						{

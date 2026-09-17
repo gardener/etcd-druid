@@ -659,71 +659,16 @@ spec:
                   additionalAdvertisedURLs:
                     description: |-
                       AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
-                      advertisement. ClientURLs and PeerURLs are configured independently.
+                      advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.
                       Has no effect on externally managed members
                       (spec.externallyManagedMemberAddresses).
                     properties:
                       clientURLs:
                         description: ClientURLs contains extra per-member client URLs.
-                          See AdditionalClientURLsSpec.
+                          See AdditionalURLsSpec.
                         properties:
                           members:
-                            description: Members lists additional client URLs per
-                              member. See MemberURLs for the name format.
-                            items:
-                              description: MemberURLs specifies additional URLs for
-                                a single etcd member.
-                              properties:
-                                name:
-                                  description: |-
-                                    Name is the etcd member name, for example etcd-main-0.
-                                    Must match {etcd-name}-{index} where index is 0 to (replicas-1).
-                                    When spec.memberNamePrefix is set, the name must be
-                                    {memberNamePrefix}-{etcd-name}-{index}.
-                                  maxLength: 253
-                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
-                                  type: string
-                                urls:
-                                  description: |-
-                                    URLs is the list of additional URLs for this member. Each entry must be a valid
-                                    http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379).
-                                  items:
-                                    maxLength: 2048
-                                    type: string
-                                    x-kubernetes-validations:
-                                    - message: must be a valid http:// or https://
-                                        URL (e.g., https://10.0.0.1:2379)
-                                      rule: (self.startsWith('http://') || self.startsWith('https://'))
-                                        && isURL(self)
-                                  maxItems: 5
-                                  minItems: 1
-                                  type: array
-                                  x-kubernetes-list-type: set
-                              required:
-                              - name
-                              - urls
-                              type: object
-                            maxItems: 10
-                            minItems: 1
-                            type: array
-                            x-kubernetes-list-type: atomic
-                          overrideDefaultURL:
-                            default: false
-                            description: |-
-                              OverrideDefaultURL, when true, makes each configured member advertise only its
-                              listed client URLs, dropping the default internal client service URL. When false
-                              (default), the listed URLs are appended to the default. Members with no entry
-                              in Members always use the default URL.
-                            type: boolean
-                        required:
-                        - members
-                        type: object
-                      peerURLs:
-                        description: PeerURLs contains extra per-member peer URLs.
-                          See AdditionalPeerURLsSpec.
-                        properties:
-                          members:
-                            description: Members lists additional peer URLs per member.
+                            description: Members lists additional URLs per member.
                               See MemberURLs for the name format.
                             items:
                               description: MemberURLs specifies additional URLs for
@@ -766,7 +711,62 @@ spec:
                             default: false
                             description: |-
                               OverrideDefaultURL, when true, makes each configured member advertise only its
-                              listed peer URLs, dropping the default internal pod DNS peer URL. When false
+                              listed URLs, dropping the default internal service/pod DNS URL. When false
+                              (default), the listed URLs are appended to the default. Members with no entry
+                              in Members always use the default URL.
+                            type: boolean
+                        required:
+                        - members
+                        type: object
+                      peerURLs:
+                        description: PeerURLs contains extra per-member peer URLs.
+                          See AdditionalURLsSpec.
+                        properties:
+                          members:
+                            description: Members lists additional URLs per member.
+                              See MemberURLs for the name format.
+                            items:
+                              description: MemberURLs specifies additional URLs for
+                                a single etcd member.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name is the etcd member name, for example etcd-main-0.
+                                    Must match {etcd-name}-{index} where index is 0 to (replicas-1).
+                                    When spec.memberNamePrefix is set, the name must be
+                                    {memberNamePrefix}-{etcd-name}-{index}.
+                                  maxLength: 253
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
+                                  type: string
+                                urls:
+                                  description: |-
+                                    URLs is the list of additional URLs for this member. Each entry must be a valid
+                                    http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379).
+                                  items:
+                                    maxLength: 2048
+                                    type: string
+                                    x-kubernetes-validations:
+                                    - message: must be a valid http:// or https://
+                                        URL (e.g., https://10.0.0.1:2379)
+                                      rule: (self.startsWith('http://') || self.startsWith('https://'))
+                                        && isURL(self)
+                                  maxItems: 5
+                                  minItems: 1
+                                  type: array
+                                  x-kubernetes-list-type: set
+                              required:
+                              - name
+                              - urls
+                              type: object
+                            maxItems: 10
+                            minItems: 1
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          overrideDefaultURL:
+                            default: false
+                            description: |-
+                              OverrideDefaultURL, when true, makes each configured member advertise only its
+                              listed URLs, dropping the default internal service/pod DNS URL. When false
                               (default), the listed URLs are appended to the default. Members with no entry
                               in Members always use the default URL.
                             type: boolean
@@ -1388,18 +1388,6 @@ spec:
                     type: integer
                 type: object
                 x-kubernetes-validations:
-                - message: additionalAdvertisedURLs.peerURLs.overrideDefaultURL=true
-                    requires at least one member with URLs
-                  rule: '!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs)
-                    || !has(self.additionalAdvertisedURLs.peerURLs.overrideDefaultURL)
-                    || !self.additionalAdvertisedURLs.peerURLs.overrideDefaultURL
-                    || self.additionalAdvertisedURLs.peerURLs.members.size() > 0'
-                - message: additionalAdvertisedURLs.clientURLs.overrideDefaultURL=true
-                    requires at least one member with URLs
-                  rule: '!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.clientURLs)
-                    || !has(self.additionalAdvertisedURLs.clientURLs.overrideDefaultURL)
-                    || !self.additionalAdvertisedURLs.clientURLs.overrideDefaultURL
-                    || self.additionalAdvertisedURLs.clientURLs.members.size() > 0'
                 - message: when peerUrlTls is enabled, all additional advertise peer
                     URLs must use https://
                   rule: '!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs)

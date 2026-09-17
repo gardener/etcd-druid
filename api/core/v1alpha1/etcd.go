@@ -289,8 +289,6 @@ type SnapshotCompactionSpec struct {
 }
 
 // EtcdConfig defines the configuration for the etcd cluster to be deployed.
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs) || !has(self.additionalAdvertisedURLs.peerURLs.overrideDefaultURL) || !self.additionalAdvertisedURLs.peerURLs.overrideDefaultURL || self.additionalAdvertisedURLs.peerURLs.members.size() > 0",message="additionalAdvertisedURLs.peerURLs.overrideDefaultURL=true requires at least one member with URLs"
-// +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.clientURLs) || !has(self.additionalAdvertisedURLs.clientURLs.overrideDefaultURL) || !self.additionalAdvertisedURLs.clientURLs.overrideDefaultURL || self.additionalAdvertisedURLs.clientURLs.members.size() > 0",message="additionalAdvertisedURLs.clientURLs.overrideDefaultURL=true requires at least one member with URLs"
 // +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs) || !has(self.peerUrlTls) || self.additionalAdvertisedURLs.peerURLs.members.all(m, m.urls.all(u, u.startsWith('https://')))",message="when peerUrlTls is enabled, all additional advertise peer URLs must use https://"
 // +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.peerURLs) || has(self.peerUrlTls) || self.additionalAdvertisedURLs.peerURLs.members.all(m, m.urls.all(u, u.startsWith('http://')))",message="when peerUrlTls is not enabled, all additional advertise peer URLs must use http://"
 // +kubebuilder:validation:XValidation:rule="!has(self.additionalAdvertisedURLs) || !has(self.additionalAdvertisedURLs.clientURLs) || !has(self.clientUrlTls) || self.additionalAdvertisedURLs.clientURLs.members.all(m, m.urls.all(u, u.startsWith('https://')))",message="when clientUrlTls is enabled, all additional advertise client URLs must use https://"
@@ -337,7 +335,7 @@ type EtcdConfig struct {
 	// +optional
 	ClientUrlTLS *TLSConfig `json:"clientUrlTls,omitempty"`
 	// AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
-	// advertisement. ClientURLs and PeerURLs are configured independently.
+	// advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.
 	// Has no effect on externally managed members
 	// (spec.externallyManagedMemberAddresses).
 	// +optional
@@ -414,43 +412,25 @@ type ClientService struct {
 // AdditionalAdvertiseURLsSpec is the top-level container for extra per-member
 // client and peer URLs. ClientURLs and PeerURLs are independent.
 type AdditionalAdvertiseURLsSpec struct {
-	// ClientURLs contains extra per-member client URLs. See AdditionalClientURLsSpec.
+	// ClientURLs contains extra per-member client URLs. See AdditionalURLsSpec.
 	// +optional
-	ClientURLs *AdditionalClientURLsSpec `json:"clientURLs,omitempty"`
-	// PeerURLs contains extra per-member peer URLs. See AdditionalPeerURLsSpec.
+	ClientURLs *AdditionalURLsSpec `json:"clientURLs,omitempty"`
+	// PeerURLs contains extra per-member peer URLs. See AdditionalURLsSpec.
 	// +optional
-	PeerURLs *AdditionalPeerURLsSpec `json:"peerURLs,omitempty"`
+	PeerURLs *AdditionalURLsSpec `json:"peerURLs,omitempty"`
 }
 
-// AdditionalPeerURLsSpec holds extra per-member peer URLs.
-type AdditionalPeerURLsSpec struct {
+// AdditionalURLsSpec holds extra per-member URLs (used for both client and peer advertisement).
+type AdditionalURLsSpec struct {
 	// OverrideDefaultURL, when true, makes each configured member advertise only its
-	// listed peer URLs, dropping the default internal pod DNS peer URL. When false
+	// listed URLs, dropping the default internal service/pod DNS URL. When false
 	// (default), the listed URLs are appended to the default. Members with no entry
 	// in Members always use the default URL.
 	// +optional
 	// +kubebuilder:default=false
 	OverrideDefaultURL *bool `json:"overrideDefaultURL,omitempty"`
 
-	// Members lists additional peer URLs per member. See MemberURLs for the name format.
-	// +required
-	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:MaxItems=10
-	// +listType=atomic
-	Members []MemberURLs `json:"members"`
-}
-
-// AdditionalClientURLsSpec holds extra per-member client URLs.
-type AdditionalClientURLsSpec struct {
-	// OverrideDefaultURL, when true, makes each configured member advertise only its
-	// listed client URLs, dropping the default internal client service URL. When false
-	// (default), the listed URLs are appended to the default. Members with no entry
-	// in Members always use the default URL.
-	// +optional
-	// +kubebuilder:default=false
-	OverrideDefaultURL *bool `json:"overrideDefaultURL,omitempty"`
-
-	// Members lists additional client URLs per member. See MemberURLs for the name format.
+	// Members lists additional URLs per member. See MemberURLs for the name format.
 	// +required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=10
@@ -465,7 +445,6 @@ type MemberURLs struct {
 	// When spec.memberNamePrefix is set, the name must be
 	// {memberNamePrefix}-{etcd-name}-{index}.
 	// +required
-	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$`
 	Name string `json:"name"`
@@ -473,7 +452,6 @@ type MemberURLs struct {
 	// URLs is the list of additional URLs for this member. Each entry must be a valid
 	// http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379).
 	// +required
-	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5
 	// +kubebuilder:validation:items:MaxLength=2048
@@ -485,7 +463,6 @@ type MemberURLs struct {
 // BootstrapExistingMember represents an existing etcd member in a source cluster.
 type BootstrapExistingMember struct {
 	// Name is the etcd member name in the source cluster.
-	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
@@ -495,7 +472,6 @@ type BootstrapExistingMember struct {
 	// Must be valid HTTP or HTTPS URLs with scheme and host; port is optional
 	// (e.g., https://10.0.0.1:2380).
 	// A maximum of 5 peer URLs can be specified per member (constrained by CEL validation cost budget).
-	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=5

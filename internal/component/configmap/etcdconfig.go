@@ -200,20 +200,18 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 			memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 			defaultURL := fmt.Sprintf("%s://%s.%s:%d", scheme, podName, domainName, port)
 
-			var urls []string
+			var additionalURLs []string
+			var overrideDefault bool
 			if advertiseURLType == advertiseURLTypeClient {
-				additionalURLs, overrideDefault := druidv1alpha1.GetAdditionalAdvertiseClientURLs(etcd, podName)
-				if !overrideDefault {
-					urls = append(urls, defaultURL)
-				}
-				urls = append(urls, additionalURLs...)
+				additionalURLs, overrideDefault = druidv1alpha1.GetAdditionalAdvertiseClientURLs(etcd, podName)
 			} else {
-				additionalURLs, overrideDefault := druidv1alpha1.GetAdditionalAdvertisePeerURLs(etcd, podName)
-				if !overrideDefault {
-					urls = append(urls, defaultURL)
-				}
-				urls = append(urls, additionalURLs...)
+				additionalURLs, overrideDefault = druidv1alpha1.GetAdditionalAdvertisePeerURLs(etcd, podName)
 			}
+			urls := make([]string, 0, len(additionalURLs)+1)
+			if !overrideDefault {
+				urls = append(urls, defaultURL)
+			}
+			urls = append(urls, additionalURLs...)
 			advUrlsMap[memberName] = urls
 		}
 	} else {

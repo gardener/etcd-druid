@@ -307,7 +307,7 @@ func TestPrepareInitialCluster(t *testing.T) {
 			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
 			if tc.additionalAdvertisePeerURLs != nil {
 				etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-					PeerURLs: &druidv1alpha1.AdditionalPeerURLsSpec{
+					PeerURLs: &druidv1alpha1.AdditionalURLsSpec{
 						OverrideDefaultURL: tc.overrideDefaultPeerURL,
 						Members:            tc.additionalAdvertisePeerURLs,
 					},
@@ -332,7 +332,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 		memberNamePrefix              *string
 		additionalAdvertisePeerURLs   []druidv1alpha1.MemberURLs
 		overrideDefaultPeerURL        *bool
-		additionalAdvertiseClientURLs *druidv1alpha1.AdditionalClientURLsSpec
+		additionalAdvertiseClientURLs *druidv1alpha1.AdditionalURLsSpec
 		expectedURLs                  map[string][]string
 	}{
 		{
@@ -467,7 +467,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(false),
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
@@ -483,7 +483,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
@@ -499,7 +499,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypePeer,
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(false),
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
@@ -515,7 +515,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "non-existing-member", URLs: []string{"http://10.0.0.99:2379"}},
 				},
@@ -530,7 +530,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcdReplicas:     2,
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "etcd-test-1", URLs: []string{"http://lb-a.example.com:2379", "http://lb-b.example.com:2379"}},
 				},
@@ -546,7 +546,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
 			memberNamePrefix: ptr.To("pfx"),
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
 				},
@@ -562,7 +562,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			peerTLSEnabled:   false,
 			advertiseURLType: advertiseURLTypeClient,
 			memberNamePrefix: ptr.To("pfx"),
-			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalClientURLsSpec{
+			additionalAdvertiseClientURLs: &druidv1alpha1.AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []druidv1alpha1.MemberURLs{
 					{Name: "pfx-etcd-test-0", URLs: []string{"http://10.0.0.1:2379"}},
@@ -617,7 +617,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
 			if tc.additionalAdvertisePeerURLs != nil {
 				etcd.Spec.Etcd.AdditionalAdvertisedURLs = &druidv1alpha1.AdditionalAdvertiseURLsSpec{
-					PeerURLs: &druidv1alpha1.AdditionalPeerURLsSpec{
+					PeerURLs: &druidv1alpha1.AdditionalURLsSpec{
 						OverrideDefaultURL: tc.overrideDefaultPeerURL,
 						Members:            tc.additionalAdvertisePeerURLs,
 					},

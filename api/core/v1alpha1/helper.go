@@ -85,14 +85,6 @@ func IsAdditionalPeerURLConfigured(etcd *Etcd) bool {
 		len(etcd.Spec.Etcd.AdditionalAdvertisedURLs.PeerURLs.Members) > 0
 }
 
-// IsOverrideDefaultPeerURLEnabled returns true if additionalAdvertisedURLs.peerURLs is set
-// with its OverrideDefaultURL flag explicitly true.
-func IsOverrideDefaultPeerURLEnabled(etcd *Etcd) bool {
-	return etcd.Spec.Etcd.AdditionalAdvertisedURLs != nil &&
-		etcd.Spec.Etcd.AdditionalAdvertisedURLs.PeerURLs != nil &&
-		ptr.Deref(etcd.Spec.Etcd.AdditionalAdvertisedURLs.PeerURLs.OverrideDefaultURL, false)
-}
-
 // GetAdditionalAdvertisePeerURLs returns the additional peer URLs for the member
 // backing podName, and whether that member suppresses the default internal peer URL.
 // The lookup accounts for spec.memberNamePrefix.
@@ -100,13 +92,10 @@ func GetAdditionalAdvertisePeerURLs(etcd *Etcd, podName string) ([]string, bool)
 	if !IsAdditionalPeerURLConfigured(etcd) {
 		return nil, false
 	}
-	memberName := GetMemberName(etcd.Spec.MemberNamePrefix, podName)
-	for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisedURLs.PeerURLs.Members {
-		if memberURLs.Name == memberName {
-			return memberURLs.URLs, IsOverrideDefaultPeerURLEnabled(etcd)
-		}
-	}
-	return nil, false
+	overrideDefault := ptr.Deref(etcd.Spec.Etcd.AdditionalAdvertisedURLs.PeerURLs.OverrideDefaultURL, false)
+	return additionalURLsForMember(etcd.Spec.Etcd.AdditionalAdvertisedURLs.PeerURLs,
+		GetMemberName(etcd.Spec.MemberNamePrefix, podName),
+		overrideDefault)
 }
 
 // IsAdditionalClientURLConfigured returns true if additionalAdvertisedURLs.clientURLs is set
@@ -117,14 +106,6 @@ func IsAdditionalClientURLConfigured(etcd *Etcd) bool {
 		len(etcd.Spec.Etcd.AdditionalAdvertisedURLs.ClientURLs.Members) > 0
 }
 
-// IsOverrideDefaultClientURLEnabled returns true if additionalAdvertisedURLs.clientURLs is set
-// with its OverrideDefaultURL flag explicitly true.
-func IsOverrideDefaultClientURLEnabled(etcd *Etcd) bool {
-	return etcd.Spec.Etcd.AdditionalAdvertisedURLs != nil &&
-		etcd.Spec.Etcd.AdditionalAdvertisedURLs.ClientURLs != nil &&
-		ptr.Deref(etcd.Spec.Etcd.AdditionalAdvertisedURLs.ClientURLs.OverrideDefaultURL, false)
-}
-
 // GetAdditionalAdvertiseClientURLs returns the additional client URLs for the member
 // backing podName, and whether that member suppresses the default internal client
 // service URL. The lookup accounts for spec.memberNamePrefix.
@@ -132,10 +113,18 @@ func GetAdditionalAdvertiseClientURLs(etcd *Etcd, podName string) ([]string, boo
 	if !IsAdditionalClientURLConfigured(etcd) {
 		return nil, false
 	}
-	memberName := GetMemberName(etcd.Spec.MemberNamePrefix, podName)
-	for _, memberURLs := range etcd.Spec.Etcd.AdditionalAdvertisedURLs.ClientURLs.Members {
-		if memberURLs.Name == memberName {
-			return memberURLs.URLs, IsOverrideDefaultClientURLEnabled(etcd)
+	overrideDefault := ptr.Deref(etcd.Spec.Etcd.AdditionalAdvertisedURLs.ClientURLs.OverrideDefaultURL, false)
+	return additionalURLsForMember(etcd.Spec.Etcd.AdditionalAdvertisedURLs.ClientURLs,
+		GetMemberName(etcd.Spec.MemberNamePrefix, podName),
+		overrideDefault)
+}
+
+// additionalURLsForMember looks up the URLs for memberName in spec.Members and returns
+// them together with overrideDefault. Returns nil, false when no entry is found.
+func additionalURLsForMember(spec *AdditionalURLsSpec, memberName string, overrideDefault bool) ([]string, bool) {
+	for _, m := range spec.Members {
+		if m.Name == memberName {
+			return m.URLs, overrideDefault
 		}
 	}
 	return nil, false

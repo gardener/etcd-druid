@@ -454,32 +454,15 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `clientURLs` _[AdditionalClientURLsSpec](#additionalclienturlsspec)_ | ClientURLs contains extra per-member client URLs. See AdditionalClientURLsSpec. |  | Optional: \{\} <br /> |
-| `peerURLs` _[AdditionalPeerURLsSpec](#additionalpeerurlsspec)_ | PeerURLs contains extra per-member peer URLs. See AdditionalPeerURLsSpec. |  | Optional: \{\} <br /> |
+| `clientURLs` _[AdditionalURLsSpec](#additionalurlsspec)_ | ClientURLs contains extra per-member client URLs. See AdditionalURLsSpec. |  | Optional: \{\} <br /> |
+| `peerURLs` _[AdditionalURLsSpec](#additionalurlsspec)_ | PeerURLs contains extra per-member peer URLs. See AdditionalURLsSpec. |  | Optional: \{\} <br /> |
 
 
-#### AdditionalClientURLsSpec
-
-
-
-AdditionalClientURLsSpec holds extra per-member client URLs.
+#### AdditionalURLsSpec
 
 
 
-_Appears in:_
-- [AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only its<br />listed client URLs, dropping the default internal client service URL. When false<br />(default), the listed URLs are appended to the default. Members with no entry<br />in Members always use the default URL. | false | Optional: \{\} <br /> |
-| `members` _[MemberURLs](#memberurls) array_ | Members lists additional client URLs per member. See MemberURLs for the name format. |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
-
-
-#### AdditionalPeerURLsSpec
-
-
-
-AdditionalPeerURLsSpec holds extra per-member peer URLs.
+AdditionalURLsSpec holds extra per-member URLs (used for both client and peer advertisement).
 
 
 
@@ -488,8 +471,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only its<br />listed peer URLs, dropping the default internal pod DNS peer URL. When false<br />(default), the listed URLs are appended to the default. Members with no entry<br />in Members always use the default URL. | false | Optional: \{\} <br /> |
-| `members` _[MemberURLs](#memberurls) array_ | Members lists additional peer URLs per member. See MemberURLs for the name format. |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
+| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only its<br />listed URLs, dropping the default internal service/pod DNS URL. When false<br />(default), the listed URLs are appended to the default. Members with no entry<br />in Members always use the default URL. | false | Optional: \{\} <br /> |
+| `members` _[MemberURLs](#memberurls) array_ | Members lists additional URLs per member. See MemberURLs for the name format. |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
 
 
 #### BackupSpec
@@ -557,8 +540,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name is the etcd member name in the source cluster. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br />Required: \{\} <br /> |
-| `peerUrls` _string array_ | PeerURLs are the peer URLs of this member.<br />Must be valid HTTP or HTTPS URLs with scheme and host; port is optional<br />(e.g., https://10.0.0.1:2380).<br />A maximum of 5 peer URLs can be specified per member (constrained by CEL validation cost budget). |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)\} <br />Required: \{\} <br /> |
+| `name` _string_ | Name is the etcd member name in the source cluster. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `peerUrls` _string array_ | PeerURLs are the peer URLs of this member.<br />Must be valid HTTP or HTTPS URLs with scheme and host; port is optional<br />(e.g., https://10.0.0.1:2380).<br />A maximum of 5 peer URLs can be specified per member (constrained by CEL validation cost budget). |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2380)\} <br /> |
 
 
 #### BootstrapJoinedMember
@@ -830,7 +813,7 @@ _Appears in:_
 | `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br />Optional: \{\} <br /> |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  | Optional: \{\} <br /> |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  | Optional: \{\} <br /> |
-| `additionalAdvertisedURLs` _[AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)_ | AdditionalAdvertisedURLs contains extra per-member URLs for client and peer<br />advertisement. ClientURLs and PeerURLs are configured independently.<br />Has no effect on externally managed members<br />(spec.externallyManagedMemberAddresses). |  | Optional: \{\} <br /> |
+| `additionalAdvertisedURLs` _[AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)_ | AdditionalAdvertisedURLs contains extra per-member URLs for client and peer<br />advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.<br />Has no effect on externally managed members<br />(spec.externallyManagedMemberAddresses). |  | Optional: \{\} <br /> |
 | `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerification knob (see PeerTLSConfig). |  | Optional: \{\} <br /> |
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
@@ -1132,13 +1115,12 @@ MemberURLs specifies additional URLs for a single etcd member.
 
 
 _Appears in:_
-- [AdditionalClientURLsSpec](#additionalclienturlsspec)
-- [AdditionalPeerURLsSpec](#additionalpeerurlsspec)
+- [AdditionalURLsSpec](#additionalurlsspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name is the etcd member name, for example etcd-main-0.<br />Must match \{etcd-name\}-\{index\} where index is 0 to (replicas-1).<br />When spec.memberNamePrefix is set, the name must be<br />\{memberNamePrefix\}-\{etcd-name\}-\{index\}. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br />Required: \{\} <br /> |
-| `urls` _string array_ | URLs is the list of additional URLs for this member. Each entry must be a valid<br />http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379). |  | MaxItems: 5 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)\} <br />Required: \{\} <br /> |
+| `name` _string_ | Name is the etcd member name, for example etcd-main-0.<br />Must match \{etcd-name\}-\{index\} where index is 0 to (replicas-1).<br />When spec.memberNamePrefix is set, the name must be<br />\{memberNamePrefix\}-\{etcd-name\}-\{index\}. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br /> |
+| `urls` _string array_ | URLs is the list of additional URLs for this member. Each entry must be a valid<br />http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379). |  | MaxItems: 5 <br />MinItems: 1 <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)\} <br />Required: \{\} <br /> |
 
 
 #### MetricsLevel
