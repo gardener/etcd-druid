@@ -22,7 +22,7 @@ For same-network scenarios, the source's existing in-cluster peer URLs may alrea
 
 For cross-network scenarios, the operator must prepare reachable peer URLs first:
 
-- **etcd-druid managed source:** configure `.spec.etcd.additionalAdvertisePeerURLs` on the source cluster so source members advertise peer URLs reachable from the target network. See [Using Additional Advertise Peer URLs](../usage/using-additional-advertise-peer-urls.md).
+- **etcd-druid managed source:** configure `.spec.etcd.additionalAdvertisedURLs` on the source cluster so source members advertise peer URLs reachable from the target network. See [Using Additional Advertised URLs](../usage/using-additional-advertised-urls.md).
 - **Externally managed source:** configure the source cluster outside etcd-druid so its member list advertises peer URLs reachable from the target network. The target spec must use those advertised URLs.
 
 Only the peer URLs listed in `.spec.etcd.bootstrapWithExistingCluster.members[*].peerUrls` need to be reachable from the target members. The source's other internal peer URLs may remain private if they are not used in the target spec.
@@ -111,6 +111,6 @@ URL schemes are validated at admission time, but certificate trust is validated 
 ## Related
 
 - [Bootstrapping with an Existing etcd Cluster](../usage/bootstrapping-with-existing-cluster.md) — user-facing setup and verification guide.
-- [Using Additional Advertise Peer URLs](../usage/using-additional-advertise-peer-urls.md) — useful when an etcd-druid managed source must advertise peer URLs reachable from another network.
+- [Using Additional Advertised URLs](../usage/using-additional-advertised-urls.md) — useful when an etcd-druid managed source must advertise peer URLs reachable from another network.
 - [etcd Learner Design](https://etcd.io/docs/v3.5/learning/design-learner/) — upstream learner protocol.
 - [etcd Clustering Guide](https://etcd.io/docs/v3.5/op-guide/clustering/) — etcd cluster formation and `initial-cluster` semantics.
