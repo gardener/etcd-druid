@@ -1,0 +1,15 @@
+ocm:
+  component_name: github.com/gardener/etcd-wrapper
+  component_version: v0.8.2
+release_notes:
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: ccwienk
+  category: noteworthy
+  contents: Runtime base image bumped from `distroless/static-debian11` to `distroless/static-debian12`
+    to address Debian 11 EOL (PCI/ISP-013 finding).
+  mimetype: text/markdown
+  reference: '[#102](https://github.com/gardener/etcd-wrapper/pull/102)'
+  type: standard
