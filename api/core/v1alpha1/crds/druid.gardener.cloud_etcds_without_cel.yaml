@@ -605,46 +605,66 @@ spec:
                   properties:
                     additionalAdvertisePeerURLs:
                       description: |-
-                        AdditionalAdvertisePeerURLs contains extra per-member peer URLs to append
-                        to initial-advertise-peer-urls. Each entry maps a member name to its
-                        additional URLs. The member name must follow the pattern {etcd-name}-{index}
-                        where index is 0 to (replicas-1) (e.g., etcd-main-0, etcd-main-1 etc).
-                        When spec.memberNamePrefix is set, member names become
-                        `<memberNamePrefix>-<podName>`.
+                        AdditionalAdvertisePeerURLs holds extra per-member peer URLs added to
+                        initial-advertise-peer-urls, and a flag controlling whether the default
+                        internal peer service URL is suppressed.
                         Updating this field on a running cluster triggers a ConfigMap update
                         and a rolling restart of the StatefulSet.
-                      items:
-                        description: MemberPeerURLs specifies additional peer URLs for a specific etcd member.
-                        properties:
-                          memberName:
-                            description: |-
-                              MemberName is the etcd member name.
-                              Must match the etcd member name of the cluster (e.g., etcd-main-0).
-                              When spec.memberNamePrefix is set, the member name becomes
-                              `<memberNamePrefix>-<podName>`. The top-level CEL rules on
-                              Etcd already incorporate the prefix when validating these names.
-                            maxLength: 253
-                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
-                            type: string
-                          urls:
-                            description: |-
-                              URLs is a list of additional peer URLs for this member.
-                              These will be appended to the default internal service URL.
-                              A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
-                              Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380).
-                            items:
-                              maxLength: 2048
-                              type: string
-                            maxItems: 5
-                            minItems: 1
-                            type: array
-                            x-kubernetes-list-type: set
-                        required:
-                          - memberName
-                          - urls
-                        type: object
-                      maxItems: 10
-                      type: array
+                      properties:
+                        members:
+                          description: |-
+                            Members contains per-member additional peer URLs.
+                            Member names must follow the pattern {etcd-name}-{index}, where index is
+                            0 to (replicas-1) (e.g. etcd-main-0). When spec.memberNamePrefix is set,
+                            member names become `<memberNamePrefix>-<podName>`.
+                          items:
+                            description: MemberPeerURLs specifies additional peer URLs for a specific etcd member.
+                            properties:
+                              name:
+                                description: |-
+                                  Name is the etcd member name.
+                                  Must match the etcd member name of the cluster (e.g., etcd-main-0).
+                                  When spec.memberNamePrefix is set, the member name becomes
+                                  `<memberNamePrefix>-<podName>`. The top-level CEL rules on
+                                  Etcd already incorporate the prefix when validating these names.
+                                maxLength: 253
+                                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$
+                                type: string
+                              urls:
+                                description: |-
+                                  URLs is a list of additional peer URLs for this member.
+                                  These are appended to the member's internal peer service URL, unless
+                                  AdditionalPeerURLsSpec.OverrideDefaultURL is true, in which case only
+                                  these URLs are advertised.
+                                  A maximum of 5 URLs can be specified per member (constrained by CEL validation cost budget).
+                                  Must be valid HTTP(S) URLs with scheme and host; port is optional (e.g., https://10.0.0.1:2380).
+                                items:
+                                  maxLength: 2048
+                                  type: string
+                                maxItems: 5
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: set
+                            required:
+                              - name
+                              - urls
+                            type: object
+                          maxItems: 10
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        overrideDefaultURL:
+                          default: false
+                          description: |-
+                            OverrideDefaultURL, when true, makes each configured member advertise only
+                            its listed URLs and omit the default internal peer service URL. This is
+                            needed when two clusters share an Etcd resource name and their internal
+                            peer service DNS would otherwise collide.
+                            Defaults to false, meaning the listed URLs are appended to the internal service URL.
+                          type: boolean
+                      required:
+                        - members
+                      type: object
                     authSecretRef:
                       description: |-
                         SecretReference represents a Secret Reference. It has enough information to retrieve secret

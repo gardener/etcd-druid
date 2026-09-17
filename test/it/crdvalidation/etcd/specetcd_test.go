@@ -187,10 +187,12 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMemberName(t *testing.T) {
 				WithReplicas(test.replicas).
 				Build()
 
-			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
-				{
-					MemberName: test.memberName,
-					URLs:       test.urls,
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = &druidv1alpha1.AdditionalPeerURLsSpec{
+				Members: []druidv1alpha1.MemberPeerURLs{
+					{
+						Name: test.memberName,
+						URLs: test.urls,
+					},
 				},
 			}
 
@@ -294,10 +296,12 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsTLSScheme(t *testing.T) {
 
 			etcd := builder.Build()
 
-			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = []druidv1alpha1.MemberPeerURLs{
-				{
-					MemberName: test.memberName,
-					URLs:       test.urls,
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = &druidv1alpha1.AdditionalPeerURLsSpec{
+				Members: []druidv1alpha1.MemberPeerURLs{
+					{
+						Name: test.memberName,
+						URLs: test.urls,
+					},
 				},
 			}
 
@@ -324,16 +328,16 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			replicas: 3,
 			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
-					MemberName: "etcd-multi-0",
-					URLs:       []string{"http://10.0.0.1:2380"},
+					Name: "etcd-multi-0",
+					URLs: []string{"http://10.0.0.1:2380"},
 				},
 				{
-					MemberName: "etcd-multi-1",
-					URLs:       []string{"http://10.0.0.2:2380"},
+					Name: "etcd-multi-1",
+					URLs: []string{"http://10.0.0.2:2380"},
 				},
 				{
-					MemberName: "etcd-multi-2",
-					URLs:       []string{"http://10.0.0.3:2380"},
+					Name: "etcd-multi-2",
+					URLs: []string{"http://10.0.0.3:2380"},
 				},
 			},
 			expectErr: false,
@@ -344,12 +348,12 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			replicas: 5,
 			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
-					MemberName: "etcd-subset-0",
-					URLs:       []string{"http://10.0.0.1:2380"},
+					Name: "etcd-subset-0",
+					URLs: []string{"http://10.0.0.1:2380"},
 				},
 				{
-					MemberName: "etcd-subset-2",
-					URLs:       []string{"http://10.0.0.3:2380"},
+					Name: "etcd-subset-2",
+					URLs: []string{"http://10.0.0.3:2380"},
 				},
 			},
 			expectErr: false,
@@ -360,12 +364,12 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			replicas: 3,
 			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
-					MemberName: "etcd-mixed-0",
-					URLs:       []string{"http://10.0.0.1:2380"},
+					Name: "etcd-mixed-0",
+					URLs: []string{"http://10.0.0.1:2380"},
 				},
 				{
-					MemberName: "etcd-other-1",
-					URLs:       []string{"http://10.0.0.2:2380"},
+					Name: "etcd-other-1",
+					URLs: []string{"http://10.0.0.2:2380"},
 				},
 			},
 			expectErr: true,
@@ -376,12 +380,12 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 			replicas: 3,
 			peerURLs: []druidv1alpha1.MemberPeerURLs{
 				{
-					MemberName: "etcd-bounds-0",
-					URLs:       []string{"http://10.0.0.1:2380"},
+					Name: "etcd-bounds-0",
+					URLs: []string{"http://10.0.0.1:2380"},
 				},
 				{
-					MemberName: "etcd-bounds-5",
-					URLs:       []string{"http://10.0.0.6:2380"},
+					Name: "etcd-bounds-5",
+					URLs: []string{"http://10.0.0.6:2380"},
 				},
 			},
 			expectErr: true,
@@ -396,8 +400,92 @@ func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsMultipleMembers(t *testing.T
 				WithReplicas(test.replicas).
 				Build()
 
-			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = test.peerURLs
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = &druidv1alpha1.AdditionalPeerURLsSpec{
+				Members: test.peerURLs,
+			}
 
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
+
+// TestValidateSpecEtcdAdditionalAdvertisePeerUrlsOverrideDefaultURL validates the
+// overrideDefaultURL field on spec.etcd.additionalAdvertisePeerURLs:
+//   - The field is optional (defaulting to false); omitting it is valid.
+//   - Explicitly setting it to true or false is valid.
+//   - The TLS scheme CEL rules still fire when overrideDefaultURL is set — URLs
+//     must match the peer TLS configuration regardless of the flag.
+func TestValidateSpecEtcdAdditionalAdvertisePeerUrlsOverrideDefaultURL(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+
+	tests := []struct {
+		name               string
+		etcdName           string
+		tlsEnabled         bool
+		overrideDefaultURL *bool
+		urls               []string
+		expectErr          bool
+	}{
+		{
+			name:               "Valid: overrideDefaultURL omitted (defaults to false)",
+			etcdName:           "etcd-override-omitted",
+			tlsEnabled:         false,
+			overrideDefaultURL: nil,
+			urls:               []string{"http://10.0.0.1:2380"},
+			expectErr:          false,
+		},
+		{
+			name:               "Valid: overrideDefaultURL=false explicitly",
+			etcdName:           "etcd-override-false",
+			tlsEnabled:         false,
+			overrideDefaultURL: ptr.To(false),
+			urls:               []string{"http://10.0.0.1:2380"},
+			expectErr:          false,
+		},
+		{
+			name:               "Valid: overrideDefaultURL=true with http URLs and no TLS",
+			etcdName:           "etcd-override-true-http",
+			tlsEnabled:         false,
+			overrideDefaultURL: ptr.To(true),
+			urls:               []string{"http://10.0.0.1:2380"},
+			expectErr:          false,
+		},
+		{
+			name:               "Valid: overrideDefaultURL=true with https URLs and TLS enabled",
+			etcdName:           "etcd-override-true-https",
+			tlsEnabled:         true,
+			overrideDefaultURL: ptr.To(true),
+			urls:               []string{"https://10.0.0.1:2380"},
+			expectErr:          false,
+		},
+		{
+			name:               "Invalid: overrideDefaultURL=true but https URL without TLS — scheme CEL fires",
+			etcdName:           "etcd-override-true-scheme-mismatch",
+			tlsEnabled:         false,
+			overrideDefaultURL: ptr.To(true),
+			urls:               []string{"https://10.0.0.1:2380"},
+			expectErr:          true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			builder := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3)
+			if test.tlsEnabled {
+				builder = builder.WithPeerTLS()
+			}
+			etcd := builder.Build()
+			etcd.Spec.Etcd.AdditionalAdvertisePeerURLs = &druidv1alpha1.AdditionalPeerURLsSpec{
+				OverrideDefaultURL: test.overrideDefaultURL,
+				Members: []druidv1alpha1.MemberPeerURLs{
+					{
+						Name: test.etcdName + "-0",
+						URLs: test.urls,
+					},
+				},
+			}
 			validateEtcdCreation(g, etcd, test.expectErr)
 		})
 	}

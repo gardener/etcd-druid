@@ -565,6 +565,172 @@ func TestIsPodManagementEnabled(t *testing.T) {
 	}
 }
 
+func TestIsAdditionalPeerURLConfigured(t *testing.T) {
+	tests := []struct {
+		name     string
+		spec     *AdditionalPeerURLsSpec
+		expected bool
+	}{
+		{
+			name:     "nil spec — not configured",
+			spec:     nil,
+			expected: false,
+		},
+		{
+			name:     "empty Members slice — not configured",
+			spec:     &AdditionalPeerURLsSpec{Members: []MemberPeerURLs{}},
+			expected: false,
+		},
+		{
+			name: "one member entry — configured",
+			spec: &AdditionalPeerURLsSpec{
+				Members: []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			expected: true,
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := &Etcd{Spec: EtcdSpec{Etcd: EtcdConfig{AdditionalAdvertisePeerURLs: test.spec}}}
+			g.Expect(IsAdditionalPeerURLConfigured(etcd)).To(Equal(test.expected))
+		})
+	}
+}
+
+func TestIsOverrideDefaultURLEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		spec     *AdditionalPeerURLsSpec
+		expected bool
+	}{
+		{
+			name:     "nil spec — disabled",
+			spec:     nil,
+			expected: false,
+		},
+		{
+			name:     "OverrideDefaultURL nil — disabled",
+			spec:     &AdditionalPeerURLsSpec{Members: []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}}},
+			expected: false,
+		},
+		{
+			name: "OverrideDefaultURL=false — disabled",
+			spec: &AdditionalPeerURLsSpec{
+				OverrideDefaultURL: ptr.To(false),
+				Members:            []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			expected: false,
+		},
+		{
+			name: "OverrideDefaultURL=true — enabled",
+			spec: &AdditionalPeerURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members:            []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			expected: true,
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := &Etcd{Spec: EtcdSpec{Etcd: EtcdConfig{AdditionalAdvertisePeerURLs: test.spec}}}
+			g.Expect(IsOverrideDefaultURLEnabled(etcd)).To(Equal(test.expected))
+		})
+	}
+}
+
+func TestGetAdditionalAdvertisePeerURLs(t *testing.T) {
+	tests := []struct {
+		name             string
+		memberNamePrefix *string
+		spec             *AdditionalPeerURLsSpec
+		podName          string
+		expectedURLs     []string
+		expectedOverride bool
+	}{
+		{
+			name:             "nil spec — no URLs, no override",
+			spec:             nil,
+			podName:          "etcd-test-0",
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+		{
+			name: "matching member, override=false",
+			spec: &AdditionalPeerURLsSpec{
+				OverrideDefaultURL: ptr.To(false),
+				Members:            []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			podName:          "etcd-test-0",
+			expectedURLs:     []string{"http://10.0.0.1:2380"},
+			expectedOverride: false,
+		},
+		{
+			name: "matching member, override=true",
+			spec: &AdditionalPeerURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members:            []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			podName:          "etcd-test-0",
+			expectedURLs:     []string{"http://10.0.0.1:2380"},
+			expectedOverride: true,
+		},
+		{
+			name: "non-matching pod — no URLs, no override",
+			spec: &AdditionalPeerURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members:            []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			podName:          "etcd-test-1",
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+		{
+			name:             "memberNamePrefix applied — matching member found",
+			memberNamePrefix: ptr.To("myprefix"),
+			spec: &AdditionalPeerURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members:            []MemberPeerURLs{{Name: "myprefix-etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			podName:          "etcd-test-0",
+			expectedURLs:     []string{"http://10.0.0.1:2380"},
+			expectedOverride: true,
+		},
+		{
+			name:             "memberNamePrefix applied — pod without prefix does not match prefixed entry",
+			memberNamePrefix: ptr.To("myprefix"),
+			spec: &AdditionalPeerURLsSpec{
+				Members: []MemberPeerURLs{{Name: "etcd-test-0", URLs: []string{"http://10.0.0.1:2380"}}},
+			},
+			podName:          "etcd-test-0",
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+	}
+	g := NewWithT(t)
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := &Etcd{
+				ObjectMeta: metav1.ObjectMeta{Name: etcdName, Namespace: etcdNamespace},
+				Spec: EtcdSpec{
+					MemberNamePrefix: test.memberNamePrefix,
+					Etcd:             EtcdConfig{AdditionalAdvertisePeerURLs: test.spec},
+				},
+			}
+			urls, override := GetAdditionalAdvertisePeerURLs(etcd, test.podName)
+			g.Expect(urls).To(Equal(test.expectedURLs))
+			g.Expect(override).To(Equal(test.expectedOverride))
+		})
+	}
+}
+
 func createEtcdObjectMetadata(uid types.UID, annotations, labels map[string]string, markedForDeletion bool) metav1.ObjectMeta {
 	etcdObjMeta := metav1.ObjectMeta{
 		Name:        etcdName,
