@@ -569,7 +569,7 @@ func TestIsAdditionalClientURLConfigured(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name           string
-		clientURLsSpec *AdditionalClientURLsSpec
+		clientURLsSpec *AdditionalURLsSpec
 		expected       bool
 	}{
 		{
@@ -579,14 +579,14 @@ func TestIsAdditionalClientURLConfigured(t *testing.T) {
 		},
 		{
 			name: "empty members — returns false",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				Members: []MemberURLs{},
 			},
 			expected: false,
 		},
 		{
 			name: "one member — returns true",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				Members: []MemberURLs{
 					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
 				},
@@ -607,61 +607,6 @@ func TestIsAdditionalClientURLConfigured(t *testing.T) {
 	}
 }
 
-func TestIsOverrideDefaultClientURLEnabled(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		name           string
-		clientURLsSpec *AdditionalClientURLsSpec
-		expected       bool
-	}{
-		{
-			name:           "nil spec — returns false",
-			clientURLsSpec: nil,
-			expected:       false,
-		},
-		{
-			name: "overrideDefaultURL unset — returns false",
-			clientURLsSpec: &AdditionalClientURLsSpec{
-				Members: []MemberURLs{
-					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "overrideDefaultURL explicitly false — returns false",
-			clientURLsSpec: &AdditionalClientURLsSpec{
-				OverrideDefaultURL: ptr.To(false),
-				Members: []MemberURLs{
-					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "overrideDefaultURL true — returns true",
-			clientURLsSpec: &AdditionalClientURLsSpec{
-				OverrideDefaultURL: ptr.To(true),
-				Members: []MemberURLs{
-					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
-				},
-			},
-			expected: true,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-			etcd := &Etcd{}
-			if tc.clientURLsSpec != nil {
-				etcd.Spec.Etcd.AdditionalAdvertisedURLs = &AdditionalAdvertiseURLsSpec{ClientURLs: tc.clientURLsSpec}
-			}
-			g.Expect(IsOverrideDefaultClientURLEnabled(etcd)).To(Equal(tc.expected))
-		})
-	}
-}
-
 func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 	t.Parallel()
 	const testEtcdName = "etcd-main"
@@ -670,7 +615,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 	testCases := []struct {
 		name             string
 		memberNamePrefix *string
-		clientURLsSpec   *AdditionalClientURLsSpec
+		clientURLsSpec   *AdditionalURLsSpec
 		podName          string
 		expectedURLs     []string
 		expectedOverride bool
@@ -685,7 +630,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 		{
 			name:    "member not found — returns nil, false",
 			podName: "etcd-main-0",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				Members: []MemberURLs{
 					{Name: "etcd-main-1", URLs: []string{"http://1.2.3.4:2379"}},
 				},
@@ -696,7 +641,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 		{
 			name:    "member not found, overrideDefaultURL true — override still false",
 			podName: "etcd-main-0",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []MemberURLs{
 					{Name: "etcd-main-1", URLs: []string{"http://1.2.3.4:2379"}},
@@ -708,7 +653,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 		{
 			name:    "member found, no prefix, override false",
 			podName: "etcd-main-0",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(false),
 				Members: []MemberURLs{
 					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
@@ -720,7 +665,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 		{
 			name:    "member found, no prefix, override true",
 			podName: "etcd-main-0",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				OverrideDefaultURL: ptr.To(true),
 				Members: []MemberURLs{
 					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
@@ -733,7 +678,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 			name:             "member found with memberNamePrefix",
 			podName:          "etcd-main-0",
 			memberNamePrefix: ptr.To("pfx"),
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				Members: []MemberURLs{
 					{Name: "pfx-etcd-main-0", URLs: []string{"http://1.2.3.4:2379"}},
 				},
@@ -744,7 +689,7 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 		{
 			name:    "empty Members slice — returns nil, false",
 			podName: "etcd-main-0",
-			clientURLsSpec: &AdditionalClientURLsSpec{
+			clientURLsSpec: &AdditionalURLsSpec{
 				Members: []MemberURLs{},
 			},
 			expectedURLs:     nil,
@@ -768,6 +713,160 @@ func TestGetAdditionalAdvertiseClientURLs(t *testing.T) {
 			}
 
 			gotURLs, gotOverride := GetAdditionalAdvertiseClientURLs(etcd, tc.podName)
+			g.Expect(gotURLs).To(Equal(tc.expectedURLs))
+			g.Expect(gotOverride).To(Equal(tc.expectedOverride))
+		})
+	}
+}
+
+func TestIsAdditionalPeerURLConfigured(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name         string
+		peerURLsSpec *AdditionalURLsSpec
+		expected     bool
+	}{
+		{
+			name:         "nil spec — returns false",
+			peerURLsSpec: nil,
+			expected:     false,
+		},
+		{
+			name: "empty members — returns false",
+			peerURLsSpec: &AdditionalURLsSpec{
+				Members: []MemberURLs{},
+			},
+			expected: false,
+		},
+		{
+			name: "one member — returns true",
+			peerURLsSpec: &AdditionalURLsSpec{
+				Members: []MemberURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2380"}},
+				},
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{}
+			if tc.peerURLsSpec != nil {
+				etcd.Spec.Etcd.AdditionalAdvertisedURLs = &AdditionalAdvertiseURLsSpec{PeerURLs: tc.peerURLsSpec}
+			}
+			g.Expect(IsAdditionalPeerURLConfigured(etcd)).To(Equal(tc.expected))
+		})
+	}
+}
+
+func TestGetAdditionalAdvertisePeerURLs(t *testing.T) {
+	t.Parallel()
+	const testEtcdName = "etcd-main"
+	const testNamespace = "test-ns"
+
+	testCases := []struct {
+		name             string
+		memberNamePrefix *string
+		peerURLsSpec     *AdditionalURLsSpec
+		podName          string
+		expectedURLs     []string
+		expectedOverride bool
+	}{
+		{
+			name:             "field nil — returns nil, false",
+			podName:          "etcd-main-0",
+			peerURLsSpec:     nil,
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+		{
+			name:    "member not found — returns nil, false",
+			podName: "etcd-main-0",
+			peerURLsSpec: &AdditionalURLsSpec{
+				Members: []MemberURLs{
+					{Name: "etcd-main-1", URLs: []string{"http://1.2.3.4:2380"}},
+				},
+			},
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+		{
+			name:    "member not found, overrideDefaultURL true — override still false",
+			podName: "etcd-main-0",
+			peerURLsSpec: &AdditionalURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members: []MemberURLs{
+					{Name: "etcd-main-1", URLs: []string{"http://1.2.3.4:2380"}},
+				},
+			},
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+		{
+			name:    "member found, no prefix, override false",
+			podName: "etcd-main-0",
+			peerURLsSpec: &AdditionalURLsSpec{
+				OverrideDefaultURL: ptr.To(false),
+				Members: []MemberURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2380"}},
+				},
+			},
+			expectedURLs:     []string{"http://1.2.3.4:2380"},
+			expectedOverride: false,
+		},
+		{
+			name:    "member found, no prefix, override true",
+			podName: "etcd-main-0",
+			peerURLsSpec: &AdditionalURLsSpec{
+				OverrideDefaultURL: ptr.To(true),
+				Members: []MemberURLs{
+					{Name: "etcd-main-0", URLs: []string{"http://1.2.3.4:2380"}},
+				},
+			},
+			expectedURLs:     []string{"http://1.2.3.4:2380"},
+			expectedOverride: true,
+		},
+		{
+			name:             "member found with memberNamePrefix",
+			podName:          "etcd-main-0",
+			memberNamePrefix: ptr.To("pfx"),
+			peerURLsSpec: &AdditionalURLsSpec{
+				Members: []MemberURLs{
+					{Name: "pfx-etcd-main-0", URLs: []string{"http://1.2.3.4:2380"}},
+				},
+			},
+			expectedURLs:     []string{"http://1.2.3.4:2380"},
+			expectedOverride: false,
+		},
+		{
+			name:    "empty Members slice — returns nil, false",
+			podName: "etcd-main-0",
+			peerURLsSpec: &AdditionalURLsSpec{
+				Members: []MemberURLs{},
+			},
+			expectedURLs:     nil,
+			expectedOverride: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			etcd := &Etcd{}
+			etcd.Name = testEtcdName
+			etcd.Namespace = testNamespace
+			if tc.peerURLsSpec != nil {
+				etcd.Spec.Etcd.AdditionalAdvertisedURLs = &AdditionalAdvertiseURLsSpec{PeerURLs: tc.peerURLsSpec}
+			}
+			if tc.memberNamePrefix != nil {
+				etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
+			}
+
+			gotURLs, gotOverride := GetAdditionalAdvertisePeerURLs(etcd, tc.podName)
 			g.Expect(gotURLs).To(Equal(tc.expectedURLs))
 			g.Expect(gotOverride).To(Equal(tc.expectedOverride))
 		})
