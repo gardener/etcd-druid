@@ -13,6 +13,7 @@ In order to track the progress of creation of etcd cluster resources you can do 
 * `status.lastOperation` can be monitored to check the status of reconciliation.
 
 * Additional printer columns have been defined for `Etcd` custom resource. You can execute the following command to know if an `Etcd` cluster is ready/quorate.
+
 ```bash
 kubectl get etcd <etcd-name> -n <namespace> -owide
   # you will see additional columns which will indicate the state of an etcd cluster
@@ -23,11 +24,13 @@ kubectl get etcd <etcd-name> -n <namespace> -owide
 * You can additional monitor [all etcd cluster resources](../concepts/etcd-cluster-components.md) that are created for every etcd cluster. 
 
   For etcd-druid version <v0.23.0 use the following command:
+
 ```bash
 kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=instance=<etcd-name>
 ```
 
   For etcd-druid version >=v0.23.0 use the following command:
+
 ```bash
 kubectl get all,cm,role,rolebinding,lease,sa -n <namespace> --selector=app.kubernetes.io/managed-by=etcd-druid,app.kubernetes.io/part-of=<etcd-name>
 ```
@@ -89,6 +92,7 @@ If `etcd-druid` has been deployed with auto-reconciliation then any change done 
 > For a complete list of CLI args you can see [this](../deployment/configure-etcd-druid.md) document.
 
 #### Explicit reconciliation
+
 If `--enable-etcd-spec-auto-reconcile` is set to false or not set at all, then any change to an `Etcd` resource will not be automatically reconciled. To trigger a reconcile you must set the following annotation on the `Etcd` resource:
 
 ```bash
@@ -96,6 +100,41 @@ kubectl annotate etcd <etcd-name> gardener.cloud/operation=reconcile -n <namespa
 ```
 
 This option is sometimes recommeded as you would like avoid auto-reconciliation of accidental changes to `Etcd` resources outside the maintenance time window, thus preventing a potential transient quorum loss due to misconfiguration, attach-detach issues of persistent volumes etc.
+
+### Full snapshot before a StatefulSet update
+
+Before `etcd-druid` rolls the etcd `StatefulSet` due to a container image or replica count change, it triggers a full snapshot via an [`EtcdOpsTask`](using-etcdopstask.md). This provides a recent recovery point in case the rollout results in data corruption or data loss. This behavior applies to both HA and non-HA setups.
+
+The snapshot is attempted a bounded number of times. If all attempts fail, `etcd-druid` proceeds with the update without a fresh snapshot, so that a persistently failing snapshot does not block updates indefinitely.
+
+#### Skip the snapshot before updates
+
+If snapshots are known to be failing, or you need changes to roll out quickly without waiting for a snapshot, you can instruct `etcd-druid` to skip the pre-update snapshot by annotating the `Etcd` resource with `druid.gardener.cloud/skip-spec-update-snapshot`:
+
+```bash
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/skip-spec-update-snapshot=
+```
+
+This annotation is:
+
+* **Presence-only**: the annotation value is ignored; simply having the key present enables the skip.
+* **Persistent**: while the annotation is present, the pre-update snapshot is always skipped. `etcd-druid` does not remove it — remove the annotation yourself to re-enable pre-update snapshots.
+* **Scoped to image/replica updates**: it does not affect the full snapshot taken before hibernation (scaling the cluster to zero replicas).
+* **Limited to the pre-update snapshot**: the regular scheduled full and delta snapshots, as well as out-of-band snapshots, continue to be taken as usual while the annotation is present.
+
+#### Surfacing snapshot failures
+
+If the pre-update snapshot exhausts its retries, `etcd-druid` proceeds with the update without a fresh snapshot and records a `Warning` event with the reason `PreSyncSnapshotFailed` on the `Etcd` resource. You can view the event using:
+
+```bash
+kubectl describe etcd <etcd-name> -n <namespace>
+```
+
+> [!NOTE]
+> A `PreSyncSnapshotFailed` event means that the update proceeded without a fresh snapshot. Inspect the `presync-snapshot-update-*` [`EtcdOpsTask`](using-etcdopstask.md) resources and the backup configuration to determine why the snapshot failed.
+
+> [!WARNING]
+> `etcd-druid` detects a container image change by comparing the images it expects (derived from the `Etcd` resource and the configured image vector) against the images currently set on the `StatefulSet`. Always customize container images declaratively via the `Etcd` spec (see [Overwrite Container OCI Images](#overwrite-container-oci-images)) so that `etcd-druid` applies them as part of its own reconciliation. Do **not** mutate the images on the managed `StatefulSet` out-of-band through a mutating admission webhook, etc since such mutations are not reconciled by `etcd-druid`, so every reconciliation will detect an image difference and repeatedly trigger a pre-update snapshot.
 
 ## Overwrite Container OCI Images
 
@@ -134,6 +173,7 @@ Edit the `etcd-druid` `Deployment` with:
 * Set `IMAGEVECTOR_OVERWRITE` environment variable whose value must be the path you choose to mount the `ConfigMap`.
 
 To illustrate the changes you can see the following `etcd-druid` Deployment YAML:
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -166,18 +206,18 @@ We provide a generic way to suspend etcd cluster reconciliation via etcd-druid, 
 
 ## Manually modify individual etcd cluster resources
 
-`etcd` cluster resources are managed by `etcd-druid` and since v0.23.0 version of `etcd-druid` any changes to these managed resources are protected via a validating webhook. You can find more information about this webhook [here](../concepts/etcd-cluster-resource-protection.md). To be able to manually modify etcd cluster managed resources two things needs to be done:
+`etcd` cluster resources are managed by `etcd-druid` and since v0.23.0 version of `etcd-druid` any changes to these managed resources are protected via a validating webhook. You can find more information about this webhook in the [concept](../concepts/etcd-cluster-resource-protection.md). To be able to manually modify etcd cluster managed resources two things needs to be done:
 
 1. Annotate the target `Etcd` resource suspending any reconciliation by `etcd-druid`. You can do this by invoking the following command:
 
 ```bash
-   kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile=
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/suspend-etcd-spec-reconcile=
 ```
 
 2. Add another annotation to the target `Etcd` resource disabling managed resource protection via the webhook. You can do this by invoking the following command:
 
 ```bash
-   kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
+kubectl annotate etcd <etcd-name> -n <namespace> druid.gardener.cloud/disable-etcd-component-protection=
 ```
 
 Now you are free to make changes to any managed etcd cluster resource.
