@@ -1,0 +1,36 @@
+// build: https://sequencediagram.org
+
+title etcd-backup-restore work-flow life-cycle
+
+
+participant etcd-backup-restore http server (initialize)
+participant health checker and lease renewer
+participant etcd-backup-restore leader elector/detector
+participant snapshotter
+participant defragmenter
+participant member-garbagecollector
+
+activate etcd-backup-restore http server (initialize)
+activate health checker and lease renewer
+activate etcd-backup-restore leader elector/detector
+
+etcd-backup-restore leader elector/detector->etcd-backup-restore leader elector/detector: OnLeaderStart
+etcd-backup-restore leader elector/detector->snapshotter: Start
+activate snapshotter
+
+etcd-backup-restore leader elector/detector->defragmenter: Start
+activate defragmenter
+
+etcd-backup-restore leader elector/detector->member-garbagecollector: Start
+activate member-garbagecollector
+
+etcd-backup-restore leader elector/detector->etcd-backup-restore leader elector/detector: OnLeaderStop
+OnLeaderStart
+etcd-backup-restore leader elector/detector->snapshotter: Stop
+deactivate snapshotter
+
+etcd-backup-restore leader elector/detector->defragmenter: Stop
+deactivate defragmenter
+
+etcd-backup-restore leader elector/detector->member-garbagecollector: Stop
+deactivate member-garbagecollector
