@@ -12,7 +12,8 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	etcdfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
+	clientkubernetes "github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -34,6 +35,7 @@ import (
 
 // ------------------------ GetExistingResourceNames ------------------------
 func TestGetExistingResourceNames(t *testing.T) {
+	t.Parallel()
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
 	testCases := []struct {
 		name             string
@@ -65,7 +67,6 @@ func TestGetExistingResourceNames(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -74,7 +75,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
-			operator := New(cl, nil)
+			operator := New(cl, nil, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
@@ -89,6 +90,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 
 // ----------------------------------- PreSync -----------------------------------
 func TestPreSync(t *testing.T) {
+	t.Parallel()
 	const (
 		oldImage     = "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.2"
 		currentImage = ""
@@ -285,10 +287,10 @@ func TestPreSync(t *testing.T) {
 			}
 
 			cl := testutils.NewTestClientBuilder().
-				WithScheme(kubernetes.Scheme).
+				WithScheme(clientkubernetes.Scheme).
 				WithObjects(existingObjects...).
 				Build()
-			operator := New(cl, iv)
+			operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 
 			syncErr := operator.PreSync(opCtx, etcd)
@@ -307,6 +309,7 @@ func TestPreSync(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoSTSExists(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                        string
 		replicas                    int32
@@ -388,7 +391,6 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	}
 
 	g := NewWithT(t)
-	t.Parallel()
 	iv := testutils.CreateImageVector(true, true)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -422,7 +424,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tc.expectedReplicas).ToNot(BeNil())
 			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoService)
-			operator := New(cl, iv)
+			operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
@@ -438,6 +440,74 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 				g.Expect(*latestSTS).Should(stsMatcher.MatchStatefulSet())
 			}
 		})
+	}
+}
+
+// TestSyncScaleInShrinksStatefulSet is the regression guard for the DEP-08
+// scale-in deadlock. A scale-in Sync must, in a single pass, delete the surplus
+// PVCs (ordinals >= spec.replicas) AND shrink the StatefulSet to spec.replicas.
+// The earlier bug requeued after issuing the PVC deletes, so the StatefulSet was
+// never shrunk: the surplus pods that held the pvc-protection finalizer were
+// never removed, the PVCs stayed Terminating, and the reconcile requeued forever.
+func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	iv := testutils.CreateImageVector(true, true)
+
+	const (
+		initialReplicas int32 = 5
+		targetReplicas  int32 = 3
+	)
+
+	// Seed a fully in-sync StatefulSet at the initial size by running createOrPatch
+	// once, so the subsequent scale-in Sync goes straight to the shrink path
+	// (handleTLSChanges is a no-op when the STS already matches the etcd spec).
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+		WithReplicas(initialReplicas).
+		Build()
+	cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
+	operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
+	opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+	opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
+
+	g.Expect(operator.Sync(opCtx, etcd)).ToNot(HaveOccurred())
+	seededSTS, err := getLatestStatefulSet(cl, etcd)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(seededSTS.Spec.Replicas).To(HaveValue(Equal(initialReplicas)))
+
+	// Create the PVCs the StatefulSet would have provisioned for ordinals 0..4.
+	for i := int32(0); i < initialReplicas; i++ {
+		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, int(i))
+		g.Expect(cl.Create(context.Background(), testutils.CreatePVC(seededSTS, podName, corev1.ClaimBound))).To(Succeed())
+	}
+
+	// Request a scale-in and mark the in-flight condition the detector would have set.
+	etcd.Spec.Replicas = targetReplicas
+	etcd.Status.Conditions = []druidv1alpha1.Condition{{
+		Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
+		Status: druidv1alpha1.ConditionFalse,
+		Reason: druidv1alpha1.ScaleOperationReasonScalingIn,
+	}}
+
+	// A single Sync must shrink the StatefulSet AND delete the surplus PVCs.
+	g.Expect(operator.Sync(opCtx, etcd)).ToNot(HaveOccurred())
+
+	shrunkSTS, err := getLatestStatefulSet(cl, etcd)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(shrunkSTS.Spec.Replicas).To(HaveValue(Equal(targetReplicas)), "StatefulSet must be shrunk to spec.replicas in the same Sync pass")
+
+	vctName := ptr.Deref(etcd.Spec.VolumeClaimTemplate, etcd.Name)
+	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
+	pvcExists := func(ordinal int32) bool {
+		pvcName := fmt.Sprintf("%s-%s-%d", vctName, stsName, ordinal)
+		getErr := cl.Get(context.Background(), client.ObjectKey{Namespace: etcd.Namespace, Name: pvcName}, &corev1.PersistentVolumeClaim{})
+		return getErr == nil
+	}
+	for _, ordinal := range []int32{3, 4} {
+		g.Expect(pvcExists(ordinal)).To(BeFalse(), "surplus PVC for ordinal %d must be deleted during scale-in", ordinal)
+	}
+	for _, ordinal := range []int32{0, 1, 2} {
+		g.Expect(pvcExists(ordinal)).To(BeTrue(), "retained PVC for ordinal %d must not be deleted", ordinal)
 	}
 }
 

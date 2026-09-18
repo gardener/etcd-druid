@@ -19,6 +19,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -58,6 +59,27 @@ func GetStatefulSet(ctx context.Context, cl client.Client, etcd *druidv1alpha1.E
 		return sts, nil
 	}
 	return nil, nil
+}
+
+// ComputeScaleInReplicaDelta returns the number of StatefulSet replicas that
+// exceed the desired Etcd replica count. Returns 0 when the StatefulSet is
+// absent, not yet larger than desired, or when replicas==0 (hibernation).
+func ComputeScaleInReplicaDelta(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) (int32, error) {
+	if etcd.Spec.Replicas == 0 {
+		return 0, nil
+	}
+	sts, err := GetStatefulSet(ctx, cl, etcd)
+	if err != nil {
+		return 0, err
+	}
+	if sts == nil {
+		return 0, nil
+	}
+	stsReplicas := ptr.Deref(sts.Spec.Replicas, 0)
+	if stsReplicas <= etcd.Spec.Replicas {
+		return 0, nil
+	}
+	return stsReplicas - etcd.Spec.Replicas, nil
 }
 
 // FetchPVCWarningMessagesForStatefulSet fetches warning messages for PVCs for a statefulset, if found concatenates the first 2 warning messages and returns

@@ -2,7 +2,7 @@
 title: Scaling-in a multi-node etcd cluster
 dep-number: 08
 creation-date: 2026-06-15
-status: implementable
+status: implemented
 authors:
 - "@seshachalam-yv"
 - "@CaptainIRS"
@@ -58,7 +58,7 @@ Scale-in makes progress as long as the cluster has quorum. Any member — includ
 
 ### Approach
 
-Scale-in is orchestrated by `etcd-druid` through the existing [etcd controller](https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller). The process is driven by changes to the `Etcd` resource, and progress is tracked explicitly through the `ScaleOperationInProgress` condition in the `Etcd.Status` to ensure deterministic coordination across reconcile cycles.
+Scale-in is orchestrated by `etcd-druid` through the existing [etcd controller](https://github.com/gardener/etcd-druid/blob/master/docs/development/controllers.md#etcd-controller). The process is driven by changes to the `Etcd` resource, and progress is tracked explicitly through the `ScaleOperationComplete` condition in the `Etcd.Status` to ensure deterministic coordination across reconcile cycles.
 
 Scale-in is triggered when:
 
@@ -77,20 +77,20 @@ This section describes the status, validation, and reconcile-flow changes requir
 
 #### Status condition
 
-##### Why the `ScaleOperationInProgress` condition is required
+##### Why the `ScaleOperationComplete` condition is required
 
 Scale-in removes etcd members one at a time before the StatefulSet is shrunk. Consider a `3 → 2` scale-in: the controller removes a member from the etcd cluster, but the StatefulSet has not yet been reduced. If a `2 → 3` scale-out lands in this window, the cluster is left in a conflicting state — a member has already been removed from etcd, yet `spec.replicas` is back to `3`. Looking only at `spec.replicas` and the StatefulSet replica count is no longer enough to decide whether the controller should finish the in-flight scale-in or treat the missing member as a fresh scale-out target. The safe behaviour is to **let an in-flight scale-in (or scale-out) complete and reject the opposite-direction scaling until it does**.
 
-To enforce this at admission time without introducing an admission webhook, the controller records an explicit `ScaleOperationInProgress` condition on the `Etcd.Status` sub-resource before starting membership-changing work, and CEL validation rules on the CRD reject an opposite-direction change while that condition is set. The condition is therefore both the admission-time gate (read by CEL) and the in-flight signal (read by `StatefulSet.PreSync`). The admission gate is best-effort — see [Admission gate is best-effort; the controller is the guarantee](#admission-gate-is-best-effort-the-controller-is-the-guarantee) below for how the controller closes the remaining window.
+To enforce this at admission time without introducing an admission webhook, the controller records an explicit `ScaleOperationComplete` condition on the `Etcd.Status` sub-resource before starting membership-changing work, and CEL validation rules on the CRD reject an opposite-direction change while an operation is in flight (the condition is `False`). The condition is therefore both the admission-time gate (read by CEL) and the in-flight signal (read by `StatefulSet.PreSync`). The admission gate is best-effort — see [Admission gate is best-effort; the controller is the guarantee](#admission-gate-is-best-effort-the-controller-is-the-guarantee) below for how the controller closes the remaining window.
 
-A new `ScaleOperationInProgress` condition is introduced in `etcd.status.conditions` to track scale operations. The `etcd` controller sets it to `True` when scale work starts and clears it on successful completion.
+A new `ScaleOperationComplete` condition is introduced in `etcd.status.conditions` to track scale operations. It uses **positive polarity**, consistent with the other `Etcd` conditions (`Ready`, `AllMembersReady`): `True` (reason `NoScaleOperation`) is the converged, healthy state, and `False` (with a reason naming the operation) marks an in-flight operation. The `etcd` controller sets it to `False` when scale work starts and back to `True` on successful completion.
 
-| Type                       | Status | Reason                    | Description |
-|----------------------------|--------|---------------------------|-------------|
-| `ScaleOperationInProgress` | True   | ScalingIn                 | `etcd.spec.replicas`-driven scale-in in progress |
-| `ScaleOperationInProgress` | True   | BootstrapMembersRemoval   | Removing source members joined via `bootstrapWithExistingCluster` |
-| `ScaleOperationInProgress` | True   | ScalingOut                | Scale-out in progress — a `spec.replicas` increase, or a `bootstrapWithExistingCluster` join (which also adds members). Set so the admission gate can reject a scale-in that races an in-flight scale-out (see below) |
-| `ScaleOperationInProgress` | False  | NoScaleOperation          | No scale operation in progress |
+| Type                     | Status | Reason                    | Description |
+|--------------------------|--------|---------------------------|-------------|
+| `ScaleOperationComplete` | False  | ScalingIn                 | `etcd.spec.replicas`-driven scale-in in progress |
+| `ScaleOperationComplete` | False  | BootstrapMembersRemoval   | Removing source members joined via `bootstrapWithExistingCluster` |
+| `ScaleOperationComplete` | False  | ScalingOut                | Scale-out in progress — a `spec.replicas` increase, or a `bootstrapWithExistingCluster` join (which also adds members). Set so the admission gate can reject a scale-in that races an in-flight scale-out (see below) |
+| `ScaleOperationComplete` | True   | NoScaleOperation          | No scale operation in progress |
 
 The condition is used by:
 
@@ -99,38 +99,38 @@ The condition is used by:
 
 The `ScalingOut` reason does not change the existing scale-out mechanics from [DEP-03](https://github.com/gardener/etcd-druid/blob/master/docs/proposals/03-scaling-up-an-etcd-cluster.md). Scale-out remains driven by a `spec.replicas` increase; new members join as learners via the `etcd-backup-restore` sidecar. The reason is introduced as a coordination marker for the symmetric admission gate: while a scale-out is in flight, a racing scale-in must be rejected for the same conflict reason described above. The controller therefore records `ScalingOut` for CEL to read, while the actual scale-out flow remains unchanged.
 
-A `bootstrapWithExistingCluster` join is also a scale-out — the target members are added to an existing cluster — so it likewise carries `ScaleOperationInProgress=True` with reason `ScalingOut`. In this case the condition is only cleared once all `bootstrapWithExistingCluster` members have joined, i.e. when `BootstrappedWithExistingCluster` becomes `True`.
+A `bootstrapWithExistingCluster` join is also a scale-out — the target members are added to an existing cluster — so it likewise carries `ScaleOperationComplete=False` with reason `ScalingOut`. In this case the condition is only set back to `True` once all `bootstrapWithExistingCluster` members have joined, i.e. when `BootstrappedWithExistingCluster` becomes `True`.
 
 
 #### CEL validation rules
 
 The existing [field-level rule that blocks `replicas` decreases](https://github.com/gardener/etcd-druid/blob/5b90b4a7dc7da4f4d35ea9905103d8b60b9f6e8e/api/core/v1alpha1/etcd.go#L546) will be removed so that multi-node clusters can be scaled in declaratively. Scaling to `replicas: 0` remains handled by the existing `replicas → 0` code path (see Non-Goals) and is unaffected by the new rules, which apply only when both `self.spec.replicas > 0` and `oldSelf.spec.replicas > 0`.
 
-New object-level CEL rules will guard conflicting operations using the `ScaleOperationInProgress` condition. A `replicas` decrease while `bootstrapWithExistingCluster` is set is treated as a normal `ScalingIn`; bootstrap-member removal is tracked as a distinct operation and is not run concurrently with scale-in or scale-out.
+New object-level CEL rules will guard conflicting operations using the `ScaleOperationComplete` condition. A `replicas` decrease while `bootstrapWithExistingCluster` is set is treated as a normal `ScalingIn`; bootstrap-member removal is tracked as a distinct operation and is not run concurrently with scale-in or scale-out.
 
 This serialization is **not** a quorum guard — quorum is already protected on every removal by etcd's own `MemberRemove` admission check and by the controller's per-cycle quorum-safety check, which remove at most one member per reconcile. It is a state-machine constraint: this DEP intentionally models one active membership-changing operation per `Etcd` resource. Supporting interleaved scale-in, scale-out, and bootstrap-member removal would require richer operation state, target-set tracking, recovery semantics, and cross-step conflict resolution. That complexity is unnecessary for the requested flows, so the operations are serialized rather than interleaved. Note these CEL rules are scoped to a single `Etcd` resource; when a cluster's members are split across two `Etcd` resources (as during a live migration), cross-resource quorum is not coordinated by admission but by one-member-per-cycle removal, etcd's own removal check, and the anti-rejoin guard.
 
 | User action | Allowed when | Rejected when |
 |-------------|--------------|---------------|
-| Increase `spec.replicas` | No `ScalingIn` or `BootstrapMembersRemoval` is in progress | `ScaleOperationInProgress=True` with reason `ScalingIn` or `BootstrapMembersRemoval` |
-| Decrease `spec.replicas` | No `ScalingOut` or `BootstrapMembersRemoval` is in progress | `ScaleOperationInProgress=True` with reason `ScalingOut` or `BootstrapMembersRemoval` |
-| Remove entries from `spec.etcd.bootstrapWithExistingCluster.members` | No `ScalingIn` or `ScalingOut` is in progress | `ScaleOperationInProgress=True` with reason `ScalingIn` or `ScalingOut` |
-| Unset `spec.etcd.bootstrapWithExistingCluster` | No `ScalingIn` or `ScalingOut` is in progress | `ScaleOperationInProgress=True` with reason `ScalingIn` or `ScalingOut` |
+| Increase `spec.replicas` | No `ScalingIn` or `BootstrapMembersRemoval` is in progress | `ScaleOperationComplete=False` with reason `ScalingIn` or `BootstrapMembersRemoval` |
+| Decrease `spec.replicas` | No `ScalingOut` or `BootstrapMembersRemoval` is in progress | `ScaleOperationComplete=False` with reason `ScalingOut` or `BootstrapMembersRemoval` |
+| Remove entries from `spec.etcd.bootstrapWithExistingCluster.members` | No `ScalingIn` or `ScalingOut` is in progress | `ScaleOperationComplete=False` with reason `ScalingIn` or `ScalingOut` |
+| Unset `spec.etcd.bootstrapWithExistingCluster` | No `ScalingIn` or `ScalingOut` is in progress | `ScaleOperationComplete=False` with reason `ScalingIn` or `ScalingOut` |
 
 This gives consumers an immediate admission rejection instead of accepting conflicting changes that would only requeue or fail later in reconciliation.
 
 ##### Admission gate is best-effort; the controller is the guarantee
 
-The condition is set by the controller during reconciliation, *after* the triggering spec change has already been admitted. There is therefore a small window between the spec change being persisted and the controller writing `ScaleOperationInProgress=True`. A conflicting opposite-direction change that arrives inside this window is not yet visible to CEL and can be admitted. The CEL rules are therefore a fast-fail guardrail, not the correctness boundary.
+The condition is set by the controller during reconciliation, *after* the triggering spec change has already been admitted. There is therefore a small window between the spec change being persisted and the controller writing `ScaleOperationComplete=False`. A conflicting opposite-direction change that arrives inside this window is not yet visible to CEL and can be admitted. The CEL rules are therefore a fast-fail guardrail, not the correctness boundary.
 
 The controller closes this window at the point where it matters — just before it removes a member. Member removal runs in `StatefulSet.PreSync`, which executes **before** `StatefulSet.Sync` patches the StatefulSet's `spec.replicas` from `etcd.spec.replicas`. So at removal time the live `StatefulSet.spec.replicas` still holds the observed cluster size from before the StatefulSet sync, while `etcd.spec.replicas` holds the latest requested size. Before removing any member, the controller re-fetches both objects and compares them in the context of the recorded operation:
 
-- If `ScaleOperationInProgress=True` with reason `ScalingIn`, member removal proceeds only when `etcd.spec.replicas < StatefulSet.spec.replicas`.
-- If `ScaleOperationInProgress=True` with reason `ScalingOut`, the scale-out path proceeds only when `etcd.spec.replicas > StatefulSet.spec.replicas`.
-- If `etcd.spec.replicas == StatefulSet.spec.replicas`, there is no longer an observable replica-count delta. In the admission-window race case, this means the spec was reverted to the pre-operation count (for example `3 → 2 → 3`) before any destructive membership change started. The controller aborts the recorded operation, clears `ScaleOperationInProgress`, and requeues.
-- If the latest replica comparison points in the opposite direction from the recorded reason, an opposite-direction update landed inside the CEL window. The controller must not continue the recorded operation. It aborts the recorded operation, clears or recomputes `ScaleOperationInProgress`, and requeues so the latest desired operation is handled separately. No member is removed in this reconcile.
+- If `ScaleOperationComplete=False` with reason `ScalingIn`, member removal proceeds only when `etcd.spec.replicas < StatefulSet.spec.replicas`.
+- If `ScaleOperationComplete=False` with reason `ScalingOut`, the scale-out path proceeds only when `etcd.spec.replicas > StatefulSet.spec.replicas`.
+- If `etcd.spec.replicas == StatefulSet.spec.replicas`, there is no longer an observable replica-count delta. In the admission-window race case, this means the spec was reverted to the pre-operation count (for example `3 → 2 → 3`) before any destructive membership change started. The controller aborts the recorded operation, sets `ScaleOperationComplete` back to `True`, and requeues.
+- If the latest replica comparison points in the opposite direction from the recorded reason, an opposite-direction update landed inside the CEL window. The controller must not continue the recorded operation. It aborts the recorded operation, recomputes `ScaleOperationComplete`, and requeues so the latest desired operation is handled separately. No member is removed in this reconcile.
 
-For `BootstrapMembersRemoval`, the same principle applies, but the guard revalidates the latest `spec.etcd.bootstrapWithExistingCluster` against the observed joined bootstrap members instead of comparing replica counts. If the bootstrap-member removal request was reverted before `MemberRemove`, no member is removed and the condition is cleared or recomputed.
+For `BootstrapMembersRemoval`, the same principle applies, but the guard revalidates the latest `spec.etcd.bootstrapWithExistingCluster` against the observed joined bootstrap members instead of comparing replica counts. If the bootstrap-member removal request was reverted before `MemberRemove`, no member is removed and the condition is recomputed.
 
 Because detection and this guard are re-evaluated every reconcile against observed state (level-triggered), a revert or opposite-direction update inside the CEL window converges without any member wrongly removed and without a stale condition left behind. The CEL rules handle the common case fast; this controller check is what makes the design correct regardless of the window.
 
@@ -138,26 +138,28 @@ Because detection and this guard are re-evaluated every reconcile against observ
 // REMOVED from the Replicas field:
 // +kubebuilder:validation:XValidation:message="Replicas can either be increased or be downscaled to 0.",rule="self==0 ? true : self < oldSelf ? false : true"
 
-// ADDED at the Etcd type level. The two replica-direction rules are gated on
-// both self.spec.replicas > 0 and oldSelf.spec.replicas > 0 so that transitions
-// to/from 0 (the replicas -> 0 path and wake-up) are never blocked.
-// +kubebuilder:validation:XValidation:message="Cannot scale out while a scale-in or bootstrap members removal is in progress.",rule="(self.spec.replicas > oldSelf.spec.replicas && self.spec.replicas > 0 && oldSelf.spec.replicas > 0) ? !self.status.conditions.exists(c, c.type == 'ScaleOperationInProgress' && c.status == 'True' && (c.reason == 'ScalingIn' || c.reason == 'BootstrapMembersRemoval')) : true"
-// +kubebuilder:validation:XValidation:message="Cannot scale in while a scale-out or bootstrap members removal operation is in progress.",rule="(self.spec.replicas < oldSelf.spec.replicas && self.spec.replicas > 0 && oldSelf.spec.replicas > 0) ? !self.status.conditions.exists(c, c.type == 'ScaleOperationInProgress' && c.status == 'True' && (c.reason == 'ScalingOut' || c.reason == 'BootstrapMembersRemoval')) : true"
-// +kubebuilder:validation:XValidation:message="Cannot remove bootstrap members while scale-in or scale-out is in progress.",rule="has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && has(self.spec.etcd.bootstrapWithExistingCluster) && self.spec.etcd.bootstrapWithExistingCluster.members != oldSelf.spec.etcd.bootstrapWithExistingCluster.members ? !self.status.conditions.exists(c, c.type == 'ScaleOperationInProgress' && c.status == 'True' && (c.reason == 'ScalingIn' || c.reason == 'ScalingOut')) : true"
-// +kubebuilder:validation:XValidation:message="Cannot unset bootstrapWithExistingCluster while scale-in or scale-out is in progress.",rule="has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && !has(self.spec.etcd.bootstrapWithExistingCluster) ? !self.status.conditions.exists(c, c.type == 'ScaleOperationInProgress' && c.status == 'True' && (c.reason == 'ScalingIn' || c.reason == 'ScalingOut')) : true"
+// ADDED at the Etcd type level. The condition uses positive polarity, so an
+// in-flight operation is status == 'False' with the reason naming it. The two
+// replica-direction rules are gated on both self.spec.replicas > 0 and
+// oldSelf.spec.replicas > 0 so that transitions to/from 0 (the replicas -> 0
+// path and wake-up) are never blocked.
+// +kubebuilder:validation:XValidation:message="Cannot scale out while a scale-in or bootstrap members removal is in progress.",rule="(self.spec.replicas > oldSelf.spec.replicas && self.spec.replicas > 0 && oldSelf.spec.replicas > 0) ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingIn' || c.reason == 'BootstrapMembersRemoval'))) : true"
+// +kubebuilder:validation:XValidation:message="Cannot scale in while a scale-out or bootstrap members removal operation is in progress.",rule="(self.spec.replicas < oldSelf.spec.replicas && self.spec.replicas > 0 && oldSelf.spec.replicas > 0) ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingOut' || c.reason == 'BootstrapMembersRemoval'))) : true"
+// +kubebuilder:validation:XValidation:message="Cannot remove bootstrap members while scale-in or scale-out is in progress.",rule="has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && has(self.spec.etcd.bootstrapWithExistingCluster) && self.spec.etcd.bootstrapWithExistingCluster.members != oldSelf.spec.etcd.bootstrapWithExistingCluster.members ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingIn' || c.reason == 'ScalingOut'))) : true"
+// +kubebuilder:validation:XValidation:message="Cannot unset bootstrapWithExistingCluster while scale-in or scale-out is in progress.",rule="has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && !has(self.spec.etcd.bootstrapWithExistingCluster) ? (!has(self.status) || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type == 'ScaleOperationComplete' && c.status == 'False' && (c.reason == 'ScalingIn' || c.reason == 'ScalingOut'))) : true"
 ```
 
 #### Reconcile flow
 
-The `etcd` controller reconciliation is extended with a scale-operation detection step, a member-removal branch in `StatefulSet.PreSync`, and bootstrap-member status cleanup where the removed-member status is not otherwise re-derived. Existing reconciliation steps continue to run in the same order. The `ScaleOperationInProgress=False` update is folded into `recordReconcileSuccessOperation`, so completing scale-in does not require an additional status patch.
+The `etcd` controller reconciliation is extended with a scale-operation detection step, a member-removal branch in `StatefulSet.PreSync`, and bootstrap-member status cleanup where the removed-member status is not otherwise re-derived. Existing reconciliation steps continue to run in the same order. The `ScaleOperationComplete=True` update is folded into `recordReconcileSuccessOperation`, so completing scale-in does not require an additional status patch.
 
-The `ScaleOperationInProgress` condition is written by the spec-reconcile flow — set as the operation starts and cleared as it completes — rather than by the eventually-consistent status-reconcile flow. This is deliberate: the condition is an operation-lifecycle marker (like `LastOperation`), and, more importantly, the CEL admission rules can only reject a conflicting update if the condition is already persisted. Writing it asynchronously in the status flow would widen the admission window described above. By contrast, `etcd.status.members` is a health observation owned by the status-reconcile flow and is not touched here (see [Status cleanup](#status-cleanup-step-6)).
+The `ScaleOperationComplete` condition is written by the spec-reconcile flow — set to `False` as the operation starts and back to `True` as it completes — rather than by the eventually-consistent status-reconcile flow. This is deliberate: the condition is an operation-lifecycle marker (like `LastOperation`), and, more importantly, the CEL admission rules can only reject a conflicting update if the condition is already persisted. Writing it asynchronously in the status flow would widen the admission window described above. By contrast, `etcd.status.members` is a health observation owned by the status-reconcile flow and is not touched here (see [Status cleanup](#status-cleanup-step-6)).
 
 ```
 reconcileSpec()
   1. recordReconcileStartOperation
   2. ensureFinalizer
-  3. detectAndRecordScaleOperation       — NEW: reconciler patches Status.ScaleOperationInProgress
+  3. detectAndRecordScaleOperation       — NEW: reconciler patches Status.ScaleOperationComplete
   4. preSyncEtcdResources
        → StatefulSet.PreSync():
             a. Pre-hibernation snapshot   (existing)
@@ -179,7 +181,7 @@ reconcileSpec()
                                                  (status.members is re-derived by the
                                                  health checker, not pruned here.)
   7. recordReconcileSuccessOperation
-       → Patch Status.ScaleOperationInProgress=False (existing patch already runs here)
+       → Patch Status.ScaleOperationComplete=True (existing patch already runs here)
 ```
 
 The Mermaid diagram below shows the scale-in control flow. The existing pre-hibernation and pre-upgrade snapshot steps remain in `StatefulSet.PreSync`, but are omitted because they are not changed by this proposal.
@@ -200,7 +202,7 @@ sequenceDiagram
     else Bootstrap members removal
         R->>R: bootstrap members removed or bootstrap config unset, reason=BootstrapMembersRemoval
     end
-    R->>R: Patch ScaleOperationInProgress=True
+    R->>R: Patch ScaleOperationComplete=False
 
     Note over R,P: Step 4c StatefulSet.PreSync, remove one member per cycle
     loop Reconcile cycles while target removals remain
@@ -233,7 +235,7 @@ sequenceDiagram
     Note over R: status.members is re-derived by the health checker, not pruned here
 
     Note over R: Step 7 recordReconcileSuccessOperation
-    R->>R: Patch ScaleOperationInProgress=False (bundled with success patch)
+    R->>R: Patch ScaleOperationComplete=True (bundled with success patch)
     R-->>C: Reconcile complete
 ```
 
@@ -245,10 +247,10 @@ The relevant additions are described below. Existing steps (1–2, 4a–4b) are 
 
 | Signal | Condition update |
 |--------|------------------|
-| `etcd.spec.replicas < StatefulSet.spec.replicas` | `ScaleOperationInProgress=True`, reason `ScalingIn` |
-| `etcd.spec.replicas > StatefulSet.spec.replicas` | `ScaleOperationInProgress=True`, reason `ScalingOut` |
-| `bootstrapWithExistingCluster` is unset, or joined bootstrap members are removed from spec | `ScaleOperationInProgress=True`, reason `BootstrapMembersRemoval` |
-| No scale signal is present | `ScaleOperationInProgress=False`, reason `NoScaleOperation` |
+| `etcd.spec.replicas < StatefulSet.spec.replicas` | `ScaleOperationComplete=False`, reason `ScalingIn` |
+| `etcd.spec.replicas > StatefulSet.spec.replicas` | `ScaleOperationComplete=False`, reason `ScalingOut` |
+| `bootstrapWithExistingCluster` is unset, or joined bootstrap members are removed from spec | `ScaleOperationComplete=False`, reason `BootstrapMembersRemoval` |
+| No scale signal is present | `ScaleOperationComplete=True`, reason `NoScaleOperation` |
 
 The condition is patched before component reconciliation starts, allowing CEL validation to reject conflicting changes while the operation is in progress.
 
@@ -269,7 +271,7 @@ The removal proceeds in two distinct steps — selecting the set of candidates, 
 
 Serial removal is intentional. It avoids parallel membership changes in the same etcd cluster and gives the cluster one reconcile cycle to stabilize between removals. Conditions and events should reference member names; logs may additionally include member IDs for debugging.
 
-If the quorum check in step 1 determines that removing the next member would break quorum, the controller does not remove it and requeues. This is surfaced in the `Etcd` status: a `LastError` is recorded in `etcd.status.lastErrors` with a coded reason (for example `ERR_QUORUM_UNSAFE_MEMBER_REMOVAL`) and a description such as *"member `<name>` not removed: removal would break quorum; requeuing until the cluster is healthy"*, and `etcd.status.lastOperation.State` is set to `Error` so the operation is retried. `ScaleOperationInProgress` stays `True` (reason `ScalingIn`) because the operation is still in progress — the block is transient, and `lastErrors` is what surfaces *why* no member is being removed right now.
+If the quorum check in step 1 determines that removing the next member would break quorum, the controller does not remove it and requeues. This is surfaced in the `Etcd` status: a `LastError` is recorded in `etcd.status.lastErrors` with a coded reason (for example `ERR_QUORUM_UNSAFE_MEMBER_REMOVAL`) and a description such as *"member `<name>` not removed: removal would break quorum; requeuing until the cluster is healthy"*, and `etcd.status.lastOperation.State` is set to `Error` so the operation is retried. `ScaleOperationComplete` stays `False` (reason `ScalingIn`) because the operation is still in progress — the block is transient, and `lastErrors` is what surfaces *why* no member is being removed right now.
 
 **Source cluster.** For `BootstrapMembersRemoval`, the members being removed belong to the source cluster. The source may be managed by another `etcd-druid` `Etcd` resource or by something outside `etcd-druid` entirely.
 
@@ -295,13 +297,13 @@ For each ordinal `i ≥ spec.replicas`, the controller derives the PVC name from
 
 `etcd.status.bootstrapWithExistingClusterMembers` records the joined source members and is not re-derived by the health checker, so for `BootstrapMembersRemoval` the spec-reconcile flow prunes the entries for the members it just removed.
 
-##### Clear condition (Step 7)
+##### Complete the operation (Step 7)
 
-`recordReconcileSuccessOperation` includes the `ScaleOperationInProgress=False` update in its existing status patch.
+`recordReconcileSuccessOperation` includes the `ScaleOperationComplete=True` update in its existing status patch.
 
 ##### Limitation
 
-Once a scale-in has removed at least one member, it cannot be aborted or reversed back to the original cluster size until it completes. Increasing `spec.replicas` again (or restoring the removed bootstrap members) while `ScaleOperationInProgress=True` is an opposite-direction change and is rejected by the CEL rules. So if a scale-in gets stuck — for example, it removed one member of a `5 → 3` and then cannot remove the next because doing so would break quorum — the only way forward is to restore the affected members to health so the scale-in can finish reaching the target size; there is no supported path to cancel it and return to the original size.
+Once a scale-in has removed at least one member, it cannot be aborted or reversed back to the original cluster size until it completes. Increasing `spec.replicas` again (or restoring the removed bootstrap members) while `ScaleOperationComplete=False` is an opposite-direction change and is rejected by the CEL rules. So if a scale-in gets stuck — for example, it removed one member of a `5 → 3` and then cannot remove the next because doing so would break quorum — the only way forward is to restore the affected members to health so the scale-in can finish reaching the target size; there is no supported path to cancel it and return to the original size.
 
 This applies only once a member has actually been removed. A change reverted before any removal — such as the `3 → 2 → 3` case within the admission window described above — converges to a no-op, since no membership change has occurred.
 
@@ -317,45 +319,60 @@ Without a guard, `etcd-backup-restore` interprets the state *"this pod has local
 
 ##### Proposed solution
 
-`etcd-backup-restore` adds a startup guard before the learner-add path. The guard checks whether the local etcd member was already removed from the cluster. If so, startup stops with `ErrMemberPermanentlyRemoved` instead of re-adding the member.
+`etcd-backup-restore` adds an **anti-rejoin guard** that runs at startup before the learner-add path. The guard detects prior etcd data on the PV and, if the local member was explicitly removed from this cluster, refuses to re-add it.
 
-etcd records removed member IDs in the local boltdb `members_removed` bucket when `MemberRemove` is applied. This is not about reusing etcd member IDs. `etcd-backup-restore` uses the local member's own tombstone to detect that the data directory belongs to a member that was explicitly removed from this cluster; in that case, it must not treat the missing live membership entry as a scale-out/re-add case.
+etcd records removed member IDs in the local boltdb `members_removed` bucket when `MemberRemove` is applied. The anti-rejoin guard reads the local member's own tombstone from that bucket to detect that the data directory belongs to a member that was explicitly removed from this cluster; in that case, it must not treat the missing live membership entry as a scale-out/re-add case.
 
-The startup check is:
+The startup flow after `WasMemberInCluster` returns false is:
 
-The guard inspects two on-disk artefacts of the local etcd data directory: the **WAL** (under `<data-dir>/member/wal`) and the boltdb backend's **`members_removed`** bucket. The local member's own ID is read from the WAL's metadata record — the guard opens the WAL read-only (`wal.OpenForRead`), reads the metadata via `ReadAll()`, unmarshals it into an etcd `Metadata` message, and takes the `NodeID` field (this is the same sequence etcd itself uses on startup). It then checks whether that exact ID is present in the `members_removed` bucket. If it is, the cluster has explicitly removed this member and the sidecar must not re-add it.
+1. **Local member ID resolution** — resolve the local member ID in priority order:
+   - **Member lease** — reads the k8s lease holder identity (`<memberID-hex>:<clusterID-hex>:<role>`).
+   - **Member-id file** (`<data-dir>/member-id`) — fallback, persisted on the PV by the heartbeat component, used when the lease is unavailable or has no holder identity.
+   - If neither yields an ID, the guard skips (treats as fresh member).
+2. **Anti-rejoin guard** — open the local boltdb **read-only** and check the `members_removed` bucket for the resolved local member ID. Prior etcd data is detected by the presence of the boltdb file itself; if it is absent, this is a fresh PVC and the guard skips.
+3. **Scale-up check** (`IsClusterScaledUp`) — runs when the guard skips or passes. If the member is not in the live cluster, it is added as a learner.
 
 ```mermaid
 flowchart TD
     Start[backup-restore init]
     Start --> Multi{Multi-node?}
     Multi -->|No| Normal[Normal init]
-    Multi -->|Yes| WAL{WAL exists?}
-    WAL -->|No| Normal
-    WAL -->|Yes| Read[Read local member ID]
-    Read --> DB{boltdb exists?}
-    DB -->|No| Normal
+    Multi -->|Yes| Heartbeat{WasMemberInCluster?}
+    Heartbeat -->|Yes| Normal
+    Heartbeat -->|No| Lease{Member lease has ID?}
+    Lease -->|Yes| Have[Local member ID]
+    Lease -->|No| File{member-id file exists?}
+    File -->|No| ScaleUp{IsClusterScaledUp?}
+    File -->|Yes| Have
+    Have --> DB{boltdb exists?}
+    DB -->|No| ScaleUp
     DB -->|Yes| Open[Open boltdb read-only]
     Open -->|Fail| Failed[ErrMembershipCheckFailed]
     Open -->|OK| Removed{Own ID in members_removed?}
-    Removed -->|No| Normal
+    Removed -->|No| ScaleUp
     Removed -->|Yes| Stop[ErrMemberPermanentlyRemoved]
+    ScaleUp -->|Yes| Learner[AddLearnerWithRetry → return]
+    ScaleUp -->|No| Normal
 ```
 
-The check is deliberately conservative:
+The guard is deliberately conservative:
 
-- If the WAL is missing, there is no local member ID to check, so normal initialization continues.
-- If the boltdb file is missing, normal initialization continues through the existing path.
-- If boltdb exists but cannot be opened, the check is retried a few times (with backoff) to ride out transient I/O or lock contention; if it still cannot be opened, startup fails closed with `ErrMembershipCheckFailed`.
+- If **no local member ID** can be resolved (lease unavailable / no holder identity, member-id file absent), the member is treated as a fresh join and normal initialization continues.
+- If the **boltdb file is missing** (fresh PVC, no prior etcd data), normal initialization continues through the existing path.
+- If boltdb exists but **cannot be opened**, the guard is retried a few times (with backoff) to ride out transient I/O or lock contention; if it still cannot be opened, startup fails closed with `ErrMembershipCheckFailed`.
 - If the local member's own ID is present in `members_removed`, startup fails with `ErrMemberPermanentlyRemoved`.
 
 Only the local member's own ID is considered. Entries for other removed members are ignored.
 
-The check opens boltdb read-only via `mmap` and reads only the small membership buckets (`members` and `members_removed`), so the runtime and memory overhead is negligible. This follows the same access pattern already used by `etcd-backup-restore`'s data validator.
+The guard opens boltdb **read-only** and reads only the small `members_removed` bucket, so the runtime and memory overhead is negligible. This follows the same access pattern already used by `etcd-backup-restore`'s data validator.
+
+##### Why not a WAL-based approach
+
+An earlier design resolved the local member ID by reading it from the WAL's metadata record — opening the WAL read-only (`wal.OpenForRead`), calling `ReadAll()`, and unmarshalling the etcd `Metadata` message to extract the `NodeID`. This was **rejected because of the memory cost**: `ReadAll()` replays the entire WAL into memory to return all entries and the snapshot, which loads a potentially large, unbounded log into memory at startup. For a sidecar that must stay within a tight memory budget alongside etcd, this memory spike is unacceptable. The lease → member-id file fallback chain resolves the same ID with a small, bounded Kubernetes API call or a single file read — no WAL replay, negligible memory — so it is used instead.
 
 ##### Limitation
 
-The guard relies on the `members_removed` tombstone, which lives in the member's **own** data directory. If that data directory is wiped or corrupted — WAL or boltdb missing or unreadable — there is no tombstone to consult, so the member is treated as a fresh join and may be re-added as a learner. This case is outside the guard's reach by design (there is nothing on disk to read). The backstop here is the `etcd-druid` controller: scale-in detection re-derives the target set on every reconcile and removes the surplus member again under the per-cycle quorum-safety check, so a member restarting with a wiped/corrupted data directory cannot persist in the cluster after a scale-in.
+The guard relies on the `members_removed` tombstone in the local boltdb. If the data directory is wiped (PVC deleted and recreated during scale-out), the boltdb is absent and the guard is skipped — the member is treated as a fresh join and added as a learner. This case is outside the guard's reach by design. The backstop here is the `etcd-druid` controller: scale-in detection re-derives the target set on every reconcile and removes the surplus member again under the per-cycle quorum-safety check, so a member restarting with a wiped data directory cannot persist in the cluster after a scale-in.
 
 The guard does not interfere with the normal single-member restoration path. It runs only on the scale-out/rejoin branch — i.e. when the member is **not present** in the live cluster's member list. A valid member whose data directory is merely corrupted is **still a member** of the cluster, so the guard is skipped and the existing single-member restoration flow runs unchanged. `ErrMembershipCheckFailed` (fail-closed on an unreadable boltdb) is reached only on that rejoin branch — for a member absent from the cluster — so it cannot block restoration of a valid member. Single-node clusters are a [Non-Goal](#non-goals) and the guard is gated on multi-node in any case.
 
@@ -392,4 +409,3 @@ Each alternative below adds an externally callable surface for member removal. E
 - [`server.go` — `RemoveMember` quorum checks](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/etcdserver/server.go#L1721-L1738)
 - [`store.go` — removed member IDs are written to `members_removed`](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/etcdserver/api/membership/store.go#L71-L123)
 - [`bucket.go` — `members` and `members_removed` bucket definitions](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/mvcc/buckets/bucket.go#L31-L49)
-- [`storage.go` — WAL metadata contains the local member ID](https://github.com/etcd-io/etcd/blob/62d8759b7d5dbc9b3694f89d54170a55726bb485/server/etcdserver/storage.go#L117-L121)

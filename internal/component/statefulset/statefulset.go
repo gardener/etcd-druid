@@ -13,6 +13,7 @@ import (
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -53,16 +54,20 @@ const (
 )
 
 type _resource struct {
-	client      client.Client
-	imageVector imagevector.ImageVector
-	logger      logr.Logger
+	client              client.Client
+	imageVector         imagevector.ImageVector
+	memberClientFactory etcdclient.MemberClientFactory
+	logger              logr.Logger
 }
 
-// New returns a new statefulset component operator.
-func New(client client.Client, imageVector imagevector.ImageVector) component.Operator {
+// New returns a new statefulset component operator. memberClientFactory is a
+// required dependency used to remove surplus etcd members during a scale-in; it
+// must not be nil. Tests inject a fake from internal/client/etcd/fake.
+func New(client client.Client, imageVector imagevector.ImageVector, memberClientFactory etcdclient.MemberClientFactory) component.Operator {
 	return &_resource{
-		client:      client,
-		imageVector: imageVector,
+		client:              client,
+		imageVector:         imageVector,
+		memberClientFactory: memberClientFactory,
 	}
 }
 
@@ -89,6 +94,10 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 
 // PreSync performs pre-sync operations for the statefulset component.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	if err := r.removeOneSurplusMember(ctx, etcd); err != nil {
+		return err
+	}
+
 	if !etcd.IsBackupStoreEnabled() {
 		return nil
 	}
@@ -257,6 +266,15 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 				return err
 			}
 		}
+	}
+
+	// During a scale-in, surplus PVCs are deleted before the StatefulSet is
+	// shrunk. deleteSurplusPVCs issues the deletes and returns nil (fire-and-forget);
+	// createOrPatch below then shrinks the StatefulSet in the same pass, which
+	// deletes the surplus pods and lets the Terminating PVCs be reclaimed. Outside
+	// a scale-in it is a no-op.
+	if err := r.deleteSurplusPVCs(ctx, etcd); err != nil {
+		return err
 	}
 
 	return r.createOrPatch(ctx, etcd)

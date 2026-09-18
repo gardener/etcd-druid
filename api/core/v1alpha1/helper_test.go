@@ -181,6 +181,63 @@ func TestGetMemberLeaseNames(t *testing.T) {
 	}
 }
 
+func TestGetBootstrapMemberNamesToDecommission(t *testing.T) {
+	tests := []struct {
+		name string
+		spec *BootstrapWithExistingCluster
+		// joined are the member names recorded as joined in status.
+		joined []string
+		want   []string
+	}{
+		{
+			name:   "no joined members recorded -> nil",
+			spec:   &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			joined: nil,
+			want:   nil,
+		},
+		{
+			name:   "all joined members still in spec -> nil",
+			spec:   &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}, {Name: "etcd-source-1"}}},
+			joined: []string{"etcd-source-0", "etcd-source-1"},
+			want:   nil,
+		},
+		{
+			name:   "joined member no longer in spec -> that member",
+			spec:   &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			joined: []string{"etcd-source-0", "etcd-source-1"},
+			want:   []string{"etcd-source-1"},
+		},
+		{
+			name:   "spec bootstrap unset -> all joined members",
+			spec:   nil,
+			joined: []string{"etcd-source-0", "etcd-source-1"},
+			want:   []string{"etcd-source-0", "etcd-source-1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+			etcd := &Etcd{
+				ObjectMeta: etcdObjMeta,
+				Spec: EtcdSpec{
+					Replicas: 3,
+					Etcd:     EtcdConfig{BootstrapWithExistingCluster: tc.spec},
+				},
+			}
+			if tc.joined != nil {
+				members := make([]BootstrapJoinedMember, 0, len(tc.joined))
+				for _, name := range tc.joined {
+					members = append(members, BootstrapJoinedMember{Name: name})
+				}
+				etcd.Status.BootstrapWithExistingCluster = &BootstrapWithExistingClusterStatus{Members: members}
+			}
+			g.Expect(GetBootstrapMemberNamesToDecommission(etcd)).To(Equal(tc.want))
+		})
+	}
+}
+
 func TestGetMemberNameFromAddress(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
