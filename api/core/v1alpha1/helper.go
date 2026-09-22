@@ -35,13 +35,14 @@ func GetClientHostname(etcd *Etcd) string {
 	if ArePodsManagedByEtcdDruid(etcd) {
 		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.Namespace)
 	}
-	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
+	memberAddresses := GetExternallyManagedMemberAddresses(etcd)
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(memberAddresses))))
 	if err != nil {
 		// Fallback to first member address in case of an error
-		return etcd.Spec.ExternallyManagedMemberAddresses[0]
+		return memberAddresses[0]
 	}
 	randomIndex := int(n.Int64())
-	return etcd.Spec.ExternallyManagedMemberAddresses[randomIndex]
+	return memberAddresses[randomIndex]
 }
 
 // GetServiceAccountName returns the service account name for the Etcd.
@@ -152,7 +153,7 @@ func GetMemberNames(etcd *Etcd) []string {
 		}
 		return names
 	}
-	memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
+	memberAddresses := GetExternallyManagedMemberAddresses(etcd)
 	names := make([]string, len(memberAddresses))
 	for i, memberAddress := range memberAddresses {
 		names[i] = GetMemberNameFromAddress(etcd, memberAddress)
@@ -331,7 +332,21 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 
 // ArePodsManagedByEtcdDruid checks if the management of pods is handled by etcd-druid for an Etcd resource.
 func ArePodsManagedByEtcdDruid(etcd *Etcd) bool {
-	return len(etcd.Spec.ExternallyManagedMemberAddresses) == 0
+	return len(GetExternallyManagedMemberAddresses(etcd)) == 0
+}
+
+// GetExternallyManagedMemberAddresses returns the configured member addresses, falling back to the deprecated field.
+func GetExternallyManagedMemberAddresses(etcd *Etcd) []string {
+	if etcd.Spec.Etcd.ExternallyManagedMembers != nil {
+		return etcd.Spec.Etcd.ExternallyManagedMembers.Addresses
+	}
+	return etcd.Spec.ExternallyManagedMemberAddresses
+}
+
+// IsEndpointsDiscoveryEnabled reports whether an ENDPOINTS file is configured for externally managed members.
+func IsEndpointsDiscoveryEnabled(etcd *Etcd) bool {
+	return etcd.Spec.Etcd.ExternallyManagedMembers != nil &&
+		etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.EndpointsFilePath != ""
 }
 
 // GetCondition returns the condition with the given type from the Etcd status,

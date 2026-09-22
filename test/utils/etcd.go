@@ -543,7 +543,23 @@ func (eb *EtcdBuilder) WithGRPCGatewayEnabled() *EtcdBuilder {
 
 // WithExternallyManagedMembers sets the externally managed member addresses in the etcd spec.
 func (eb *EtcdBuilder) WithExternallyManagedMembers(addresses []string) *EtcdBuilder {
-	eb.etcd.Spec.ExternallyManagedMemberAddresses = addresses
+	if len(addresses) == 0 {
+		eb.etcd.Spec.Etcd.ExternallyManagedMembers = nil
+		return eb
+	}
+	if eb.etcd.Spec.Etcd.ExternallyManagedMembers == nil {
+		eb.etcd.Spec.Etcd.ExternallyManagedMembers = &druidv1alpha1.ExternallyManagedMembersConfig{}
+	}
+	eb.etcd.Spec.Etcd.ExternallyManagedMembers.Addresses = addresses
+	return eb
+}
+
+// WithEndpointsDiscovery configures endpoint discovery via an ENDPOINTS file.
+func (eb *EtcdBuilder) WithEndpointsDiscovery(config druidv1alpha1.EndpointsDiscoveryConfig) *EtcdBuilder {
+	if eb.etcd.Spec.Etcd.ExternallyManagedMembers == nil {
+		eb.etcd.Spec.Etcd.ExternallyManagedMembers = &druidv1alpha1.ExternallyManagedMembersConfig{}
+	}
+	eb.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery = config
 	return eb
 }
 

@@ -16,7 +16,7 @@ By default, `etcd-druid` configures each etcd member's `--advertise-client-urls`
 Either or both may be set independently.
 
 > [!NOTE]
-> This field applies only to pods managed by etcd-druid. For externally managed members configured via `spec.externallyManagedMemberAddresses`, the provided addresses are used directly and `additionalAdvertisedURLs` has no effect.
+> This field applies only to pods managed by etcd-druid. For externally managed members configured via `spec.etcd.externallyManagedMembers.addresses`, the provided addresses are used directly and `additionalAdvertisedURLs` has no effect.
 
 ### `overrideDefaultURL`
 

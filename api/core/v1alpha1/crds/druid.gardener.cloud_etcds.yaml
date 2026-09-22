@@ -661,7 +661,7 @@ spec:
                       AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
                       advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.
                       Has no effect on externally managed members
-                      (spec.externallyManagedMemberAddresses).
+                      (spec.etcd.externallyManagedMembers.addresses).
                     properties:
                       clientURLs:
                         description: ClientURLs contains extra per-member client URLs.
@@ -1134,6 +1134,62 @@ spec:
                       etcd defrag call
                     pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
+                  externallyManagedMembers:
+                    description: ExternallyManagedMembers configures externally managed
+                      etcd members.
+                    properties:
+                      addresses:
+                        description: |-
+                          Addresses defines the addresses of externally managed etcd members.
+                          Specifying addresses disables management of member Pods, Services and PDBs.
+                          Allowed values include IPv4/IPv6 addresses and hostnames, without a protocol or port.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      endpointsDiscovery:
+                        description: EndpointsDiscovery configures endpoint discovery
+                          for etcd-backup-restore via an ENDPOINTS file.
+                        properties:
+                          endpointsFilePath:
+                            description: |-
+                              EndpointsFilePath is the path to the ENDPOINTS file on the host node.
+                              Its parent directory is mounted into the backup-restore container.
+                            minLength: 1
+                            type: string
+                          refreshEnabled:
+                            description: RefreshEnabled enables the periodic refresh
+                              of the ENDPOINTS file from the live etcd member list.
+                            type: boolean
+                          refreshInterval:
+                            description: |-
+                              RefreshInterval is the interval at which the ENDPOINTS file is refreshed.
+                              If omitted, etcd-backup-restore uses its default of 30s.
+                              When specified, must be > 0 when RefreshEnabled is true.
+                            pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: refreshInterval, if specified, must be greater
+                            than zero when refreshEnabled is true
+                          rule: '!has(self.refreshEnabled) || !self.refreshEnabled
+                            || !has(self.refreshInterval) || duration(self.refreshInterval).getSeconds()
+                            > 0'
+                        - message: endpointsFilePath must be set when refreshEnabled
+                            is true
+                          rule: '!has(self.refreshEnabled) || !self.refreshEnabled
+                            || has(self.endpointsFilePath)'
+                    type: object
+                    x-kubernetes-validations:
+                    - message: endpointsDiscovery may only be configured when addresses
+                        is non-empty
+                      rule: '!has(self.endpointsDiscovery) || !has(self.endpointsDiscovery.endpointsFilePath)
+                        || (has(self.addresses) && size(self.addresses) > 0)'
+                    - message: endpointsDiscovery cannot be enabled or disabled dynamically
+                      rule: (has(oldSelf.endpointsDiscovery) && has(oldSelf.endpointsDiscovery.endpointsFilePath))
+                        == (has(self.endpointsDiscovery) && has(self.endpointsDiscovery.endpointsFilePath))
+                    - message: addresses field must only be set during creation
+                      rule: has(oldSelf.addresses) == has(self.addresses)
                   heartbeatDuration:
                     description: HeartbeatDuration defines the duration for members
                       to send heartbeats. The default value is 10s.
@@ -1429,11 +1485,15 @@ spec:
                 - message: etcd.spec.etcd.bootstrapWithExistingCluster cannot be added
                     after the Etcd resource has been created
                   rule: '!has(self.bootstrapWithExistingCluster) || has(oldSelf.bootstrapWithExistingCluster)'
+                - message: etcd.spec.etcd.externallyManagedMembers field must only
+                    be set during creation
+                  rule: has(oldSelf.externallyManagedMembers) == has(self.externallyManagedMembers)
               externallyManagedMemberAddresses:
                 description: |-
                   ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
                   will disable components that are involved in management of etcd members like Pods, Services and PDBs.
                   Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.
+                  Deprecated: use spec.etcd.externallyManagedMembers.addresses instead.
                 items:
                   type: string
                 type: array
@@ -4646,6 +4706,13 @@ spec:
                 spec.volumes
               rule: '!has(self.backup.volumeMounts) || self.backup.volumeMounts.all(vm,
                 has(self.volumes) && self.volumes.exists(v, v.name == vm.name))'
+            - message: etcd.spec.etcd.externallyManagedMembers.addresses length must
+                equal to etcd.spec.replicas
+              rule: '!has(self.etcd.externallyManagedMembers) || !has(self.etcd.externallyManagedMembers.addresses)
+                || self.replicas == self.etcd.externallyManagedMembers.addresses.size()'
+            - message: spec.externallyManagedMemberAddresses and spec.etcd.externallyManagedMembers
+                cannot both be set
+              rule: '!has(self.externallyManagedMemberAddresses) || !has(self.etcd.externallyManagedMembers)'
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:
