@@ -182,6 +182,7 @@ func TestGetMemberLeaseNames(t *testing.T) {
 }
 
 func TestGetBootstrapMemberNamesToDecommission(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		spec *BootstrapWithExistingCluster
