@@ -163,6 +163,9 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 				fmt.Fprintf(&builder, "%s=%s,", memberName, url)
 			}
 		}
+	} else if etcd.Spec.Backup.DynamicEndpoints != nil {
+		memberName := fmt.Sprintf("%s-local", etcd.Name)
+		fmt.Fprintf(&builder, "%s=%s://localhost:%s", memberName, peerScheme, serverPort)
 	} else {
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
@@ -214,6 +217,9 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 			urls = append(urls, additionalURLs...)
 			advUrlsMap[memberName] = urls
 		}
+	} else if etcd.Spec.Backup.DynamicEndpoints != nil {
+		memberName := fmt.Sprintf("%s-local", etcd.Name)
+		advUrlsMap[memberName] = []string{fmt.Sprintf("%s://localhost:%d", scheme, port)}
 	} else {
 		// For externally managed members, addresses are provided explicitly via
 		// spec.externallyManagedMemberAddresses. additionalAdvertisedURLs is

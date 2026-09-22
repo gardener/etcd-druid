@@ -114,6 +114,42 @@ spec:
                       The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d')
                     pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
+                  dynamicEndpoints:
+                    description: |-
+                      DynamicEndpoints configures IP-driven endpoint discovery for etcd-backup-restore via an ENDPOINTS file.
+                      May only be set when spec.externallyManagedMemberAddresses is non-empty.
+                    properties:
+                      endpointsFileName:
+                        description: EndpointsFileName is the name of the ENDPOINTS
+                          file within HostPathDir.
+                        minLength: 1
+                        type: string
+                      hostPathDir:
+                        description: |-
+                          HostPathDir is the directory path on the host node mounted into the backup-restore container.
+                          The ENDPOINTS file must reside within this directory.
+                        minLength: 1
+                        type: string
+                      refreshEnabled:
+                        description: RefreshEnabled enables the periodic refresh of
+                          the ENDPOINTS file from the live etcd member list.
+                        type: boolean
+                      refreshInterval:
+                        description: |-
+                          RefreshInterval is the interval at which the ENDPOINTS file is refreshed.
+                          Must be > 0 when RefreshEnabled is true. Defaults to 30s.
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                        type: string
+                    required:
+                    - endpointsFileName
+                    - hostPathDir
+                    type: object
+                    x-kubernetes-validations:
+                    - message: refreshInterval must be greater than zero when refreshEnabled
+                        is true
+                      rule: '!has(self.refreshEnabled) || !self.refreshEnabled ||
+                        (has(self.refreshInterval) && duration(self.refreshInterval).getSeconds()
+                        > 0)'
                   enableProfiling:
                     description: EnableProfiling defines if profiling should be enabled
                       for the etcd-backup-restore-sidecar
@@ -4649,6 +4685,13 @@ spec:
                 spec.volumes
               rule: '!has(self.backup.volumeMounts) || self.backup.volumeMounts.all(vm,
                 has(self.volumes) && self.volumes.exists(v, v.name == vm.name))'
+            - message: spec.backup.dynamicEndpoints may only be set when spec.externallyManagedMemberAddresses
+                is non-empty
+              rule: '!has(self.backup.dynamicEndpoints) || (has(self.externallyManagedMemberAddresses)
+                && size(self.externallyManagedMemberAddresses) > 0)'
+            - message: spec.backup.dynamicEndpoints field cannot be added or removed
+                dynamically
+              rule: has(oldSelf.backup.dynamicEndpoints) == has(self.backup.dynamicEndpoints)
           status:
             description: EtcdStatus defines the observed state of Etcd.
             properties:

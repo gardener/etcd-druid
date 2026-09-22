@@ -68,6 +68,8 @@ const (
 	EnvPodIP = "POD_IP"
 	// EnvStorageContainer is the environment variable key for the storage container.
 	EnvStorageContainer = "STORAGE_CONTAINER"
+	// EnvEndpoints is the environment variable key for the ENDPOINTS file path used by etcd-backup-restore for dynamic endpoint discovery.
+	EnvEndpoints = "ENDPOINTS"
 	// EnvSourceStorageContainer is the environment variable key for the source storage container.
 	EnvSourceStorageContainer = "SOURCE_STORAGE_CONTAINER"
 	// EnvAWSApplicationCredentials is the environment variable key for AWS application credentials.
@@ -149,6 +151,10 @@ const (
 	VolumeNameLocalBackup = "local-backup"
 	// VolumeNameProviderBackupSecret is the name of the volume that contains the provider backup secret.
 	VolumeNameProviderBackupSecret = "etcd-backup-secret" // #nosec G101 -- this is the name of the mounted volume for backup secret, and not the credential itself.
+	// VolumeNameDynamicEndpoints is the name of the volume that contains the ENDPOINTS file for dynamic endpoint discovery.
+	VolumeNameDynamicEndpoints = "endpoints-file"
+	// VolumeMountPathDynamicEndpoints is the fixed container-internal directory where the endpoints volume is mounted.
+	VolumeMountPathDynamicEndpoints = "/var/etcd/endpoints"
 )
 
 // EtcdConfigFileName is the name of the etcd configuration file.

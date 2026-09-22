@@ -861,7 +861,74 @@ func TestTriggerDelete(t *testing.T) {
 	}
 }
 
+func TestGetAdvertiseURLsWithDynamicEndpoints(t *testing.T) {
+	g := NewWithT(t)
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		advertiseURLType string
+		scheme           string
+		expectedKey      string
+		expectedURL      string
+	}{
+		{
+			name:             "should return localhost peer URL when DynamicEndpoints is set",
+			advertiseURLType: advertiseURLTypePeer,
+			scheme:           "http",
+			expectedKey:      testutils.TestEtcdName + "-local",
+			expectedURL:      "http://localhost:2380",
+		},
+		{
+			name:             "should return localhost client URL when DynamicEndpoints is set",
+			advertiseURLType: advertiseURLTypeClient,
+			scheme:           "http",
+			expectedKey:      testutils.TestEtcdName + "-local",
+			expectedURL:      "http://localhost:2379",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			etcd := buildEtcdWithDynamicEndpoints(3, false, false, []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+			peerSvcName := druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta)
+			actualURLs := getAdvertiseURLs(etcd, tc.advertiseURLType, tc.scheme, peerSvcName)
+			g.Expect(actualURLs).To(HaveLen(1))
+			g.Expect(actualURLs).To(HaveKeyWithValue(tc.expectedKey, []string{tc.expectedURL}))
+		})
+	}
+}
+
+func TestPrepareInitialClusterWithDynamicEndpoints(t *testing.T) {
+	g := NewWithT(t)
+	t.Parallel()
+
+	t.Run("should emit single localhost entry when DynamicEndpoints is set", func(t *testing.T) {
+		t.Parallel()
+		etcd := buildEtcdWithDynamicEndpoints(3, false, false, []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+		actualInitialCluster := prepareInitialCluster(etcd, "http")
+		g.Expect(actualInitialCluster).To(Equal(testutils.TestEtcdName + "-local=http://localhost:2380"))
+	})
+
+	t.Run("should emit https localhost entry when peer TLS is enabled", func(t *testing.T) {
+		t.Parallel()
+		etcd := buildEtcdWithDynamicEndpoints(3, true, true, []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+		actualInitialCluster := prepareInitialCluster(etcd, "https")
+		g.Expect(actualInitialCluster).To(Equal(testutils.TestEtcdName + "-local=https://localhost:2380"))
+	})
+}
+
 // ---------------------------- Helper Functions -----------------------------
+func buildEtcdWithDynamicEndpoints(replicas int32, clientTLSEnabled, peerTLSEnabled bool, addresses []string) *druidv1alpha1.Etcd {
+	etcd := buildEtcd(replicas, clientTLSEnabled, peerTLSEnabled, addresses)
+	etcd.Spec.Backup.DynamicEndpoints = &druidv1alpha1.DynamicEndpointsSpec{
+		HostPathDir:       "/var/lib/test/endpoints",
+		EndpointsFileName: "endpoints",
+	}
+	return etcd
+}
+
 func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool, externallyManagedMemberAddresses []string) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
 	if clientTLSEnabled {
