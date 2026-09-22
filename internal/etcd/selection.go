@@ -4,14 +4,12 @@
 
 package etcd
 
-import (
-	"cmp"
-	"slices"
-)
+import "sort"
 
 // QuorumSafeToRemove reports whether removing the member identified by
-// candidateID is safe with respect to quorum. Health is read from each
-// Member's embedded Health field, populated from a live etcd Status probe.
+// candidateID is safe with respect to quorum, using the health embedded in each
+// Member (populated from a live etcd Status probe). It takes no external health
+// maps: all health data comes from members[i].Health.
 //
 // The rules are:
 //   - A learner candidate is always safe to remove: learners do not participate
@@ -22,6 +20,10 @@ import (
 //   - As a backstop, even after the health gate passes, the number of healthy
 //     surviving voters must be at least quorum(remaining voters) =
 //     ⌊(remaining voters)/2⌋ + 1.
+//
+// etcd itself also enforces a quorum check on MemberRemove; this pre-check lets
+// the controller avoid issuing a removal that etcd would reject and surface a
+// clear reason instead.
 func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
 	var candidate *Member
 	for i := range members {
@@ -30,7 +32,6 @@ func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
 			break
 		}
 	}
-	// Fail closed -- unknown candidate ID means nothing to remove from our view.
 	if candidate == nil {
 		return false
 	}
@@ -41,7 +42,6 @@ func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
 	votersAfter := 0
 	healthyVotersAfter := 0
 	for _, m := range members {
-		// Exclude the candidate from the survivor set regardless of its health.
 		if m.ID == candidateID || !m.IsVoter() {
 			continue
 		}
@@ -51,8 +51,7 @@ func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
 		}
 	}
 
-	// Removing the last voter would leave no cluster; treat as unsafe here and
-	// let the replicas -> 0 path (a Non-Goal of scale-in) handle teardown.
+	// Removing the last voter would leave no cluster; treat as unsafe.
 	if votersAfter == 0 {
 		return false
 	}
@@ -67,13 +66,68 @@ func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
 	return healthyVotersAfter >= quorumAfter
 }
 
+// AllMembersHealthy reports whether every name in required is present in members
+// and healthy. It returns false when required is empty, since "all of nothing" is
+// not a meaningful readiness signal for the callers that gate on it.
+func AllMembersHealthy(members []Member, required map[string]bool) bool {
+	if len(required) == 0 {
+		return false
+	}
+	healthyByName := make(map[string]bool, len(members))
+	for _, m := range members {
+		if m.IsHealthy() {
+			healthyByName[m.Name] = true
+		}
+	}
+	for name := range required {
+		if !healthyByName[name] {
+			return false
+		}
+	}
+	return true
+}
+
+// SurplusMemberNames returns the set of live member names that the desired state
+// no longer wants, computed as (live members) minus expected. Using the live
+// member list as the source of truth is more reliable than comparing StatefulSet
+// replica counts alone: the anti-rejoin guard can leave the pod absent while the
+// etcd member still exists in the cluster.
+func SurplusMemberNames(members []Member, expected map[string]bool) map[string]bool {
+	surplus := map[string]bool{}
+	for _, m := range members {
+		if !expected[m.Name] {
+			surplus[m.Name] = true
+		}
+	}
+	return surplus
+}
+
+// SelectNextRemovalCandidate returns the most suitable member to remove next from
+// those whose name is in surplus, or nil when none of the live members is
+// surplus. Ordering follows OrderRemovalCandidates (learners first, leader last).
+func SelectNextRemovalCandidate(members []Member, surplus map[string]bool) *Member {
+	candidates := make([]Member, 0, len(surplus))
+	for _, m := range members {
+		if surplus[m.Name] {
+			candidates = append(candidates, m)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	// OrderRemovalCandidates copies, so the returned pointer stays valid.
+	ordered := OrderRemovalCandidates(candidates)
+	return &ordered[0]
+}
+
 // OrderRemovalCandidates orders an already-selected candidate set into the
 // sequence in which members should be removed: learners first, then non-leader
-// voters, and the leader last. Within each tier members are ordered by ascending
-// member ID for determinism. Removing the leader last avoids an unnecessary
-// leadership change mid-operation. The within-tier ordering is cosmetic --
-// quorum safety is checked before every individual removal, and all surplus
-// members are removed before the StatefulSet replicas field is updated.
+// voters, and the leader last. This ordering only sequences the removals within
+// the selected set; it does not change which members are removed. Removing the
+// leader last avoids an unnecessary leadership change mid-operation.
+//
+// The leader is derived from each Member's Role (MemberRoleLeader). Within a
+// tier, members are ordered by member ID for determinism.
 func OrderRemovalCandidates(candidates []Member) []Member {
 	ordered := make([]Member, len(candidates))
 	copy(ordered, candidates)
@@ -89,11 +143,12 @@ func OrderRemovalCandidates(candidates []Member) []Member {
 		}
 	}
 
-	slices.SortFunc(ordered, func(a, b Member) int {
-		if c := cmp.Compare(tier(a), tier(b)); c != 0 {
-			return c
+	sort.SliceStable(ordered, func(i, j int) bool {
+		ti, tj := tier(ordered[i]), tier(ordered[j])
+		if ti != tj {
+			return ti < tj
 		}
-		return cmp.Compare(a.ID, b.ID)
+		return ordered[i].ID < ordered[j].ID
 	})
 	return ordered
 }

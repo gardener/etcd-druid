@@ -16,8 +16,9 @@ const (
 	MemberRoleLeader MemberRole = "Leader"
 )
 
-// MemberHealth is the observed health of an etcd member derived from a live
-// Status probe. Unknown (probe error/timeout) is fail-closed: never treated as healthy.
+// MemberHealth is the observed health of an etcd member, derived from a live
+// Status probe. Only Healthy is treated as healthy; both Unhealthy and Unknown
+// (probe error/timeout) are fail-closed as not healthy.
 type MemberHealth string
 
 const (
@@ -30,21 +31,32 @@ const (
 	MemberHealthUnknown MemberHealth = "Unknown"
 )
 
-// Member is a minimal view of an etcd cluster member.
+// Member is a minimal, client-library-agnostic view of an etcd cluster member.
+// It lives in this pure package (free of any etcd client dependency) so that the
+// membership selection logic and the client wrapper in internal/client/etcd can
+// both refer to it without the selection logic pulling in the etcd client
+// library.
 type Member struct {
-	ID     uint64
-	Name   string
-	Role   MemberRole
+	// ID is the etcd member ID.
+	ID uint64
+	// Name is the etcd member name (matches the pod name).
+	Name string
+	// Role is the member's role (learner, voting member, or leader), derived
+	// from the live MemberList and Status RPCs.
+	Role MemberRole
+	// Health is the member's observed health, derived from a live Status probe.
 	Health MemberHealth
 }
 
 // IsLearner reports whether the member is a non-voting learner.
 func (m Member) IsLearner() bool { return m.Role == MemberRoleLearner }
 
-// IsVoter reports whether the member participates in quorum.
+// IsVoter reports whether the member participates in quorum (a voting member or
+// the leader).
 func (m Member) IsVoter() bool {
 	return m.Role == MemberRoleMember || m.Role == MemberRoleLeader
 }
 
-// IsHealthy reports whether the member is healthy.
+// IsHealthy reports whether the member is healthy. Only MemberHealthHealthy is
+// considered healthy; Unhealthy and Unknown are not.
 func (m Member) IsHealthy() bool { return m.Health == MemberHealthHealthy }
