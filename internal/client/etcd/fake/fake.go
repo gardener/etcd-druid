@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Package fake provides a concurrency-safe test double for clientetcd.MemberClient
-// and clientetcd.MemberClientFactory. It is a leaf package so importing it never
-// creates an import cycle -- only test code depends on it.
+// Package fake provides concurrency-safe test doubles for clientetcd.Client and
+// clientetcd.Factory. It is a leaf package so importing it never creates
+// an import cycle; only test code depends on it.
 package fake
 
 import (
@@ -16,26 +16,25 @@ import (
 	clientetcd "github.com/gardener/etcd-druid/internal/client/etcd"
 	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// MemberClient is a concurrency-safe test double for clientetcd.MemberClient.
-// It records removals in call order and filters removed members from subsequent
-// ListMembers responses. All fields are guarded by mu.
-type MemberClient struct {
+// Client is a concurrency-safe test double that implements clientetcd.Client.
+// All exported fields are guarded by mu.
+type Client struct {
 	mu          sync.Mutex
 	Members     []etcdmember.Member
 	RemoveCalls []uint64
 	ListErr     error
 	RemoveErr   error
-	ListCalls   int
 	CloseCalls  int
 	removed     map[uint64]struct{}
 }
 
-// NewMemberClient returns a MemberClient with total voting members named
+// NewClient returns a Client with total voting members named
 // "<etcdName>-<ordinal>", all Healthy, with ordinal 0 as Leader.
-func NewMemberClient(etcdName string, total int) *MemberClient {
+func NewClient(etcdName string, total int) *Client {
 	members := make([]etcdmember.Member, 0, total)
 	for i := range total {
 		role := etcdmember.MemberRoleMember
@@ -43,20 +42,20 @@ func NewMemberClient(etcdName string, total int) *MemberClient {
 			role = etcdmember.MemberRoleLeader
 		}
 		members = append(members, etcdmember.Member{
-			ID:     uint64(i) + 1, // #nosec G115 -- i is a small non-negative loop index bounded by the member count and never crosses the size of uint64, so the conversion is safe.
+			ID:     uint64(i) + 1, // #nosec G115 -- i is a small non-negative loop index bounded by the member count
 			Name:   fmt.Sprintf("%s-%d", etcdName, i),
 			Role:   role,
 			Health: etcdmember.MemberHealthHealthy,
 		})
 	}
-	return &MemberClient{
+	return &Client{
 		Members: members,
 		removed: make(map[uint64]struct{}),
 	}
 }
 
 // SetHealth sets the Health of the member with the given ID.
-func (f *MemberClient) SetHealth(id uint64, health etcdmember.MemberHealth) {
+func (f *Client) SetHealth(id uint64, health etcdmember.MemberHealth) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for i := range f.Members {
@@ -67,18 +66,10 @@ func (f *MemberClient) SetHealth(id uint64, health etcdmember.MemberHealth) {
 	}
 }
 
-// GetRemoveCalls returns a copy of RemoveCalls, safe for concurrent reads.
-func (f *MemberClient) GetRemoveCalls() []uint64 {
+// MemberList implements clientetcd.Cluster.
+func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]uint64{}, f.RemoveCalls...)
-}
-
-// ListMembers returns Members minus removed entries, or ListErr when set.
-func (f *MemberClient) ListMembers(_ context.Context) ([]etcdmember.Member, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.ListCalls++
 	if f.ListErr != nil {
 		return nil, f.ListErr
 	}
@@ -91,8 +82,8 @@ func (f *MemberClient) ListMembers(_ context.Context) ([]etcdmember.Member, erro
 	return live, nil
 }
 
-// RemoveMember records the call and marks the member absent, or returns RemoveErr when set.
-func (f *MemberClient) RemoveMember(_ context.Context, id uint64) error {
+// MemberRemove implements clientetcd.Cluster.
+func (f *Client) MemberRemove(_ context.Context, id uint64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.RemoveCalls = append(f.RemoveCalls, id)
@@ -106,22 +97,32 @@ func (f *MemberClient) RemoveMember(_ context.Context, id uint64) error {
 	return nil
 }
 
+// Status implements clientetcd.Maintenance.
+func (f *Client) Status(_ context.Context, _ string) (*clientv3.StatusResponse, error) {
+	return &clientv3.StatusResponse{}, nil
+}
+
+// Get implements clientetcd.KV.
+func (f *Client) Get(_ context.Context, _ string, _ ...clientv3.OpOption) (*clientv3.GetResponse, error) {
+	return &clientv3.GetResponse{}, nil
+}
+
 // Close counts the invocation and always succeeds.
-func (f *MemberClient) Close() error {
+func (f *Client) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.CloseCalls++
 	return nil
 }
 
-// MemberClientFactory is a test double for clientetcd.MemberClientFactory.
-type MemberClientFactory struct {
-	Client    clientetcd.MemberClient
+// Factory is a test double for clientetcd.Factory.
+type Factory struct {
+	Client    *Client
 	CreateErr error
 }
 
-// NewMemberClient returns Client, or CreateErr when set.
-func (f *MemberClientFactory) NewMemberClient(_ context.Context, _ client.Client, _ *druidv1alpha1.Etcd) (clientetcd.MemberClient, error) {
+// NewClient returns Client as a clientetcd.Client, or CreateErr when set.
+func (f *Factory) NewClient(_ context.Context, _ client.Client, _ *druidv1alpha1.Etcd) (clientetcd.Client, error) {
 	if f.CreateErr != nil {
 		return nil, f.CreateErr
 	}
@@ -129,6 +130,6 @@ func (f *MemberClientFactory) NewMemberClient(_ context.Context, _ client.Client
 }
 
 var (
-	_ clientetcd.MemberClient        = (*MemberClient)(nil)
-	_ clientetcd.MemberClientFactory = (*MemberClientFactory)(nil)
+	_ clientetcd.Client  = (*Client)(nil)
+	_ clientetcd.Factory = (*Factory)(nil)
 )
