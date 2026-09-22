@@ -4981,6 +4981,11 @@ spec:
             || !self.status.conditions.exists(c, c.type == ''ScaleOperationComplete''
             && c.status == ''False'' && (c.reason == ''ScalingOut'' || c.reason ==
             ''BootstrapMembersRemoval''))) : true'
+        - message: Cannot scale to 0 replicas while a scale-in is in progress.
+          rule: '(self.spec.replicas == 0 && oldSelf.spec.replicas > 0) ? (!has(self.status)
+            || !has(self.status.conditions) || !self.status.conditions.exists(c, c.type
+            == ''ScaleOperationComplete'' && c.status == ''False'' && c.reason ==
+            ''ScalingIn'')) : true'
         - message: Cannot remove bootstrap members while scale-in or scale-out is
             in progress.
           rule: 'has(oldSelf.spec.etcd.bootstrapWithExistingCluster) && has(self.spec.etcd.bootstrapWithExistingCluster)
