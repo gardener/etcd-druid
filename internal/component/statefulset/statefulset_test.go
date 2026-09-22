@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"testing"
+	"time"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -416,6 +417,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		replicas                    int32
 		tolerations                 []corev1.Toleration
 		hasExternallyManagedMembers bool
+		hasDynamicEndpoints         bool
 		createErr                   *apierrors.StatusError
 		expectedErr                 *druiderr.DruidError
 		expectedReplicas            *int32
@@ -469,6 +471,14 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			expectNoService:             true,
 		},
 		{
+			name:                        "creates sts with dynamic endpoints volume, mount and env var when DynamicEndpoints is configured",
+			replicas:                    3,
+			hasExternallyManagedMembers: true,
+			hasDynamicEndpoints:         true,
+			expectedReplicas:            ptr.To[int32](0),
+			expectNoService:             true,
+		},
+		{
 			name:             "creates sts with additional env, volumes and volume mounts",
 			replicas:         1,
 			expectedReplicas: ptr.To[int32](1),
@@ -502,6 +512,14 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 				WithTolerations(tc.tolerations)
 			if tc.hasExternallyManagedMembers {
 				etcdBuilder = etcdBuilder.WithExternallyManagedMembers([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"})
+			}
+			if tc.hasDynamicEndpoints {
+				etcdBuilder = etcdBuilder.WithDynamicEndpoints(druidv1alpha1.DynamicEndpointsSpec{
+					HostPathDir:       "/var/lib/test/endpoints",
+					EndpointsFileName: "endpoints",
+					RefreshEnabled:    ptr.To(true),
+					RefreshInterval:   &metav1.Duration{Duration: 10 * time.Second},
+				})
 			}
 			if tc.etcdEnv != nil {
 				etcdBuilder = etcdBuilder.WithEtcdEnv(tc.etcdEnv)
