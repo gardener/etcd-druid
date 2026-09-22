@@ -249,7 +249,7 @@ func (t *TestEnvironment) getOperatorRegistry() (component.Registry, error) {
 	reg.Register(component.ClientServiceKind, clientservice.New(t.Client()))
 	reg.Register(component.PeerServiceKind, peerservice.New(t.Client()))
 	reg.Register(component.ConfigMapKind, configmap.New(t.Client()))
-	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector, etcdclient.NewMemberClientFactory()))
+	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector, etcdclient.NewFactory()))
 
 	return reg, nil
 }

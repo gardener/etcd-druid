@@ -29,19 +29,17 @@ import (
 )
 
 // TestDeleteSurplusPVCs verifies that scale-in deletes the PVCs of removed pod
-// ordinals (>= spec.replicas) and leaves the retained ones intact, while leaving
-// all PVCs intact on a transition to zero replicas (hibernation). The function
-// issues the deletes and returns nil (fire-and-forget); the caller (Sync) then
-// shrinks the StatefulSet in the same pass, which reclaims the Terminating PVCs.
+// ordinals (>= spec.replicas) and leaves the retained ones intact, while
+// leaving all PVCs intact on a transition to zero replicas. It also asserts the
+// allDeleted gate used by Sync to hold the STS shrink.
 func TestDeleteSurplusPVCs(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		name         string
 		specReplicas int32
 		stsReplicas  int32
 		// extraPVCs are ordinals whose PVCs exist beyond the StatefulSet's current
 		// size, modelling leaked PVCs after Sync has already shrunk the STS or PVCs
-		// retained across hibernation.
+		// retained while at zero replicas.
 		extraPVCs []int
 		// scaleInInProgress seeds ScaleOperationComplete=False/ScalingIn.
 		scaleInInProgress bool
@@ -51,44 +49,52 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 		// wantErrCode, when set, asserts the function returns a DruidError with this
 		// code instead of succeeding.
 		wantErrCode druidapicommon.ErrorCode
+		// wantAllDeleted asserts the allDeleted return value on the success path.
+		wantAllDeleted bool
 		// wantDeleted / wantKept are pod ordinals whose PVCs must be gone / present.
 		wantDeleted []int
 		wantKept    []int
 	}{
 		{
-			name:              "scale-in 5->3 deletes ordinals 3 and 4, keeps 0-2",
+			name:              "scale-in 5->3 deletes ordinals 3 and 4, keeps 0-2, allDeleted false (deletion just initiated)",
 			specReplicas:      3,
 			stsReplicas:       5,
 			scaleInInProgress: true,
+			wantAllDeleted:    false,
 			wantDeleted:       []int{3, 4},
 			wantKept:          []int{0, 1, 2},
 		},
 		{
-			name:              "STS already shrunk to 3 with scale-in condition: delta is zero, no deletes",
+			name:              "STS already shrunk to 3 still deletes leaked ordinals 3 and 4",
 			specReplicas:      3,
 			stsReplicas:       3,
 			extraPVCs:         []int{3, 4},
 			scaleInInProgress: true,
-			wantKept:          []int{0, 1, 2, 3, 4},
+			wantAllDeleted:    false,
+			wantDeleted:       []int{3, 4},
+			wantKept:          []int{0, 1, 2},
 		},
 		{
-			name:         "no scale-in condition: keeps all PVCs",
-			specReplicas: 5,
-			stsReplicas:  5,
-			wantKept:     []int{0, 1, 2, 3, 4},
+			name:           "no scale-in keeps all PVCs, allDeleted true (pass-through)",
+			specReplicas:   5,
+			stsReplicas:    5,
+			wantAllDeleted: true,
+			wantKept:       []int{0, 1, 2, 3, 4},
 		},
 		{
-			name:         "hibernation (spec 0): keeps all PVCs",
-			specReplicas: 0,
-			stsReplicas:  5,
-			wantKept:     []int{0, 1, 2, 3, 4},
+			name:           "zero replicas (spec 0) keeps all PVCs, allDeleted true",
+			specReplicas:   0,
+			stsReplicas:    5,
+			wantAllDeleted: true,
+			wantKept:       []int{0, 1, 2, 3, 4},
 		},
 		{
-			name:         "wake-up from hibernation without scale-in condition: keeps PVCs",
-			specReplicas: 3,
-			stsReplicas:  0,
-			extraPVCs:    []int{0, 1, 2, 3, 4},
-			wantKept:     []int{0, 1, 2, 3, 4},
+			name:           "scale-up from zero keeps PVCs above desired replicas when no scale-in is recorded",
+			specReplicas:   3,
+			stsReplicas:    0,
+			extraPVCs:      []int{0, 1, 2, 3, 4},
+			wantAllDeleted: true,
+			wantKept:       []int{0, 1, 2, 3, 4},
 		},
 		{
 			name:              "Delete returns server error -> surfaces as ErrDeletePVC",
@@ -104,7 +110,7 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 			wantErrCode: ErrDeletePVC,
 		},
 		{
-			name:              "surplus PVC absent (NotFound) -> treated as success",
+			name:              "surplus PVC absent from store (deleted between List and Delete) -> succeeds",
 			specReplicas:      3,
 			stsReplicas:       5,
 			scaleInInProgress: true,
@@ -114,7 +120,8 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 				}
 				return cl.Delete(context.Background(), obj, opts...)
 			},
-			wantKept: []int{0, 1, 2},
+			wantAllDeleted: false,
+			wantKept:       []int{0, 1, 2},
 		},
 	}
 
@@ -156,7 +163,7 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 			r := _resource{client: cl}
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
 
-			err := r.deleteSurplusPVCs(opCtx, etcd)
+			allDeleted, err := r.deleteSurplusPVCs(opCtx, etcd)
 			if tc.wantErrCode != "" {
 				g.Expect(err).To(HaveOccurred())
 				derr := druiderr.AsDruidError(err)
@@ -165,6 +172,7 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 				return
 			}
 			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(allDeleted).To(Equal(tc.wantAllDeleted))
 
 			vctName := etcd.Name
 			stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)

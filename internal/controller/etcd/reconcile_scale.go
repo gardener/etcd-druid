@@ -16,37 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// detectAndRecordScaleOperation determines the active scale operation for the
-// Etcd resource and records it in the ScaleOperationComplete status condition.
-// It runs after ensureFinalizer and before component reconciliation so the CEL
-// admission rules can reject conflicting opposite-direction changes while the
-// operation is in progress. See docs/proposals/08-scale-in.md for the full
-// design.
-//
-// Detection compares etcd.spec against the existing StatefulSet's spec and the
-// Etcd status only -- it does not query the etcd cluster, so a transient etcd
-// outage cannot block detection. The condition uses positive polarity, so an
-// in-flight operation is recorded as False and the converged state as True.
-// The mapping (proposal step "Detection (Step 3)"):
-//
-//   - spec.replicas < StatefulSet.spec.replicas          -> False, ScalingIn
-//   - spec.replicas > StatefulSet.spec.replicas          -> False, ScalingOut
-//   - bootstrap members removed / bootstrap config unset -> False, BootstrapMembersRemoval
-//   - no scale signal                                    -> True,  NoScaleOperation
-//
-// The condition is set back to True (complete) on successful completion by
-// recordReconcileSuccessOperation.
-func (r *Reconciler) detectAndRecordScaleOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	status, reason := r.determineScaleOperation(ctx, etcd)
-
-	// The detector only ever *sets* an in-flight operation (status False). Clearing
-	// the condition back to True/NoScaleOperation is done exclusively at the end of
-	// a successful reconcile by recordReconcileSuccessOperation, so an in-flight
-	// operation is never marked complete mid-reconcile (for example before the
-	// StatefulSet has actually been shrunk during a scale-in).
-	if status != druidv1alpha1.ConditionFalse {
-		return ctrlutils.ContinueReconcile()
-	}
+// detectAndRecordScaleOperationInProgress records an in-progress scale operation
+// in the ScaleOperationComplete status condition (False = in progress). It runs
+// before component reconciliation so the CEL admission rules can reject conflicting
+// opposite-direction changes while an operation is active. It only sets False;
+// recordScaleOperationComplete advances it to True on completion.
+func (r *Reconciler) detectAndRecordScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	status, reason := r.determineScaleOperationInProgress(ctx, etcd)
 
 	if !scaleConditionNeedsUpdate(etcd, status, reason) {
 		return ctrlutils.ContinueReconcile()
@@ -60,36 +36,34 @@ func (r *Reconciler) detectAndRecordScaleOperation(ctx component.OperatorContext
 	return ctrlutils.ContinueReconcile()
 }
 
-// determineScaleOperation returns the ScaleOperationComplete condition status
-// and reason for the current desired vs observed state. The condition uses
-// positive polarity: True/NoScaleOperation is the converged state, and an
-// in-flight operation is False with the reason naming it. On any error observing
-// the StatefulSet it conservatively reports no scale operation (True), leaving
-// the existing condition untouched and letting a later reconcile converge.
-func (r *Reconciler) determineScaleOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string) {
+// determineScaleOperationInProgress returns the ScaleOperationComplete status and
+// reason for an in-progress scale operation (always False), or the existing
+// condition value when replica counts match. Advancing the condition to True on
+// completion is left to recordScaleOperationComplete.
+func (r *Reconciler) determineScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string) {
 	// BootstrapMembersRemoval takes precedence: the operator has removed joined
 	// source members (or unset bootstrapWithExistingCluster) that the target had
 	// already joined. Only members recorded in status are meaningful here.
-	if isBootstrapMembersRemoval(etcd) {
+	if hasBootstrapMembersToBeRemoved(etcd) {
 		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval
 	}
 
 	sts, err := kubernetes.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		ctx.Logger.Error(err, "failed to get StatefulSet while detecting scale operation; preserving existing scale operation condition")
-		return existingScaleOperationConditionOrDefault(etcd)
+		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
 	}
-	// No StatefulSet yet (fresh cluster) means there is no observed size to
-	// compare against, so there is no scale operation in progress.
+	// No observed replica count to compare against; preserve the existing
+	// condition rather than asserting no scale operation is in progress.
 	if sts == nil || sts.Spec.Replicas == nil {
-		return druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation
+		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
 	}
 
-	// Transitions to/from zero (hibernation and wake-up) are handled by the
-	// existing replicas -> 0 code path and are never treated as a scale-in/out.
+	// Transitions to or from zero replicas are handled by the existing
+	// scale-to-zero code path and are never treated as a scale-in/out.
 	stsReplicas := *sts.Spec.Replicas
-	if etcd.Spec.Replicas == 0 || stsReplicas == 0 {
-		return druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation
+	if druidv1alpha1.HasZeroReplicas(etcd) || stsReplicas == 0 {
+		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
 	}
 
 	switch {
@@ -98,33 +72,19 @@ func (r *Reconciler) determineScaleOperation(ctx component.OperatorContext, etcd
 	case etcd.Spec.Replicas > stsReplicas:
 		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingOut
 	default:
-		return druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation
+		// Replica counts match: no active scale signal. Preserve the existing
+		// condition and let recordReconcileSuccessOperation advance it on completion.
+		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
 	}
 }
 
-// isBootstrapMembersRemoval reports whether the operator has requested removal
+// hasBootstrapMembersToBeRemoved reports whether the operator has requested removal
 // of source members the target already joined via bootstrapWithExistingCluster.
 // It is true when the target has recorded joined members in status and one or
 // more of those members is no longer present in the spec (or the spec's
 // bootstrapWithExistingCluster has been unset entirely).
-func isBootstrapMembersRemoval(etcd *druidv1alpha1.Etcd) bool {
+func hasBootstrapMembersToBeRemoved(etcd *druidv1alpha1.Etcd) bool {
 	return len(druidv1alpha1.GetBootstrapMemberNamesToDecommission(etcd)) > 0
-}
-
-// existingScaleOperationConditionOrDefault returns the current
-// ScaleOperationComplete condition's status and reason, or True/NoScaleOperation
-// when the condition is not yet present. It is used to preserve the recorded
-// condition when the StatefulSet cannot be observed, so a transient error does
-// not flip an in-flight operation back to complete.
-func existingScaleOperationConditionOrDefault(etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string) {
-	idx := slices.IndexFunc(etcd.Status.Conditions, func(c druidv1alpha1.Condition) bool {
-		return c.Type == druidv1alpha1.ConditionTypeScaleOperationComplete
-	})
-	if idx < 0 {
-		return druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation
-	}
-	cond := etcd.Status.Conditions[idx]
-	return cond.Status, cond.Reason
 }
 
 // scaleConditionNeedsUpdate reports whether the current ScaleOperationComplete
@@ -200,7 +160,7 @@ func scaleOperationMessage(reason string) string {
 
 // pruneBootstrapMembersStatus removes, from
 // etcd.Status.BootstrapWithExistingCluster.Members, any joined source member
-// that is no longer present in spec.etcd.bootstrapWithExistingCluster -- these
+// that is no longer present in spec.etcd.bootstrapWithExistingCluster; these
 // members have been removed from the etcd cluster by the PreSync member removal
 // (which requeues until no surplus remains, so by the time this runs the
 // removal has completed). When all joined members have been pruned, the whole

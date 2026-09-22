@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Contributors to the Gardener project
+// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -11,16 +11,19 @@ import (
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	clientkubernetes "github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	testutils "github.com/gardener/etcd-druid/test/utils"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,8 +48,7 @@ const (
 // taking precedence over a replicas comparison). The condition uses positive
 // polarity: True/NoScaleOperation is converged, and an in-flight operation is
 // False with the reason naming it.
-func TestDetermineScaleOperation(t *testing.T) {
-	t.Parallel()
+func TestDetermineScaleOperationInProgress(t *testing.T) {
 	bootstrapStatus := func(names ...string) *druidv1alpha1.BootstrapWithExistingClusterStatus {
 		members := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(names))
 		for _, n := range names {
@@ -104,7 +106,7 @@ func TestDetermineScaleOperation(t *testing.T) {
 			wantReason:   druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
-			name:         "spec.replicas == 0 (hibernation) -> NoScaleOperation, not ScalingIn",
+			name:         "spec.replicas == 0 -> NoScaleOperation, not ScalingIn",
 			specReplicas: 0,
 			stsReplicas:  ptr.To(int32(3)),
 			wantStatus:   druidv1alpha1.ConditionTrue,
@@ -157,7 +159,6 @@ func TestDetermineScaleOperation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -176,15 +177,14 @@ func TestDetermineScaleOperation(t *testing.T) {
 			cl := builder.Build()
 			r := &Reconciler{client: cl}
 
-			gotStatus, gotReason := r.determineScaleOperation(newScaleTestOperatorContext(), etcd)
+			gotStatus, gotReason := r.determineScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
 			g.Expect(gotStatus).To(Equal(tc.wantStatus))
 			g.Expect(gotReason).To(Equal(tc.wantReason))
 		})
 	}
 }
 
-func TestDetermineScaleOperationPreservesExistingConditionOnStatefulSetGetError(t *testing.T) {
-	t.Parallel()
+func TestDetermineScaleOperationInProgressPreservesExistingConditionOnStatefulSetGetError(t *testing.T) {
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -210,17 +210,16 @@ func TestDetermineScaleOperationPreservesExistingConditionOnStatefulSetGetError(
 		Build()
 	r := &Reconciler{client: cl}
 
-	gotStatus, gotReason := r.determineScaleOperation(newScaleTestOperatorContext(), etcd)
+	gotStatus, gotReason := r.determineScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
 	g.Expect(gotStatus).To(Equal(druidv1alpha1.ConditionFalse))
 	g.Expect(gotReason).To(Equal(druidv1alpha1.ScaleOperationReasonScalingIn))
 }
 
-// TestDetectAndRecordScaleOperation exercises the full reconcile step: it must
+// TestDetectAndRecordScaleOperationInProgress exercises the full reconcile step: it must
 // patch the ScaleOperationComplete condition onto the Etcd status subresource
-// when there is an operation to record, and it must be a no-op (no condition
+// when there is an in-progress operation to record, and it must be a no-op (no condition
 // added) for a brand-new resource with no scale operation in progress.
-func TestDetectAndRecordScaleOperation(t *testing.T) {
-	t.Parallel()
+func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
 	tests := []struct {
 		name         string
 		specReplicas int32
@@ -275,7 +274,6 @@ func TestDetectAndRecordScaleOperation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -297,7 +295,7 @@ func TestDetectAndRecordScaleOperation(t *testing.T) {
 			cl := builder.Build()
 			r := &Reconciler{client: cl}
 
-			res := r.detectAndRecordScaleOperation(newScaleTestOperatorContext(), etcd)
+			res := r.detectAndRecordScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
 			g.Expect(res.HasErrors()).To(BeFalse())
 
 			// Re-read the persisted Etcd to assert the condition was patched onto
@@ -320,19 +318,18 @@ func TestDetectAndRecordScaleOperation(t *testing.T) {
 	}
 }
 
-// TestDetectAndRecordScaleOperationIsIdempotent verifies that a second call to
-// detectAndRecordScaleOperation with the same state issues no Status().Patch.
+// TestDetectAndRecordScaleOperationInProgressIsIdempotent verifies that a second call to
+// detectAndRecordScaleOperationInProgress with the same state issues no Status().Patch.
 // The guard in scaleConditionNeedsUpdate should short-circuit when the existing
 // condition already matches the determined (status, reason) pair.
-func TestDetectAndRecordScaleOperationIsIdempotent(t *testing.T) {
-	t.Parallel()
+func TestDetectAndRecordScaleOperationInProgressIsIdempotent(t *testing.T) {
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
 		WithReplicas(3).
 		Build()
 	etcd.UID = scaleTestEtcdUID
-	// Pre-seed a condition that exactly matches what a 5->3 scale-in would produce.
+	// Pre-seed a condition that exactly matches what a 5→3 scale-in would produce.
 	etcd.Status.Conditions = []druidv1alpha1.Condition{{
 		Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
 		Status: druidv1alpha1.ConditionFalse,
@@ -357,76 +354,9 @@ func TestDetectAndRecordScaleOperationIsIdempotent(t *testing.T) {
 	g.Expect(cl.Create(context.Background(), sts)).To(Succeed())
 
 	r := &Reconciler{client: cl}
-	res := r.detectAndRecordScaleOperation(newScaleTestOperatorContext(), etcd)
+	res := r.detectAndRecordScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
 	g.Expect(res.HasErrors()).To(BeFalse())
 	g.Expect(patchCount).To(Equal(0), "no Status().Patch should be issued when condition already matches")
-}
-
-// TestDetectAndRecordScaleOperationDoesNotClearCondition enforces the condition
-// lifecycle invariant: the detector only ever *sets* an in-flight operation
-// (status False); clearing the condition back to True/NoScaleOperation is done
-// exclusively at the end of a successful reconcile by
-// recordReconcileSuccessOperation. Here the StatefulSet has already converged to
-// spec.replicas, so determineScaleOperation reports True/NoScaleOperation, yet an
-// existing False/ScalingIn condition must be left untouched by the detector (it
-// must not clear it, or an opposite-direction change could be admitted before the
-// operation has actually completed at end-of-reconcile).
-func TestDetectAndRecordScaleOperationDoesNotClearCondition(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		reason string
-	}{
-		{name: "converged StatefulSet leaves an in-flight ScalingIn condition set", reason: druidv1alpha1.ScaleOperationReasonScalingIn},
-		{name: "converged StatefulSet leaves an in-flight ScalingOut condition set", reason: druidv1alpha1.ScaleOperationReasonScalingOut},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-
-			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
-				WithReplicas(3).
-				Build()
-			etcd.UID = scaleTestEtcdUID
-			etcd.Status.Conditions = []druidv1alpha1.Condition{{
-				Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
-				Status: druidv1alpha1.ConditionFalse,
-				Reason: tc.reason,
-			}}
-
-			cl := fakeclient.NewClientBuilder().
-				WithScheme(clientkubernetes.Scheme).
-				WithObjects(etcd).
-				WithStatusSubresource(etcd).
-				Build()
-			// StatefulSet has already converged to spec.replicas: determineScaleOperation
-			// reports True/NoScaleOperation, which the detector must NOT act on.
-			sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), scaleTestNamespace, scaleTestEtcdUID, 3)
-			sts.Spec.Replicas = ptr.To(int32(3))
-			g.Expect(cl.Create(context.Background(), sts)).To(Succeed())
-
-			r := &Reconciler{client: cl}
-			res := r.detectAndRecordScaleOperation(newScaleTestOperatorContext(), etcd)
-			g.Expect(res.HasErrors()).To(BeFalse())
-
-			// In-memory state must be unchanged.
-			idx := findScaleCondition(etcd.Status.Conditions)
-			g.Expect(idx).To(BeNumerically(">=", 0))
-			g.Expect(etcd.Status.Conditions[idx].Status).To(Equal(druidv1alpha1.ConditionFalse))
-			g.Expect(etcd.Status.Conditions[idx].Reason).To(Equal(tc.reason))
-
-			// Persisted state must be unchanged too (the detector must not have patched).
-			persisted := &druidv1alpha1.Etcd{}
-			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: scaleTestEtcdName, Namespace: scaleTestNamespace}, persisted)).To(Succeed())
-			pIdx := findScaleCondition(persisted.Status.Conditions)
-			g.Expect(pIdx).To(BeNumerically(">=", 0), "detector must not remove the in-flight condition")
-			g.Expect(persisted.Status.Conditions[pIdx].Status).To(Equal(druidv1alpha1.ConditionFalse),
-				"detector must not clear the condition to True; only recordReconcileSuccessOperation may")
-			g.Expect(persisted.Status.Conditions[pIdx].Reason).To(Equal(tc.reason))
-		})
-	}
 }
 
 // TestPruneBootstrapMembersStatus verifies that joined source members no longer
@@ -435,7 +365,6 @@ func TestDetectAndRecordScaleOperationDoesNotClearCondition(t *testing.T) {
 // cleared once nothing remains, and that it is a no-op when every joined member
 // is still in spec (or nothing has joined at all).
 func TestPruneBootstrapMembersStatus(t *testing.T) {
-	t.Parallel()
 	joined := func(names ...string) []druidv1alpha1.BootstrapJoinedMember {
 		members := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(names))
 		for _, n := range names {
@@ -490,7 +419,6 @@ func TestPruneBootstrapMembersStatus(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -529,57 +457,87 @@ func TestPruneBootstrapMembersStatus(t *testing.T) {
 	}
 }
 
-// TestRecordReconcileSuccessClearsScaleCondition verifies that a completed spec
-// reconciliation marks an in-flight ScaleOperationComplete condition back to
-// True/NoScaleOperation, and that it does not add the condition when none was
-// recorded.
-func TestRecordReconcileSuccessClearsScaleCondition(t *testing.T) {
-	t.Parallel()
+// TestRecordScaleOperationComplete verifies that an in-flight
+// ScaleOperationComplete condition advances to True/NoScaleOperation once all
+// surplus members are gone, requeues while surplus members remain, and is a
+// no-op when no scale operation condition is recorded.
+func TestRecordScaleOperationComplete(t *testing.T) {
+	const replicas = int32(3)
+
+	// buildMembers returns only the managed members for [0, replicas).
+	buildCleanMembers := func(name string) []etcdmember.Member {
+		members := make([]etcdmember.Member, 0, replicas)
+		for i := range replicas {
+			members = append(members, etcdmember.Member{
+				ID:     uint64(i) + 1, // #nosec G115
+				Name:   fmt.Sprintf("%s-%d", name, i),
+				Health: etcdmember.MemberHealthHealthy,
+			})
+		}
+		return members
+	}
+
+	// buildSurplusMembers adds one extra member beyond the expected set.
+	buildSurplusMembers := func(name string) []etcdmember.Member {
+		members := buildCleanMembers(name)
+		return append(members, etcdmember.Member{
+			ID:   uint64(replicas) + 1,
+			Name: fmt.Sprintf("%s-%d", name, replicas), // one beyond spec
+		})
+	}
+
 	tests := []struct {
 		name string
 		// existingCondition, when non-nil, seeds a ScaleOperationComplete
 		// condition on the status before the success step runs.
-		existingCondition    *druidv1alpha1.Condition
+		existingCondition *druidv1alpha1.Condition
+		// fakeMembers sets the members the fake etcd client returns.
+		// A nil slice means no client call is expected (no scale operation condition).
+		fakeMembers          []etcdmember.Member
 		wantConditionPresent bool
 		wantStatus           druidv1alpha1.ConditionStatus
 		wantReason           string
+		wantRequeue          bool
 	}{
 		{
-			name: "in-flight scale-in condition is marked complete (True/NoScaleOperation)",
+			name: "in-flight scale-in with all surplus removed: condition advances to True",
 			existingCondition: &druidv1alpha1.Condition{
 				Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
 				Status: druidv1alpha1.ConditionFalse,
 				Reason: druidv1alpha1.ScaleOperationReasonScalingIn,
 			},
+			fakeMembers:          buildCleanMembers(scaleTestEtcdName),
 			wantConditionPresent: true,
 			wantStatus:           druidv1alpha1.ConditionTrue,
 			wantReason:           druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
-			name: "in-flight scale-out condition is marked complete (True/NoScaleOperation)",
+			name: "in-flight scale-in with surplus still present: requeues without advancing condition",
 			existingCondition: &druidv1alpha1.Condition{
 				Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
 				Status: druidv1alpha1.ConditionFalse,
-				Reason: druidv1alpha1.ScaleOperationReasonScalingOut,
+				Reason: druidv1alpha1.ScaleOperationReasonScalingIn,
 			},
+			fakeMembers:          buildSurplusMembers(scaleTestEtcdName),
 			wantConditionPresent: true,
-			wantStatus:           druidv1alpha1.ConditionTrue,
-			wantReason:           druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			wantStatus:           druidv1alpha1.ConditionFalse,
+			wantReason:           druidv1alpha1.ScaleOperationReasonScalingIn,
+			wantRequeue:          true,
 		},
 		{
 			name:                 "no condition recorded -> success does not add one",
 			existingCondition:    nil,
+			fakeMembers:          nil, // no client call expected
 			wantConditionPresent: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
-				WithReplicas(3).
+				WithReplicas(replicas).
 				Build()
 			etcd.UID = scaleTestEtcdUID
 			if tc.existingCondition != nil {
@@ -591,13 +549,29 @@ func TestRecordReconcileSuccessClearsScaleCondition(t *testing.T) {
 				WithObjects(etcd).
 				WithStatusSubresource(etcd).
 				Build()
+
+			var cf *etcdclientfake.Factory
+			if tc.fakeMembers != nil {
+				fc := &etcdclientfake.Client{Members: tc.fakeMembers}
+				cf = &etcdclientfake.Factory{Client: fc}
+			} else {
+				cf = &etcdclientfake.Factory{}
+			}
+
 			r := &Reconciler{
 				client:            cl,
 				lastOpErrRecorder: ctrlutils.NewLastOperationAndLastErrorsRecorder(cl, logr.Discard()),
+				etcdClientFactory: cf,
 			}
 
-			res := r.recordReconcileSuccessOperation(newScaleTestOperatorContext(), etcd)
-			g.Expect(res.HasErrors()).To(BeFalse())
+			res := r.recordScaleOperationComplete(newScaleTestOperatorContext(), etcd)
+
+			if tc.wantRequeue {
+				g.Expect(res.HasErrors()).To(BeTrue())
+				g.Expect(res.GetResult().Requeue).To(BeTrue())
+			} else {
+				g.Expect(res.HasErrors()).To(BeFalse())
+			}
 
 			persisted := &druidv1alpha1.Etcd{}
 			g.Expect(cl.Get(context.Background(), types.NamespacedName{Name: scaleTestEtcdName, Namespace: scaleTestNamespace}, persisted)).To(Succeed())
@@ -628,11 +602,13 @@ func newScaleTestOperatorContext() component.OperatorContext {
 	return component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
 }
 
-// quorumUnsafePreSyncOperator is a component.Operator test double that models
-// the scale-in member-removal PreSync on a quorum-unsafe hold: it returns a
-// DruidError carrying ERR_QUORUM_UNSAFE_MEMBER_REMOVAL and does not touch
-// status itself (the reconcile flow is responsible for recording the reason).
-// All other methods are no-ops.
+// quorumUnsafePreSyncOperator is a component.Operator test double that models the
+// scale-in member-removal PreSync on a quorum-unsafe hold: it returns a DruidError
+// carrying ERR_QUORUM_UNSAFE_MEMBER_REMOVAL and does NOT touch status itself (the
+// reconcile flow is responsible for recording the reason). All other methods are
+// no-ops. It lets the test drive the real reconcile step sequence
+// (preSyncEtcdResources -> mapping -> recordIncompleteReconcileOperation) without a
+// live etcd or the full StatefulSet operator.
 type quorumUnsafePreSyncOperator struct {
 	returnErr error
 }
@@ -640,34 +616,31 @@ type quorumUnsafePreSyncOperator struct {
 func (o quorumUnsafePreSyncOperator) GetExistingResourceNames(_ component.OperatorContext, _ metav1.ObjectMeta) ([]string, error) {
 	return nil, nil
 }
-
 func (o quorumUnsafePreSyncOperator) TriggerDelete(_ component.OperatorContext, _ metav1.ObjectMeta) error {
 	return nil
 }
-
 func (o quorumUnsafePreSyncOperator) Sync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error {
 	return nil
 }
-
 func (o quorumUnsafePreSyncOperator) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error {
 	return o.returnErr
 }
 
-// TestQuorumUnsafeErrorSurvivesReconcileRecording is the regression test for
-// the observability defect where a held, quorum-unsafe scale-in must surface
-// ERR_QUORUM_UNSAFE_MEMBER_REMOVAL in status.lastErrors so an operator can see
-// why the scale-in is stuck. It drives the real reconcile step sequence:
-// preSyncEtcdResources (which maps the returned DruidError to a step result)
-// followed by recordIncompleteReconcileOperation (which persists
-// status.lastErrors and LastOperation.State via the real recorder).
+// TestQuorumUnsafeErrorSurvivesReconcileRecording is the regression test for the
+// observability defect where a held, quorum-unsafe scale-in must surface
+// ERR_QUORUM_UNSAFE_MEMBER_REMOVAL in status.lastErrors so an operator can see why
+// the scale-in is stuck. It drives the real reconcile step sequence:
+// preSyncEtcdResources (which maps the returned DruidError to a step result) followed
+// by recordIncompleteReconcileOperation (which persists status.lastErrors and
+// LastOperation.State via the real recorder).
 //
 // Two invariants must hold after the sequence:
-//  1. the quorum-unsafe error is present in status.lastErrors and
-//     LastOperation.State is Error (observability); and
-//  2. the step result requeues after an interval (a transient hold) rather than
-//     as an immediate error requeue.
+//  1. the quorum-unsafe error is present in status.lastErrors and LastOperation.State
+//     is Error (observability); and
+//  2. the step result requeues after an interval (a transient hold) rather than as an
+//     immediate error requeue, i.e. the mapping treats the quorum-unsafe code as a
+//     recording requeue, not a generic terminal error.
 func TestQuorumUnsafeErrorSurvivesReconcileRecording(t *testing.T) {
-	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -685,6 +658,8 @@ func TestQuorumUnsafeErrorSurvivesReconcileRecording(t *testing.T) {
 		WithStatusSubresource(etcd).
 		Build()
 
+	// The quorum-unsafe hold requeues after the retry interval; the DruidError it
+	// carries names the quorum-unsafe code so the reconcile flow records the reason.
 	quorumErr := druiderr.New(statefulset.ErrQuorumUnsafeMemberRemoval, component.OperationPreSync,
 		"member etcd-scale-2 not removed: removal would break quorum for etcd test-ns/etcd-scale")
 
@@ -699,12 +674,20 @@ func TestQuorumUnsafeErrorSurvivesReconcileRecording(t *testing.T) {
 
 	ctx := newScaleTestOperatorContext()
 
+	// preSyncEtcdResources maps the quorum-unsafe DruidError to a step result that
+	// short-circuits the reconcile flow.
 	stepResult := r.preSyncEtcdResources(ctx, etcd)
 	g.Expect(ctrlutils.ShortCircuitReconcileFlow(stepResult)).To(BeTrue())
 
+	// A quorum-unsafe hold is transient: it must requeue after an interval, not as an
+	// immediate error requeue. This distinguishes the recording-requeue mapping from
+	// the generic terminal-error path.
 	g.Expect(stepResult.GetResult().RequeueAfter).To(BeNumerically(">", 0),
 		"quorum-unsafe hold must requeue after an interval")
 
+	// recordIncompleteReconcileOperation persists the exit step result's errors and
+	// state. The quorum-unsafe error must survive so an operator can see why the
+	// scale-in is held.
 	r.recordIncompleteReconcileOperation(ctx, etcd, stepResult)
 
 	persisted := &druidv1alpha1.Etcd{}
