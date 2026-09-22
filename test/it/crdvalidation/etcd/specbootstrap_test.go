@@ -20,6 +20,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
@@ -74,17 +75,22 @@ func TestValidateUpdateSpecBootstrapWithExistingClusterFreezeWhileInProgress(t *
 	// status subresource. Used by tests to simulate the reconciler having
 	// recorded a specific bootstrap state before the operator's spec update.
 	setCondition := func(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus) {
-		etcd.Status.Conditions = []druidv1alpha1.Condition{
-			{
-				Type:               druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
-				Status:             status,
-				LastTransitionTime: metav1.Now(),
-				LastUpdateTime:     metav1.Now(),
-				Reason:             "TestReason",
-				Message:            "test message",
-			},
-		}
-		g.Expect(cl.Status().Update(ctx, etcd)).To(Succeed())
+		g.Eventually(func() error {
+			if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+				return err
+			}
+			etcd.Status.Conditions = []druidv1alpha1.Condition{
+				{
+					Type:               druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
+					Status:             status,
+					LastTransitionTime: metav1.Now(),
+					LastUpdateTime:     metav1.Now(),
+					Reason:             "TestReason",
+					Message:            "test message",
+				},
+			}
+			return cl.Status().Update(ctx, etcd)
+		}).Should(Succeed())
 	}
 
 	tests := []struct {
@@ -188,21 +194,27 @@ func TestValidateUpdateSpecBootstrapUnsetWhileScaling(t *testing.T) {
 	cl := itTestEnv.GetClient()
 
 	setScaleCondition := func(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus, reason string) {
-		etcd.Status.Conditions = []druidv1alpha1.Condition{
-			{
-				Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
-				Status:             status,
-				LastTransitionTime: metav1.Now(),
-				LastUpdateTime:     metav1.Now(),
-				Reason:             reason,
-				Message:            "test message",
-			},
-		}
-		g.Expect(cl.Status().Update(ctx, etcd)).To(Succeed())
+		g.Eventually(func() error {
+			if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+				return err
+			}
+			etcd.Status.Conditions = []druidv1alpha1.Condition{
+				{
+					Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
+					Status:             status,
+					LastTransitionTime: metav1.Now(),
+					LastUpdateTime:     metav1.Now(),
+					Reason:             reason,
+					Message:            "test message",
+				},
+			}
+			return cl.Status().Update(ctx, etcd)
+		}).Should(Succeed())
 	}
 
 	tests := []struct {
-		name            string
+		name string
+		// conditionStatus/conditionReason, when set, are written before the update.
 		conditionStatus druidv1alpha1.ConditionStatus
 		conditionReason string
 		expectErr       bool
@@ -226,8 +238,9 @@ func TestValidateUpdateSpecBootstrapUnsetWhileScaling(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			name:      "Valid: unset bootstrap with no scale operation in progress",
-			expectErr: false,
+			name:            "Valid: unset bootstrap with no scale operation in progress",
+			conditionStatus: "",
+			expectErr:       false,
 		},
 	}
 
@@ -247,6 +260,7 @@ func TestValidateUpdateSpecBootstrapUnsetWhileScaling(t *testing.T) {
 				setScaleCondition(etcd, test.conditionStatus, test.conditionReason)
 			}
 
+			// Unset the field and attempt the update.
 			etcd.Spec.Etcd.BootstrapWithExistingCluster = nil
 			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
 		})

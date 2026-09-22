@@ -506,13 +506,13 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 	// Surplus PVCs must be deleted after the first Sync pass.
 	vctName := ptr.Deref(etcd.Spec.VolumeClaimTemplate, etcd.Name)
 	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
-	pvcExists := func(ordinal int32) bool {
+	getPVCErr := func(ordinal int32) error {
 		pvcName := fmt.Sprintf("%s-%s-%d", vctName, stsName, ordinal)
-		getErr := cl.Get(context.Background(), client.ObjectKey{Namespace: etcd.Namespace, Name: pvcName}, &corev1.PersistentVolumeClaim{})
-		return getErr == nil
+		return cl.Get(context.Background(), client.ObjectKey{Namespace: etcd.Namespace, Name: pvcName}, &corev1.PersistentVolumeClaim{})
 	}
 	for _, ordinal := range []int32{3, 4} {
-		g.Expect(pvcExists(ordinal)).To(BeFalse(), "surplus PVC for ordinal %d must be deleted in the first Sync pass", ordinal)
+		g.Expect(getPVCErr(ordinal)).To(MatchError(apierrors.IsNotFound, "IsNotFound"),
+			"surplus PVC for ordinal %d must be deleted in the first Sync pass", ordinal)
 	}
 
 	// Second Sync: with surplus PVCs gone, shrinks the StatefulSet.
@@ -522,7 +522,7 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 	g.Expect(err).To(Succeed())
 	g.Expect(shrunkSTS.Spec.Replicas).To(HaveValue(Equal(targetReplicas)), "StatefulSet must be shrunk to spec.replicas after surplus PVCs are gone")
 	for _, ordinal := range []int32{0, 1, 2} {
-		g.Expect(pvcExists(ordinal)).To(BeTrue(), "retained PVC for ordinal %d must not be deleted", ordinal)
+		g.Expect(getPVCErr(ordinal)).To(Succeed(), "retained PVC for ordinal %d must not be deleted", ordinal)
 	}
 }
 

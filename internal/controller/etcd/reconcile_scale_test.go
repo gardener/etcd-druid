@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: Contributors to the Gardener project
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -20,10 +20,9 @@ import (
 	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -616,12 +615,15 @@ type quorumUnsafePreSyncOperator struct {
 func (o quorumUnsafePreSyncOperator) GetExistingResourceNames(_ component.OperatorContext, _ metav1.ObjectMeta) ([]string, error) {
 	return nil, nil
 }
+
 func (o quorumUnsafePreSyncOperator) TriggerDelete(_ component.OperatorContext, _ metav1.ObjectMeta) error {
 	return nil
 }
+
 func (o quorumUnsafePreSyncOperator) Sync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error {
 	return nil
 }
+
 func (o quorumUnsafePreSyncOperator) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error {
 	return o.returnErr
 }

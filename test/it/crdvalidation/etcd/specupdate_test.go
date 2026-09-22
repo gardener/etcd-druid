@@ -101,8 +101,6 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			// DEP-08: a decrease of a multi-node cluster is now allowed when no
-			// conflicting scale operation is in progress.
 			name:            "Valid update to replicas #3",
 			etcdName:        "etcd-valid-dec",
 			initialReplicas: 5,

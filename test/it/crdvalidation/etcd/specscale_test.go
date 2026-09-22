@@ -1,12 +1,12 @@
-// SPDX-FileCopyrightText: 2026 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: Contributors to the Gardener project
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Tests the DEP-08 scale coordination CEL rules on etcd.spec updates. These
-// rules read the ScaleOperationComplete status condition to reject conflicting
+// Testing DEP-08 scale coordination CEL rules on etcd.spec updates. These rules
+// read the ScaleOperationComplete status condition to reject conflicting
 // opposite-direction membership changes while an operation is in flight. The
-// condition uses positive polarity: an in-flight operation is status == False
-// with the reason naming it; a converged cluster is True/NoScaleOperation.
+// condition uses positive polarity, so an in-flight operation is status == False
+// with the reason naming it.
 package etcd
 
 import (
@@ -52,9 +52,10 @@ func TestValidateUpdateScaleOperationCoordination(t *testing.T) {
 		name            string
 		initialReplicas int32
 		updatedReplicas int32
-		// conditionStatus/conditionReason, when non-empty, are written before the
-		// update. An in-flight operation is ConditionFalse with the operation reason;
-		// a converged cluster is ConditionTrue/NoScaleOperation.
+		// conditionStatus/conditionReason, when set, are written before the update.
+		// An empty status leaves status.conditions untouched. An in-flight operation
+		// is ConditionFalse with the operation reason; a converged cluster is
+		// ConditionTrue/NoScaleOperation.
 		conditionStatus druidv1alpha1.ConditionStatus
 		conditionReason string
 		expectErr       bool
@@ -88,7 +89,7 @@ func TestValidateUpdateScaleOperationCoordination(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			name:            "Valid: scale-in to zero is never blocked",
+			name:            "Valid: scale to zero replicas while ScalingOut in progress is allowed",
 			initialReplicas: 3,
 			updatedReplicas: 0,
 			conditionStatus: druidv1alpha1.ConditionFalse,
@@ -104,16 +105,24 @@ func TestValidateUpdateScaleOperationCoordination(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			// CEL replica-direction rules are gated on
-			// self.spec.replicas > 0 && oldSelf.spec.replicas > 0, so waking up
-			// from hibernation (0 -> N) is never treated as a scale-out and is
-			// allowed even while an operation is still recorded as in flight.
-			name:            "Valid: wake-up from hibernation (0 -> N) while ScalingIn in progress",
+			// The CEL replica-direction rules are gated on
+			// self.spec.replicas > 0 && oldSelf.spec.replicas > 0, so waking up from
+			// zero replicas is never treated as a scale-out and is allowed even
+			// while an operation is still recorded as in flight.
+			name:            "Valid: wake-up from zero replicas while ScalingIn in progress",
 			initialReplicas: 0,
 			updatedReplicas: 3,
 			conditionStatus: druidv1alpha1.ConditionFalse,
 			conditionReason: druidv1alpha1.ScaleOperationReasonScalingIn,
 			expectErr:       false,
+		},
+		{
+			name:            "Invalid: scale to zero replicas while ScalingIn in progress",
+			initialReplicas: 3,
+			updatedReplicas: 0,
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonScalingIn,
+			expectErr:       true,
 		},
 		{
 			name:            "Invalid: scale-out while ScalingIn in progress",
