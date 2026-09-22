@@ -26,7 +26,7 @@ require (
 
 // Test-Only dependencies
 require (
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.40.0
 )
 
