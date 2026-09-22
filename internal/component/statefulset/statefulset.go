@@ -54,20 +54,18 @@ const (
 )
 
 type _resource struct {
-	client              client.Client
-	imageVector         imagevector.ImageVector
-	memberClientFactory etcdclient.MemberClientFactory
-	logger              logr.Logger
+	client        client.Client
+	imageVector   imagevector.ImageVector
+	clientFactory etcdclient.Factory
+	logger        logr.Logger
 }
 
-// New returns a new statefulset component operator. memberClientFactory is a
-// required dependency used to remove surplus etcd members during a scale-in; it
-// must not be nil. Tests inject a fake from internal/client/etcd/fake.
-func New(client client.Client, imageVector imagevector.ImageVector, memberClientFactory etcdclient.MemberClientFactory) component.Operator {
+// New returns a new statefulset component operator.
+func New(client client.Client, imageVector imagevector.ImageVector, clientFactory etcdclient.Factory) component.Operator {
 	return &_resource{
-		client:              client,
-		imageVector:         imageVector,
-		memberClientFactory: memberClientFactory,
+		client:        client,
+		imageVector:   imageVector,
+		clientFactory: clientFactory,
 	}
 }
 
@@ -94,7 +92,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 
 // PreSync performs pre-sync operations for the statefulset component.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	if err := r.removeOneSurplusMember(ctx, etcd); err != nil {
+	if err := r.ensureSurplusMembersAreRemoved(ctx, etcd); err != nil {
 		return err
 	}
 
@@ -112,7 +110,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 		return nil
 	}
 
-	if etcd.Spec.Replicas == 0 {
+	if druidv1alpha1.HasZeroReplicas(etcd) {
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskPrefixHibernation)
 	}
 
@@ -243,6 +241,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			component.OperationSync,
 			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
+
 	// There is no StatefulSet present. Create one.
 	if existingSTS == nil {
 		// Check etcd observed generation to determine if the etcd cluster is new or not.
@@ -268,13 +267,15 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		}
 	}
 
-	// During a scale-in, surplus PVCs are deleted before the StatefulSet is
-	// shrunk. deleteSurplusPVCs issues the deletes and returns nil (fire-and-forget);
-	// createOrPatch below then shrinks the StatefulSet in the same pass, which
-	// deletes the surplus pods and lets the Terminating PVCs be reclaimed. Outside
-	// a scale-in it is a no-op.
-	if err := r.deleteSurplusPVCs(ctx, etcd); err != nil {
+	// During a scale-in, delete surplus PVCs and requeue until their deletion has
+	// been initiated before shrinking the StatefulSet. A no-op outside a scale-in.
+	allDeleted, err := r.deleteSurplusPVCs(ctx, etcd)
+	if err != nil {
 		return err
+	}
+	if !allDeleted {
+		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationSync,
+			fmt.Sprintf("waiting for surplus PVCs to be deleted before shrinking StatefulSet for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 
 	return r.createOrPatch(ctx, etcd)
@@ -418,7 +419,7 @@ func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alp
 
 func (r _resource) handleTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
 	// There are no replicas and there is no need to handle any TLS changes. Once replicas are increased then new pods will automatically have the TLS changes.
-	if etcd.Spec.Replicas == 0 {
+	if druidv1alpha1.HasZeroReplicas(etcd) {
 		r.logger.Info("Skipping handling TLS changes for StatefulSet as replicas are set to 0")
 		return nil
 	}

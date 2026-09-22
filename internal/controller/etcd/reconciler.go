@@ -43,6 +43,7 @@ type Reconciler struct {
 	operatorRegistry  component.Registry
 	lastOpErrRecorder ctrlutils.LastOperationAndLastErrorsRecorder
 	logger            logr.Logger
+	etcdClientFactory etcdclient.Factory
 }
 
 // NewReconciler creates a new reconciler for Etcd.
@@ -55,14 +56,18 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.EtcdControlle
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with the given image vector.
-// An optional memberClientFactory may be provided to override the default factory (useful in tests).
-func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector, memberClientFactory ...etcdclient.MemberClientFactory) (*Reconciler, error) {
+// An optional etcdClientFactory may be provided to override the default factory (useful in tests).
+func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector, etcdClientFactory ...etcdclient.Factory) (*Reconciler, error) {
 	logger := log.Log.WithName(controllerName)
-	var mcf etcdclient.MemberClientFactory
-	if len(memberClientFactory) > 0 && memberClientFactory[0] != nil {
-		mcf = memberClientFactory[0]
+	var factory etcdclient.Factory
+	if len(etcdClientFactory) > 0 && etcdClientFactory[0] != nil {
+		factory = etcdClientFactory[0]
 	}
-	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv, mcf)
+
+	if factory == nil {
+		factory = etcdclient.NewFactory()
+	}
+	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv, factory)
 	lastOpErrRecorder := ctrlutils.NewLastOperationAndLastErrorsRecorder(mgr.GetClient(), logger)
 	return &Reconciler{
 		client:            mgr.GetClient(),
@@ -72,6 +77,7 @@ func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, co
 		logger:            logger,
 		operatorRegistry:  operatorReg,
 		lastOpErrRecorder: lastOpErrRecorder,
+		etcdClientFactory: factory,
 	}, nil
 }
 
@@ -154,7 +160,7 @@ func (r *Reconciler) GetOperatorRegistry() component.Registry {
 	return r.operatorRegistry
 }
 
-func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector, memberClientFactory etcdclient.MemberClientFactory) component.Registry {
+func createAndInitializeOperatorRegistry(client client.Client, config druidconfigv1alpha1.EtcdControllerConfiguration, imageVector imagevector.ImageVector, etcdClientFactory etcdclient.Factory) component.Registry {
 	reg := component.NewRegistry()
 	reg.Register(component.ServiceAccountKind, serviceaccount.New(client, config.DisableEtcdServiceAccountAutomount))
 	reg.Register(component.RoleKind, role.New(client))
@@ -165,10 +171,7 @@ func createAndInitializeOperatorRegistry(client client.Client, config druidconfi
 	reg.Register(component.ClientServiceKind, clientservice.New(client))
 	reg.Register(component.PeerServiceKind, peerservice.New(client))
 	reg.Register(component.ConfigMapKind, configmap.New(client))
-	if memberClientFactory == nil {
-		memberClientFactory = etcdclient.NewMemberClientFactory()
-	}
-	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, memberClientFactory))
+	reg.Register(component.StatefulSetKind, statefulset.New(client, imageVector, etcdClientFactory))
 	return reg
 }
 

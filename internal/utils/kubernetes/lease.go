@@ -70,8 +70,8 @@ func isPeerURLTLSDisabledForMembers(ctx context.Context, cl client.Client, logge
 }
 
 // ListAllMemberLeaseObjectMeta returns the list of all member leases for the given etcd cluster.
-// The lease names are derived from etcd.Spec.Replicas, so a scale-in only ever reports leases
-// for the members that are still desired; leases for departing members are intentionally excluded.
+// Lease names derive from etcd.Spec.Replicas, so a scale-in reports only still-desired members;
+// leases for departing members are excluded.
 func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) ([]metav1.PartialObjectMetadata, error) {
 	objMetaList := &metav1.PartialObjectMetadataList{}
 	objMetaList.SetGroupVersionKind(coordinationv1.SchemeGroupVersion.WithKind("Lease"))

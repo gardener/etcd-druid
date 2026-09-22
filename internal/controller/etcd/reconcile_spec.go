@@ -31,10 +31,11 @@ func (r *Reconciler) reconcileSpec(ctx component.OperatorContext, etcd *druidv1a
 	reconcileStepFns := []reconcileFn{
 		r.recordReconcileStartOperation,
 		r.ensureFinalizer,
-		r.detectAndRecordScaleOperation,
+		r.detectAndRecordScaleOperationInProgress,
 		r.preSyncEtcdResources,
 		r.syncEtcdResources,
 		r.pruneBootstrapMembersStatus,
+		r.recordScaleOperationComplete,
 		r.recordReconcileSuccessOperation,
 	}
 
@@ -69,9 +70,9 @@ func (r *Reconciler) preSyncEtcdResources(ctx component.OperatorContext, etcd *d
 					ctx.Logger.Info("retrying pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
 					return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("requeueing pre-sync of component %s to be retried after %s", kind, syncRetryInterval.String()))
 				case statefulset.ErrQuorumUnsafeMemberRemoval:
-					// ErrQuorumUnsafeMemberRemoval originates only from the StatefulSet
-					// PreSync member-removal branch (removeOneSurplusMember); this is its
-					// sole handler. Requeue with the error recorded in status.lastErrors.
+					// A quorum-unsafe scale-in hold: requeue after the interval and
+					// carry the error so it is recorded in status.lastErrors, letting
+					// an operator see why the scale-in is stuck.
 					ctx.Logger.Info("holding pre-sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
 					return ctrlutils.ReconcileWithErrorAfter(syncRetryInterval, err)
 				}
@@ -88,12 +89,9 @@ func (r *Reconciler) syncEtcdResources(ctx component.OperatorContext, etcd *drui
 	for _, kind := range resourceOperators {
 		op := r.operatorRegistry.GetOperator(kind)
 		if err := op.Sync(ctx, etcd); err != nil {
-			if derr := druiderr.AsDruidError(err); derr != nil {
-				switch derr.Code {
-				case druiderr.ErrRequeueAfter:
-					ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
-					return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, syncRetryInterval.String()))
-				}
+			if derr := druiderr.AsDruidError(err); derr != nil && derr.Code == druiderr.ErrRequeueAfter {
+				ctx.Logger.Info("retrying sync of component", "kind", kind, "syncRetryInterval", syncRetryInterval.String(), "reason", derr.Message)
+				return ctrlutils.ReconcileAfter(syncRetryInterval, fmt.Sprintf("retrying sync of component %s after %s", kind, syncRetryInterval.String()))
 			}
 			ctx.Logger.Error(err, "failed to sync etcd resource", "kind", kind)
 			return ctrlutils.ReconcileWithError(err)
@@ -110,23 +108,74 @@ func (r *Reconciler) recordReconcileStartOperation(ctx component.OperatorContext
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	// A completed spec reconciliation means any scale operation has converged
-	// (surplus members removed, StatefulSet resized, PVCs cleaned up), so mark
-	// the ScaleOperationComplete condition True (no operation in progress).
-	// This is patched before RecordSuccess so that a partial failure never
-	// leaves LastOperation=Succeeded while the scale condition still says False.
-	if scaleConditionNeedsUpdate(etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation) {
-		if err := r.patchScaleOperationCondition(ctx, etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation); err != nil {
-			ctx.Logger.Error(err, "failed to mark ScaleOperationComplete condition")
-			return ctrlutils.ReconcileWithError(err)
+// recordScaleOperationComplete marks ScaleOperationComplete=True once an
+// in-progress scale operation has converged. For surplus-removal operations it
+// first confirms via the live member list that no surplus members remain,
+// requeuing otherwise so the StatefulSet shrink waits for a clean membership.
+func (r *Reconciler) recordScaleOperationComplete(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
+	if druidv1alpha1.HasScaleOperationCompleted(etcd) {
+		return ctrlutils.ContinueReconcile()
+	}
+
+	if druidv1alpha1.IsScaleOperationInProgressWithReason(etcd, druidv1alpha1.ScaleOperationReasonScalingIn, druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval) {
+		surplus, err := r.hasSurplusMembersInCluster(ctx, etcd)
+		if err != nil {
+			ctx.Logger.Info("could not check surplus etcd members; requeuing", "error", err.Error())
+			return ctrlutils.ReconcileWithError(fmt.Errorf("error checking surplus members after scale-in: %w", err))
+		}
+		if surplus {
+			ctx.Logger.Info("surplus etcd members still present; requeuing before marking ScaleOperationComplete=True")
+			return ctrlutils.ReconcileWithError(fmt.Errorf("waiting for all surplus etcd members to be removed before marking scale operation complete"))
 		}
 	}
+
+	if err := r.patchScaleOperationCondition(ctx, etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation); err != nil {
+		ctx.Logger.Error(err, "failed to mark ScaleOperationComplete condition")
+		return ctrlutils.ReconcileWithError(err)
+	}
+	return ctrlutils.ContinueReconcile()
+}
+
+func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
 	if err := r.lastOpErrRecorder.RecordSuccess(ctx, etcd, druidv1alpha1.LastOperationTypeReconcile); err != nil {
 		ctx.Logger.Error(err, "failed to record etcd reconcile success operation")
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
+}
+
+// hasSurplusMembersInCluster uses the live etcd member list to check whether
+// any surplus members (members not expected per the current spec) remain in the
+// cluster. Returns true if surplus members are found, false when the membership
+// is clean. Errors are treated as transient and cause a requeue.
+func (r *Reconciler) hasSurplusMembersInCluster(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
+	memberClient, err := r.etcdClientFactory.NewClient(ctx, r.client, etcd)
+	if err != nil {
+		return false, fmt.Errorf("failed to create etcd client while checking surplus members for %s/%s: %w",
+			etcd.Namespace, etcd.Name, err)
+	}
+	defer func() {
+		if cerr := memberClient.Close(); cerr != nil {
+			ctx.Logger.Error(cerr, "failed to close etcd member client")
+		}
+	}()
+
+	members, err := memberClient.MemberList(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to list etcd members while checking surplus for %s/%s: %w",
+			etcd.Namespace, etcd.Name, err)
+	}
+
+	expected := druidv1alpha1.ExpectedMemberNames(etcd)
+
+	for _, m := range members {
+		if !expected[m.Name] {
+			ctx.Logger.Info("surplus etcd member still present in cluster",
+				"member", m.Name, "memberID", fmt.Sprintf("%x", m.ID))
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {

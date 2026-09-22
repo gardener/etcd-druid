@@ -75,7 +75,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 				existingObjects = append(existingObjects, emptyStatefulSet(etcd.ObjectMeta))
 			}
 			cl := testutils.CreateTestFakeClientForObjects(tc.getErr, nil, nil, nil, existingObjects, getObjectKey(etcd.ObjectMeta))
-			operator := New(cl, nil, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
+			operator := New(cl, nil, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			actualStsNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
 			if tc.expectedErr != nil {
@@ -290,7 +290,7 @@ func TestPreSync(t *testing.T) {
 				WithScheme(clientkubernetes.Scheme).
 				WithObjects(existingObjects...).
 				Build()
-			operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
+			operator := New(cl, iv, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 
 			syncErr := operator.PreSync(opCtx, etcd)
@@ -424,7 +424,7 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(tc.expectedReplicas).ToNot(BeNil())
 			stsMatcher := NewStatefulSetMatcher(g, cl, etcd, *tc.expectedReplicas, initContainerImage, etcdImage, etcdBRImage, ptr.To(druidstore.Local), tc.expectNoService)
-			operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
+			operator := New(cl, iv, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
 			// *************** Test and assert ***************
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
@@ -432,10 +432,10 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			latestSTS, getErr := getLatestStatefulSet(cl, etcd)
 			if tc.expectedErr != nil {
 				testutils.CheckDruidError(g, tc.expectedErr, syncErr)
-				g.Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
+				g.Expect(getErr).To(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			} else {
-				g.Expect(syncErr).ToNot(HaveOccurred())
-				g.Expect(getErr).ToNot(HaveOccurred())
+				g.Expect(syncErr).To(Succeed())
+				g.Expect(getErr).To(Succeed())
 				g.Expect(latestSTS).ToNot(BeNil())
 				g.Expect(*latestSTS).Should(stsMatcher.MatchStatefulSet())
 			}
@@ -466,19 +466,26 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 		WithReplicas(initialReplicas).
 		Build()
 	cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
-	operator := New(cl, iv, &etcdfake.MemberClientFactory{Client: &etcdfake.MemberClient{}})
+	operator := New(cl, iv, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
 	opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 	opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
 
-	g.Expect(operator.Sync(opCtx, etcd)).ToNot(HaveOccurred())
+	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
 	seededSTS, err := getLatestStatefulSet(cl, etcd)
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).To(Succeed())
 	g.Expect(seededSTS.Spec.Replicas).To(HaveValue(Equal(initialReplicas)))
 
 	// Create the PVCs the StatefulSet would have provisioned for ordinals 0..4.
 	for i := int32(0); i < initialReplicas; i++ {
 		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, int(i))
 		g.Expect(cl.Create(context.Background(), testutils.CreatePVC(seededSTS, podName, corev1.ClaimBound))).To(Succeed())
+	}
+
+	// Create member leases for all initial members so that handleTLSChanges can
+	// confirm peer-TLS state via IsPeerURLInSyncForAllMembers and return nil.
+	for _, leaseName := range druidv1alpha1.GetMemberLeaseNames(etcd) {
+		lease := testutils.CreateLease(leaseName, etcd.Namespace, etcd.Name, etcd.UID, common.ComponentNameMemberLease)
+		g.Expect(cl.Create(context.Background(), lease)).To(Succeed())
 	}
 
 	// Request a scale-in and mark the in-flight condition the detector would have set.
@@ -489,13 +496,14 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 		Reason: druidv1alpha1.ScaleOperationReasonScalingIn,
 	}}
 
-	// A single Sync must shrink the StatefulSet AND delete the surplus PVCs.
-	g.Expect(operator.Sync(opCtx, etcd)).ToNot(HaveOccurred())
+	// First Sync: deletes the surplus PVCs and requeues (PVC protection finalizer
+	// on real clusters means the STS cannot shrink until PVCs are gone).
+	firstSyncErr := operator.Sync(opCtx, etcd)
+	g.Expect(druiderr.AsDruidError(firstSyncErr)).NotTo(BeNil())
+	g.Expect(string(druiderr.AsDruidError(firstSyncErr).Code)).To(Equal(druiderr.ErrRequeueAfter),
+		"first Sync should requeue after deleting surplus PVCs")
 
-	shrunkSTS, err := getLatestStatefulSet(cl, etcd)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(shrunkSTS.Spec.Replicas).To(HaveValue(Equal(targetReplicas)), "StatefulSet must be shrunk to spec.replicas in the same Sync pass")
-
+	// Surplus PVCs must be deleted after the first Sync pass.
 	vctName := ptr.Deref(etcd.Spec.VolumeClaimTemplate, etcd.Name)
 	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
 	pvcExists := func(ordinal int32) bool {
@@ -504,8 +512,15 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 		return getErr == nil
 	}
 	for _, ordinal := range []int32{3, 4} {
-		g.Expect(pvcExists(ordinal)).To(BeFalse(), "surplus PVC for ordinal %d must be deleted during scale-in", ordinal)
+		g.Expect(pvcExists(ordinal)).To(BeFalse(), "surplus PVC for ordinal %d must be deleted in the first Sync pass", ordinal)
 	}
+
+	// Second Sync: with surplus PVCs gone, shrinks the StatefulSet.
+	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
+
+	shrunkSTS, err := getLatestStatefulSet(cl, etcd)
+	g.Expect(err).To(Succeed())
+	g.Expect(shrunkSTS.Spec.Replicas).To(HaveValue(Equal(targetReplicas)), "StatefulSet must be shrunk to spec.replicas after surplus PVCs are gone")
 	for _, ordinal := range []int32{0, 1, 2} {
 		g.Expect(pvcExists(ordinal)).To(BeTrue(), "retained PVC for ordinal %d must not be deleted", ordinal)
 	}
