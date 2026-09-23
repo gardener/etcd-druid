@@ -152,7 +152,19 @@ func TestSync(t *testing.T) {
 			numExistingLeases:       3,
 		},
 		{
-			name:              "should not delete excess member leases when hibernating druid-managed members",
+			name:              "deletes surplus member leases when druid-managed cluster scales in from 3 to 1",
+			etcdReplicas:      3,
+			deltaEtcdReplicas: -2,
+			numExistingLeases: 3,
+		},
+		{
+			name:              "deletes surplus member leases when druid-managed cluster scales in from 5 to 3",
+			etcdReplicas:      5,
+			deltaEtcdReplicas: -2,
+			numExistingLeases: 5,
+		},
+		{
+			name:              "should not delete excess member leases when scaling druid-managed members to zero",
 			etcdReplicas:      3,
 			deltaEtcdReplicas: -3,
 			numExistingLeases: 3,
@@ -217,7 +229,7 @@ func TestSync(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 				g.Expect(memberLeasesPostSync).Should(HaveLen(tc.numExistingLeases))
 			} else {
-				if updatedEtcd.Spec.Replicas == 0 { // hibernation
+				if updatedEtcd.Spec.Replicas == 0 {
 					g.Expect(memberLeasesPostSync).To(ConsistOf(memberLeases(&etcd, etcd.UID, etcd.Spec.Replicas)))
 				} else {
 					g.Expect(memberLeasesPostSync).To(ConsistOf(memberLeases(&updatedEtcd, updatedEtcd.UID, updatedEtcd.Spec.Replicas)))

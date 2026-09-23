@@ -29,13 +29,16 @@ func IsPeerURLInSyncForAllMembers(ctx context.Context, cl client.Client, logger 
 
 // isPeerURLTLSEnabledForMembers checks if TLS has been enabled for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
 func isPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, replicas int32) (bool, error) {
-	tlsEnabledForAllMembers := true
 	leaseObjMetaSlice, err := ListAllMemberLeaseObjectMeta(ctx, cl, etcd)
 	if err != nil {
 		return false, err
 	}
-	targetMembers := leaseObjMetaSlice[:replicas]
-	for _, leaseObjMeta := range targetMembers {
+	// During a scale-in, replicas (the current StatefulSet size) can be larger than the number
+	// of leases, because the leases of removed members are already deleted. Use the smaller of
+	// the two so we only check members that still exist and never slice out of range.
+	n := min(int(replicas), len(leaseObjMetaSlice))
+	tlsEnabledForAllMembers := true
+	for _, leaseObjMeta := range leaseObjMetaSlice[:n] {
 		tlsEnabled, err := parseAndGetTLSEnabledValue(leaseObjMeta, logger)
 		if err != nil {
 			return false, err
@@ -47,12 +50,16 @@ func isPeerURLTLSEnabledForMembers(ctx context.Context, cl client.Client, logger
 
 // isPeerURLTLSDisabledForMembers checks if TLS has been disabled for all existing members of an etcd cluster identified by etcdName and in the provided namespace.
 func isPeerURLTLSDisabledForMembers(ctx context.Context, cl client.Client, logger logr.Logger, etcd *druidv1alpha1.Etcd, replicas int32) (bool, error) {
-	tlsDisabledForAllMembers := true
 	leaseObjMetaSlice, err := ListAllMemberLeaseObjectMeta(ctx, cl, etcd)
 	if err != nil {
 		return false, err
 	}
-	for _, leaseObjMeta := range leaseObjMetaSlice[:replicas] {
+	// During a scale-in, replicas (the current StatefulSet size) can be larger than the number
+	// of leases, because the leases of removed members are already deleted. Use the smaller of
+	// the two so we only check members that still exist and never slice out of range.
+	n := min(int(replicas), len(leaseObjMetaSlice))
+	tlsDisabledForAllMembers := true
+	for _, leaseObjMeta := range leaseObjMetaSlice[:n] {
 		tlsEnabled, err := parseAndGetTLSEnabledValue(leaseObjMeta, logger)
 		if err != nil {
 			return false, err
@@ -63,6 +70,8 @@ func isPeerURLTLSDisabledForMembers(ctx context.Context, cl client.Client, logge
 }
 
 // ListAllMemberLeaseObjectMeta returns the list of all member leases for the given etcd cluster.
+// Lease names derive from etcd.Spec.Replicas, so a scale-in reports only still-desired members;
+// leases for departing members are excluded.
 func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) ([]metav1.PartialObjectMetadata, error) {
 	objMetaList := &metav1.PartialObjectMetadataList{}
 	objMetaList.SetGroupVersionKind(coordinationv1.SchemeGroupVersion.WithKind("Lease"))
@@ -72,8 +81,6 @@ func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *d
 	); err != nil {
 		return nil, err
 	}
-	// This OK to do as we do not support downscaling an etcd cluster.
-	// If and when we do that by then we should have already stabilised the labels and therefore this code itself will not be there.
 	allPossibleMemberNames := druidv1alpha1.GetMemberLeaseNames(etcd)
 	leasesObjMeta := make([]metav1.PartialObjectMetadata, 0, len(objMetaList.Items))
 	for _, lease := range objMetaList.Items {

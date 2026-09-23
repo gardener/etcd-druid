@@ -20,6 +20,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
@@ -74,17 +75,22 @@ func TestValidateUpdateSpecBootstrapWithExistingClusterFreezeWhileInProgress(t *
 	// status subresource. Used by tests to simulate the reconciler having
 	// recorded a specific bootstrap state before the operator's spec update.
 	setCondition := func(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus) {
-		etcd.Status.Conditions = []druidv1alpha1.Condition{
-			{
-				Type:               druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
-				Status:             status,
-				LastTransitionTime: metav1.Now(),
-				LastUpdateTime:     metav1.Now(),
-				Reason:             "TestReason",
-				Message:            "test message",
-			},
-		}
-		g.Expect(cl.Status().Update(ctx, etcd)).To(Succeed())
+		g.Eventually(func() error {
+			if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+				return err
+			}
+			etcd.Status.Conditions = []druidv1alpha1.Condition{
+				{
+					Type:               druidv1alpha1.ConditionTypeBootstrappedWithExistingCluster,
+					Status:             status,
+					LastTransitionTime: metav1.Now(),
+					LastUpdateTime:     metav1.Now(),
+					Reason:             "TestReason",
+					Message:            "test message",
+				},
+			}
+			return cl.Status().Update(ctx, etcd)
+		}).Should(Succeed())
 	}
 
 	tests := []struct {
@@ -170,6 +176,92 @@ func TestValidateUpdateSpecBootstrapWithExistingClusterFreezeWhileInProgress(t *
 			if test.mutate != nil {
 				test.mutate(etcd.Spec.Etcd.BootstrapWithExistingCluster)
 			}
+			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+		})
+	}
+}
+
+// TestValidateUpdateSpecBootstrapUnsetWhileScaling verifies the top-level CEL
+// rule that rejects removing (unsetting) spec.etcd.bootstrapWithExistingCluster
+// while a scale-in or scale-out operation is in flight
+// (ScaleOperationComplete=False with reason ScalingIn/ScalingOut). Unsetting is
+// allowed when no scale operation is in progress or when the operation is a
+// BootstrapMembersRemoval (which is exactly what leads to the unset).
+func TestValidateUpdateSpecBootstrapUnsetWhileScaling(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	testNs, g := setupTestEnvironment(t)
+	ctx := context.Background()
+	cl := itTestEnv.GetClient()
+
+	setScaleCondition := func(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus, reason string) {
+		g.Eventually(func() error {
+			if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+				return err
+			}
+			etcd.Status.Conditions = []druidv1alpha1.Condition{
+				{
+					Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
+					Status:             status,
+					LastTransitionTime: metav1.Now(),
+					LastUpdateTime:     metav1.Now(),
+					Reason:             reason,
+					Message:            "test message",
+				},
+			}
+			return cl.Status().Update(ctx, etcd)
+		}).Should(Succeed())
+	}
+
+	tests := []struct {
+		name string
+		// conditionStatus/conditionReason, when set, are written before the update.
+		conditionStatus druidv1alpha1.ConditionStatus
+		conditionReason string
+		expectErr       bool
+	}{
+		{
+			name:            "Invalid: unset bootstrap while ScalingIn in progress",
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonScalingIn,
+			expectErr:       true,
+		},
+		{
+			name:            "Invalid: unset bootstrap while ScalingOut in progress",
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonScalingOut,
+			expectErr:       true,
+		},
+		{
+			name:            "Valid: unset bootstrap while BootstrapMembersRemoval in progress",
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+			expectErr:       false,
+		},
+		{
+			name:            "Valid: unset bootstrap with no scale operation in progress",
+			conditionStatus: "",
+			expectErr:       false,
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcdName := fmt.Sprintf("etcd-bootstrap-unset-%d", i)
+			etcd := utils.EtcdBuilderWithoutDefaults(etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+				Members: []druidv1alpha1.BootstrapExistingMember{
+					{Name: "src-0", PeerURLs: []string{"http://10.0.0.1:2380"}},
+				},
+				ClientEndpoints: []string{"http://10.0.0.1:2379"},
+			}
+			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+
+			if test.conditionStatus != "" {
+				setScaleCondition(etcd, test.conditionStatus, test.conditionReason)
+			}
+
+			// Unset the field and attempt the update.
+			etcd.Spec.Etcd.BootstrapWithExistingCluster = nil
 			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
 		})
 	}

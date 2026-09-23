@@ -17,7 +17,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -70,37 +69,43 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 // PreSync is a no-op for the member lease component.
 func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
 
-// Sync creates or updates the member leases for the given Etcd.
+// Sync creates or updates the member leases for the given Etcd and deletes any
+// surplus leases whose ordinal is no longer within spec.replicas (e.g. after
+// a scale-in or member replacement).
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
-	createTasks := make([]utils.OperatorTask, len(objectKeys))
-	var errs error
+	return r.createOrUpdateLeases(ctx, etcd, objectKeys)
+}
 
+// createOrUpdateLeases concurrently creates or updates the leases for all desired member ordinals.
+func (r _resource) createOrUpdateLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objectKeys []client.ObjectKey) error {
+	tasks := make([]utils.OperatorTask, len(objectKeys))
 	for i, objKey := range objectKeys {
-		createTasks[i] = utils.OperatorTask{
+		tasks[i] = utils.OperatorTask{
 			Name: "CreateOrUpdate-" + objKey.String(),
 			Fn: func(ctx component.OperatorContext) error {
 				return r.doCreateOrUpdate(ctx, etcd, objKey)
 			},
 		}
 	}
-	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
-		for _, err := range errorList {
-			errs = multierror.Append(errs, err)
-		}
+	var errs error
+	for _, err := range utils.RunConcurrently(ctx, tasks) {
+		errs = multierror.Append(errs, err)
 	}
 
-	if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
-		if err := r.deleteStaleMemberLeases(ctx, etcd); err != nil {
-			errs = multierror.Append(errs, err)
-		}
+	if err := r.deleteStaleMemberLeases(ctx, etcd); err != nil {
+		errs = multierror.Append(errs, err)
 	}
 	return errs
 }
 
 // deleteStaleMemberLeases deletes member leases that exist but are no longer required.
-// This can happen if a member is removed/replaced when configured with externally managed members.
+// This covers both externally-managed member replacement and druid-managed scale-in.
+// Replicas=0 skips deletion to preserve lease state for a later scale-up.
 func (r _resource) deleteStaleMemberLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	if druidv1alpha1.HasZeroReplicas(etcd) {
+		return nil
+	}
 	existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta)
 	if err != nil {
 		return err
@@ -144,17 +149,13 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 }
 
 func (r _resource) doDelete(ctx component.OperatorContext, objectKey client.ObjectKey) error {
-	if err := r.client.Delete(ctx, emptyMemberLease(objectKey)); err != nil {
-		if errors.IsNotFound(err) {
-			ctx.Logger.Info("No member lease found, Deletion is a No-Op", "objectKey", objectKey)
-			return nil
-		}
+	if err := r.client.Delete(ctx, emptyMemberLease(objectKey)); client.IgnoreNotFound(err) != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
-			component.OperationTriggerDelete,
+			component.OperationSync,
 			fmt.Sprintf("Failed to delete member lease: %v", objectKey))
 	}
-	ctx.Logger.Info("deleted", "component", "member-lease", "objectKey", objectKey)
+	ctx.Logger.Info("deleted surplus member lease", "objectKey", objectKey)
 	return nil
 }
 

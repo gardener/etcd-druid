@@ -295,6 +295,47 @@ func generateTLSKeyCertToDirectory(logger logr.Logger, certType certificateType,
 	return
 }
 
+// GenerateClientCert generates an in-memory self-signed client certificate and
+// private key signed by a fresh CA. It returns PEM-encoded cert bytes and PEM-
+// encoded key bytes suitable for storing under tls.crt / tls.key in a Secret.
+func GenerateClientCert(name string) (certPEM []byte, keyPEM []byte, err error) {
+	caKey, caCertDER, err := generateRawCAKeyCert(name + "-ca")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate CA for client cert %s: %w", name, err)
+	}
+	caCert, err := x509.ParseCertificate(caCertDER)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse CA cert for client cert %s: %w", name, err)
+	}
+
+	clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate client key for %s: %w", name, err)
+	}
+
+	clientTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject: pkix.Name{
+			CommonName:   name,
+			Organization: []string{"Gardener"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(0, 0, defaultCertExpiryDays),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, clientTemplate, caCert, &clientKey.PublicKey, caKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create client certificate for %s: %w", name, err)
+	}
+
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(clientKey)})
+	return certPEM, keyPEM, nil
+}
+
 // GeneratePKIResourcesToDirectory generates CA, server, and client TLS key and certificate files in the specified directory, for an Etcd cluster.
 // Generated files are:
 // - ca.key: CA private key

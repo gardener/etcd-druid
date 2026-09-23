@@ -16,7 +16,9 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr/testr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
@@ -291,6 +293,37 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 			}, timeoutEtcdDisruptionStart, pollingInterval).Should(Succeed())
 			logger.Info("condition and JoinedAt are stable")
 
+			// Decommission phase: remove the joined source members from the target's
+			// bootstrapWithExistingCluster spec. This triggers BootstrapMembersRemoval,
+			// which removes the source members from the etcd cluster and prunes the
+			// status snapshot, converging back to the target's own clusterSize members.
+			logger.Info("decommissioning source members: removing bootstrapWithExistingCluster from the target spec")
+			target, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+			g.Expect(err).NotTo(HaveOccurred())
+			// The whole spec object must be removed, not just .Members: members is a
+			// +required, MinItems=1 field, so an object with an empty members list is
+			// rejected by the CRD. Clearing the pointer is the API-valid decommission
+			// signal (see GetBootstrapMemberNames: an unset spec field decommissions
+			// all joined source members).
+			target.Spec.Etcd.BootstrapWithExistingCluster = nil
+			testEnv.UpdateAndCheckEtcd(g, target, timeoutEtcdUpdation)
+			logger.Info("successfully updated target spec to remove source members")
+
+			// The 3 source members must be removed from the etcd cluster (leaving the
+			// target's own clusterSize members), the status snapshot must be pruned,
+			// and ScaleOperationComplete must return to True.
+			testEnv.CheckEtcdMemberCount(g, target, clusterSize, timeoutEtcdUpdation)
+			g.Eventually(func(g Gomega) {
+				etcd, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(etcd.Status.BootstrapWithExistingCluster).To(BeNil(),
+					"status snapshot must be pruned once all joined source members are removed")
+				g.Expect(etcd.Status.Conditions).To(ContainElement(Satisfy(func(condition druidv1alpha1.Condition) bool {
+					return condition.Type == druidv1alpha1.ConditionTypeScaleOperationComplete && condition.Status == druidv1alpha1.ConditionTrue
+				})), "ScaleOperationComplete must return to True after the decommission completes")
+			}, timeoutEtcdUpdation, timeoutEtcdDisruptionStart).Should(Succeed())
+			logger.Info("source members decommissioned and status pruned")
+
 			logger.Info("finished running bootstrapWithExistingCluster test")
 			testSucceeded = true
 		})
@@ -368,17 +401,207 @@ func TestScaleOut(t *testing.T) {
 				logger.Info("creating Etcd")
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
+				// A single-member cluster starts with exactly one member PVC.
+				testEnv.CheckEtcdPVCCount(g, etcd, 1, timeoutEtcdCreation)
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
 				updateEtcdTLSAndLabels(etcd, true, tc.peerTLSEnabledAfterScaleOut, true, tc.additionalLabelsAfterScaleOut)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
+				// A scaled-out cluster must have one PVC per member.
+				testEnv.CheckEtcdPVCCount(g, etcd, 3, timeoutEtcdUpdation)
 
 				logger.Info("finished running tests")
 				testSucceeded = true
 			})
 		}
+	}
+}
+
+// TestScaleIn tests scale-in of an Etcd cluster across several replica
+// transitions. For every case it verifies that surplus members are removed from
+// the etcd cluster (no ghost members), surplus PVCs are deleted, and
+// ScaleOperationComplete returns to True on completion (asserted by
+// UpdateAndCheckEtcd via CheckEtcdReady). When quorum is preserved throughout
+// the transition, a zero-downtime validator asserts the cluster kept serving
+// requests without interruption.
+func TestScaleIn(t *testing.T) {
+	t.Parallel()
+	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
+
+	testCases := []struct {
+		name string
+		// initialReplicas is the replica count the cluster is created with.
+		initialReplicas int32
+		// targetReplicas is the replica count the cluster is scaled in to.
+		targetReplicas int32
+		// zeroDowntime runs the zero-downtime validator and asserts no downtime.
+		// It is only valid when quorum is preserved across every single member
+		// removal (i.e. the target still forms a majority of the original size).
+		zeroDowntime bool
+		purpose      string
+	}{
+		{
+			name:            "3to1",
+			initialReplicas: 3,
+			targetReplicas:  1,
+			purpose:         "scale in 3 -> 1",
+		},
+		{
+			name:            "3to2",
+			initialReplicas: 3,
+			targetReplicas:  2,
+			zeroDowntime:    true,
+			purpose:         "scale in 3 -> 2 with zero downtime",
+		},
+		{
+			name:            "5to3-zerodowntime",
+			initialReplicas: 5,
+			targetReplicas:  3,
+			zeroDowntime:    true,
+			purpose:         "scale in 5 -> 3 with zero downtime",
+		},
+	}
+
+	for _, provider := range providers {
+		for _, tc := range testCases {
+			tcName := fmt.Sprintf("scalein-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
+			t.Run(tcName, func(t *testing.T) {
+				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
+
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
+				defer func() {
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
+
+				logger.Info("running tests", "purpose", tc.purpose)
+				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
+					WithReplicas(tc.initialReplicas).
+					WithClientTLS().
+					WithPeerTLS().
+					WithDefaultBackup().
+					WithBackupRestoreTLS().
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
+				if tc.zeroDowntime {
+					etcdBuilder = etcdBuilder.WithEtcdClientPort(ptr.To[int32](2379))
+				}
+				etcd := etcdBuilder.Build()
+
+				logger.Info("creating Etcd", "replicas", tc.initialReplicas)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
+				logger.Info("successfully created Etcd")
+				testEnv.CheckEtcdPVCCount(g, etcd, int(tc.initialReplicas), timeoutEtcdCreation)
+				testEnv.CheckEtcdMemberCount(g, etcd, int(tc.initialReplicas), timeoutEtcdCreation)
+
+				if tc.zeroDowntime {
+					logger.Info("starting zero-downtime validator job")
+					testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
+					logger.Info("started running zero-downtime validator job")
+				}
+
+				logger.Info("scaling in Etcd", "replicas", tc.targetReplicas)
+				etcd.Spec.Replicas = tc.targetReplicas
+				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
+				logger.Info("successfully scaled in Etcd")
+
+				// Surplus members are removed from the etcd cluster (no ghost
+				// members) and their PVCs are cleaned up.
+				testEnv.CheckEtcdMemberCount(g, etcd, int(tc.targetReplicas), timeoutEtcdUpdation)
+				testEnv.CheckEtcdPVCCount(g, etcd, int(tc.targetReplicas), timeoutEtcdUpdation)
+
+				if tc.zeroDowntime {
+					logger.Info("checking that no downtime occurred during scale-in")
+					testEnv.CheckForDowntime(g, testNamespace, false)
+					logger.Info("successfully verified no downtime occurred during scale-in")
+				}
+
+				logger.Info("finished running tests")
+				testSucceeded = true
+			})
+		}
+	}
+}
+
+// TestScaleRejectedDuringBootstrapMembersRemoval tests that the admission
+// webhook rejects conflicting spec.replicas changes while a
+// BootstrapMembersRemoval operation is in progress. Attempts to scale in
+// (decrease replicas) or scale out (increase replicas) must both be rejected
+// with a clear error message.
+func TestScaleRejectedDuringBootstrapMembersRemoval(t *testing.T) {
+	t.Parallel()
+	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
+
+	for _, provider := range providers {
+		tcName := fmt.Sprintf("scale-reject-bootstrapmembersremoval-%s", e2eutils.GetProviderSuffix(provider))
+		t.Run(tcName, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			var testSucceeded bool
+
+			testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
+			logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
+			defer func() {
+				e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+			}()
+			e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
+
+			etcd := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
+				WithReplicas(3).
+				WithDefaultBackup().
+				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName)).
+				Build()
+
+			logger.Info("creating 3-replica Etcd")
+			testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
+			logger.Info("successfully created 3-replica Etcd")
+
+			// Simulate BootstrapMembersRemoval in progress by patching the
+			// ScaleOperationComplete condition to False via the status subresource.
+			// The CEL webhook reads this condition from the live object to decide
+			// whether to reject conflicting replicas changes.
+			logger.Info("patching ScaleOperationComplete=False (BootstrapMembersRemoval) via status subresource")
+			base := etcd.DeepCopy()
+			now := metav1.Now()
+			etcd.Status.Conditions = []druidv1alpha1.Condition{
+				{
+					Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
+					Status:             druidv1alpha1.ConditionFalse,
+					Reason:             druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+					Message:            "removing source members after cluster bootstrap",
+					LastUpdateTime:     now,
+					LastTransitionTime: now,
+				},
+			}
+			g.Expect(testEnv.Client().Status().Patch(
+				testEnv.Context(), etcd, client.MergeFrom(base),
+			)).To(Succeed(), "failed to patch Etcd status to BootstrapMembersRemoval")
+			logger.Info("successfully set ScaleOperationComplete=False (BootstrapMembersRemoval)")
+
+			// Verify that both scale-in and scale-out are rejected while in this state.
+			logger.Info("verifying scale-in is rejected during BootstrapMembersRemoval")
+			scaleInEtcd := etcd.DeepCopy()
+			scaleInEtcd.Spec.Replicas = 1
+			g.Expect(testEnv.Client().Update(testEnv.Context(), scaleInEtcd)).
+				To(MatchError(ContainSubstring("Cannot scale in while")),
+					"scale-in should be rejected during BootstrapMembersRemoval")
+			logger.Info("scale-in correctly rejected")
+
+			logger.Info("verifying scale-out is rejected during BootstrapMembersRemoval")
+			scaleOutEtcd := etcd.DeepCopy()
+			scaleOutEtcd.Spec.Replicas = 5
+			g.Expect(testEnv.Client().Update(testEnv.Context(), scaleOutEtcd)).
+				To(MatchError(ContainSubstring("Cannot scale out while")),
+					"scale-out should be rejected during BootstrapMembersRemoval")
+			logger.Info("scale-out correctly rejected")
+
+			logger.Info("finished running tests")
+			testSucceeded = true
+		})
 	}
 }
 

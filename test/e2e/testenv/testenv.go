@@ -12,6 +12,7 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
@@ -36,6 +37,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -132,31 +134,54 @@ func (t *TestEnvironment) GetEtcd(name, namespace string) (*druidv1alpha1.Etcd, 
 }
 
 // CreateAndCheckEtcd creates an etcd object and checks if it is ready.
+// The reconcile annotation is set on creation so that the operator reconciles
+// even when enableEtcdSpecAutoReconcile is false (the default in e2e deployments).
 func (t *TestEnvironment) CreateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	if etcd.Annotations == nil {
+		etcd.Annotations = make(map[string]string)
+	}
+	etcd.Annotations[druidv1alpha1.DruidOperationAnnotation] = druidv1alpha1.DruidOperationReconcile
 	g.Expect(t.cl.Create(t.ctx, etcd)).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // HibernateAndCheckEtcd hibernates the Etcd object and checks if it is in hibernated state.
 func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	etcd.Spec.Replicas = 0
-	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		etcd.Spec.Replicas = 0
+		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
+		return t.cl.Update(t.ctx, etcd)
+	})).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // UnhibernateAndCheckEtcd unhibernates the Etcd object and checks if it is in unhibernated state.
 func (t *TestEnvironment) UnhibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, replicas int32, timeout time.Duration) {
-	etcd.Spec.Replicas = replicas
-	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		etcd.Spec.Replicas = replicas
+		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
+		return t.cl.Update(t.ctx, etcd)
+	})).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // UpdateAndCheckEtcd updates the Etcd object and checks if the update took effect.
 func (t *TestEnvironment) UpdateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
+	desiredSpec := *etcd.Spec.DeepCopy()
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		etcd.Spec = desiredSpec
+		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
+		return t.cl.Update(t.ctx, etcd)
+	})).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -248,7 +273,7 @@ func (t *TestEnvironment) getOperatorRegistry() (component.Registry, error) {
 	reg.Register(component.ClientServiceKind, clientservice.New(t.Client()))
 	reg.Register(component.PeerServiceKind, peerservice.New(t.Client()))
 	reg.Register(component.ConfigMapKind, configmap.New(t.Client()))
-	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector))
+	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector, etcdclient.NewFactory()))
 
 	return reg, nil
 }
@@ -357,6 +382,42 @@ func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) ([]corev1.Persis
 	return pvcList.Items, nil
 }
 
+// CheckEtcdPVCCount asserts that the number of PVCs associated with the Etcd
+// cluster eventually equals expectedCount. It is used by the scale-in e2e test
+// to verify that surplus member PVCs are cleaned up after a scale-in (DEP-08).
+func (t *TestEnvironment) CheckEtcdPVCCount(g *WithT, etcd *druidv1alpha1.Etcd, expectedCount int, timeout time.Duration) {
+	g.Eventually(func() error {
+		pvcs, err := t.getEtcdPVCs(etcd)
+		if err != nil {
+			return fmt.Errorf("failed to get etcd PVCs: %w", err)
+		}
+		if len(pvcs) != expectedCount {
+			return fmt.Errorf("etcd %s has %d PVCs, expected %d", etcd.Name, len(pvcs), expectedCount)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// CheckEtcdMemberCount polls the Etcd CR status and asserts that
+// Status.Members contains exactly expectedCount entries. It is used after a
+// scale-in to verify that ghost members have been removed from the cluster
+// status (and therefore from the live etcd member list, which the operator
+// keeps in sync). This approach works from outside the KIND cluster where
+// the etcd client Service is not reachable by the test process.
+func (t *TestEnvironment) CheckEtcdMemberCount(g *WithT, etcd *druidv1alpha1.Etcd, expectedCount int, timeout time.Duration) {
+	g.Eventually(func() error {
+		fresh := &druidv1alpha1.Etcd{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), fresh); err != nil {
+			return fmt.Errorf("failed to get Etcd: %w", err)
+		}
+		got := len(fresh.Status.Members)
+		if got != expectedCount {
+			return fmt.Errorf("etcd %s has %d members in status, expected %d", etcd.Name, got, expectedCount)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
 // DeployZeroDowntimeValidatorJob deploys the zero downtime validator job.
 func (t *TestEnvironment) DeployZeroDowntimeValidatorJob(g *WithT, namespace, etcdClientServiceName string, etcdClientServicePort int32, etcdClientTLS *druidv1alpha1.TLSConfig, timeout time.Duration) {
 	zdvJob := getZeroDowntimeValidatorJob(namespace, etcdClientServiceName, etcdClientServicePort, etcdClientTLS)
@@ -428,7 +489,14 @@ func getZeroDowntimeValidatorJob(namespace, etcdClientServiceName string, etcdCl
 
 // getHealthCheckScript generates the shell script used to check Etcd health.
 func getHealthCheckScript(etcdClientServiceName string, etcdClientServicePort int32) string {
-	return fmt.Sprintf(`failed=0; threshold=2;
+	// threshold=30: allow up to 29 consecutive failures (58s gap) before reporting
+	// downtime. During a scale-in, when the surplus pod is deleted Kubernetes drains
+	// its endpoint and the remaining members hold a brief leader election; on KIND
+	// this window can last up to ~25s. A rolling-restart bug (the failure mode this
+	// test guards against) causes each pod to restart, with each restart taking
+	// 60-90s, well above this threshold. 30 × 2s = 58s tolerates the natural
+	// endpoint-drain window while still catching operator-induced rolling restarts.
+	return fmt.Sprintf(`failed=0; threshold=30;
     while true; do
         if ! curl --cacert %s/ca.crt --cert %s/tls.crt --key %s/tls.key https://%s:%d/health -s -f -o /dev/null; then
             echo "etcd is unhealthy, retrying"
@@ -773,3 +841,5 @@ func (t *TestEnvironment) GetSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta)
 
 	return fullSnapshotRevision, deltaSnapshotRevision, nil
 }
+
+// RestartOperatorPod deletes the running etcd-druid operator pod and waits for
