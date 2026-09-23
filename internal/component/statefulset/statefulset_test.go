@@ -96,17 +96,19 @@ func TestPreSync(t *testing.T) {
 	)
 
 	testCases := []struct {
-		name            string
-		backupEnabled   bool
-		stsExists       bool
-		stsReplicas     int32
-		etcdReplicas    int32
-		stsImages       map[string]string // keyed by container name; nil = use current image-vector defaults for all containers
-		existingTasks   []*druidv1alpha1.EtcdOpsTask
-		skipAnnotation  bool // when true, sets the skip-spec-update-snapshot annotation on the Etcd
-		expectedErrCode *druidapicommon.ErrorCode
-		expectNoTasks   bool // when true, asserts that no EtcdOpsTask exists after PreSync
-		expectedFailure bool // when true, asserts the failure flag is set in OperatorContext.Data
+		name                string
+		backupEnabled       bool
+		stsExists           bool
+		stsReplicas         int32
+		etcdReplicas        int32
+		etcdGeneration      int64             // when non-zero, overrides the fake etcd's generation
+		stsImages           map[string]string // keyed by container name; nil = use current image-vector defaults for all containers
+		existingTasks       []*druidv1alpha1.EtcdOpsTask
+		skipAnnotation      bool // when true, sets the skip-spec-update-snapshot annotation on the Etcd
+		expectedErrCode     *druidapicommon.ErrorCode
+		expectNoTasks       bool   // when true, asserts that no EtcdOpsTask exists after PreSync
+		expectedFailure     bool   // when true, asserts the failure flag is set in OperatorContext.Data
+		expectedNewTaskName string // when non-empty, asserts the specific new task name created by PreSync
 	}{
 		{
 			name:          "returns nil when backup is disabled",
@@ -279,6 +281,50 @@ func TestPreSync(t *testing.T) {
 			skipAnnotation: true,
 			expectNoTasks:  true,
 		},
+		{
+			name:            "waits for in-progress task from a previous generation",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			etcdGeneration:  1,
+			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, 0), 0, ptr.To(druidv1alpha1.TaskStateInProgress))},
+			expectedErrCode: ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+		},
+		{
+			name:           "adopts succeeded snapshot from a previous generation",
+			backupEnabled:  true,
+			stsExists:      true,
+			stsReplicas:    3,
+			etcdReplicas:   3,
+			etcdGeneration: 1,
+			stsImages:      map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:  []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, 0), 0, ptr.To(druidv1alpha1.TaskStateSucceeded))},
+		},
+		{
+			name:                "continues retry count from previous generation after failure (creates current-gen task at inherited index)",
+			backupEnabled:       true,
+			stsExists:           true,
+			stsReplicas:         3,
+			etcdReplicas:        3,
+			etcdGeneration:      1,
+			stsImages:           map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:       []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, 0), 1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedErrCode:     ptr.To(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)),
+			expectedNewTaskName: fmt.Sprintf("%s%d-%d", preSyncTaskUpdatePrefix, 1, 2),
+		},
+		{
+			name:            "exhausts retries inherited across generations and proceeds with sync",
+			backupEnabled:   true,
+			stsExists:       true,
+			stsReplicas:     3,
+			etcdReplicas:    3,
+			etcdGeneration:  1,
+			stsImages:       map[string]string{common.ContainerNameEtcd: oldWrapperImage},
+			existingTasks:   []*druidv1alpha1.EtcdOpsTask{buildPreSyncTask(fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, 0), maxPreSyncRetries-1, ptr.To(druidv1alpha1.TaskStateFailed))},
+			expectedFailure: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -294,6 +340,9 @@ func TestPreSync(t *testing.T) {
 				etcdBuilder = etcdBuilder.WithAnnotations(map[string]string{druidv1alpha1.SkipSpecUpdateSnapshotAnnotation: ""})
 			}
 			etcd := etcdBuilder.Build()
+			if tc.etcdGeneration != 0 {
+				etcd.Generation = tc.etcdGeneration
+			}
 
 			iv := testutils.CreateImageVector(true, true)
 
@@ -346,6 +395,13 @@ func TestPreSync(t *testing.T) {
 
 			_, isSnapshotFailed := opCtx.Data[common.KeyPreSyncSnapshotFailed]
 			g.Expect(isSnapshotFailed).To(Equal(tc.expectedFailure))
+
+			if tc.expectedNewTaskName != "" {
+				// verify PreSync created the task with the expected name
+				newTask := &druidv1alpha1.EtcdOpsTask{}
+				g.Expect(cl.Get(opCtx, client.ObjectKey{Name: tc.expectedNewTaskName, Namespace: etcd.Namespace}, newTask)).To(Succeed(),
+					"expected PreSync to create task %q but it was not found", tc.expectedNewTaskName)
+			}
 		})
 	}
 }

@@ -107,7 +107,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	// hibernation support [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922) is implemented,
 	// we need to switch to the dedicated hibernation signal on the Etcd resource instead of inferring it from the replica count.
 	if etcd.Spec.Replicas == 0 {
-		return r.ensurePreSyncSnapshot(ctx, etcd, fmt.Sprintf("%s%d-", preSyncTaskHibernationPrefix, etcd.Generation))
+		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskHibernationPrefix)
 	}
 
 	if druidv1alpha1.HasSkipSpecUpdateSnapshotAnnotation(etcd.ObjectMeta) {
@@ -122,7 +122,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 			fmt.Sprintf("Error getting component images for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 	if changed {
-		return r.ensurePreSyncSnapshot(ctx, etcd, fmt.Sprintf("%s%d-", preSyncTaskUpdatePrefix, etcd.Generation))
+		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskUpdatePrefix)
 	}
 
 	return nil
@@ -171,15 +171,17 @@ func imagesChanged(containers []corev1.Container, expectedImages map[string]stri
 }
 
 // ensurePreSyncSnapshot ensures a pre-sync snapshot is taken via an etcdopstask with retry logic up to maxPreSyncRetries attempts.
-func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, prefix string) error {
-	latestTask, latestIndex, err := r.getLatestPreSyncTask(ctx, etcd, prefix)
+func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, basePrefix string) error {
+	currentGenPrefix := fmt.Sprintf("%s%d-", basePrefix, etcd.Generation)
+
+	latestTask, latestIndex, err := r.getLatestPreSyncTask(ctx, etcd, basePrefix)
 	if err != nil {
 		return druiderr.WrapError(err, ErrGetEtcdOpsTask, component.OperationPreSync,
 			fmt.Sprintf("Error listing EtcdOpsTasks for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 
 	if latestTask == nil {
-		return r.createPreSyncTask(ctx, etcd, prefix, 0)
+		return r.createPreSyncTask(ctx, etcd, currentGenPrefix, 0)
 	}
 
 	if latestTask.Status.State == nil {
@@ -205,17 +207,18 @@ func (r _resource) ensurePreSyncSnapshot(ctx component.OperatorContext, etcd *dr
 		if latestIndex != nil {
 			nextIndex = *latestIndex + 1
 		}
-		return r.createPreSyncTask(ctx, etcd, prefix, nextIndex)
+		return r.createPreSyncTask(ctx, etcd, currentGenPrefix, nextIndex)
 
 	default:
+		// The task is still pending or inprogress, wait for it to finish before proceeding with the sync
 		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
 			fmt.Sprintf("Pre-sync snapshot task %s is %s", latestTask.Name, *latestTask.Status.State))
 	}
 }
 
-// getLatestPreSyncTask returns the latest pre-sync EtcdOpsTask for the given etcd and prefix.
-// The returned index is nil if no matching task is found.
-func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, prefix string) (*druidv1alpha1.EtcdOpsTask, *int, error) {
+// getLatestPreSyncTask returns the pre-sync EtcdOpsTask for the given etcd with the highest attempt index whose name
+// starts with the given base prefix, across all generations (name format "<basePrefix><generation>-<index>").
+func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, basePrefix string) (*druidv1alpha1.EtcdOpsTask, *int, error) {
 	taskList := &druidv1alpha1.EtcdOpsTaskList{}
 	if err := r.client.List(ctx, taskList, client.InNamespace(etcd.Namespace)); err != nil {
 		return nil, nil, err
@@ -223,14 +226,27 @@ func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *dru
 
 	var latestIndex *int
 	var latestTask *druidv1alpha1.EtcdOpsTask
-	for _, task := range taskList.Items {
-		indexStr, found := strings.CutPrefix(task.Name, prefix)
+	for i := range taskList.Items {
+		task := &taskList.Items[i]
+		if task.Spec.EtcdName == nil || *task.Spec.EtcdName != etcd.Name {
+			continue
+		}
+		// match the pattern "<basePrefix><generation>-<index>" and extract the <index> out of it
+		suffix, found := strings.CutPrefix(task.Name, basePrefix)
 		if !found {
 			continue
 		}
-		if idx, err := strconv.Atoi(indexStr); err == nil && (latestIndex == nil || idx > *latestIndex) {
-			latestIndex = &idx
-			latestTask = &task
+		lastDash := strings.LastIndex(suffix, "-")
+		if lastDash < 0 {
+			continue
+		}
+		idx, err := strconv.Atoi(suffix[lastDash+1:])
+		if err != nil {
+			continue
+		}
+		if latestIndex == nil || idx > *latestIndex {
+			latestIndex = ptr.To(idx)
+			latestTask = task
 		}
 	}
 
