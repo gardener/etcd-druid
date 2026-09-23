@@ -507,6 +507,7 @@ _Appears in:_
 | `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  | Optional: \{\} <br /> |
 | `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the backup-restore container.<br />These are appended after controller-managed env vars; duplicate names are not allowed.<br />Example (used together with spec.volumes and spec.backup.volumeMounts):<br />  - name: ENDPOINTS<br />    value: /var/host/endpoints |  | MaxItems: 5 <br />Optional: \{\} <br /> |
 | `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the backup-restore container.<br />Each mountPath must be unique and the referenced volume name must appear in spec.volumes.<br />Example (used together with spec.volumes and spec.backup.env):<br />  - name: host-volume<br />    mountPath: /var/host<br />    readOnly: true |  | MaxItems: 5 <br />Optional: \{\} <br /> |
+| `dynamicEndpoints` _[DynamicEndpointsSpec](#dynamicendpointsspec)_ | DynamicEndpoints configures IP-driven endpoint discovery for etcd-backup-restore via an ENDPOINTS file.<br />May only be set when spec.externallyManagedMemberAddresses is non-empty. |  | Optional: \{\} <br /> |
 
 
 #### BboltFreelistType
@@ -767,6 +768,26 @@ _Appears in:_
 | `kind` _string_ | Kind of the referent |  | Required: \{\} <br /> |
 | `name` _string_ | Name of the referent |  | Required: \{\} <br /> |
 | `apiVersion` _string_ | API version of the referent |  | Optional: \{\} <br /> |
+
+
+#### DynamicEndpointsSpec
+
+
+
+DynamicEndpointsSpec configures IP-driven etcd endpoint discovery via an ENDPOINTS file.
+When set, etcd-backup-restore reads etcd client endpoints from the file instead of static config-map entries.
+
+
+
+_Appears in:_
+- [BackupSpec](#backupspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `hostPathDir` _string_ | HostPathDir is the directory path on the host node mounted into the backup-restore container.<br />The ENDPOINTS file must reside within this directory. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `endpointsFileName` _string_ | EndpointsFileName is the name of the ENDPOINTS file within HostPathDir. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `refreshEnabled` _boolean_ | RefreshEnabled enables the periodic refresh of the ENDPOINTS file from the live etcd member list. |  | Optional: \{\} <br /> |
+| `refreshInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RefreshInterval is the interval at which the ENDPOINTS file is refreshed.<br />Must be > 0 when RefreshEnabled is true. Defaults to 30s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 
 
 #### Etcd
