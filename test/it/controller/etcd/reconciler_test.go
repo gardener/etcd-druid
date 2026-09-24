@@ -527,9 +527,17 @@ func testPreSyncHibernationSucceeds(t *testing.T, testNs string, reconcilerTestE
 	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	etcdInstance.Spec.Replicas = 0
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	preUpdateGeneration := etcdInstance.Generation
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-	// read the etcdInstance freshly to get the updated generation
-	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Eventually(func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance); err != nil {
+			return err
+		}
+		if etcdInstance.Generation <= preUpdateGeneration {
+			return fmt.Errorf("generation %d not yet incremented past pre-update generation %d", etcdInstance.Generation, preUpdateGeneration)
+		}
+		return nil
+	}).WithTimeout(30 * time.Second).WithPolling(pollingInterval).Should(Succeed())
 	presyncHibernationTaskName0 := fmt.Sprintf("presync-snapshot-hibernation-%d-0", etcdInstance.Generation)
 	t.Log("triggered hibernation by setting replicas to 0")
 
@@ -572,9 +580,17 @@ func testPreSyncHibernationProceedsAfterMaxRetries(t *testing.T, testNs string, 
 	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
 	etcdInstance.Spec.Replicas = 0
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	preUpdateGeneration := etcdInstance.Generation
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-	// read the etcdInstance freshly to get the updated generation
-	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Eventually(func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance); err != nil {
+			return err
+		}
+		if etcdInstance.Generation <= preUpdateGeneration {
+			return fmt.Errorf("generation %d not yet incremented past pre-update generation %d", etcdInstance.Generation, preUpdateGeneration)
+		}
+		return nil
+	}).WithTimeout(30 * time.Second).WithPolling(pollingInterval).Should(Succeed())
 	t.Log("triggered hibernation by setting replicas to 0")
 
 	for i := range 3 {
@@ -657,9 +673,17 @@ func testPreSyncImageChangeSucceeds(t *testing.T, testNs string, reconcilerTestE
 	newImage := "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.99-test"
 	etcdInstance.Spec.Etcd.Image = &newImage
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	preUpdateGeneration := etcdInstance.Generation
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-	// read the etcdInstance freshly to get the updated generation
-	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Eventually(func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance); err != nil {
+			return err
+		}
+		if etcdInstance.Generation <= preUpdateGeneration {
+			return fmt.Errorf("generation %d not yet incremented past pre-update generation %d", etcdInstance.Generation, preUpdateGeneration)
+		}
+		return nil
+	}).WithTimeout(30 * time.Second).WithPolling(pollingInterval).Should(Succeed())
 	presyncUpdateTaskName0 := fmt.Sprintf("presync-snapshot-update-%d-0", etcdInstance.Generation)
 	t.Log("triggered image change by patching Spec.Etcd.Image")
 
@@ -716,9 +740,17 @@ func testPreSyncImageChangeSkippedViaAnnotation(t *testing.T, testNs string, rec
 		druidv1alpha1.DruidOperationAnnotation:         druidv1alpha1.DruidOperationReconcile,
 		druidv1alpha1.SkipSpecUpdateSnapshotAnnotation: "",
 	}
+	preUpdateGeneration := etcdInstance.Generation
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-	// read the etcdInstance freshly to get the updated generation
-	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Eventually(func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance); err != nil {
+			return err
+		}
+		if etcdInstance.Generation <= preUpdateGeneration {
+			return fmt.Errorf("generation %d not yet incremented past pre-update generation %d", etcdInstance.Generation, preUpdateGeneration)
+		}
+		return nil
+	}).WithTimeout(30 * time.Second).WithPolling(pollingInterval).Should(Succeed())
 	t.Log("triggered image change with skip-spec-update-snapshot annotation set")
 
 	// No pre-sync snapshot task should be created since the snapshot is skipped.
@@ -761,9 +793,17 @@ func testPreSyncImageChangeProceedsAfterMaxRetries(t *testing.T, testNs string, 
 	newImage := "europe-docker.pkg.dev/gardener-project/public/gardener/etcd-wrapper:v0.6.99-test"
 	etcdInstance.Spec.Etcd.Image = &newImage
 	etcdInstance.Annotations = map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile}
+	preUpdateGeneration := etcdInstance.Generation
 	g.Expect(cl.Update(ctx, etcdInstance)).To(Succeed())
-	// read the etcdInstance freshly to get the updated generation
-	g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance)).To(Succeed())
+	g.Eventually(func() error {
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(etcdInstance), etcdInstance); err != nil {
+			return err
+		}
+		if etcdInstance.Generation <= preUpdateGeneration {
+			return fmt.Errorf("generation %d not yet incremented past pre-update generation %d", etcdInstance.Generation, preUpdateGeneration)
+		}
+		return nil
+	}).WithTimeout(30 * time.Second).WithPolling(pollingInterval).Should(Succeed())
 	t.Log("triggered image change by patching Spec.Etcd.Image")
 
 	for i := range 3 {
