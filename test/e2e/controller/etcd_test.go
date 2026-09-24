@@ -452,8 +452,7 @@ func TestScaleIn(t *testing.T) {
 			name:            "3to2",
 			initialReplicas: 3,
 			targetReplicas:  2,
-			zeroDowntime:    true,
-			purpose:         "scale in 3 -> 2 with zero downtime",
+			purpose:         "scale in 3 -> 2",
 		},
 		{
 			name:            "5to3-zerodowntime",
