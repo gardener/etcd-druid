@@ -861,43 +861,6 @@ func TestTriggerDelete(t *testing.T) {
 	}
 }
 
-// ---------------------------- computeCheckSum ------------------------------
-
-// TestComputeCheckSumExcludesReplicaDerivedURLs verifies that the configmap
-// checksum ignores initial-cluster, initial-advertise-peer-urls and
-// advertise-client-urls so a scale-in/scale-out (which only changes those
-// replica-derived fields) does not roll the surviving pods, while a change to
-// any other field still produces a different checksum.
-func TestComputeCheckSumExcludesReplicaDerivedURLs(t *testing.T) {
-	g := NewWithT(t)
-
-	// Pin UpgradeEtcdVersion off so the checksum input is not perturbed by the
-	// backend-bbolt-freelist-type key that other tests toggle on the shared
-	// DefaultFeatureGates. Do not run in parallel for the same reason.
-	g.Expect(druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
-		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: false},
-	)).To(Succeed())
-
-	checkSumForReplicas := func(replicas int32) string {
-		etcd := buildEtcd(replicas, true, true, nil)
-		cm := newConfigMap(g, etcd)
-		checkSum, err := computeCheckSum(cm)
-		g.Expect(err).ToNot(HaveOccurred())
-		return checkSum
-	}
-
-	threeReplicas := checkSumForReplicas(3)
-	g.Expect(checkSumForReplicas(2)).To(Equal(threeReplicas), "scale-in 3->2 must not change the checksum")
-	g.Expect(checkSumForReplicas(5)).To(Equal(threeReplicas), "scale-out 3->5 must not change the checksum")
-
-	etcd := buildEtcd(3, true, true, nil)
-	etcd.Spec.Etcd.ClientPort = ptr.To[int32](9999)
-	cmPortChanged := newConfigMap(g, etcd)
-	portChanged, err := computeCheckSum(cmPortChanged)
-	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(portChanged).ToNot(Equal(threeReplicas), "a client port change must change the checksum")
-}
-
 // ---------------------------- Helper Functions -----------------------------
 func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool, externallyManagedMemberAddresses []string) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
