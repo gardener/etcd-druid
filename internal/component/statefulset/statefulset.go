@@ -226,8 +226,7 @@ func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *dru
 
 	var latestIndex *int
 	var latestTask *druidv1alpha1.EtcdOpsTask
-	for i := range taskList.Items {
-		task := &taskList.Items[i]
+	for _, task := range taskList.Items {
 		if task.Spec.EtcdName == nil || *task.Spec.EtcdName != etcd.Name {
 			continue
 		}
@@ -236,17 +235,14 @@ func (r _resource) getLatestPreSyncTask(ctx component.OperatorContext, etcd *dru
 		if !found {
 			continue
 		}
-		lastDash := strings.LastIndex(suffix, "-")
-		if lastDash < 0 {
-			continue
-		}
-		idx, err := strconv.Atoi(suffix[lastDash+1:])
+		parts := strings.Split(suffix, "-")
+		idx, err := strconv.Atoi(parts[len(parts)-1])
 		if err != nil {
 			continue
 		}
 		if latestIndex == nil || idx > *latestIndex {
 			latestIndex = ptr.To(idx)
-			latestTask = task
+			latestTask = &task
 		}
 	}
 
