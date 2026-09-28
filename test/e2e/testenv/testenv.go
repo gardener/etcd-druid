@@ -29,9 +29,11 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -160,8 +162,25 @@ func (t *TestEnvironment) UpdateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd,
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
+// WaitForReconciliation waits until the etcd object's observed generation matches its generation.
+func (t *TestEnvironment) WaitForReconciliation(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	g.Eventually(func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		if etcd.Status.ObservedGeneration == nil {
+			return fmt.Errorf("etcd %s status observed generation is nil", etcd.Name)
+		}
+		if *etcd.Status.ObservedGeneration != etcd.Generation {
+			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
 // CheckEtcdReady checks if the Etcd object is ready.
 func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.WaitForReconciliation(g, etcd, timeout)
 	g.Eventually(func() error {
 		ctx, cancelFunc := context.WithTimeout(t.ctx, timeout)
 		defer cancelFunc()
@@ -170,34 +189,28 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 			return err
 		}
 
-		// Ensure the etcd cluster's current generation matches the observed generation
-		if etcd.Status.ObservedGeneration == nil {
-			return fmt.Errorf("etcd %s status observed generation is nil", etcd.Name)
-		}
-		if *etcd.Status.ObservedGeneration != etcd.Generation {
-			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
-		}
-
-		etcdPods, err := t.getEtcdPods(etcd)
-		if err != nil {
-			return fmt.Errorf("failed to get etcd pods: %w", err)
-		}
-		if len(etcdPods) != int(etcd.Spec.Replicas) {
-			return fmt.Errorf("etcd %s has %d pods, expected %d", etcd.Name, len(etcdPods), etcd.Spec.Replicas)
-		}
-
-		// if replicas is 0, the subsequent checks do not apply
-		if etcd.Spec.Replicas == 0 {
-			return nil
-		}
-
-		for _, pod := range etcdPods {
-			if pod.Status.Phase != corev1.PodRunning {
-				return fmt.Errorf("etcd %s pod %s is not running", etcd.Name, pod.Name)
+		if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+			etcdPods, err := t.getEtcdPods(etcd)
+			if err != nil {
+				return fmt.Errorf("failed to get etcd pods: %w", err)
 			}
-			for _, containerStatus := range pod.Status.ContainerStatuses {
-				if !containerStatus.Ready {
-					return fmt.Errorf("etcd %s pod %s container %s is not ready", etcd.Name, pod.Name, containerStatus.Name)
+			if len(etcdPods) != int(etcd.Spec.Replicas) {
+				return fmt.Errorf("etcd %s has %d pods, expected %d", etcd.Name, len(etcdPods), etcd.Spec.Replicas)
+			}
+
+			// if replicas is 0, the subsequent checks do not apply
+			if etcd.Spec.Replicas == 0 {
+				return nil
+			}
+
+			for _, pod := range etcdPods {
+				if pod.Status.Phase != corev1.PodRunning {
+					return fmt.Errorf("etcd %s pod %s is not running", etcd.Name, pod.Name)
+				}
+				for _, containerStatus := range pod.Status.ContainerStatuses {
+					if !containerStatus.Ready {
+						return fmt.Errorf("etcd %s pod %s container %s is not ready", etcd.Name, pod.Name, containerStatus.Name)
+					}
 				}
 			}
 		}
@@ -772,4 +785,52 @@ func (t *TestEnvironment) GetSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta)
 	}
 
 	return fullSnapshotRevision, deltaSnapshotRevision, nil
+}
+
+// VerifyMemberLeases checks that member leases exist and are being renewed.
+func (t *TestEnvironment) VerifyMemberLeases(g *WithT, etcd *druidv1alpha1.Etcd, expectedAddresses []string, timeout time.Duration) {
+	g.Eventually(func() error {
+		for _, addr := range expectedAddresses {
+			leaseName := druidv1alpha1.GetMemberNameFromAddress(etcd, addr)
+			lease := &coordinationv1.Lease{}
+			if err := t.cl.Get(t.ctx, types.NamespacedName{Name: leaseName, Namespace: etcd.Namespace}, lease); err != nil {
+				return fmt.Errorf("member lease %s not found: %w", leaseName, err)
+			}
+
+			if lease.Spec.RenewTime == nil {
+				return fmt.Errorf("member lease %s has nil RenewTime", leaseName)
+			}
+
+			if lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity == "" {
+				return fmt.Errorf("member lease %s has empty HolderIdentity", leaseName)
+			}
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// VerifyStatefulSetZeroReplicas confirms the StatefulSet exists with 0 replicas.
+func (t *TestEnvironment) VerifyStatefulSetZeroReplicas(g *WithT, etcd *druidv1alpha1.Etcd) {
+	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
+	sts := &appsv1.StatefulSet{}
+	g.Expect(t.cl.Get(t.ctx, types.NamespacedName{Name: stsName, Namespace: etcd.Namespace}, sts)).To(Succeed())
+	g.Expect(sts.Spec.Replicas).ToNot(BeNil())
+	g.Expect(*sts.Spec.Replicas).To(Equal(int32(0)))
+	g.Expect(sts.Status.Replicas).To(Equal(int32(0)))
+}
+
+// VerifyNoServicesOrPDB confirms that ClientService, PeerService, and PodDisruptionBudget
+// do not exist for an Etcd cluster with externally managed members.
+func (t *TestEnvironment) VerifyNoServicesOrPDB(g *WithT, etcd *druidv1alpha1.Etcd) {
+	clientSvc := &corev1.Service{}
+	err := t.cl.Get(t.ctx, types.NamespacedName{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, clientSvc)
+	g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "client service should not exist for externally managed members")
+
+	peerSvc := &corev1.Service{}
+	err = t.cl.Get(t.ctx, types.NamespacedName{Name: druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, peerSvc)
+	g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "peer service should not exist for externally managed members")
+
+	pdb := &policyv1.PodDisruptionBudget{}
+	err = t.cl.Get(t.ctx, types.NamespacedName{Name: druidv1alpha1.GetPodDisruptionBudgetName(etcd.ObjectMeta), Namespace: etcd.Namespace}, pdb)
+	g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "PDB should not exist for externally managed members")
 }

@@ -272,6 +272,34 @@ type BackupSpec struct {
 	// +listMapKey=mountPath
 	// +kubebuilder:validation:MaxItems=5
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
+	// DynamicEndpoints configures IP-driven endpoint discovery for etcd-backup-restore via an ENDPOINTS file.
+	// May only be set when spec.externallyManagedMemberAddresses is non-empty.
+	// +optional
+	DynamicEndpoints *DynamicEndpointsSpec `json:"dynamicEndpoints,omitempty"`
+}
+
+// DynamicEndpointsSpec configures IP-driven etcd endpoint discovery via an ENDPOINTS file.
+// When set, etcd-backup-restore reads etcd client endpoints from the file instead of static config-map entries.
+// +kubebuilder:validation:XValidation:message="refreshInterval must be greater than zero when refreshEnabled is true",rule="!has(self.refreshEnabled) || !self.refreshEnabled || (has(self.refreshInterval) && duration(self.refreshInterval).getSeconds() > 0)"
+type DynamicEndpointsSpec struct {
+	// HostPathDir is the directory path on the host node mounted into the backup-restore container.
+	// The ENDPOINTS file must reside within this directory.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	HostPathDir string `json:"hostPathDir"`
+	// EndpointsFileName is the name of the ENDPOINTS file within HostPathDir.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	EndpointsFileName string `json:"endpointsFileName"`
+	// RefreshEnabled enables the periodic refresh of the ENDPOINTS file from the live etcd member list.
+	// +optional
+	RefreshEnabled *bool `json:"refreshEnabled,omitempty"`
+	// RefreshInterval is the interval at which the ENDPOINTS file is refreshed.
+	// Must be > 0 when RefreshEnabled is true. Defaults to 30s.
+	// +optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	RefreshInterval *metav1.Duration `json:"refreshInterval,omitempty"`
 }
 
 // SnapshotCompactionSpec defines parameters related to the compaction job configuration.
@@ -582,6 +610,8 @@ type SchedulingConstraints struct {
 // +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field must only be set during creation.",rule="has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)"
 // +kubebuilder:validation:XValidation:message="all etcd.volumeMounts must reference a volume declared in spec.volumes",rule="!has(self.etcd.volumeMounts) || self.etcd.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name))"
 // +kubebuilder:validation:XValidation:message="all backup.volumeMounts must reference a volume declared in spec.volumes",rule="!has(self.backup.volumeMounts) || self.backup.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name))"
+// +kubebuilder:validation:XValidation:message="spec.backup.dynamicEndpoints may only be set when spec.externallyManagedMemberAddresses is non-empty",rule="!has(self.backup.dynamicEndpoints) || (has(self.externallyManagedMemberAddresses) && size(self.externallyManagedMemberAddresses) > 0)"
+// +kubebuilder:validation:XValidation:message="spec.backup.dynamicEndpoints field cannot be added or removed dynamically",rule="has(oldSelf.backup.dynamicEndpoints) == has(self.backup.dynamicEndpoints)"
 type EtcdSpec struct {
 	// MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.
 	// The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).

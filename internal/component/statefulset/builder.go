@@ -302,6 +302,12 @@ func (b *stsBuilder) getBackupRestoreContainerVolumeMounts() []corev1.VolumeMoun
 			brVolumeMounts = append(brVolumeMounts, *etcdBackupVolumeMount)
 		}
 	}
+	if b.etcd.Spec.Backup.DynamicEndpoints != nil {
+		brVolumeMounts = append(brVolumeMounts, corev1.VolumeMount{
+			Name:      common.VolumeNameDynamicEndpoints,
+			MountPath: common.VolumeMountPathDynamicEndpoints,
+		})
+	}
 	brVolumeMounts = append(brVolumeMounts, b.etcd.Spec.Backup.VolumeMounts...)
 	return brVolumeMounts
 }
@@ -495,6 +501,13 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, fmt.Sprintf("--etcd-connection-timeout=%s", defaultEtcdConnectionTimeout))
 	commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
 	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
+
+	if b.etcd.Spec.Backup.DynamicEndpoints != nil && ptr.Deref(b.etcd.Spec.Backup.DynamicEndpoints.RefreshEnabled, false) {
+		commandArgs = append(commandArgs, "--enable-endpoints-refresh=true")
+		if b.etcd.Spec.Backup.DynamicEndpoints.RefreshInterval != nil {
+			commandArgs = append(commandArgs, fmt.Sprintf("--endpoints-refresh-interval=%s", b.etcd.Spec.Backup.DynamicEndpoints.RefreshInterval.Duration.String()))
+		}
+	}
 	heartbeatDuration := defaultHeartbeatDuration
 	if b.etcd.Spec.Etcd.HeartbeatDuration != nil {
 		heartbeatDuration = b.etcd.Spec.Etcd.HeartbeatDuration.Duration.String()
@@ -754,6 +767,18 @@ func (b *stsBuilder) getPodVolumes(ctx component.OperatorContext) ([]corev1.Volu
 		if backupVolume != nil {
 			volumes = append(volumes, *backupVolume)
 		}
+	}
+	if b.etcd.Spec.Backup.DynamicEndpoints != nil {
+		hostPathType := corev1.HostPathDirectoryOrCreate
+		volumes = append(volumes, corev1.Volume{
+			Name: common.VolumeNameDynamicEndpoints,
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: b.etcd.Spec.Backup.DynamicEndpoints.HostPathDir,
+					Type: &hostPathType,
+				},
+			},
+		})
 	}
 	volumes = append(volumes, b.etcd.Spec.Volumes...)
 	return volumes, nil
