@@ -1,0 +1,81 @@
+ocm:
+  component_name: github.com/gardener/etcd-backup-restore
+  component_version: v0.43.0
+release_notes:
+- audience: developer
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: other
+  contents: Add GHA workflow `PR Review Timeline` for easy tracking of reviewer timelines
+    for PRs.
+  mimetype: text/markdown
+  reference: '[#983](https://github.com/gardener/etcd-backup-restore/pull/983)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: Tomy2e
+  category: feature
+  contents: Disable fsync in the embedded etcd during restoration to reduce restoration
+    time.
+  mimetype: text/markdown
+  reference: '[#991](https://github.com/gardener/etcd-backup-restore/pull/991)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: CaptainIRS
+  category: other
+  contents: Upgrade Go to `1.26`, `k8s.io/*` to `v0.35.5`, and object store SDK dependencies.
+  mimetype: text/markdown
+  reference: '[#1036](https://github.com/gardener/etcd-backup-restore/pull/1036)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: CaptainIRS
+  category: noteworthy
+  contents: A fallback mechanism is introduced for contacting the etcd cluster when
+    the `--service-endpoints` flag is not specified.
+  mimetype: text/markdown
+  reference: '[#939](https://github.com/gardener/etcd-backup-restore/pull/939)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: acumino
+  category: feature
+  contents: |
+    etcd member names now support an optional `member-name-prefix` field in the etcd config file. When set, member names take the form `<prefix>-<pod-name>` instead of just the pod name.
+  mimetype: text/markdown
+  reference: '[#1030](https://github.com/gardener/etcd-backup-restore/pull/1030)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: ishan16696
+  category: breaking
+  contents: Dropping the support of `failBelowRevision` feature as it seems to be
+    no longer in usage for almost ~5years.
+  mimetype: text/markdown
+  reference: '[#1013](https://github.com/gardener/etcd-backup-restore/pull/1013)'
+  type: standard
+- audience: developer
+  author:
+    hostname: github.com
+    type: githubUser
+    username: shreyas-s-rao
+  category: noteworthy
+  contents: Migrate e2e tests from archived LocalStack community image to licensed
+    `localstack/localstack:stable`. Running AWS e2e tests now requires a `LOCALSTACK_AUTH_TOKEN`
+    environment variable.
+  mimetype: text/markdown
+  reference: '[#1014](https://github.com/gardener/etcd-backup-restore/pull/1014)'
+  type: standard
