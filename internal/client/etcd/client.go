@@ -45,6 +45,9 @@ type Cluster interface {
 type Maintenance interface {
 	// Status returns the status of the endpoint.
 	Status(ctx context.Context, endpoint string) (*clientv3.StatusResponse, error)
+	// MoveLeader asks the current leader, reached at leaderURLs, to transfer
+	// leadership to the member with the given ID.
+	MoveLeader(ctx context.Context, leaderURLs []string, transfereeID uint64) error
 }
 
 // KV is the narrow key-value sub-client used for per-member health probes.
@@ -85,10 +88,9 @@ func (f *clientFactory) NewClient(ctx context.Context, k8sClient client.Client, 
 		return nil, err
 	}
 
-	endpoint := fmt.Sprintf("%s://%s.%s.svc:%d",
+	endpoint := fmt.Sprintf("%s://%s:%d",
 		scheme,
-		druidv1alpha1.GetClientServiceName(etcd.ObjectMeta),
-		etcd.Namespace,
+		druidv1alpha1.GetClientHostname(etcd),
 		druidv1alpha1.GetClientPort(etcd),
 	)
 
@@ -102,9 +104,10 @@ func (f *clientFactory) NewClient(ctx context.Context, k8sClient client.Client, 
 		return nil, fmt.Errorf("failed to create etcd client for %s/%s: %w", etcd.Namespace, etcd.Name, err)
 	}
 
-	// dialFn creates a per-member client for KV health probes, mirroring
-	// etcdctl endpoint health. Each probe client uses the same TLS config as
-	// the main connection and supports multiple endpoints for fallthrough.
+	// dialFn creates a per-member client for calls that must reach a specific
+	// member (KV health probes, leadership transfer). Each client uses the same
+	// TLS config as the main connection and supports multiple endpoints for
+	// fallthrough.
 	dialFn := func(endpoints []string) (probeClient, error) {
 		return clientv3.New(clientv3.Config{
 			Endpoints:   endpoints,
@@ -117,10 +120,12 @@ func (f *clientFactory) NewClient(ctx context.Context, k8sClient client.Client, 
 	return c, nil
 }
 
-// probeClient is the narrow interface returned by dialFn for per-member KV
-// health probes. *clientv3.Client satisfies it; tests inject a fakeEndpoint.
+// probeClient is the narrow interface returned by dialFn for calls that must
+// reach a specific member: KV health probes and leadership transfer.
+// *clientv3.Client satisfies it; tests inject a fakeEndpoint.
 type probeClient interface {
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	MoveLeader(ctx context.Context, transfereeID uint64) (*clientv3.MoveLeaderResponse, error)
 	Close() error
 }
 
@@ -132,7 +137,7 @@ var _ probeClient = (*clientv3.Client)(nil)
 // etcd connection. *clientv3.Client satisfies it; the compile-time assertion
 // below catches any signature drift on etcd upgrades.
 type etcdAPI interface {
-	MemberList(ctx context.Context) (*clientv3.MemberListResponse, error)
+	MemberList(ctx context.Context, opts ...clientv3.OpOption) (*clientv3.MemberListResponse, error)
 	MemberRemove(ctx context.Context, id uint64) (*clientv3.MemberRemoveResponse, error)
 	Status(ctx context.Context, endpoint string) (*clientv3.StatusResponse, error)
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
@@ -151,8 +156,8 @@ func newClient(api etcdAPI, closer func() error) Client {
 type etcdClient struct {
 	api    etcdAPI
 	closer func() error
-	// dialFn creates a probeClient for per-member KV health probes (mirroring
-	// etcdctl endpoint health). Nil in unit tests that skip the KV probe.
+	// dialFn creates a probeClient for calls that must reach a specific member.
+	// Nil in unit tests that skip the KV probe.
 	dialFn func([]string) (probeClient, error)
 }
 
@@ -183,10 +188,9 @@ func (c *etcdClient) MemberList(ctx context.Context) ([]etcdmember.Member, error
 	return members, nil
 }
 
-// MemberRemove removes the member with the given ID. It is idempotent: a
-// codes.NotFound status (etcdserver: member not found) is treated as success.
-// etcd returns this gRPC status code for absent members (see ErrGRPCMemberNotFound
-// in go.etcd.io/etcd/api/v3/v3rpc/rpctypes).
+// MemberRemove removes the member with the given ID. It is idempotent: an
+// rpctypes.ErrMemberNotFound error is treated as success, and any other error
+// is returned wrapped.
 func (c *etcdClient) MemberRemove(ctx context.Context, id uint64) error {
 	callCtx, cancel := context.WithTimeout(ctx, defaultCommandTimeout)
 	defer cancel()
@@ -205,6 +209,27 @@ func (c *etcdClient) Status(ctx context.Context, endpoint string) (*clientv3.Sta
 	return c.api.Status(ctx, endpoint)
 }
 
+// MoveLeader asks the current leader to transfer leadership to the member with
+// the given ID. etcd rejects the request unless it is served by the leader, so
+// the call is sent on a client dialed to leaderURLs only.
+func (c *etcdClient) MoveLeader(ctx context.Context, leaderURLs []string, transfereeID uint64) error {
+	if c.dialFn == nil {
+		return fmt.Errorf("cannot move etcd leadership to member %x: no per-member dialer configured", transfereeID)
+	}
+	leaderClient, err := c.dialFn(leaderURLs)
+	if err != nil {
+		return fmt.Errorf("failed to dial etcd leader to move leadership to member %x: %w", transfereeID, err)
+	}
+	defer leaderClient.Close() //nolint:errcheck
+
+	callCtx, cancel := context.WithTimeout(ctx, defaultCommandTimeout)
+	defer cancel()
+	if _, err := leaderClient.MoveLeader(callCtx, transfereeID); err != nil {
+		return fmt.Errorf("failed to move etcd leadership to member %x: %w", transfereeID, err)
+	}
+	return nil
+}
+
 // Get retrieves keys from etcd via the main (load-balanced) connection.
 func (c *etcdClient) Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
 	return c.api.Get(ctx, key, opts...)
@@ -220,10 +245,11 @@ func buildMembersFromList(raw []*etcdserverpb.Member) []etcdmember.Member {
 			role = etcdmember.MemberRoleLearner
 		}
 		members[i] = etcdmember.Member{
-			ID:     m.GetID(),
-			Name:   m.GetName(),
-			Role:   role,
-			Health: etcdmember.MemberHealthUnknown,
+			ID:         m.GetID(),
+			Name:       m.GetName(),
+			Role:       role,
+			Health:     etcdmember.MemberHealthUnknown,
+			ClientURLs: m.GetClientURLs(),
 		}
 	}
 	return members

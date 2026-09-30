@@ -23,13 +23,15 @@ import (
 // Client is a concurrency-safe test double that implements clientetcd.Client.
 // All exported fields are guarded by mu.
 type Client struct {
-	mu          sync.Mutex
-	Members     []etcdmember.Member
-	RemoveCalls []uint64
-	ListErr     error
-	RemoveErr   error
-	CloseCalls  int
-	removed     map[uint64]struct{}
+	mu              sync.Mutex
+	Members         []etcdmember.Member
+	RemoveCalls     []uint64
+	MoveLeaderCalls []uint64
+	ListErr         error
+	RemoveErr       error
+	MoveLeaderErr   error
+	CloseCalls      int
+	removed         map[uint64]struct{}
 }
 
 // NewClient returns a Client with total voting members named
@@ -51,18 +53,6 @@ func NewClient(etcdName string, total int) *Client {
 	return &Client{
 		Members: members,
 		removed: make(map[uint64]struct{}),
-	}
-}
-
-// SetHealth sets the Health of the member with the given ID.
-func (f *Client) SetHealth(id uint64, health etcdmember.MemberHealth) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := range f.Members {
-		if f.Members[i].ID == id {
-			f.Members[i].Health = health
-			return
-		}
 	}
 }
 
@@ -100,6 +90,26 @@ func (f *Client) MemberRemove(_ context.Context, id uint64) error {
 // Status implements clientetcd.Maintenance.
 func (f *Client) Status(_ context.Context, _ string) (*clientv3.StatusResponse, error) {
 	return &clientv3.StatusResponse{}, nil
+}
+
+// MoveLeader implements clientetcd.Maintenance. On success it makes the
+// transferee the leader and demotes the previous leader to a voting member.
+func (f *Client) MoveLeader(_ context.Context, _ []string, transfereeID uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.MoveLeaderCalls = append(f.MoveLeaderCalls, transfereeID)
+	if f.MoveLeaderErr != nil {
+		return f.MoveLeaderErr
+	}
+	for i := range f.Members {
+		switch {
+		case f.Members[i].ID == transfereeID:
+			f.Members[i].Role = etcdmember.MemberRoleLeader
+		case f.Members[i].Role == etcdmember.MemberRoleLeader:
+			f.Members[i].Role = etcdmember.MemberRoleMember
+		}
+	}
+	return nil
 }
 
 // Get implements clientetcd.KV.

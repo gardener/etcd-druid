@@ -44,7 +44,7 @@ type fakeAPI struct {
 	removeErr  error        // returned by MemberRemove when set
 }
 
-func (f *fakeAPI) MemberList(_ context.Context) (*clientv3.MemberListResponse, error) {
+func (f *fakeAPI) MemberList(_ context.Context, _ ...clientv3.OpOption) (*clientv3.MemberListResponse, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -82,11 +82,13 @@ func pbMember(id uint64, name string, clientURLs []string, isLearner bool) *etcd
 	return &etcdserverpb.Member{ID: id, Name: name, ClientURLs: clientURLs, IsLearner: isLearner}
 }
 
-// fakeEndpoint satisfies probeClient (Get + Close). Its Get result is fixed per
-// instance, so the production health path (probeEndpointKV) is exercised without
-// a real etcd connection.
+// fakeEndpoint satisfies probeClient. Its Get and MoveLeader results are fixed
+// per instance, so the production paths (probeEndpointKV, MoveLeader) are
+// exercised without a real etcd connection.
 type fakeEndpoint struct {
-	getErr error
+	getErr        error
+	moveLeaderErr error
+	moveLeaderTo  *uint64
 }
 
 func (e *fakeEndpoint) Get(_ context.Context, _ string, _ ...clientv3.OpOption) (*clientv3.GetResponse, error) {
@@ -94,6 +96,16 @@ func (e *fakeEndpoint) Get(_ context.Context, _ string, _ ...clientv3.OpOption) 
 		return nil, e.getErr
 	}
 	return &clientv3.GetResponse{}, nil
+}
+
+func (e *fakeEndpoint) MoveLeader(_ context.Context, transfereeID uint64) (*clientv3.MoveLeaderResponse, error) {
+	if e.moveLeaderTo != nil {
+		*e.moveLeaderTo = transfereeID
+	}
+	if e.moveLeaderErr != nil {
+		return nil, e.moveLeaderErr
+	}
+	return &clientv3.MoveLeaderResponse{}, nil
 }
 
 func (e *fakeEndpoint) Close() error { return nil }
@@ -471,6 +483,52 @@ func TestRemoveMemberIdempotency(t *testing.T) {
 			} else {
 				g.Expect(err).NotTo(HaveOccurred())
 			}
+		})
+	}
+}
+
+// TestMoveLeader verifies that MoveLeader dials the leader's own URLs, sends the
+// transfer request there, and surfaces dial and RPC failures as errors.
+func TestMoveLeader(t *testing.T) {
+	leaderURLs := []string{"https://etcd-main-0:2379"}
+	tests := []struct {
+		name          string
+		noDialer      bool
+		dialErr       error
+		moveLeaderErr error
+		wantErr       bool
+	}{
+		{name: "success sends the transfer to the leader"},
+		{name: "no per-member dialer is an error", noDialer: true, wantErr: true},
+		{name: "dial failure is an error", dialErr: errors.New("connection refused"), wantErr: true},
+		{name: "not-leader response is an error", moveLeaderErr: rpctypes.ErrNotLeader, wantErr: true},
+	}
+	t.Parallel()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			var dialedURLs []string
+			var movedTo uint64
+			c := newClient(&fakeAPI{}, nil)
+			if !tc.noDialer {
+				c.(*etcdClient).dialFn = func(endpoints []string) (probeClient, error) {
+					dialedURLs = endpoints
+					if tc.dialErr != nil {
+						return nil, tc.dialErr
+					}
+					return &fakeEndpoint{moveLeaderErr: tc.moveLeaderErr, moveLeaderTo: &movedTo}, nil
+				}
+			}
+
+			err := c.MoveLeader(context.Background(), leaderURLs, 0x2)
+			if tc.wantErr {
+				g.Expect(err).To(HaveOccurred())
+				return
+			}
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(dialedURLs).To(Equal(leaderURLs))
+			g.Expect(movedTo).To(Equal(uint64(0x2)))
 		})
 	}
 }
