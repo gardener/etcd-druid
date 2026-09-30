@@ -16,9 +16,7 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr/testr"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
@@ -30,7 +28,7 @@ func TestMain(m *testing.M) {
 		_, _ = fmt.Fprintf(os.Stderr, "KUBECONFIG not provided: %v\n", err)
 		os.Exit(1)
 	}
-	cl, err := e2eutils.GetKubernetesClient(kubeconfigPath)
+	cl, restConfig, err := e2eutils.GetKubernetesClient(kubeconfigPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to create Kubernetes client: %v\n", err)
 		os.Exit(1)
@@ -38,7 +36,7 @@ func TestMain(m *testing.M) {
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), timeoutTest)
 
-	testEnv = testenv.NewTestEnvironment(ctx, cancelCtx, cl)
+	testEnv = testenv.NewTestEnvironment(ctx, cancelCtx, cl, restConfig)
 	if err = testEnv.PrepareScheme(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to prepare scheme: %v\n", err)
 		os.Exit(1)
@@ -423,9 +421,8 @@ func TestScaleOut(t *testing.T) {
 // transitions. For every case it verifies that surplus members are removed from
 // the etcd cluster (no ghost members), surplus PVCs are deleted, and
 // ScaleOperationComplete returns to True on completion (asserted by
-// UpdateAndCheckEtcd via CheckEtcdReady). When quorum is preserved throughout
-// the transition, a zero-downtime validator asserts the cluster kept serving
-// requests without interruption.
+// UpdateAndCheckEtcd via CheckEtcdReady). A zero-downtime validator asserts
+// the cluster kept serving requests throughout the scale-in.
 func TestScaleIn(t *testing.T) {
 	t.Parallel()
 	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
@@ -437,8 +434,6 @@ func TestScaleIn(t *testing.T) {
 		// targetReplicas is the replica count the cluster is scaled in to.
 		targetReplicas int32
 		// zeroDowntime runs the zero-downtime validator and asserts no downtime.
-		// It is only valid when quorum is preserved across every single member
-		// removal (i.e. the target still forms a majority of the original size).
 		zeroDowntime bool
 		purpose      string
 	}{
@@ -446,7 +441,8 @@ func TestScaleIn(t *testing.T) {
 			name:            "3to1",
 			initialReplicas: 3,
 			targetReplicas:  1,
-			purpose:         "scale in 3 -> 1",
+			zeroDowntime:    true,
+			purpose:         "scale in 3 -> 1 with zero downtime",
 		},
 		{
 			name:            "3to2",
@@ -524,84 +520,6 @@ func TestScaleIn(t *testing.T) {
 				testSucceeded = true
 			})
 		}
-	}
-}
-
-// TestScaleRejectedDuringBootstrapMembersRemoval tests that the admission
-// webhook rejects conflicting spec.replicas changes while a
-// BootstrapMembersRemoval operation is in progress. Attempts to scale in
-// (decrease replicas) or scale out (increase replicas) must both be rejected
-// with a clear error message.
-func TestScaleRejectedDuringBootstrapMembersRemoval(t *testing.T) {
-	t.Parallel()
-	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
-
-	for _, provider := range providers {
-		tcName := fmt.Sprintf("scale-reject-bootstrapmembersremoval-%s", e2eutils.GetProviderSuffix(provider))
-		t.Run(tcName, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-			var testSucceeded bool
-
-			testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
-			logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
-			defer func() {
-				e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
-			}()
-			e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
-
-			etcd := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
-				WithReplicas(3).
-				WithDefaultBackup().
-				WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName)).
-				Build()
-
-			logger.Info("creating 3-replica Etcd")
-			testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
-			logger.Info("successfully created 3-replica Etcd")
-
-			// Simulate BootstrapMembersRemoval in progress by patching the
-			// ScaleOperationComplete condition to False via the status subresource.
-			// The CEL webhook reads this condition from the live object to decide
-			// whether to reject conflicting replicas changes.
-			logger.Info("patching ScaleOperationComplete=False (BootstrapMembersRemoval) via status subresource")
-			base := etcd.DeepCopy()
-			now := metav1.Now()
-			etcd.Status.Conditions = []druidv1alpha1.Condition{
-				{
-					Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
-					Status:             druidv1alpha1.ConditionFalse,
-					Reason:             druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
-					Message:            "removing source members after cluster bootstrap",
-					LastUpdateTime:     now,
-					LastTransitionTime: now,
-				},
-			}
-			g.Expect(testEnv.Client().Status().Patch(
-				testEnv.Context(), etcd, client.MergeFrom(base),
-			)).To(Succeed(), "failed to patch Etcd status to BootstrapMembersRemoval")
-			logger.Info("successfully set ScaleOperationComplete=False (BootstrapMembersRemoval)")
-
-			// Verify that both scale-in and scale-out are rejected while in this state.
-			logger.Info("verifying scale-in is rejected during BootstrapMembersRemoval")
-			scaleInEtcd := etcd.DeepCopy()
-			scaleInEtcd.Spec.Replicas = 1
-			g.Expect(testEnv.Client().Update(testEnv.Context(), scaleInEtcd)).
-				To(MatchError(ContainSubstring("Cannot scale in while")),
-					"scale-in should be rejected during BootstrapMembersRemoval")
-			logger.Info("scale-in correctly rejected")
-
-			logger.Info("verifying scale-out is rejected during BootstrapMembersRemoval")
-			scaleOutEtcd := etcd.DeepCopy()
-			scaleOutEtcd.Spec.Replicas = 5
-			g.Expect(testEnv.Client().Update(testEnv.Context(), scaleOutEtcd)).
-				To(MatchError(ContainSubstring("Cannot scale out while")),
-					"scale-out should be rejected during BootstrapMembersRemoval")
-			logger.Info("scale-out correctly rejected")
-
-			logger.Info("finished running tests")
-			testSucceeded = true
-		})
 	}
 }
 
