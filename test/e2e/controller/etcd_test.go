@@ -269,6 +269,10 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 			}, timeoutEtcdCreation, timeoutEtcdDisruptionStart).Should(Succeed())
 			logger.Info("BootstrappedWithExistingCluster=True and status snapshot recorded")
 
+			// After the join, source and target form a single cluster, so the live
+			// member list on the target holds both sets: 2 * clusterSize members.
+			testEnv.CheckEtcdMemberCount(g, targetEtcd, 2*clusterSize, timeoutEtcdCreation)
+
 			// Capture the recorded JoinedAt to verify stickiness — later reconciles must
 			// not overwrite the original timestamp.
 			targetAfterJoin, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
@@ -401,14 +405,16 @@ func TestScaleOut(t *testing.T) {
 				logger.Info("successfully created Etcd")
 				// A single-member cluster starts with exactly one member PVC.
 				testEnv.CheckEtcdPVCCount(g, etcd, 1, timeoutEtcdCreation)
+				testEnv.CheckEtcdMemberCount(g, etcd, 1, timeoutEtcdCreation)
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
 				updateEtcdTLSAndLabels(etcd, true, tc.peerTLSEnabledAfterScaleOut, true, tc.additionalLabelsAfterScaleOut)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
-				// A scaled-out cluster must have one PVC per member.
+				// A scaled-out cluster must have one PVC and one live member per replica.
 				testEnv.CheckEtcdPVCCount(g, etcd, 3, timeoutEtcdUpdation)
+				testEnv.CheckEtcdMemberCount(g, etcd, 3, timeoutEtcdUpdation)
 
 				logger.Info("finished running tests")
 				testSucceeded = true

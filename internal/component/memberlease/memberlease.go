@@ -14,6 +14,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -52,7 +53,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	if err := r.client.List(ctx,
 		objMetaList,
 		client.InNamespace(etcdObjMeta.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta)),
+		client.MatchingLabels(kutil.MemberLeaseSelectorLabels(etcdObjMeta)),
 	); err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrListMemberLease,
@@ -173,7 +174,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
 		client.InNamespace(etcdObjMeta.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta))); err != nil {
+		client.MatchingLabels(kutil.MemberLeaseSelectorLabels(etcdObjMeta))); err != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
 			component.OperationTriggerDelete,
@@ -195,13 +196,6 @@ func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
 		objectKeys = append(objectKeys, client.ObjectKey{Name: leaseName, Namespace: etcd.Namespace})
 	}
 	return objectKeys
-}
-
-func getSelectorLabelsForAllMemberLeases(etcdObjMeta metav1.ObjectMeta) map[string]string {
-	leaseMatchingLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-	}
-	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {

@@ -6,11 +6,11 @@ package kubernetes
 
 import (
 	"context"
-	"slices"
 	"strconv"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
+	"github.com/gardener/etcd-druid/internal/utils"
 
 	"github.com/go-logr/logr"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -69,26 +69,26 @@ func isPeerURLTLSDisabledForMembers(ctx context.Context, cl client.Client, logge
 	return tlsDisabledForAllMembers, nil
 }
 
-// ListAllMemberLeaseObjectMeta returns the list of all member leases for the given etcd cluster.
-// Lease names derive from etcd.Spec.Replicas, so a scale-in reports only still-desired members;
-// leases for departing members are excluded.
+// MemberLeaseSelectorLabels returns the labels that select all member leases of
+// the given etcd: the etcd's default labels plus the member-lease component label.
+func MemberLeaseSelectorLabels(etcdObjMeta metav1.ObjectMeta) map[string]string {
+	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), map[string]string{
+		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
+	})
+}
+
+// ListAllMemberLeaseObjectMeta returns the object metadata of all member leases for the given etcd cluster.
 func ListAllMemberLeaseObjectMeta(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Etcd) ([]metav1.PartialObjectMetadata, error) {
 	objMetaList := &metav1.PartialObjectMetadataList{}
 	objMetaList.SetGroupVersionKind(coordinationv1.SchemeGroupVersion.WithKind("Lease"))
 	if err := cl.List(ctx,
 		objMetaList,
 		client.InNamespace(etcd.Namespace),
+		client.MatchingLabels(MemberLeaseSelectorLabels(etcd.ObjectMeta)),
 	); err != nil {
 		return nil, err
 	}
-	allPossibleMemberNames := druidv1alpha1.GetMemberLeaseNames(etcd)
-	leasesObjMeta := make([]metav1.PartialObjectMetadata, 0, len(objMetaList.Items))
-	for _, lease := range objMetaList.Items {
-		if metav1.IsControlledBy(&lease, &etcd.ObjectMeta) && slices.Contains(allPossibleMemberNames, lease.Name) {
-			leasesObjMeta = append(leasesObjMeta, lease)
-		}
-	}
-	return leasesObjMeta, nil
+	return objMetaList.Items, nil
 }
 
 func parseAndGetTLSEnabledValue(leaseObjMeta metav1.PartialObjectMetadata, logger logr.Logger) (bool, error) {

@@ -14,6 +14,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
@@ -89,7 +90,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 					existingObjects = append(existingObjects, lease)
 				}
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd.ObjectMeta), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, kutil.MemberLeaseSelectorLabels(etcd.ObjectMeta), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			memberLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
@@ -301,7 +302,7 @@ func TestTriggerDelete(t *testing.T) {
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
 				existingObjects = append(existingObjects, testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.ComponentNameMemberLease))
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd.ObjectMeta), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, kutil.MemberLeaseSelectorLabels(etcd.ObjectMeta), existingObjects...)
 			// ***************** Setup component operator and test *****************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())

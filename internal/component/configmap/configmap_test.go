@@ -871,13 +871,6 @@ func TestTriggerDelete(t *testing.T) {
 func TestComputeCheckSumExcludesReplicaDerivedURLs(t *testing.T) {
 	g := NewWithT(t)
 
-	// Pin UpgradeEtcdVersion off so the checksum input is not perturbed by the
-	// backend-bbolt-freelist-type key that other tests toggle on the shared
-	// DefaultFeatureGates. Do not run in parallel for the same reason.
-	g.Expect(druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
-		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: false},
-	)).To(Succeed())
-
 	checkSumForReplicas := func(replicas int32) string {
 		etcd := buildEtcd(replicas, true, true, nil)
 		cm := newConfigMap(g, etcd)
