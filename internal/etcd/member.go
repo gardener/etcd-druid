@@ -4,6 +4,8 @@
 
 package etcd
 
+import "slices"
+
 // MemberRole is the role an etcd member plays in the cluster.
 type MemberRole string
 
@@ -46,6 +48,8 @@ type Member struct {
 	Role MemberRole
 	// Health is the member's observed health, derived from a live Status probe.
 	Health MemberHealth
+	// ClientURLs are the member's advertised client URLs from the MemberList RPC.
+	ClientURLs []string
 }
 
 // IsLearner reports whether the member is a non-voting learner.
@@ -60,3 +64,36 @@ func (m Member) IsVoter() bool {
 // IsHealthy reports whether the member is healthy. Only MemberHealthHealthy is
 // considered healthy; Unhealthy and Unknown are not.
 func (m Member) IsHealthy() bool { return m.Health == MemberHealthHealthy }
+
+// MemberNames is a list of etcd member names.
+type MemberNames []string
+
+// Has reports whether name is in the list.
+func (n MemberNames) Has(name string) bool { return slices.Contains(n, name) }
+
+// Members is a list of etcd cluster members.
+type Members []Member
+
+// AllHealthy reports whether every member in ms is healthy. It returns true for
+// an empty list.
+func (ms Members) AllHealthy() bool {
+	for _, m := range ms {
+		if !m.IsHealthy() {
+			return false
+		}
+	}
+	return true
+}
+
+// Split returns the members whose name is in names and the members whose name
+// is not. Both results keep the order of ms.
+func (ms Members) Split(names MemberNames) (in, out Members) {
+	for _, m := range ms {
+		if names.Has(m.Name) {
+			in = append(in, m)
+		} else {
+			out = append(out, m)
+		}
+	}
+	return in, out
+}

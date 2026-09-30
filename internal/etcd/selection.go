@@ -14,17 +14,15 @@ import "sort"
 // The rules are:
 //   - A learner candidate is always safe to remove: learners do not participate
 //     in quorum.
-//   - A voter candidate is safe only when every surviving voter (all voters
-//     except the candidate) is Healthy. Unknown and Unhealthy are fail-closed as
-//     not healthy, so a single non-healthy survivor blocks the removal.
-//   - As a backstop, even after the health gate passes, the number of healthy
-//     surviving voters must be at least quorum(remaining voters) =
-//     ⌊(remaining voters)/2⌋ + 1.
+//   - A voter candidate is safe only when the healthy surviving voters (all
+//     voters except the candidate) still form a quorum of the remaining voters,
+//     i.e. at least ⌊(remaining voters)/2⌋ + 1. Unknown and Unhealthy members
+//     are fail-closed and do not count as healthy.
 //
-// etcd itself also enforces a quorum check on MemberRemove; this pre-check lets
-// the controller avoid issuing a removal that etcd would reject and surface a
-// clear reason instead.
-func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
+// This mirrors the quorum check etcd applies to MemberRemove when
+// strict-reconfig-check is enabled, so the controller holds with a clear reason
+// instead of issuing a removal that would leave the cluster without quorum.
+func QuorumSafeToRemove(members Members, candidateID uint64) bool {
 	var candidate *Member
 	for i := range members {
 		if members[i].ID == candidateID {
@@ -56,68 +54,48 @@ func QuorumSafeToRemove(members []Member, candidateID uint64) bool {
 		return false
 	}
 
-	// Health gate: every surviving voter must be healthy.
-	if healthyVotersAfter != votersAfter {
-		return false
-	}
-
-	// Quorum backstop: healthy survivors must still form a majority.
 	quorumAfter := votersAfter/2 + 1
 	return healthyVotersAfter >= quorumAfter
 }
 
-// AllMembersHealthy reports whether every name in required is present in members
-// and healthy. It returns false when required is empty, since "all of nothing" is
-// not a meaningful readiness signal for the callers that gate on it.
-func AllMembersHealthy(members []Member, required map[string]bool) bool {
-	if len(required) == 0 {
-		return false
-	}
-	healthyByName := make(map[string]bool, len(members))
-	for _, m := range members {
-		if m.IsHealthy() {
-			healthyByName[m.Name] = true
-		}
-	}
-	for name := range required {
-		if !healthyByName[name] {
-			return false
-		}
-	}
-	return true
-}
-
-// SurplusMemberNames returns the set of live member names that the desired state
-// no longer wants, computed as (live members) minus expected. Using the live
-// member list as the source of truth is more reliable than comparing StatefulSet
-// replica counts alone: the anti-rejoin guard can leave the pod absent while the
-// etcd member still exists in the cluster.
-func SurplusMemberNames(members []Member, expected map[string]bool) map[string]bool {
-	surplus := map[string]bool{}
-	for _, m := range members {
-		if !expected[m.Name] {
-			surplus[m.Name] = true
-		}
-	}
-	return surplus
-}
-
-// SelectNextRemovalCandidate returns the most suitable member to remove next from
-// those whose name is in surplus, or nil when none of the live members is
-// surplus. Ordering follows OrderRemovalCandidates (learners first, leader last).
-func SelectNextRemovalCandidate(members []Member, surplus map[string]bool) *Member {
-	candidates := make([]Member, 0, len(surplus))
-	for _, m := range members {
-		if surplus[m.Name] {
-			candidates = append(candidates, m)
-		}
-	}
-	if len(candidates) == 0 {
+// SelectNextRemovalCandidate returns the surplus member to remove next, or nil
+// when surplus is empty. Ordering follows OrderRemovalCandidates (learners
+// first, leader last).
+func SelectNextRemovalCandidate(surplus Members) *Member {
+	if len(surplus) == 0 {
 		return nil
 	}
 	// OrderRemovalCandidates copies, so the returned pointer stays valid.
-	ordered := OrderRemovalCandidates(candidates)
+	ordered := OrderRemovalCandidates(surplus)
 	return &ordered[0]
+}
+
+// SelectLeaderTransferee returns a healthy voting member from retained to take
+// over leadership from a leader that is about to be removed, or nil when there
+// is none. Members in lastPreference are chosen only when no other retained
+// member qualifies. Among equally preferred members, the lowest member ID wins
+// so the choice is deterministic.
+func SelectLeaderTransferee(retained Members, lastPreference MemberNames) *Member {
+	var preferred, fallback *Member
+	for i := range retained {
+		m := &retained[i]
+		if m.Role != MemberRoleMember || !m.IsHealthy() {
+			continue
+		}
+		if lastPreference.Has(m.Name) {
+			if fallback == nil || m.ID < fallback.ID {
+				fallback = m
+			}
+			continue
+		}
+		if preferred == nil || m.ID < preferred.ID {
+			preferred = m
+		}
+	}
+	if preferred != nil {
+		return preferred
+	}
+	return fallback
 }
 
 // OrderRemovalCandidates orders an already-selected candidate set into the
@@ -127,9 +105,11 @@ func SelectNextRemovalCandidate(members []Member, surplus map[string]bool) *Memb
 // leader last avoids an unnecessary leadership change mid-operation.
 //
 // The leader is derived from each Member's Role (MemberRoleLeader). Within a
-// tier, members are ordered by member ID for determinism.
-func OrderRemovalCandidates(candidates []Member) []Member {
-	ordered := make([]Member, len(candidates))
+// tier, unhealthy members are ordered before healthy ones so that a failing
+// member is shed first, and members of equal health are ordered by member ID
+// for determinism.
+func OrderRemovalCandidates(candidates Members) Members {
+	ordered := make(Members, len(candidates))
 	copy(ordered, candidates)
 
 	tier := func(m Member) int {
@@ -143,10 +123,23 @@ func OrderRemovalCandidates(candidates []Member) []Member {
 		}
 	}
 
+	// unhealthyFirst returns 0 for unhealthy members and 1 for healthy ones, so
+	// that within a tier the unhealthy members sort ahead of the healthy ones.
+	unhealthyFirst := func(m Member) int {
+		if m.Health == MemberHealthHealthy {
+			return 1
+		}
+		return 0
+	}
+
 	sort.SliceStable(ordered, func(i, j int) bool {
 		ti, tj := tier(ordered[i]), tier(ordered[j])
 		if ti != tj {
 			return ti < tj
+		}
+		hi, hj := unhealthyFirst(ordered[i]), unhealthyFirst(ordered[j])
+		if hi != hj {
+			return hi < hj
 		}
 		return ordered[i].ID < ordered[j].ID
 	})

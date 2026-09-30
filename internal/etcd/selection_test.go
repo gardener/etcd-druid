@@ -49,7 +49,7 @@ func TestQuorumSafeToRemove(t *testing.T) {
 				healthyVoter(2, "e-1"),
 				{ID: 3, Name: "e-2", Role: MemberRoleMember, Health: MemberHealthUnknown},
 			},
-			candidateID: 2, // survivors {1 healthy, 3 unknown} -> not all healthy -> blocked
+			candidateID: 2, // survivors {1 healthy, 3 unknown} -> 1 of 2 healthy, quorum 2 -> blocked
 			want:        false,
 		},
 		{
@@ -63,14 +63,36 @@ func TestQuorumSafeToRemove(t *testing.T) {
 			want:        true,
 		},
 		{
-			name: "5 voters, one Unhealthy, remove a healthy voter -> a survivor is unhealthy -> blocked",
+			name: "5 voters, one Unhealthy, remove a healthy voter -> 3 of 4 survivors healthy, quorum 3, safe",
 			members: []Member{
 				{ID: 1, Name: "e-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
 				healthyVoter(2, "e-1"), healthyVoter(3, "e-2"), healthyVoter(4, "e-3"),
 				{ID: 5, Name: "e-4", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
 			},
-			candidateID: 4, // survivors include 5 (unhealthy) -> blocked
+			candidateID: 4,
+			want:        true,
+		},
+		{
+			name: "5 voters, two Unhealthy, remove a healthy voter -> 2 of 4 survivors healthy, quorum 3, blocked",
+			members: []Member{
+				{ID: 1, Name: "e-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+				healthyVoter(2, "e-1"), healthyVoter(3, "e-2"),
+				{ID: 4, Name: "e-3", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+				{ID: 5, Name: "e-4", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+			},
+			candidateID: 3,
 			want:        false,
+		},
+		{
+			name: "3 target + 3 source voters, two source members Unhealthy, remove a healthy source -> 3 of 5 healthy, quorum 3, safe",
+			members: []Member{
+				{ID: 1, Name: "t-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+				healthyVoter(2, "t-1"), healthyVoter(3, "t-2"), healthyVoter(4, "s-0"),
+				{ID: 5, Name: "s-1", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+				{ID: 6, Name: "s-2", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+			},
+			candidateID: 4,
+			want:        true,
 		},
 		{
 			name: "5 voters all healthy, remove one voter -> 4 remain healthy, quorum 3, safe",
@@ -159,119 +181,177 @@ func TestOrderRemovalCandidates(t *testing.T) {
 	}
 }
 
-func TestAllMembersHealthy(t *testing.T) {
-	members := []Member{
-		{ID: 1, Name: "etcd-main-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
-		healthyVoter(2, "etcd-main-1"),
-		{ID: 3, Name: "etcd-main-2", Role: MemberRoleMember, Health: MemberHealthUnknown},
-	}
+// TestMembersAllHealthy verifies that AllHealthy is true only when every member
+// is healthy, and true for an empty list.
+func TestMembersAllHealthy(t *testing.T) {
+	unknown := Member{ID: 3, Name: "etcd-main-2", Role: MemberRoleMember, Health: MemberHealthUnknown}
 	tests := []struct {
-		name     string
-		required map[string]bool
-		want     bool
+		name    string
+		members Members
+		want    bool
 	}{
-		{
-			name:     "empty required -> false",
-			required: map[string]bool{},
-			want:     false,
-		},
-		{
-			name:     "all required present and healthy",
-			required: map[string]bool{"etcd-main-0": true, "etcd-main-1": true},
-			want:     true,
-		},
-		{
-			name:     "a required member is unhealthy",
-			required: map[string]bool{"etcd-main-1": true, "etcd-main-2": true},
-			want:     false,
-		},
-		{
-			name:     "a required member is absent from the live list",
-			required: map[string]bool{"etcd-main-0": true, "etcd-source-9": true},
-			want:     false,
-		},
+		{name: "empty list -> true", members: nil, want: true},
+		{name: "all healthy -> true", members: Members{healthyVoter(1, "etcd-main-0"), healthyVoter(2, "etcd-main-1")}, want: true},
+		{name: "one member not healthy -> false", members: Members{healthyVoter(1, "etcd-main-0"), unknown}, want: false},
 	}
+	t.Parallel()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
-			g.Expect(AllMembersHealthy(members, tc.required)).To(Equal(tc.want))
+			g.Expect(tc.members.AllHealthy()).To(Equal(tc.want))
 		})
 	}
 }
 
-func TestSurplusMemberNames(t *testing.T) {
-	members := []Member{
+// TestMemberNamesHas verifies name lookups, including on a nil list.
+func TestMemberNamesHas(t *testing.T) {
+	g := NewWithT(t)
+	names := MemberNames{"etcd-main-0", "etcd-main-1"}
+	g.Expect(names.Has("etcd-main-1")).To(BeTrue())
+	g.Expect(names.Has("etcd-main-2")).To(BeFalse())
+	g.Expect(MemberNames(nil).Has("etcd-main-0")).To(BeFalse())
+}
+
+// TestMembersSplit verifies that Split separates the members named in the list
+// from the rest and keeps the original order in both results.
+func TestMembersSplit(t *testing.T) {
+	members := Members{
 		healthyVoter(1, "etcd-main-0"),
-		healthyVoter(2, "etcd-main-1"),
-		healthyVoter(3, "etcd-main-2"),
 		healthyVoter(9, "etcd-source-1"),
-	}
-	tests := []struct {
-		name     string
-		expected map[string]bool
-		want     map[string]bool
-	}{
-		{
-			name:     "one member not expected -> surplus",
-			expected: map[string]bool{"etcd-main-0": true, "etcd-main-1": true, "etcd-main-2": true},
-			want:     map[string]bool{"etcd-source-1": true},
-		},
-		{
-			name:     "all members expected -> no surplus",
-			expected: map[string]bool{"etcd-main-0": true, "etcd-main-1": true, "etcd-main-2": true, "etcd-source-1": true},
-			want:     map[string]bool{},
-		},
-		{
-			name:     "empty expected -> all surplus",
-			expected: map[string]bool{},
-			want:     map[string]bool{"etcd-main-0": true, "etcd-main-1": true, "etcd-main-2": true, "etcd-source-1": true},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-			g.Expect(SurplusMemberNames(members, tc.expected)).To(Equal(tc.want))
-		})
-	}
-}
-
-func TestSelectNextRemovalCandidate(t *testing.T) {
-	members := []Member{
-		{ID: 1, Name: "etcd-main-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
 		healthyVoter(2, "etcd-main-1"),
 		healthyVoter(3, "etcd-main-2"),
 	}
 	tests := []struct {
 		name    string
-		surplus map[string]bool
-		wantID  uint64 // 0 means expect nil
+		names   MemberNames
+		wantIn  []string
+		wantOut []string
 	}{
 		{
-			name:    "no surplus -> nil",
-			surplus: map[string]bool{},
-			wantID:  0,
+			name:    "one member not named -> it is out",
+			names:   MemberNames{"etcd-main-0", "etcd-main-1", "etcd-main-2"},
+			wantIn:  []string{"etcd-main-0", "etcd-main-1", "etcd-main-2"},
+			wantOut: []string{"etcd-source-1"},
 		},
 		{
-			name:    "single surplus voter selected",
-			surplus: map[string]bool{"etcd-main-2": true},
-			wantID:  3,
+			name:   "all members named -> none out",
+			names:  MemberNames{"etcd-main-0", "etcd-main-1", "etcd-main-2", "etcd-source-1"},
+			wantIn: []string{"etcd-main-0", "etcd-source-1", "etcd-main-1", "etcd-main-2"},
 		},
 		{
-			name:    "surplus name absent from live members -> nil",
-			surplus: map[string]bool{"etcd-source-9": true},
-			wantID:  0,
-		},
-		{
-			name:    "multiple surplus: voter removed before leader",
-			surplus: map[string]bool{"etcd-main-0": true, "etcd-main-2": true},
-			wantID:  3, // etcd-main-2 (voter) removed before the leader etcd-main-0
+			name:    "no names -> all out",
+			names:   nil,
+			wantOut: []string{"etcd-main-0", "etcd-source-1", "etcd-main-1", "etcd-main-2"},
 		},
 	}
+	t.Parallel()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
-			got := SelectNextRemovalCandidate(members, tc.surplus)
+			in, out := members.Split(tc.names)
+			g.Expect(memberNamesOf(in)).To(Equal(tc.wantIn))
+			g.Expect(memberNamesOf(out)).To(Equal(tc.wantOut))
+		})
+	}
+}
+
+// memberNamesOf returns the names of ms in order, or nil when ms is empty.
+func memberNamesOf(ms Members) []string {
+	var names []string
+	for _, m := range ms {
+		names = append(names, m.Name)
+	}
+	return names
+}
+
+// TestSelectNextRemovalCandidate verifies that the next member to remove is
+// taken from the surplus members in removal order, and that there is none when
+// surplus is empty.
+func TestSelectNextRemovalCandidate(t *testing.T) {
+	leader := Member{ID: 1, Name: "etcd-main-0", Role: MemberRoleLeader, Health: MemberHealthHealthy}
+	tests := []struct {
+		name    string
+		surplus Members
+		wantID  uint64 // 0 means expect nil
+	}{
+		{name: "no surplus -> nil", surplus: nil, wantID: 0},
+		{name: "single surplus voter selected", surplus: Members{healthyVoter(3, "etcd-main-2")}, wantID: 3},
+		{
+			name:    "multiple surplus: voter removed before leader",
+			surplus: Members{leader, healthyVoter(3, "etcd-main-2")},
+			wantID:  3,
+		},
+	}
+	t.Parallel()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			got := SelectNextRemovalCandidate(tc.surplus)
 			if tc.wantID == 0 {
+				g.Expect(got).To(BeNil())
+				return
+			}
+			g.Expect(got).NotTo(BeNil())
+			g.Expect(got.ID).To(Equal(tc.wantID))
+		})
+	}
+}
+
+// TestSelectLeaderTransferee verifies that a healthy voting member is chosen
+// from the retained members, that last-preference members are used only when
+// no other member qualifies, and that ties are broken by lowest ID.
+func TestSelectLeaderTransferee(t *testing.T) {
+	tests := []struct {
+		name           string
+		retained       Members
+		lastPreference MemberNames
+		wantID         uint64
+		wantNil        bool
+	}{
+		{
+			name:     "lowest-ID healthy voter is chosen",
+			retained: Members{healthyVoter(3, "t-2"), healthyVoter(2, "t-1")},
+			wantID:   2,
+		},
+		{
+			name:           "other members win over a lower-ID last-preference member",
+			retained:       Members{healthyVoter(1, "s-0"), healthyVoter(5, "t-0")},
+			lastPreference: MemberNames{"s-0"},
+			wantID:         5,
+		},
+		{
+			name: "last-preference member is used when no other member is healthy",
+			retained: Members{
+				{ID: 1, Name: "t-0", Role: MemberRoleMember, Health: MemberHealthUnknown},
+				healthyVoter(2, "s-0"),
+			},
+			lastPreference: MemberNames{"s-0"},
+			wantID:         2,
+		},
+		{
+			name: "unhealthy, learner and leader members are skipped",
+			retained: Members{
+				{ID: 1, Name: "t-0", Role: MemberRoleMember, Health: MemberHealthUnknown},
+				{ID: 2, Name: "t-1", Role: MemberRoleLearner, Health: MemberHealthHealthy},
+				{ID: 3, Name: "t-2", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+			},
+			wantNil: true,
+		},
+		{
+			name:    "no retained members -> nil",
+			wantNil: true,
+		},
+	}
+	t.Parallel()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			got := SelectLeaderTransferee(tc.retained, tc.lastPreference)
+			if tc.wantNil {
 				g.Expect(got).To(BeNil())
 				return
 			}
