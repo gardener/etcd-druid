@@ -267,6 +267,84 @@ func TestValidateUpdateSpecBootstrapUnsetWhileScaling(t *testing.T) {
 	}
 }
 
+// TestValidateUpdateSpecBootstrapMembersRemovalWhileScaling verifies the CEL
+// rule that rejects removing members from spec.etcd.bootstrapWithExistingCluster
+// while a scale-in or scale-out is in progress (ScaleOperationComplete=False
+// with reason ScalingIn or ScalingOut). The replica count is left unchanged, so
+// only this rule can reject the update.
+func TestValidateUpdateSpecBootstrapMembersRemovalWhileScaling(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+	testNs, g := setupTestEnvironment(t)
+	ctx := context.Background()
+	cl := itTestEnv.GetClient()
+
+	tests := []struct {
+		name            string
+		conditionStatus druidv1alpha1.ConditionStatus
+		conditionReason string
+		expectErr       bool
+	}{
+		{
+			name:            "Invalid: remove bootstrap member while ScalingIn in progress",
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonScalingIn,
+			expectErr:       true,
+		},
+		{
+			name:            "Invalid: remove bootstrap member while ScalingOut in progress",
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonScalingOut,
+			expectErr:       true,
+		},
+		{
+			name:            "Valid: remove bootstrap member while BootstrapMembersRemoval in progress",
+			conditionStatus: druidv1alpha1.ConditionFalse,
+			conditionReason: druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+			expectErr:       false,
+		},
+		{
+			name:      "Valid: remove bootstrap member with no scale operation in progress",
+			expectErr: false,
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcdName := fmt.Sprintf("etcd-bootstrap-remove-%d", i)
+			etcd := utils.EtcdBuilderWithoutDefaults(etcdName, testNs).WithReplicas(3).Build()
+			etcd.Spec.Etcd.BootstrapWithExistingCluster = &druidv1alpha1.BootstrapWithExistingCluster{
+				Members: []druidv1alpha1.BootstrapExistingMember{
+					{Name: "src-0", PeerURLs: []string{"http://10.0.0.1:2380"}},
+					{Name: "src-1", PeerURLs: []string{"http://10.0.0.2:2380"}},
+				},
+				ClientEndpoints: []string{"http://10.0.0.1:2379"},
+			}
+			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+
+			if test.conditionStatus != "" {
+				g.Eventually(func() error {
+					if err := cl.Get(ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+						return err
+					}
+					etcd.Status.Conditions = []druidv1alpha1.Condition{{
+						Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
+						Status:             test.conditionStatus,
+						LastTransitionTime: metav1.Now(),
+						LastUpdateTime:     metav1.Now(),
+						Reason:             test.conditionReason,
+						Message:            "test message",
+					}}
+					return cl.Status().Update(ctx, etcd)
+				}).Should(Succeed())
+			}
+
+			// Drop one bootstrap member and keep spec.replicas unchanged.
+			etcd.Spec.Etcd.BootstrapWithExistingCluster.Members = etcd.Spec.Etcd.BootstrapWithExistingCluster.Members[:1]
+			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+		})
+	}
+}
+
 // TestValidateCreateSpecBootstrapWithExistingClusterUniqueMemberNames verifies
 // that bootstrapWithExistingCluster.members[*].name is unique across the list.
 // Enforced by a top-level CEL rule on Etcd.

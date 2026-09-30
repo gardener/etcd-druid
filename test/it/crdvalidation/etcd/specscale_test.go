@@ -2,11 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Testing DEP-08 scale coordination CEL rules on etcd.spec updates. These rules
-// read the ScaleOperationComplete status condition to reject conflicting
-// opposite-direction membership changes while an operation is in flight. The
-// condition uses positive polarity, so an in-flight operation is status == False
-// with the reason naming it.
+// Testing validations on etcd.spec.replicas updates while a scale operation is
+// in progress.
 package etcd
 
 import (
