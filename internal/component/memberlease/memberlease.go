@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -101,9 +102,11 @@ func (r _resource) createOrUpdateLeases(ctx component.OperatorContext, etcd *dru
 
 // deleteStaleMemberLeases deletes member leases that exist but are no longer required.
 // This covers both externally-managed member replacement and druid-managed scale-in.
-// Replicas=0 skips deletion to preserve lease state for a later scale-up.
 func (r _resource) deleteStaleMemberLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	if druidv1alpha1.HasZeroReplicas(etcd) {
+	// When scaled to zero the desired lease set is empty, so every existing lease
+	// would look stale. Skip deletion to preserve member identity for the next
+	// scale-out.
+	if etcd.Spec.Replicas == 0 {
 		return nil
 	}
 	existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta)
@@ -149,13 +152,18 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 }
 
 func (r _resource) doDelete(ctx component.OperatorContext, objectKey client.ObjectKey) error {
-	if err := r.client.Delete(ctx, emptyMemberLease(objectKey)); client.IgnoreNotFound(err) != nil {
+	err := r.client.Delete(ctx, emptyMemberLease(objectKey))
+	if apierrors.IsNotFound(err) {
+		// The lease is already gone; nothing to do and nothing to log.
+		return nil
+	}
+	if err != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
 			component.OperationSync,
 			fmt.Sprintf("Failed to delete member lease: %v", objectKey))
 	}
-	ctx.Logger.Info("deleted surplus member lease", "objectKey", objectKey)
+	ctx.Logger.Info("deleted stale member lease", "objectKey", objectKey)
 	return nil
 }
 
