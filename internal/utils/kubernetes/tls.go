@@ -12,9 +12,7 @@ import (
 	"fmt"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	"github.com/gardener/etcd-druid/internal/common"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,50 +41,7 @@ var (
 	ErrSecretNotFound = fmt.Errorf("%w: not found", ErrGetSecret)
 	// ErrMissingDataKey indicates the requested data key is absent from the Secret.
 	ErrMissingDataKey = errors.New("data key not found in secret")
-	// ErrAppendCACerts indicates the CA bundle could not be parsed/appended to a pool.
-	ErrAppendCACerts = errors.New("failed to append CA certs from secret")
 )
-
-// loadCAPoolFromVolumeSecret resolves the Secret name mounted under volumeName on sts,
-// fetches that Secret, and builds an x509.CertPool from the bytes stored under caDataKey.
-// It returns (nil, nil) when sts is nil or the volume is absent, signalling that the
-// corresponding TLS material is not configured on the running pods.
-func loadCAPoolFromVolumeSecret(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet, namespace, volumeName, caDataKey string) (*x509.CertPool, error) {
-	secretName, ok := GetSecretNameFromVolume(sts, volumeName)
-	if !ok {
-		return nil, nil
-	}
-	caData, err := readSecretDataKey(ctx, cl, namespace, secretName, caDataKey)
-	if err != nil {
-		return nil, err
-	}
-	caPool := x509.NewCertPool()
-	if !caPool.AppendCertsFromPEM(caData) {
-		return nil, fmt.Errorf("%w %s/%s", ErrAppendCACerts, namespace, secretName)
-	}
-	return caPool, nil
-}
-
-// BuildBackupRestoreCATLSConfig builds a CA-only *tls.Config for connecting to the
-// backup-restore HTTP server. The CA bundle is resolved from the Secret mounted under the
-// "backup-restore-ca" volume, using caDataKey (callers pass the Etcd spec DataKey override
-// or "bundle.crt"). Resolving the Secret name from the live StatefulSet volume keeps the
-// trust anchor consistent with what the running pods serve during credential rotation.
-//
-// It returns (nil, nil) when the backup-restore CA volume is absent.
-func BuildBackupRestoreCATLSConfig(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet, namespace, caDataKey string) (*tls.Config, error) {
-	caPool, err := loadCAPoolFromVolumeSecret(ctx, cl, sts, namespace, common.VolumeNameBackupRestoreCA, caDataKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load backup-restore CA: %w", err)
-	}
-	if caPool == nil {
-		return nil, nil
-	}
-	return &tls.Config{
-		RootCAs:    caPool,
-		MinVersion: tls.VersionTLS12,
-	}, nil
-}
 
 // GetEtcdClientSchemeAndTLSConfig returns the URL scheme and TLS config for the
 // etcd client endpoint. When spec.etcd.clientUrlTLS is nil it returns
