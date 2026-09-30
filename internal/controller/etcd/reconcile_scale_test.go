@@ -40,14 +40,11 @@ const (
 	scaleTestBootstrapB = "etcd-source-1"
 )
 
-// TestDetermineScaleOperation exercises the pure detection logic (spec vs the
-// observed StatefulSet and status), which decides the ScaleOperationComplete
-// condition status/reason. It covers all four detection outcomes plus the edge
-// cases (no StatefulSet, transitions to/from zero, and BootstrapMembersRemoval
-// taking precedence over a replicas comparison). The condition uses positive
-// polarity: True/NoScaleOperation is converged, and an in-flight operation is
-// False with the reason naming it.
+// TestDetermineScaleOperationInProgress verifies that determineScaleOperationInProgress
+// returns the correct ScaleOperationComplete status and reason across scale-in,
+// scale-out, bootstrap-removal, zero-replica, and no-op scenarios.
 func TestDetermineScaleOperationInProgress(t *testing.T) {
+	t.Parallel()
 	bootstrapStatus := func(names ...string) *druidv1alpha1.BootstrapWithExistingClusterStatus {
 		members := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(names))
 		for _, n := range names {
@@ -73,50 +70,50 @@ func TestDetermineScaleOperationInProgress(t *testing.T) {
 		// statusBootstrap and specBootstrap drive the BootstrapMembersRemoval path.
 		statusBootstrap *druidv1alpha1.BootstrapWithExistingClusterStatus
 		specBootstrap   *druidv1alpha1.BootstrapWithExistingCluster
-		wantStatus      druidv1alpha1.ConditionStatus
-		wantReason      string
+		expectedStatus  druidv1alpha1.ConditionStatus
+		expectedReason  string
 	}{
 		{
-			name:         "no StatefulSet yet (fresh cluster) -> NoScaleOperation",
-			specReplicas: 3,
-			stsReplicas:  nil,
-			wantStatus:   druidv1alpha1.ConditionTrue,
-			wantReason:   druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			name:           "no StatefulSet yet (fresh cluster) -> NoScaleOperation",
+			specReplicas:   3,
+			stsReplicas:    nil,
+			expectedStatus: druidv1alpha1.ConditionTrue,
+			expectedReason: druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
-			name:         "spec < observed -> ScalingIn",
-			specReplicas: 3,
-			stsReplicas:  ptr.To(int32(5)),
-			wantStatus:   druidv1alpha1.ConditionFalse,
-			wantReason:   druidv1alpha1.ScaleOperationReasonScalingIn,
+			name:           "spec < observed -> ScalingIn",
+			specReplicas:   3,
+			stsReplicas:    ptr.To(int32(5)),
+			expectedStatus: druidv1alpha1.ConditionFalse,
+			expectedReason: druidv1alpha1.ScaleOperationReasonScalingIn,
 		},
 		{
-			name:         "spec > observed -> ScalingOut",
-			specReplicas: 5,
-			stsReplicas:  ptr.To(int32(3)),
-			wantStatus:   druidv1alpha1.ConditionFalse,
-			wantReason:   druidv1alpha1.ScaleOperationReasonScalingOut,
+			name:           "spec > observed -> ScalingOut",
+			specReplicas:   5,
+			stsReplicas:    ptr.To(int32(3)),
+			expectedStatus: druidv1alpha1.ConditionFalse,
+			expectedReason: druidv1alpha1.ScaleOperationReasonScalingOut,
 		},
 		{
-			name:         "spec == observed -> NoScaleOperation",
-			specReplicas: 3,
-			stsReplicas:  ptr.To(int32(3)),
-			wantStatus:   druidv1alpha1.ConditionTrue,
-			wantReason:   druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			name:           "spec == observed -> NoScaleOperation",
+			specReplicas:   3,
+			stsReplicas:    ptr.To(int32(3)),
+			expectedStatus: druidv1alpha1.ConditionTrue,
+			expectedReason: druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
-			name:         "spec.replicas == 0 -> NoScaleOperation, not ScalingIn",
-			specReplicas: 0,
-			stsReplicas:  ptr.To(int32(3)),
-			wantStatus:   druidv1alpha1.ConditionTrue,
-			wantReason:   druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			name:           "spec.replicas == 0 -> NoScaleOperation, not ScalingIn",
+			specReplicas:   0,
+			stsReplicas:    ptr.To(int32(3)),
+			expectedStatus: druidv1alpha1.ConditionTrue,
+			expectedReason: druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
-			name:         "observed == 0 (wake-up) -> NoScaleOperation, not ScalingOut",
-			specReplicas: 3,
-			stsReplicas:  ptr.To(int32(0)),
-			wantStatus:   druidv1alpha1.ConditionTrue,
-			wantReason:   druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			name:           "observed == 0 (wake-up) -> NoScaleOperation, not ScalingOut",
+			specReplicas:   3,
+			stsReplicas:    ptr.To(int32(0)),
+			expectedStatus: druidv1alpha1.ConditionTrue,
+			expectedReason: druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
 			name:            "joined member no longer in spec -> BootstrapMembersRemoval",
@@ -124,8 +121,8 @@ func TestDetermineScaleOperationInProgress(t *testing.T) {
 			stsReplicas:     ptr.To(int32(3)),
 			statusBootstrap: bootstrapStatus(scaleTestBootstrapA, scaleTestBootstrapB),
 			specBootstrap:   specBootstrap(scaleTestBootstrapA),
-			wantStatus:      druidv1alpha1.ConditionFalse,
-			wantReason:      druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+			expectedStatus:  druidv1alpha1.ConditionFalse,
+			expectedReason:  druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
 		},
 		{
 			name:            "spec bootstrap unset but members joined -> BootstrapMembersRemoval",
@@ -133,8 +130,8 @@ func TestDetermineScaleOperationInProgress(t *testing.T) {
 			stsReplicas:     ptr.To(int32(3)),
 			statusBootstrap: bootstrapStatus(scaleTestBootstrapA),
 			specBootstrap:   nil,
-			wantStatus:      druidv1alpha1.ConditionFalse,
-			wantReason:      druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+			expectedStatus:  druidv1alpha1.ConditionFalse,
+			expectedReason:  druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
 		},
 		{
 			name:            "all joined members still in spec -> falls through to replicas comparison",
@@ -142,8 +139,8 @@ func TestDetermineScaleOperationInProgress(t *testing.T) {
 			stsReplicas:     ptr.To(int32(3)),
 			statusBootstrap: bootstrapStatus(scaleTestBootstrapA),
 			specBootstrap:   specBootstrap(scaleTestBootstrapA),
-			wantStatus:      druidv1alpha1.ConditionTrue,
-			wantReason:      druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			expectedStatus:  druidv1alpha1.ConditionTrue,
+			expectedReason:  druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
 			name:            "BootstrapMembersRemoval takes precedence over a concurrent scale-out",
@@ -151,13 +148,14 @@ func TestDetermineScaleOperationInProgress(t *testing.T) {
 			stsReplicas:     ptr.To(int32(3)),
 			statusBootstrap: bootstrapStatus(scaleTestBootstrapA, scaleTestBootstrapB),
 			specBootstrap:   specBootstrap(scaleTestBootstrapA),
-			wantStatus:      druidv1alpha1.ConditionFalse,
-			wantReason:      druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+			expectedStatus:  druidv1alpha1.ConditionFalse,
+			expectedReason:  druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -176,14 +174,19 @@ func TestDetermineScaleOperationInProgress(t *testing.T) {
 			cl := builder.Build()
 			r := &Reconciler{client: cl}
 
-			gotStatus, gotReason := r.determineScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
-			g.Expect(gotStatus).To(Equal(tc.wantStatus))
-			g.Expect(gotReason).To(Equal(tc.wantReason))
+			gotStatus, gotReason, err := r.determineScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(gotStatus).To(Equal(tc.expectedStatus))
+			g.Expect(gotReason).To(Equal(tc.expectedReason))
 		})
 	}
 }
 
-func TestDetermineScaleOperationInProgressPreservesExistingConditionOnStatefulSetGetError(t *testing.T) {
+// TestDetermineScaleOperationInProgressErrorsOnStatefulSetGetError verifies that a
+// StatefulSet Get failure is returned as an error, so the caller requeues and
+// retries instead of acting on a stale scale condition.
+func TestDetermineScaleOperationInProgressErrorsOnStatefulSetGetError(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -209,9 +212,8 @@ func TestDetermineScaleOperationInProgressPreservesExistingConditionOnStatefulSe
 		Build()
 	r := &Reconciler{client: cl}
 
-	gotStatus, gotReason := r.determineScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
-	g.Expect(gotStatus).To(Equal(druidv1alpha1.ConditionFalse))
-	g.Expect(gotReason).To(Equal(druidv1alpha1.ScaleOperationReasonScalingIn))
+	_, _, err := r.determineScaleOperationInProgress(newScaleTestOperatorContext(), etcd)
+	g.Expect(err).To(HaveOccurred())
 }
 
 // TestDetectAndRecordScaleOperationInProgress exercises the full reconcile step: it must
@@ -219,6 +221,7 @@ func TestDetermineScaleOperationInProgressPreservesExistingConditionOnStatefulSe
 // when there is an in-progress operation to record, and it must be a no-op (no condition
 // added) for a brand-new resource with no scale operation in progress.
 func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		specReplicas int32
@@ -229,24 +232,24 @@ func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
 		// wantConditionPresent indicates whether the ScaleOperationComplete
 		// condition should exist on the status after the step runs.
 		wantConditionPresent bool
-		wantStatus           druidv1alpha1.ConditionStatus
-		wantReason           string
+		expectedStatus       druidv1alpha1.ConditionStatus
+		expectedReason       string
 	}{
 		{
 			name:                 "scale-in records the condition",
 			specReplicas:         3,
 			stsReplicas:          ptr.To(int32(5)),
 			wantConditionPresent: true,
-			wantStatus:           druidv1alpha1.ConditionFalse,
-			wantReason:           druidv1alpha1.ScaleOperationReasonScalingIn,
+			expectedStatus:       druidv1alpha1.ConditionFalse,
+			expectedReason:       druidv1alpha1.ScaleOperationReasonScalingIn,
 		},
 		{
 			name:                 "scale-out records the condition",
 			specReplicas:         5,
 			stsReplicas:          ptr.To(int32(3)),
 			wantConditionPresent: true,
-			wantStatus:           druidv1alpha1.ConditionFalse,
-			wantReason:           druidv1alpha1.ScaleOperationReasonScalingOut,
+			expectedStatus:       druidv1alpha1.ConditionFalse,
+			expectedReason:       druidv1alpha1.ScaleOperationReasonScalingOut,
 		},
 		{
 			name:         "bootstrap decommission candidates present records BootstrapMembersRemoval",
@@ -260,8 +263,8 @@ func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
 				{Name: scaleTestBootstrapA},
 			}},
 			wantConditionPresent: true,
-			wantStatus:           druidv1alpha1.ConditionFalse,
-			wantReason:           druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
+			expectedStatus:       druidv1alpha1.ConditionFalse,
+			expectedReason:       druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval,
 		},
 		{
 			name:                 "no scale operation on a fresh resource adds no condition",
@@ -273,6 +276,7 @@ func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -309,8 +313,8 @@ func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
 			}
 			g.Expect(idx).To(BeNumerically(">=", 0), "ScaleOperationComplete condition should be recorded")
 			cond := persisted.Status.Conditions[idx]
-			g.Expect(cond.Status).To(Equal(tc.wantStatus))
-			g.Expect(cond.Reason).To(Equal(tc.wantReason))
+			g.Expect(cond.Status).To(Equal(tc.expectedStatus))
+			g.Expect(cond.Reason).To(Equal(tc.expectedReason))
 			g.Expect(cond.LastTransitionTime.IsZero()).To(BeFalse())
 			g.Expect(cond.Message).NotTo(BeEmpty())
 		})
@@ -322,6 +326,7 @@ func TestDetectAndRecordScaleOperationInProgress(t *testing.T) {
 // The guard in scaleConditionNeedsUpdate should short-circuit when the existing
 // condition already matches the determined (status, reason) pair.
 func TestDetectAndRecordScaleOperationInProgressIsIdempotent(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -364,6 +369,7 @@ func TestDetectAndRecordScaleOperationInProgressIsIdempotent(t *testing.T) {
 // cleared once nothing remains, and that it is a no-op when every joined member
 // is still in spec (or nothing has joined at all).
 func TestPruneBootstrapMembersStatus(t *testing.T) {
+	t.Parallel()
 	joined := func(names ...string) []druidv1alpha1.BootstrapJoinedMember {
 		members := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(names))
 		for _, n := range names {
@@ -418,6 +424,7 @@ func TestPruneBootstrapMembersStatus(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -461,9 +468,10 @@ func TestPruneBootstrapMembersStatus(t *testing.T) {
 // surplus members are gone, requeues while surplus members remain, and is a
 // no-op when no scale operation condition is recorded.
 func TestRecordScaleOperationComplete(t *testing.T) {
+	t.Parallel()
 	const replicas = int32(3)
 
-	// buildMembers returns only the managed members for [0, replicas).
+	// buildMembers returns only the Etcd's own members for [0, replicas).
 	buildCleanMembers := func(name string) []etcdmember.Member {
 		members := make([]etcdmember.Member, 0, replicas)
 		for i := range replicas {
@@ -494,8 +502,8 @@ func TestRecordScaleOperationComplete(t *testing.T) {
 		// A nil slice means no client call is expected (no scale operation condition).
 		fakeMembers          []etcdmember.Member
 		wantConditionPresent bool
-		wantStatus           druidv1alpha1.ConditionStatus
-		wantReason           string
+		expectedStatus       druidv1alpha1.ConditionStatus
+		expectedReason       string
 		wantRequeue          bool
 	}{
 		{
@@ -507,8 +515,8 @@ func TestRecordScaleOperationComplete(t *testing.T) {
 			},
 			fakeMembers:          buildCleanMembers(scaleTestEtcdName),
 			wantConditionPresent: true,
-			wantStatus:           druidv1alpha1.ConditionTrue,
-			wantReason:           druidv1alpha1.ScaleOperationReasonNoScaleOperation,
+			expectedStatus:       druidv1alpha1.ConditionTrue,
+			expectedReason:       druidv1alpha1.ScaleOperationReasonNoScaleOperation,
 		},
 		{
 			name: "in-flight scale-in with surplus still present: requeues without advancing condition",
@@ -519,8 +527,8 @@ func TestRecordScaleOperationComplete(t *testing.T) {
 			},
 			fakeMembers:          buildSurplusMembers(scaleTestEtcdName),
 			wantConditionPresent: true,
-			wantStatus:           druidv1alpha1.ConditionFalse,
-			wantReason:           druidv1alpha1.ScaleOperationReasonScalingIn,
+			expectedStatus:       druidv1alpha1.ConditionFalse,
+			expectedReason:       druidv1alpha1.ScaleOperationReasonScalingIn,
 			wantRequeue:          true,
 		},
 		{
@@ -533,6 +541,7 @@ func TestRecordScaleOperationComplete(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).
@@ -582,8 +591,8 @@ func TestRecordScaleOperationComplete(t *testing.T) {
 			}
 			g.Expect(idx).To(BeNumerically(">=", 0))
 			cond := persisted.Status.Conditions[idx]
-			g.Expect(cond.Status).To(Equal(tc.wantStatus))
-			g.Expect(cond.Reason).To(Equal(tc.wantReason))
+			g.Expect(cond.Status).To(Equal(tc.expectedStatus))
+			g.Expect(cond.Reason).To(Equal(tc.expectedReason))
 		})
 	}
 }
@@ -643,6 +652,7 @@ func (o quorumUnsafePreSyncOperator) PreSync(_ component.OperatorContext, _ *dru
 //     immediate error requeue, i.e. the mapping treats the quorum-unsafe code as a
 //     recording requeue, not a generic terminal error.
 func TestQuorumUnsafeErrorSurvivesReconcileRecording(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(scaleTestEtcdName, scaleTestNamespace).

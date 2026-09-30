@@ -5,6 +5,7 @@
 package etcd
 
 import (
+	"fmt"
 	"slices"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -22,7 +23,11 @@ import (
 // opposite-direction changes while an operation is active. It only sets False;
 // recordScaleOperationComplete advances it to True on completion.
 func (r *Reconciler) detectAndRecordScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	status, reason := r.determineScaleOperationInProgress(ctx, etcd)
+	status, reason, err := r.determineScaleOperationInProgress(ctx, etcd)
+	if err != nil {
+		ctx.Logger.Error(err, "failed to determine scale operation; requeuing")
+		return ctrlutils.ReconcileWithError(err)
+	}
 
 	if !scaleConditionNeedsUpdate(etcd, status, reason) {
 		return ctrlutils.ContinueReconcile()
@@ -36,71 +41,65 @@ func (r *Reconciler) detectAndRecordScaleOperationInProgress(ctx component.Opera
 	return ctrlutils.ContinueReconcile()
 }
 
-// determineScaleOperationInProgress returns the ScaleOperationComplete status and
-// reason for an in-progress scale operation (always False), or the existing
-// condition value when replica counts match. Advancing the condition to True on
-// completion is left to recordScaleOperationComplete.
-func (r *Reconciler) determineScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string) {
+// determineScaleOperationInProgress reports the ScaleOperationComplete status and
+// reason for the etcd. When a scale operation is in progress it returns False with
+// the reason ScalingIn, ScalingOut, or BootstrapMembersRemoval; BootstrapMembersRemoval
+// takes precedence when it applies together with a replica change. Otherwise it returns
+// the existing condition unchanged; recordScaleOperationComplete sets the condition to
+// True once the operation finishes. It returns an error when the StatefulSet cannot be
+// read, so the caller requeues and retries rather than acting on a stale condition.
+func (r *Reconciler) determineScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string, error) {
 	// BootstrapMembersRemoval takes precedence: the operator has removed joined
 	// source members (or unset bootstrapWithExistingCluster) that the target had
 	// already joined. Only members recorded in status are meaningful here.
-	if hasBootstrapMembersToBeRemoved(etcd) {
-		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval
+	if druidv1alpha1.HasBootstrapMembersToDecommission(etcd) {
+		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval, nil
 	}
 
 	sts, err := kubernetes.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
-		ctx.Logger.Error(err, "failed to get StatefulSet while detecting scale operation; preserving existing scale operation condition")
-		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+		return "", "", fmt.Errorf("failed to get StatefulSet while detecting scale operation for %v: %w",
+			client.ObjectKeyFromObject(etcd), err)
 	}
 	// No observed replica count to compare against; preserve the existing
 	// condition rather than asserting no scale operation is in progress.
 	if sts == nil || sts.Spec.Replicas == nil {
-		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+		status, reason := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+		return status, reason, nil
 	}
 
 	// Transitions to or from zero replicas are handled by the existing
 	// scale-to-zero code path and are never treated as a scale-in/out.
 	stsReplicas := *sts.Spec.Replicas
-	if druidv1alpha1.HasZeroReplicas(etcd) || stsReplicas == 0 {
-		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+	if etcd.Spec.Replicas == 0 || stsReplicas == 0 {
+		status, reason := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+		return status, reason, nil
 	}
 
 	switch {
 	case etcd.Spec.Replicas < stsReplicas:
-		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingIn
+		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingIn, nil
 	case etcd.Spec.Replicas > stsReplicas:
-		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingOut
+		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingOut, nil
 	default:
 		// Replica counts match: no active scale signal. Preserve the existing
-		// condition and let recordReconcileSuccessOperation advance it on completion.
-		return druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+		// condition and let recordScaleOperationComplete advance it on completion.
+		status, reason := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+		return status, reason, nil
 	}
-}
-
-// hasBootstrapMembersToBeRemoved reports whether the operator has requested removal
-// of source members the target already joined via bootstrapWithExistingCluster.
-// It is true when the target has recorded joined members in status and one or
-// more of those members is no longer present in the spec (or the spec's
-// bootstrapWithExistingCluster has been unset entirely).
-func hasBootstrapMembersToBeRemoved(etcd *druidv1alpha1.Etcd) bool {
-	return len(druidv1alpha1.GetBootstrapMemberNamesToDecommission(etcd)) > 0
 }
 
 // scaleConditionNeedsUpdate reports whether the current ScaleOperationComplete
 // condition already matches the desired status and reason, avoiding a redundant
 // status patch every reconcile.
 func scaleConditionNeedsUpdate(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus, reason string) bool {
-	idx := slices.IndexFunc(etcd.Status.Conditions, func(c druidv1alpha1.Condition) bool {
-		return c.Type == druidv1alpha1.ConditionTypeScaleOperationComplete
-	})
-	if idx < 0 {
+	existing := druidv1alpha1.GetCondition(etcd, druidv1alpha1.ConditionTypeScaleOperationComplete)
+	if existing == nil {
 		// Only add the condition when there is an actual operation to record (an
 		// in-flight operation is status False); a brand-new resource with no scale
 		// operation does not need a True entry.
 		return status == druidv1alpha1.ConditionFalse
 	}
-	existing := etcd.Status.Conditions[idx]
 	return existing.Status != status || existing.Reason != reason
 }
 
@@ -119,10 +118,8 @@ func upsertScaleOperationCondition(etcd *druidv1alpha1.Etcd, status druidv1alpha
 	now := metav1.Now()
 	message := scaleOperationMessage(reason)
 
-	idx := slices.IndexFunc(etcd.Status.Conditions, func(c druidv1alpha1.Condition) bool {
-		return c.Type == druidv1alpha1.ConditionTypeScaleOperationComplete
-	})
-	if idx < 0 {
+	cond := druidv1alpha1.GetCondition(etcd, druidv1alpha1.ConditionTypeScaleOperationComplete)
+	if cond == nil {
 		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
 			Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
 			Status:             status,
@@ -134,7 +131,6 @@ func upsertScaleOperationCondition(etcd *druidv1alpha1.Etcd, status druidv1alpha
 		return
 	}
 
-	cond := &etcd.Status.Conditions[idx]
 	if cond.Status != status {
 		cond.LastTransitionTime = now
 	}
@@ -166,20 +162,17 @@ func scaleOperationMessage(reason string) string {
 // removal has completed). When all joined members have been pruned, the whole
 // status field is cleared. It is a no-op when nothing needs pruning.
 func (r *Reconciler) pruneBootstrapMembersStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	statusBootstrap := etcd.Status.BootstrapWithExistingCluster
-	if statusBootstrap == nil || len(statusBootstrap.Members) == 0 {
+	decommissioned := druidv1alpha1.GetBootstrapMemberNamesToDecommission(etcd)
+	if len(decommissioned) == 0 {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	specNames := druidv1alpha1.GetBootstrapMemberNames(etcd)
+	statusBootstrap := etcd.Status.BootstrapWithExistingCluster
 	retained := make([]druidv1alpha1.BootstrapJoinedMember, 0, len(statusBootstrap.Members))
 	for _, joined := range statusBootstrap.Members {
-		if specNames[joined.Name] {
+		if !slices.Contains(decommissioned, joined.Name) {
 			retained = append(retained, joined)
 		}
-	}
-	if len(retained) == len(statusBootstrap.Members) {
-		return ctrlutils.ContinueReconcile()
 	}
 
 	originalEtcd := etcd.DeepCopy()

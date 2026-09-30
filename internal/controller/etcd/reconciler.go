@@ -56,17 +56,9 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.EtcdControlle
 }
 
 // NewReconcilerWithImageVector creates a new reconciler for Etcd with the given image vector.
-// An optional etcdClientFactory may be provided to override the default factory (useful in tests).
-func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector, etcdClientFactory ...etcdclient.Factory) (*Reconciler, error) {
+func NewReconcilerWithImageVector(mgr manager.Manager, controllerName string, config druidconfigv1alpha1.EtcdControllerConfiguration, iv imagevector.ImageVector) (*Reconciler, error) {
 	logger := log.Log.WithName(controllerName)
-	var factory etcdclient.Factory
-	if len(etcdClientFactory) > 0 && etcdClientFactory[0] != nil {
-		factory = etcdClientFactory[0]
-	}
-
-	if factory == nil {
-		factory = etcdclient.NewFactory()
-	}
+	factory := etcdclient.NewFactory()
 	operatorReg := createAndInitializeOperatorRegistry(mgr.GetClient(), config, iv, factory)
 	lastOpErrRecorder := ctrlutils.NewLastOperationAndLastErrorsRecorder(mgr.GetClient(), logger)
 	return &Reconciler{

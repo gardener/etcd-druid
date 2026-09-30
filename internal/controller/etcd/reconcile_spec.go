@@ -15,6 +15,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"
@@ -157,33 +158,29 @@ func (r *Reconciler) recordReconcileSuccessOperation(ctx component.OperatorConte
 // cluster. Returns true if surplus members are found, false when the membership
 // is clean. Errors are treated as transient and cause a requeue.
 func (r *Reconciler) hasSurplusMembersInCluster(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
-	memberClient, err := r.etcdClientFactory.NewClient(ctx, r.client, etcd)
+	etcdClient, err := r.etcdClientFactory.NewClient(ctx, r.client, etcd)
 	if err != nil {
 		return false, fmt.Errorf("failed to create etcd client while checking surplus members for %s/%s: %w",
 			etcd.Namespace, etcd.Name, err)
 	}
 	defer func() {
-		if cerr := memberClient.Close(); cerr != nil {
-			ctx.Logger.Error(cerr, "failed to close etcd member client")
+		if cerr := etcdClient.Close(); cerr != nil {
+			ctx.Logger.Error(cerr, "failed to close etcd client")
 		}
 	}()
 
-	members, err := memberClient.MemberList(ctx)
+	members, err := etcdClient.MemberList(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to list etcd members while checking surplus for %s/%s: %w",
 			etcd.Namespace, etcd.Name, err)
 	}
 
-	expected := druidv1alpha1.ExpectedMemberNames(etcd)
-
-	for _, m := range members {
-		if !expected[m.Name] {
-			ctx.Logger.Info("surplus etcd member still present in cluster",
-				"member", m.Name, "memberID", fmt.Sprintf("%x", m.ID))
-			return true, nil
-		}
+	expected := append(druidv1alpha1.GetMemberNames(etcd), druidv1alpha1.GetBootstrapMemberNames(etcd)...)
+	_, surplus := etcdmember.Members(members).Split(expected)
+	for _, m := range surplus {
+		ctx.Logger.Info("surplus etcd member still present in cluster", "member", m.Name)
 	}
-	return false, nil
+	return len(surplus) > 0, nil
 }
 
 func (r *Reconciler) recordIncompleteReconcileOperation(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, exitReconcileStepResult ctrlutils.ReconcileStepResult) ctrlutils.ReconcileStepResult {
