@@ -181,6 +181,103 @@ func TestGetMemberLeaseNames(t *testing.T) {
 	}
 }
 
+// TestGetMemberNames verifies the names of the Etcd's own members for
+// druid-managed pods and for externally managed members, and that bootstrap
+// members are left out.
+func TestGetMemberNames(t *testing.T) {
+	tests := []struct {
+		name                     string
+		replicas                 int32
+		memberNamePrefix         *string
+		externallyManagedMembers []string
+		bootstrap                *BootstrapWithExistingCluster
+		expectedNames            func(etcdName string) []string
+	}{
+		{
+			name:     "druid-managed pods",
+			replicas: 3,
+			expectedNames: func(etcdName string) []string {
+				return []string{etcdName + "-0", etcdName + "-1", etcdName + "-2"}
+			},
+		},
+		{
+			name:     "zero replicas",
+			replicas: 0,
+			expectedNames: func(_ string) []string {
+				return []string{}
+			},
+		},
+		{
+			name:             "with member name prefix",
+			replicas:         2,
+			memberNamePrefix: ptr.To("myprefix"),
+			expectedNames: func(etcdName string) []string {
+				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1"}
+			},
+		},
+		{
+			name:                     "externally managed members",
+			replicas:                 3,
+			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2"},
+			expectedNames: func(etcdName string) []string {
+				return []string{etcdName + "-1.1.1.1", etcdName + "-1.1.1.2"}
+			},
+		},
+		{
+			name:      "bootstrap members are left out",
+			replicas:  2,
+			bootstrap: &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			expectedNames: func(etcdName string) []string {
+				return []string{etcdName + "-0", etcdName + "-1"}
+			},
+		},
+	}
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+			etcd := &Etcd{
+				ObjectMeta: etcdObjMeta,
+				Spec: EtcdSpec{
+					Replicas:                         test.replicas,
+					MemberNamePrefix:                 test.memberNamePrefix,
+					ExternallyManagedMemberAddresses: test.externallyManagedMembers,
+					Etcd:                             EtcdConfig{BootstrapWithExistingCluster: test.bootstrap},
+				},
+			}
+			g.Expect(GetMemberNames(etcd)).To(Equal(test.expectedNames(etcdObjMeta.Name)))
+		})
+	}
+}
+
+// TestGetBootstrapMemberNames verifies that the names listed in
+// spec.etcd.bootstrapWithExistingCluster are returned in order.
+func TestGetBootstrapMemberNames(t *testing.T) {
+	tests := []struct {
+		name          string
+		bootstrap     *BootstrapWithExistingCluster
+		expectedNames []string
+	}{
+		{name: "bootstrapWithExistingCluster unset", bootstrap: nil, expectedNames: nil},
+		{
+			name:          "bootstrapWithExistingCluster set",
+			bootstrap:     &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}, {Name: "etcd-source-1"}}},
+			expectedNames: []string{"etcd-source-0", "etcd-source-1"},
+		},
+	}
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{Spec: EtcdSpec{Etcd: EtcdConfig{BootstrapWithExistingCluster: test.bootstrap}}}
+			g.Expect(GetBootstrapMemberNames(etcd)).To(Equal(test.expectedNames))
+		})
+	}
+}
+
 func TestGetBootstrapMemberNamesToDecommission(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

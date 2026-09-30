@@ -139,65 +139,40 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	return podNames
 }
 
-// GetMemberLeaseNames returns the name of member leases for the Etcd.
-func GetMemberLeaseNames(etcd *Etcd) []string {
+// GetMemberNames returns the names of the Etcd's own members, one per pod or
+// per externally managed member address. Bootstrap members are not included.
+func GetMemberNames(etcd *Etcd) []string {
 	if ArePodsManagedByEtcdDruid(etcd) {
-		leaseNames := make([]string, etcd.Spec.Replicas)
+		names := make([]string, etcd.Spec.Replicas)
 		for i := range int(etcd.Spec.Replicas) {
 			podName := GetOrdinalPodName(etcd.ObjectMeta, i)
-			leaseNames[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+			names[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 		}
-		return leaseNames
+		return names
 	}
 	memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
-	leaseNames := make([]string, len(memberAddresses))
+	names := make([]string, len(memberAddresses))
 	for i, memberAddress := range memberAddresses {
-		leaseNames[i] = GetMemberNameFromAddress(etcd, memberAddress)
-	}
-	return leaseNames
-}
-
-// GetMemberLeaseNamesForReplicas returns member lease names for the given replica count,
-// ignoring etcd.Spec.Replicas. For externally-managed members the spec-based list is
-// always returned (the replica count argument is ignored for that path).
-func GetMemberLeaseNamesForReplicas(etcd *Etcd, replicas int32) []string {
-	if ArePodsManagedByEtcdDruid(etcd) {
-		leaseNames := make([]string, replicas)
-		for i := range int(replicas) {
-			podName := GetOrdinalPodName(etcd.ObjectMeta, i)
-			leaseNames[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
-		}
-		return leaseNames
-	}
-	return GetMemberLeaseNames(etcd)
-}
-
-// ExpectedMemberNames returns the set of etcd member names the spec currently
-// expects: managed pod-ordinal members for ordinals [0, spec.replicas) plus
-// any bootstrap members declared in spec.etcd.bootstrapWithExistingCluster.
-// Both memberremoval (statefulset package) and the scale controller use this
-// to determine which live cluster members are surplus.
-func ExpectedMemberNames(etcd *Etcd) map[string]bool {
-	names := make(map[string]bool, etcd.Spec.Replicas)
-	for ordinal := int32(0); ordinal < etcd.Spec.Replicas; ordinal++ {
-		podName := GetOrdinalPodName(etcd.ObjectMeta, int(ordinal))
-		names[GetMemberName(etcd.Spec.MemberNamePrefix, podName)] = true
-	}
-	for name := range GetBootstrapMemberNames(etcd) {
-		names[name] = true
+		names[i] = GetMemberNameFromAddress(etcd, memberAddress)
 	}
 	return names
 }
 
-// GetBootstrapMemberNames returns the set of member names declared in
-// spec.etcd.bootstrapWithExistingCluster.members (empty when unset).
-func GetBootstrapMemberNames(etcd *Etcd) map[string]bool {
-	names := map[string]bool{}
+// GetMemberLeaseNames returns the names of the member leases for the Etcd.
+func GetMemberLeaseNames(etcd *Etcd) []string {
+	return GetMemberNames(etcd)
+}
+
+// GetBootstrapMemberNames returns the names of the members listed in
+// spec.etcd.bootstrapWithExistingCluster.
+func GetBootstrapMemberNames(etcd *Etcd) []string {
 	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil {
-		return names
+		return nil
 	}
-	for _, m := range etcd.Spec.Etcd.BootstrapWithExistingCluster.Members {
-		names[m.Name] = true
+	members := etcd.Spec.Etcd.BootstrapWithExistingCluster.Members
+	names := make([]string, 0, len(members))
+	for _, m := range members {
+		names = append(names, m.Name)
 	}
 	return names
 }
@@ -217,11 +192,18 @@ func GetBootstrapMemberNamesToDecommission(etcd *Etcd) []string {
 	specNames := GetBootstrapMemberNames(etcd)
 	var names []string
 	for _, joined := range statusBootstrap.Members {
-		if !specNames[joined.Name] {
+		if !slices.Contains(specNames, joined.Name) {
 			names = append(names, joined.Name)
 		}
 	}
 	return names
+}
+
+// HasBootstrapMembersToDecommission reports whether any joined bootstrap members
+// recorded in status.bootstrapWithExistingCluster.members are no longer present
+// in spec and therefore need to be decommissioned.
+func HasBootstrapMembersToDecommission(etcd *Etcd) bool {
+	return len(GetBootstrapMemberNamesToDecommission(etcd)) > 0
 }
 
 // GetPodDisruptionBudgetName returns the name of the pod disruption budget for the Etcd.
@@ -359,12 +341,6 @@ func GetCondition(etcd *Etcd, condType ConditionType) *Condition {
 func IsScaleInInProgress(etcd *Etcd) bool {
 	cond := GetCondition(etcd, ConditionTypeScaleOperationComplete)
 	return cond != nil && cond.Status == ConditionFalse && cond.Reason == ScaleOperationReasonScalingIn
-}
-
-// HasZeroReplicas reports whether the Etcd is configured with zero replicas
-// (spec.replicas <= 0).
-func HasZeroReplicas(etcd *Etcd) bool {
-	return etcd.Spec.Replicas <= 0
 }
 
 // GetScaleOperationCompleteCondition returns the status and reason of the
