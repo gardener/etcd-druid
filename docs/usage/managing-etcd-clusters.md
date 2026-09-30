@@ -63,7 +63,7 @@ kubectl scale etcd <etcd-name> -n <namespace> --replicas=5
 ```
 
 !!! note
-    An Etcd cluster can be scaled to 0 replicas to "hibernate" it. A hibernated cluster retains its data volumes and can be resumed by scaling back to a non-zero value. Storage costs continue to apply during hibernation.
+    An Etcd cluster can be scaled to 0 replicas. Scaling to zero is separate from scale-in: the data volumes are retained, and the cluster can be resumed by scaling back to a non-zero value. Storage costs continue to apply while the cluster is at zero replicas.
 
 #### Scaling in
 
@@ -91,7 +91,7 @@ kubectl -n <namespace> get etcd <etcd-name> \
     Do not decrease `spec.replicas` by more than the cluster's fault-tolerance margin in one step (e.g. 5→1 in a single change). etcd-druid removes one member per reconcile and holds if quorum is at risk, but starting from a healthy majority is required for the operation to complete at all. Reduce replicas incrementally if in doubt (5→3, then 3→1).
 
 !!! note
-    The `PersistentVolumeClaims` of removed members are deleted as part of scale-in. Hibernation (scaling to 0) does **not** delete any PVCs; all data is preserved for wake-up.
+    The `PersistentVolumeClaims` of removed members are deleted as part of scale-in. Scaling to zero does not delete any PVCs; all data is preserved for the next scale-out.
 
 ### Scale the Etcd cluster vertically
 
