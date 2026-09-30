@@ -30,37 +30,25 @@ import (
 
 // TestDeleteSurplusPVCs verifies that scale-in deletes the PVCs of removed pod
 // ordinals (>= spec.replicas) and leaves the retained ones intact, while
-// leaving all PVCs intact on a transition to zero replicas. It also asserts the
-// allDeleted gate used by Sync to hold the STS shrink.
+// leaving all PVCs intact on a transition to zero replicas.
 func TestDeleteSurplusPVCs(t *testing.T) {
 	tests := []struct {
-		name         string
-		specReplicas int32
-		stsReplicas  int32
-		// extraPVCs are ordinals whose PVCs exist beyond the StatefulSet's current
-		// size, modelling leaked PVCs after Sync has already shrunk the STS or PVCs
-		// retained while at zero replicas.
-		extraPVCs []int
-		// scaleInInProgress seeds ScaleOperationComplete=False/ScalingIn.
+		name              string
+		specReplicas      int32
+		stsReplicas       int32
+		extraPVCs         []int
 		scaleInInProgress bool
-		// deleteIntercept, when non-nil, replaces the fake client's Delete verb so
-		// individual cases can inject transport-level errors or NotFound responses.
-		deleteIntercept func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error
-		// wantErrCode, when set, asserts the function returns a DruidError with this
-		// code instead of succeeding.
-		wantErrCode druidapicommon.ErrorCode
-		// wantAllDeleted asserts the allDeleted return value on the success path.
-		wantAllDeleted bool
-		// wantDeleted / wantKept are pod ordinals whose PVCs must be gone / present.
-		wantDeleted []int
-		wantKept    []int
+		deleteIntercept   func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error
+		listIntercept     func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error
+		wantErrCode       druidapicommon.ErrorCode
+		wantDeleted       []int
+		wantKept          []int
 	}{
 		{
-			name:              "scale-in 5->3 deletes ordinals 3 and 4, keeps 0-2, allDeleted false (deletion just initiated)",
+			name:              "scale-in 5->3 deletes ordinals 3 and 4, keeps 0-2",
 			specReplicas:      3,
 			stsReplicas:       5,
 			scaleInInProgress: true,
-			wantAllDeleted:    false,
 			wantDeleted:       []int{3, 4},
 			wantKept:          []int{0, 1, 2},
 		},
@@ -70,31 +58,27 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 			stsReplicas:       3,
 			extraPVCs:         []int{3, 4},
 			scaleInInProgress: true,
-			wantAllDeleted:    false,
 			wantDeleted:       []int{3, 4},
 			wantKept:          []int{0, 1, 2},
 		},
 		{
-			name:           "no scale-in keeps all PVCs, allDeleted true (pass-through)",
-			specReplicas:   5,
-			stsReplicas:    5,
-			wantAllDeleted: true,
-			wantKept:       []int{0, 1, 2, 3, 4},
+			name:         "no scale-in keeps all PVCs",
+			specReplicas: 5,
+			stsReplicas:  5,
+			wantKept:     []int{0, 1, 2, 3, 4},
 		},
 		{
-			name:           "zero replicas (spec 0) keeps all PVCs, allDeleted true",
-			specReplicas:   0,
-			stsReplicas:    5,
-			wantAllDeleted: true,
-			wantKept:       []int{0, 1, 2, 3, 4},
+			name:         "zero replicas (spec 0) keeps all PVCs",
+			specReplicas: 0,
+			stsReplicas:  5,
+			wantKept:     []int{0, 1, 2, 3, 4},
 		},
 		{
-			name:           "scale-up from zero keeps PVCs above desired replicas when no scale-in is recorded",
-			specReplicas:   3,
-			stsReplicas:    0,
-			extraPVCs:      []int{0, 1, 2, 3, 4},
-			wantAllDeleted: true,
-			wantKept:       []int{0, 1, 2, 3, 4},
+			name:         "scale-out from zero keeps PVCs above desired replicas when no scale-in is recorded",
+			specReplicas: 3,
+			stsReplicas:  0,
+			extraPVCs:    []int{0, 1, 2, 3, 4},
+			wantKept:     []int{0, 1, 2, 3, 4},
 		},
 		{
 			name:              "Delete returns server error -> surfaces as ErrDeletePVC",
@@ -103,6 +87,19 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 			scaleInInProgress: true,
 			deleteIntercept: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.DeleteOption) error {
 				if _, ok := obj.(*corev1.PersistentVolumeClaim); ok {
+					return fmt.Errorf("server error")
+				}
+				return nil
+			},
+			wantErrCode: ErrDeletePVC,
+		},
+		{
+			name:              "List returns server error -> surfaces as ErrDeletePVC",
+			specReplicas:      3,
+			stsReplicas:       5,
+			scaleInInProgress: true,
+			listIntercept: func(_ context.Context, _ client.WithWatch, list client.ObjectList, _ ...client.ListOption) error {
+				if _, ok := list.(*corev1.PersistentVolumeClaimList); ok {
 					return fmt.Errorf("server error")
 				}
 				return nil
@@ -120,8 +117,7 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 				}
 				return cl.Delete(context.Background(), obj, opts...)
 			},
-			wantAllDeleted: false,
-			wantKept:       []int{0, 1, 2},
+			wantKept: []int{0, 1, 2},
 		},
 	}
 
@@ -155,15 +151,22 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 				objs = append(objs, testutils.CreatePVC(sts, podName, corev1.ClaimBound))
 			}
 			clientBuilder := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(objs...)
+			funcs := interceptor.Funcs{}
 			if tc.deleteIntercept != nil {
-				clientBuilder = clientBuilder.WithInterceptorFuncs(interceptor.Funcs{Delete: tc.deleteIntercept})
+				funcs.Delete = tc.deleteIntercept
+			}
+			if tc.listIntercept != nil {
+				funcs.List = tc.listIntercept
+			}
+			if tc.deleteIntercept != nil || tc.listIntercept != nil {
+				clientBuilder = clientBuilder.WithInterceptorFuncs(funcs)
 			}
 			cl := clientBuilder.Build()
 
 			r := _resource{client: cl}
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
 
-			allDeleted, err := r.deleteSurplusPVCs(opCtx, etcd)
+			err := r.deleteSurplusPVCs(opCtx, etcd)
 			if tc.wantErrCode != "" {
 				g.Expect(err).To(HaveOccurred())
 				derr := druiderr.AsDruidError(err)
@@ -172,7 +175,6 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 				return
 			}
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(allDeleted).To(Equal(tc.wantAllDeleted))
 
 			vctName := etcd.Name
 			stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)

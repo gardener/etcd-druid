@@ -79,9 +79,12 @@ func TestEnsureMemberRemoval(t *testing.T) {
 		liveMembers    []etcdmember.Member
 		listErr        error
 		removeErr      error
+		moveLeaderErr  error
 		wantRemovedIDs []uint64
-		wantRequeue    bool
-		wantErrCode    druidapicommon.ErrorCode
+		// wantMovedTo lists the transferee IDs passed to MoveLeader.
+		wantMovedTo []uint64
+		wantRequeue bool
+		wantErrCode druidapicommon.ErrorCode
 		// wantCloseCalls is the expected number of times Client.Close
 		// should be called; 0 when the gate short-circuits before creating a client.
 		wantCloseCalls int
@@ -153,6 +156,46 @@ func TestEnsureMemberRemoval(t *testing.T) {
 			wantCloseCalls: 1,
 		},
 		{
+			name:         "surplus leader: leadership moves to a healthy retained member, no removal yet",
+			specReplicas: 2,
+			scaleReason:  druidv1alpha1.ScaleOperationReasonScalingIn,
+			liveMembers: []etcdmember.Member{
+				healthyVoter(0x1, "etcd-main-0"),
+				healthyVoter(0x2, "etcd-main-1"),
+				healthyLeader(0x3, "etcd-main-2"),
+			},
+			wantMovedTo:    []uint64{0x1},
+			wantRequeue:    true,
+			wantCloseCalls: 1,
+		},
+		{
+			name:         "surplus leader with no managed voter to take over: falls through to the quorum check",
+			specReplicas: 1,
+			scaleReason:  druidv1alpha1.ScaleOperationReasonScalingIn,
+			// etcd-main-0 is the only retained member but it is a learner, so it
+			// cannot take leadership. Quorum stays safe because learners do not vote.
+			liveMembers: []etcdmember.Member{
+				{ID: 0x1, Name: "etcd-main-0", Role: etcdmember.MemberRoleLearner, Health: etcdmember.MemberHealthHealthy},
+				healthyLeader(0x3, "etcd-main-2"),
+			},
+			wantErrCode:    ErrQuorumUnsafeMemberRemoval,
+			wantCloseCalls: 1,
+		},
+		{
+			name:         "MoveLeader error surfaces as ErrRemoveEtcdMember",
+			specReplicas: 2,
+			scaleReason:  druidv1alpha1.ScaleOperationReasonScalingIn,
+			liveMembers: []etcdmember.Member{
+				healthyVoter(0x1, "etcd-main-0"),
+				healthyVoter(0x2, "etcd-main-1"),
+				healthyLeader(0x3, "etcd-main-2"),
+			},
+			moveLeaderErr:  fmt.Errorf("not leader"),
+			wantMovedTo:    []uint64{0x1},
+			wantErrCode:    ErrRemoveEtcdMember,
+			wantCloseCalls: 1,
+		},
+		{
 			name:           "MemberList error surfaces as ErrRemoveEtcdMember",
 			specReplicas:   3,
 			scaleReason:    druidv1alpha1.ScaleOperationReasonScalingIn,
@@ -194,9 +237,10 @@ func TestEnsureMemberRemoval(t *testing.T) {
 			cl := clBuilder.Build()
 
 			fakeClient := &etcdfake.Client{
-				Members:   tc.liveMembers,
-				ListErr:   tc.listErr,
-				RemoveErr: tc.removeErr,
+				Members:       tc.liveMembers,
+				ListErr:       tc.listErr,
+				RemoveErr:     tc.removeErr,
+				MoveLeaderErr: tc.moveLeaderErr,
 			}
 			var factory etcdclient.Factory
 			if !tc.nilFactory {
@@ -222,6 +266,7 @@ func TestEnsureMemberRemoval(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 			}
 			g.Expect(fakeClient.RemoveCalls).To(Equal(tc.wantRemovedIDs))
+			g.Expect(fakeClient.MoveLeaderCalls).To(Equal(tc.wantMovedTo))
 			g.Expect(fakeClient.CloseCalls).To(Equal(tc.wantCloseCalls), "Client.Close must be called exactly once per factory creation")
 		})
 	}
@@ -324,7 +369,7 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 		return etcd
 	}
 
-	t.Run("no managed member live -> requeue, no removal", func(t *testing.T) {
+	t.Run("no member of the Etcd live -> requeue, no removal", func(t *testing.T) {
 		g := NewWithT(t)
 		etcd := newEtcd()
 		sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), removalNamespace, removalEtcdUID, 1)
@@ -333,7 +378,7 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 		cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).
 			WithObjects(etcd.DeepCopy(), sts).WithStatusSubresource(&druidv1alpha1.Etcd{}).Build()
 
-		// Only the source member is live; the managed member (etcd-main-0) has not joined.
+		// Only the source member is live; the Etcd's own member (etcd-main-0) has not joined.
 		fakeClient := &etcdfake.Client{Members: []etcdmember.Member{healthyLeader(0x9, "etcd-source-0")}}
 		r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: fakeClient}}
 		opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
@@ -342,10 +387,10 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 		derr := druiderr.AsDruidError(err)
 		g.Expect(derr.Code).To(Equal(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)))
-		g.Expect(fakeClient.RemoveCalls).To(BeEmpty(), "source member must not be removed before all managed members are live and healthy")
+		g.Expect(fakeClient.RemoveCalls).To(BeEmpty(), "source member must not be removed before all members of the Etcd are live and healthy")
 	})
 
-	t.Run("all managed members live and healthy -> source member removed", func(t *testing.T) {
+	t.Run("all members of the Etcd live and healthy -> source member removed", func(t *testing.T) {
 		g := NewWithT(t)
 		etcd := newEtcd()
 		sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), removalNamespace, removalEtcdUID, 1)
@@ -354,7 +399,7 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 		cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).
 			WithObjects(etcd.DeepCopy(), sts).WithStatusSubresource(&druidv1alpha1.Etcd{}).Build()
 
-		// Managed member etcd-main-0 is live alongside the source member.
+		// The Etcd's own member etcd-main-0 is live alongside the source member.
 		fakeClient := &etcdfake.Client{Members: []etcdmember.Member{
 			healthyLeader(0x1, "etcd-main-0"),
 			healthyVoter(0x9, "etcd-source-0"),
@@ -364,15 +409,42 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 
 		err := r.ensureSurplusMembersAreRemoved(opCtx, etcd)
 		g.Expect(err).To(HaveOccurred()) // requeue after removal
-		g.Expect(fakeClient.RemoveCalls).To(Equal([]uint64{0x9}), "source member removed once a managed member is live")
+		g.Expect(fakeClient.RemoveCalls).To(Equal([]uint64{0x9}), "source member removed once the Etcd's own members are live")
+	})
+
+	t.Run("source member is leader -> leadership moves to the Etcd's own member, bootstrap members last", func(t *testing.T) {
+		g := NewWithT(t)
+		etcd := newEtcd()
+		// etcd-source-1 stays in spec and has a lower ID than etcd-main-0, but
+		// members of the current Etcd are preferred.
+		etcd.Spec.Etcd.BootstrapWithExistingCluster.Members = []druidv1alpha1.BootstrapExistingMember{{Name: "etcd-source-1"}}
+		etcd.Status.BootstrapWithExistingCluster.Members = []druidv1alpha1.BootstrapJoinedMember{{Name: "etcd-source-0"}, {Name: "etcd-source-1"}}
+		sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), removalNamespace, removalEtcdUID, 1)
+		sts.Spec.Replicas = ptr.To(int32(1))
+		sts.Status.ReadyReplicas = 1
+		cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).
+			WithObjects(etcd.DeepCopy(), sts).WithStatusSubresource(&druidv1alpha1.Etcd{}).Build()
+
+		fakeClient := &etcdfake.Client{Members: []etcdmember.Member{
+			healthyVoter(0x8, "etcd-source-1"),
+			healthyLeader(0x9, "etcd-source-0"),
+			healthyVoter(0xa, "etcd-main-0"),
+		}}
+		r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: fakeClient}}
+		opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+		err := r.ensureSurplusMembersAreRemoved(opCtx, etcd)
+		g.Expect(druiderr.AsDruidError(err).Code).To(Equal(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)))
+		g.Expect(fakeClient.MoveLeaderCalls).To(Equal([]uint64{0xa}), "leadership must go to the Etcd's own member etcd-main-0")
+		g.Expect(fakeClient.RemoveCalls).To(BeEmpty(), "the former leader is removed on the next reconcile")
 	})
 }
 
-// TestSurplusMemberNamesBootstrapRemoval verifies that joined bootstrap members
-// no longer present in spec are selected for removal even without a replica
-// change, and that the live-diff computation correctly identifies surplus
-// vs expected members.
-func TestSurplusMemberNamesBootstrapRemoval(t *testing.T) {
+// TestSplitExpectedMembersBootstrapRemoval verifies that a joined bootstrap
+// member no longer present in spec is surplus even without a replica change,
+// while the Etcd's own members and the bootstrap members still in spec are
+// retained.
+func TestSplitExpectedMembersBootstrapRemoval(t *testing.T) {
 	g := NewWithT(t)
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(removalEtcdName, removalNamespace).
@@ -389,9 +461,9 @@ func TestSurplusMemberNamesBootstrapRemoval(t *testing.T) {
 		},
 	}
 
-	// Live members: the 3 managed members plus both bootstrap source members.
+	// Live members: the Etcd's 3 own members plus both bootstrap source members.
 	// etcd-source-0 is still in spec (should stay), etcd-source-1 is not (surplus).
-	liveMembers := []etcdmember.Member{
+	liveMembers := etcdmember.Members{
 		healthyLeader(0x1, "etcd-main-0"),
 		healthyVoter(0x2, "etcd-main-1"),
 		healthyVoter(0x3, "etcd-main-2"),
@@ -399,10 +471,9 @@ func TestSurplusMemberNamesBootstrapRemoval(t *testing.T) {
 		healthyVoter(0xa, "etcd-source-1"), // not in spec → surplus
 	}
 
-	surplus := etcdmember.SurplusMemberNames(liveMembers, druidv1alpha1.ExpectedMemberNames(etcd))
-	g.Expect(surplus).To(HaveKey("etcd-source-1"))
-	g.Expect(surplus).NotTo(HaveKey("etcd-source-0"))
-	g.Expect(surplus).NotTo(HaveKey("etcd-main-0"))
-	g.Expect(surplus).NotTo(HaveKey("etcd-main-1"))
-	g.Expect(surplus).NotTo(HaveKey("etcd-main-2"))
+	expected := append(druidv1alpha1.GetMemberNames(etcd), druidv1alpha1.GetBootstrapMemberNames(etcd)...)
+	retained, surplus := liveMembers.Split(expected)
+	g.Expect(surplus).To(HaveLen(1))
+	g.Expect(surplus[0].Name).To(Equal("etcd-source-1"))
+	g.Expect(retained).To(HaveLen(4))
 }

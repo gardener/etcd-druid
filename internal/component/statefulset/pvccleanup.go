@@ -25,19 +25,19 @@ const ErrDeletePVC druidapicommon.ErrorCode = "ERR_DELETE_PVC"
 // deleteSurplusPVCs deletes the PVCs of pod ordinals at or above the desired
 // replica count during a scale-in. A StatefulSet does not reclaim its per-pod
 // PVCs when scaled down, so without this the storage of removed members leaks.
-// It returns allDeleted == true once every surplus PVC is gone or terminating;
-// Sync uses this to hold the replica shrink until deletion has been initiated.
-func (r _resource) deleteSurplusPVCs(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (bool, error) {
-	if !IsPVCCleanupNeeded(etcd) {
-		return true, nil
+// Surplus PVCs are found by listing, so PVCs left behind after the StatefulSet
+// has already shrunk are still cleaned up. The pvc-protection finalizer keeps a
+// PVC until its pod is gone, so deletion can be issued before the shrink.
+func (r _resource) deleteSurplusPVCs(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	if !isPVCCleanupNeeded(etcd) {
+		return nil
 	}
 
 	pvcs, err := r.listMemberPVCs(ctx, etcd)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	allDeleted := true
 	prefix := pvcNamePrefix(etcd)
 	for i := range pvcs {
 		pvc := &pvcs[i]
@@ -47,23 +47,22 @@ func (r _resource) deleteSurplusPVCs(ctx component.OperatorContext, etcd *druidv
 		if pvc.DeletionTimestamp != nil {
 			continue
 		}
-		allDeleted = false
 		ctx.Logger.Info("deleting surplus PVC for scale-in", "pvc", pvc.Name)
 		if err := client.IgnoreNotFound(r.client.Delete(ctx, pvc)); err != nil {
-			return false, druiderr.WrapError(err, ErrDeletePVC, component.OperationSync,
+			return druiderr.WrapError(err, ErrDeletePVC, component.OperationSync,
 				fmt.Sprintf("failed to delete surplus PVC %s for etcd: %v", pvc.Name, client.ObjectKeyFromObject(etcd)))
 		}
 	}
-	return allDeleted, nil
+	return nil
 }
 
-// IsPVCCleanupNeeded reports whether surplus PVC deletion should run. Deleting
+// isPVCCleanupNeeded reports whether surplus PVC deletion should run. Deleting
 // ordinal PVCs is only safe during an explicitly recorded scale-in: a transition
-// to zero replicas leaves the data intact, and while scaling back up the
+// to zero replicas leaves the data intact, and while scaling back out the
 // StatefulSet can be at 0 while higher-ordinal PVCs from the previous cluster
 // still exist and must be kept.
-func IsPVCCleanupNeeded(etcd *druidv1alpha1.Etcd) bool {
-	return !druidv1alpha1.HasZeroReplicas(etcd) && druidv1alpha1.IsScaleInInProgress(etcd)
+func isPVCCleanupNeeded(etcd *druidv1alpha1.Etcd) bool {
+	return etcd.Spec.Replicas != 0 && druidv1alpha1.IsScaleInInProgress(etcd)
 }
 
 // listMemberPVCs lists the PVCs owned by this etcd via its default labels.

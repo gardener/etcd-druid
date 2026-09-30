@@ -90,13 +90,26 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 }
 
 // PreSync performs pre-sync operations for the statefulset component.
+//
+// Ordering matters: the pre-sync snapshot is taken before any surplus etcd member
+// is removed, so a safety snapshot of the cluster exists before membership is
+// mutated during a scale-in or bootstrap members removal. When the backup store is
+// disabled there is no snapshot to sequence, so member removal still runs.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	r.logger = ctx.Logger.WithValues("component", component.StatefulSetKind, "operation", component.OperationPreSync)
 
-	if err := r.ensureSurplusMembersAreRemoved(ctx, etcd); err != nil {
+	if err := r.ensurePreSyncSnapshotIfNeeded(ctx, etcd); err != nil {
 		return err
 	}
 
+	return r.ensureSurplusMembersAreRemoved(ctx, etcd)
+}
+
+// ensurePreSyncSnapshotIfNeeded takes a pre-sync snapshot when one is warranted:
+// the backup store is enabled, a StatefulSet with a non-zero replica count exists,
+// and either the cluster is scaling to zero or a tracked image/replica change is
+// pending (and the skip-snapshot annotation is absent). It is a no-op otherwise.
+func (r _resource) ensurePreSyncSnapshotIfNeeded(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
 		return nil
 	}
@@ -114,7 +127,7 @@ func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Et
 	// TODO: currently replicas == 0 is used as a proxy for "the cluster is being hibernated". Once native
 	// hibernation support [gardener/etcd-druid#922](https://github.com/gardener/etcd-druid/issues/922) is implemented,
 	// we need to switch to the dedicated hibernation signal on the Etcd resource instead of inferring it from the replica count.
-	if druidv1alpha1.HasZeroReplicas(etcd) {
+	if etcd.Spec.Replicas == 0 {
 		return r.ensurePreSyncSnapshot(ctx, etcd, preSyncTaskHibernationPrefix)
 	}
 
@@ -321,15 +334,10 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		}
 	}
 
-	// During a scale-in, delete surplus PVCs and requeue until their deletion has
-	// been initiated before shrinking the StatefulSet. A no-op outside a scale-in.
-	allDeleted, err := r.deleteSurplusPVCs(ctx, etcd)
-	if err != nil {
+	// During a scale-in, delete the PVCs of the members being removed. A no-op
+	// outside a scale-in.
+	if err := r.deleteSurplusPVCs(ctx, etcd); err != nil {
 		return err
-	}
-	if !allDeleted {
-		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationSync,
-			fmt.Sprintf("waiting for surplus PVCs to be deleted before shrinking StatefulSet for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 
 	return r.createOrPatch(ctx, etcd)
@@ -473,7 +481,7 @@ func (r _resource) createOrPatch(ctx component.OperatorContext, etcd *druidv1alp
 
 func (r _resource) handleTLSChanges(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSts *appsv1.StatefulSet) error {
 	// There are no replicas and there is no need to handle any TLS changes. Once replicas are increased then new pods will automatically have the TLS changes.
-	if druidv1alpha1.HasZeroReplicas(etcd) {
+	if etcd.Spec.Replicas == 0 {
 		r.logger.Info("Skipping handling TLS changes for StatefulSet as replicas are set to 0")
 		return nil
 	}

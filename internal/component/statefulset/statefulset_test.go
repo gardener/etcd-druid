@@ -544,12 +544,11 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 	}
 }
 
-// TestSyncScaleInShrinksStatefulSet is the regression guard for the DEP-08
-// scale-in deadlock. A scale-in Sync must, in a single pass, delete the surplus
-// PVCs (ordinals >= spec.replicas) AND shrink the StatefulSet to spec.replicas.
-// The earlier bug requeued after issuing the PVC deletes, so the StatefulSet was
-// never shrunk: the surplus pods that held the pvc-protection finalizer were
-// never removed, the PVCs stayed Terminating, and the reconcile requeued forever.
+// TestSyncScaleInShrinksStatefulSet verifies that a scale-in Sync deletes the
+// surplus PVCs (ordinals >= spec.replicas) and shrinks the StatefulSet to
+// spec.replicas in a single pass. Requeuing before the shrink would deadlock:
+// the surplus pods hold the pvc-protection finalizer, so their PVCs cannot go
+// away until the StatefulSet removes those pods.
 func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
@@ -597,14 +596,9 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 		Reason: druidv1alpha1.ScaleOperationReasonScalingIn,
 	}}
 
-	// First Sync: deletes the surplus PVCs and requeues (PVC protection finalizer
-	// on real clusters means the STS cannot shrink until PVCs are gone).
-	firstSyncErr := operator.Sync(opCtx, etcd)
-	g.Expect(druiderr.AsDruidError(firstSyncErr)).NotTo(BeNil())
-	g.Expect(string(druiderr.AsDruidError(firstSyncErr).Code)).To(Equal(druiderr.ErrRequeueAfter),
-		"first Sync should requeue after deleting surplus PVCs")
+	// A single Sync deletes the surplus PVCs and shrinks the StatefulSet.
+	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
 
-	// Surplus PVCs must be deleted after the first Sync pass.
 	vctName := ptr.Deref(etcd.Spec.VolumeClaimTemplate, etcd.Name)
 	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
 	getPVCErr := func(ordinal int32) error {
@@ -613,15 +607,12 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 	}
 	for _, ordinal := range []int32{3, 4} {
 		g.Expect(getPVCErr(ordinal)).To(MatchError(apierrors.IsNotFound, "IsNotFound"),
-			"surplus PVC for ordinal %d must be deleted in the first Sync pass", ordinal)
+			"surplus PVC for ordinal %d must be deleted", ordinal)
 	}
-
-	// Second Sync: with surplus PVCs gone, shrinks the StatefulSet.
-	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
 
 	shrunkSTS, err := getLatestStatefulSet(cl, etcd)
 	g.Expect(err).To(Succeed())
-	g.Expect(shrunkSTS.Spec.Replicas).To(HaveValue(Equal(targetReplicas)), "StatefulSet must be shrunk to spec.replicas after surplus PVCs are gone")
+	g.Expect(shrunkSTS.Spec.Replicas).To(HaveValue(Equal(targetReplicas)), "StatefulSet must be shrunk to spec.replicas")
 	for _, ordinal := range []int32{0, 1, 2} {
 		g.Expect(getPVCErr(ordinal)).To(Succeed(), "retained PVC for ordinal %d must not be deleted", ordinal)
 	}

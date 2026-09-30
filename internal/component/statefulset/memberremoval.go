@@ -6,6 +6,7 @@ package statefulset
 
 import (
 	"fmt"
+	"slices"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -34,48 +35,63 @@ const (
 // lowered) and a bootstrap members removal (a joined bootstrapWithExistingCluster
 // source member dropped from spec). It is a no-op when neither applies.
 func (r _resource) ensureSurplusMembersAreRemoved(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	applicable, err := r.shouldRemoveSurplusMembers(ctx, etcd)
-	if err != nil || !applicable {
+	shouldRemove, err := r.shouldRemoveSurplusMembers(ctx, etcd)
+	if err != nil || !shouldRemove {
 		return err
 	}
 
-	memberClient, err := r.newMemberClient(ctx, etcd)
+	etcdClient, err := r.newEtcdClient(ctx, etcd)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if cerr := memberClient.Close(); cerr != nil {
-			ctx.Logger.Error(cerr, "failed to close etcd member client")
+		if cerr := etcdClient.Close(); cerr != nil {
+			ctx.Logger.Error(cerr, "failed to close etcd client")
 		}
 	}()
 
-	members, err := getLiveMembersFromCluster(ctx, etcd, memberClient)
+	liveMembers, err := getLiveMembersFromCluster(ctx, etcd, etcdClient)
 	if err != nil {
 		return err
 	}
 
-	// Bootstrap decommission: hold until all druid-managed members are live and
-	// healthy, so the target cluster stands on its own before any source member leaves.
-	if isBootstrapMembersRemoval(etcd) && !etcdmember.AllMembersHealthy(members, managedMemberNames(etcd)) {
-		ctx.Logger.Info("holding bootstrap member decommission: not all managed members are live and healthy yet")
+	// Bootstrap decommission: hold until every member of the Etcd is live and
+	// healthy, so the target cluster stands on its own before any source member
+	// leaves.
+	namesWithoutBootstrappedMembers := druidv1alpha1.GetMemberNames(etcd)
+	withoutBootstrappedMembers, _ := liveMembers.Split(namesWithoutBootstrappedMembers)
+	if druidv1alpha1.HasBootstrapMembersToDecommission(etcd) &&
+		(len(withoutBootstrappedMembers) != len(namesWithoutBootstrappedMembers) || !withoutBootstrappedMembers.AllHealthy()) {
+		ctx.Logger.Info("holding bootstrap member decommission: not all members of the Etcd are live and healthy yet")
 		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
-			fmt.Sprintf("cannot decommission bootstrap members: waiting for all managed members to become live and healthy for etcd %v",
+			fmt.Sprintf("cannot decommission bootstrap members: waiting for all members of the Etcd to become live and healthy for etcd %v",
 				client.ObjectKeyFromObject(etcd)))
 	}
 
-	surplus := etcdmember.SurplusMemberNames(members, druidv1alpha1.ExpectedMemberNames(etcd))
-	candidate := etcdmember.SelectNextRemovalCandidate(members, surplus)
+	expectedNames := slices.Concat(namesWithoutBootstrappedMembers, druidv1alpha1.GetBootstrapMemberNames(etcd))
+	retained, surplus := liveMembers.Split(expectedNames)
+	candidate := etcdmember.SelectNextRemovalCandidate(surplus)
 	if candidate == nil {
 		return nil
 	}
 
-	if err := checkQuorumSafeMemberRemoval(ctx, etcd, *candidate, members); err != nil {
+	if err := checkQuorumSafeMemberRemoval(ctx, etcd, *candidate, liveMembers); err != nil {
 		return err
+	}
+
+	// Removing the leader forces a leader election and a short loss of
+	// availability. Hand leadership to another member first and remove the
+	// former leader on the next reconcile.
+	if candidate.Role == etcdmember.MemberRoleLeader {
+		moved, err := moveLeadershipAway(ctx, etcd, etcdClient, *candidate, retained)
+		if err != nil || moved {
+			return err
+		}
 	}
 
 	ctx.Logger.Info("removing surplus etcd member",
 		"member", candidate.Name, "memberID", fmt.Sprintf("%x", candidate.ID))
-	if err := memberClient.MemberRemove(ctx, candidate.ID); err != nil {
+	if err := etcdClient.MemberRemove(ctx, candidate.ID); err != nil {
 		return druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
 			fmt.Sprintf("failed to remove etcd member %s for etcd: %v", candidate.Name, client.ObjectKeyFromObject(etcd)))
 	}
@@ -109,8 +125,8 @@ func (r _resource) shouldRemoveSurplusMembers(ctx component.OperatorContext, etc
 	}
 
 	// Zero replicas is not a scale-in: do not treat live members as surplus.
-	// When the cluster scales back up, the pods and members are recreated.
-	if druidv1alpha1.HasZeroReplicas(etcd) {
+	// When the cluster scales back out, the pods and members are recreated.
+	if etcd.Spec.Replicas == 0 {
 		return false, nil
 	}
 
@@ -126,20 +142,20 @@ func (r _resource) shouldRemoveSurplusMembers(ctx component.OperatorContext, etc
 	return existingSts != nil && existingSts.Status.ReadyReplicas > 0, nil
 }
 
-// newMemberClient dials the etcd cluster and returns a member client. The caller
+// newEtcdClient dials the etcd cluster and returns an etcd client. The caller
 // owns the returned client and must close it.
-func (r _resource) newMemberClient(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (etcdclient.Client, error) {
-	memberClient, err := r.clientFactory.NewClient(ctx, r.client, etcd)
+func (r _resource) newEtcdClient(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (etcdclient.Client, error) {
+	etcdClient, err := r.clientFactory.NewClient(ctx, r.client, etcd)
 	if err != nil {
 		return nil, druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
-			fmt.Sprintf("failed to create etcd member client for etcd: %v", client.ObjectKeyFromObject(etcd)))
+			fmt.Sprintf("failed to create etcd client for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
-	return memberClient, nil
+	return etcdClient, nil
 }
 
 // getLiveMembersFromCluster returns the current live member list from the etcd cluster.
-func getLiveMembersFromCluster(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, memberClient etcdclient.Client) ([]etcdmember.Member, error) {
-	members, err := memberClient.MemberList(ctx)
+func getLiveMembersFromCluster(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, etcdClient etcdclient.Client) (etcdmember.Members, error) {
+	members, err := etcdClient.MemberList(ctx)
 	if err != nil {
 		return nil, druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
 			fmt.Sprintf("failed to list etcd members for etcd: %v", client.ObjectKeyFromObject(etcd)))
@@ -147,11 +163,36 @@ func getLiveMembersFromCluster(ctx component.OperatorContext, etcd *druidv1alpha
 	return members, nil
 }
 
+// moveLeadershipAway transfers leadership from leader, which is about to be
+// removed, to a healthy voting member in retained. Bootstrap members listed in
+// spec.etcd.bootstrapWithExistingCluster are passed as the last preference, so
+// leadership goes to any other retained member first. On a successful transfer
+// it returns true together with a requeue error, so the former leader is
+// removed on the next reconcile. When no member can take over, it returns false
+// and the caller removes the leader directly.
+func moveLeadershipAway(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, etcdClient etcdclient.Client, leader etcdmember.Member, retained etcdmember.Members) (bool, error) {
+	transferee := etcdmember.SelectLeaderTransferee(retained, druidv1alpha1.GetBootstrapMemberNames(etcd))
+	if transferee == nil {
+		ctx.Logger.Info("no healthy member can take over leadership; removing the leader directly", "leader", leader.Name)
+		return false, nil
+	}
+
+	ctx.Logger.Info("moving etcd leadership before removing the leader",
+		"leader", leader.Name, "transferee", transferee.Name)
+	if err := etcdClient.MoveLeader(ctx, leader.ClientURLs, transferee.ID); err != nil {
+		return true, druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
+			fmt.Sprintf("failed to move leadership from %s to %s for etcd: %v", leader.Name, transferee.Name, client.ObjectKeyFromObject(etcd)))
+	}
+	return true, druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
+		fmt.Sprintf("moved leadership from %s to %s; requeuing to remove the former leader for etcd %v",
+			leader.Name, transferee.Name, client.ObjectKeyFromObject(etcd)))
+}
+
 // checkQuorumSafeMemberRemoval refuses to remove candidate when doing so would
 // break quorum. The returned error requeues and records
 // ERR_QUORUM_UNSAFE_MEMBER_REMOVAL in status.lastErrors (see
 // preSyncEtcdResources); it clears once removal becomes safe.
-func checkQuorumSafeMemberRemoval(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, candidate etcdmember.Member, members []etcdmember.Member) error {
+func checkQuorumSafeMemberRemoval(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, candidate etcdmember.Member, members etcdmember.Members) error {
 	if etcdmember.QuorumSafeToRemove(members, candidate.ID) {
 		return nil
 	}
@@ -160,21 +201,4 @@ func checkQuorumSafeMemberRemoval(ctx component.OperatorContext, etcd *druidv1al
 	return druiderr.New(ErrQuorumUnsafeMemberRemoval, component.OperationPreSync,
 		fmt.Sprintf("member %s not removed: removal would break quorum for etcd %v; waiting for the cluster to become healthy",
 			candidate.Name, client.ObjectKeyFromObject(etcd)))
-}
-
-// isBootstrapMembersRemoval reports whether this reconcile is decommissioning
-// source members joined via bootstrapWithExistingCluster.
-func isBootstrapMembersRemoval(etcd *druidv1alpha1.Etcd) bool {
-	return len(druidv1alpha1.GetBootstrapMemberNamesToDecommission(etcd)) > 0
-}
-
-// managedMemberNames returns the set of member names backing pod ordinals in
-// [0, spec.replicas): the members the desired state wants to keep.
-func managedMemberNames(etcd *druidv1alpha1.Etcd) map[string]bool {
-	names := make(map[string]bool, etcd.Spec.Replicas)
-	for ordinal := int32(0); ordinal < etcd.Spec.Replicas; ordinal++ {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, int(ordinal))
-		names[druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)] = true
-	}
-	return names
 }
