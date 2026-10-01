@@ -440,6 +440,126 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 	})
 }
 
+// TestEnsureMemberRemovalExternallyManagedMembers verifies surplus member
+// removal for externally managed members: a live member whose address is no
+// longer in spec.externallyManagedMemberAddresses is removed without any scale
+// condition or StatefulSet replicas, but only once the cluster has formed.
+func TestEnsureMemberRemovalExternallyManagedMembers(t *testing.T) {
+	const (
+		ip0 = "10.0.0.1"
+		ip1 = "10.0.0.2"
+		ip2 = "10.0.0.3"
+	)
+	member := func(ip string) string { return fmt.Sprintf("%s-%s", removalEtcdName, ip) }
+
+	tests := []struct {
+		name string
+		// noStatusMembers leaves status.members empty (cluster not formed yet).
+		noStatusMembers bool
+		liveMembers     []etcdmember.Member
+		wantRequeue     bool
+		wantRemoved     []uint64
+	}{
+		{
+			name:            "cluster not formed yet -> no-op",
+			noStatusMembers: true,
+			liveMembers:     []etcdmember.Member{healthyLeader(0x1, member(ip0)), healthyVoter(0x2, member(ip1)), healthyVoter(0x3, member(ip2))},
+		},
+		{
+			name:        "address removed from spec -> surplus member removed",
+			liveMembers: []etcdmember.Member{healthyLeader(0x1, member(ip0)), healthyVoter(0x2, member(ip1)), healthyVoter(0x3, member(ip2))},
+			wantRequeue: true,
+			wantRemoved: []uint64{0x3},
+		},
+		{
+			name: "removed member already stopped -> still removed",
+			liveMembers: []etcdmember.Member{
+				healthyLeader(0x1, member(ip0)),
+				healthyVoter(0x2, member(ip1)),
+				{ID: 0x3, Name: member(ip2), Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnknown},
+			},
+			wantRequeue: true,
+			wantRemoved: []uint64{0x3},
+		},
+		{
+			name:        "every live member in spec -> no-op",
+			liveMembers: []etcdmember.Member{healthyLeader(0x1, member(ip0)), healthyVoter(0x2, member(ip1))},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			// spec keeps ip0 and ip1; ip2 has been removed.
+			etcd := testutils.EtcdBuilderWithoutDefaults(removalEtcdName, removalNamespace).
+				WithReplicas(2).
+				WithExternallyManagedMembers([]string{ip0, ip1}).
+				Build()
+			etcd.UID = removalEtcdUID
+			if !tc.noStatusMembers {
+				etcd.Status.Members = []druidv1alpha1.EtcdMemberStatus{{Name: member(ip0)}, {Name: member(ip1)}, {Name: member(ip2)}}
+			}
+			cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(etcd.DeepCopy()).Build()
+			fakeClient := &etcdfake.Client{Members: tc.liveMembers}
+			r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: fakeClient}}
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+			err := r.ensureSurplusMembersAreRemoved(opCtx, etcd)
+			if tc.wantRequeue {
+				g.Expect(druiderr.AsDruidError(err).Code).To(Equal(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			g.Expect(fakeClient.RemoveCalls).To(Equal(tc.wantRemoved))
+		})
+	}
+}
+
+// TestShouldRemoveSurplusMembersExternallyManagedMembers verifies that for
+// externally managed members, surplus member removal runs once the cluster has
+// formed, without a scale-in condition or a StatefulSet.
+func TestShouldRemoveSurplusMembersExternallyManagedMembers(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusMembers []druidv1alpha1.EtcdMemberStatus
+		want          bool
+	}{
+		{
+			name: "cluster not formed yet -> false",
+			want: false,
+		},
+		{
+			name:          "cluster formed -> true",
+			statusMembers: []druidv1alpha1.EtcdMemberStatus{{Name: "etcd-main-10.0.0.1"}, {Name: "etcd-main-10.0.0.2"}},
+			want:          true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			etcd := testutils.EtcdBuilderWithoutDefaults(removalEtcdName, removalNamespace).
+				WithReplicas(2).
+				WithExternallyManagedMembers([]string{"10.0.0.1", "10.0.0.2"}).
+				Build()
+			etcd.Status.Members = tc.statusMembers
+			// No StatefulSet and no scale condition: neither is needed for
+			// externally managed members.
+			cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(etcd.DeepCopy()).Build()
+			r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: &etcdfake.Client{}}}
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+			got, err := r.shouldRemoveSurplusMembers(opCtx, etcd)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(got).To(Equal(tc.want))
+		})
+	}
+}
+
 // TestSplitExpectedMembersBootstrapRemoval verifies that a joined bootstrap
 // member no longer present in spec is surplus even without a replica change,
 // while the Etcd's own members and the bootstrap members still in spec are
