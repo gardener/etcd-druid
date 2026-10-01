@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"slices"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,15 +32,14 @@ func GetClientServiceName(etcdObjMeta metav1.ObjectMeta) string {
 func GetClientHostname(etcd *Etcd) string {
 	if ArePodsManagedByEtcdDruid(etcd) {
 		return fmt.Sprintf("%s.%s.svc", GetClientServiceName(etcd.ObjectMeta), etcd.Namespace)
-	} else {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
-		if err != nil {
-			// Fallback to first member address in case of an error
-			return etcd.Spec.ExternallyManagedMemberAddresses[0]
-		}
-		randomIndex := int(n.Int64())
-		return etcd.Spec.ExternallyManagedMemberAddresses[randomIndex]
 	}
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(etcd.Spec.ExternallyManagedMemberAddresses))))
+	if err != nil {
+		// Fallback to first member address in case of an error
+		return etcd.Spec.ExternallyManagedMemberAddresses[0]
+	}
+	randomIndex := int(n.Int64())
+	return etcd.Spec.ExternallyManagedMemberAddresses[randomIndex]
 }
 
 // GetServiceAccountName returns the service account name for the Etcd.
@@ -139,23 +139,78 @@ func GetAllPodNames(etcdObjMeta metav1.ObjectMeta, replicas int32) []string {
 	return podNames
 }
 
-// GetMemberLeaseNames returns the name of member leases for the Etcd.
-func GetMemberLeaseNames(etcd *Etcd) []string {
+// GetMemberNames returns the names of the Etcd's own members, one per pod or
+// per externally managed member address. Bootstrap members are not included.
+func GetMemberNames(etcd *Etcd) []string {
 	if ArePodsManagedByEtcdDruid(etcd) {
-		leaseNames := make([]string, etcd.Spec.Replicas)
+		names := make([]string, etcd.Spec.Replicas)
 		for i := range int(etcd.Spec.Replicas) {
 			podName := GetOrdinalPodName(etcd.ObjectMeta, i)
-			leaseNames[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+			names[i] = GetMemberName(etcd.Spec.MemberNamePrefix, podName)
 		}
-		return leaseNames
-	} else {
-		memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
-		leaseNames := make([]string, len(memberAddresses))
-		for i, memberAddress := range memberAddresses {
-			leaseNames[i] = GetMemberNameFromAddress(etcd, memberAddress)
-		}
-		return leaseNames
+		return names
 	}
+	memberAddresses := etcd.Spec.ExternallyManagedMemberAddresses
+	names := make([]string, len(memberAddresses))
+	for i, memberAddress := range memberAddresses {
+		names[i] = GetMemberNameFromAddress(etcd, memberAddress)
+	}
+	return names
+}
+
+// GetMemberLeaseNames returns the names of the member leases for the Etcd.
+func GetMemberLeaseNames(etcd *Etcd) []string {
+	return GetMemberNames(etcd)
+}
+
+// GetBootstrapMemberNames returns the names of the members listed in
+// spec.etcd.bootstrapWithExistingCluster.
+func GetBootstrapMemberNames(etcd *Etcd) []string {
+	if etcd.Spec.Etcd.BootstrapWithExistingCluster == nil {
+		return nil
+	}
+	members := etcd.Spec.Etcd.BootstrapWithExistingCluster.Members
+	names := make([]string, 0, len(members))
+	for _, m := range members {
+		names = append(names, m.Name)
+	}
+	return names
+}
+
+// ExpectedMemberNames returns the names of the members the Etcd expects in the
+// etcd cluster: its own members plus the source members listed in
+// spec.etcd.bootstrapWithExistingCluster. Any other live member is surplus.
+func ExpectedMemberNames(etcd *Etcd) []string {
+	return slices.Concat(GetMemberNames(etcd), GetBootstrapMemberNames(etcd))
+}
+
+// GetBootstrapMemberNamesToDecommission returns the names of the members recorded as
+// joined in status.bootstrapWithExistingCluster.members that are no longer
+// present in spec.etcd.bootstrapWithExistingCluster.members. When the spec field
+// is unset, all joined members are returned (removing them decommissions the
+// source cluster). It returns nil when there is nothing to remove (no joined
+// members recorded, or every joined member is still present in spec).
+func GetBootstrapMemberNamesToDecommission(etcd *Etcd) []string {
+	statusBootstrap := etcd.Status.BootstrapWithExistingCluster
+	if statusBootstrap == nil || len(statusBootstrap.Members) == 0 {
+		return nil
+	}
+
+	specNames := GetBootstrapMemberNames(etcd)
+	var names []string
+	for _, joined := range statusBootstrap.Members {
+		if !slices.Contains(specNames, joined.Name) {
+			names = append(names, joined.Name)
+		}
+	}
+	return names
+}
+
+// HasBootstrapMembersToDecommission reports whether any joined bootstrap members
+// recorded in status.bootstrapWithExistingCluster.members are no longer present
+// in spec and therefore need to be decommissioned.
+func HasBootstrapMembersToDecommission(etcd *Etcd) bool {
+	return len(GetBootstrapMemberNamesToDecommission(etcd)) > 0
 }
 
 // GetPodDisruptionBudgetName returns the name of the pod disruption budget for the Etcd.
@@ -186,6 +241,11 @@ func GetFullSnapshotLeaseName(etcdObjMeta metav1.ObjectMeta) string {
 // GetStatefulSetName returns the name of the StatefulSet for the Etcd.
 func GetStatefulSetName(etcdObjMeta metav1.ObjectMeta) string {
 	return etcdObjMeta.Name
+}
+
+// GetClientPort returns the etcd client port, defaulting to 2379 when unset.
+func GetClientPort(etcd *Etcd) int32 {
+	return ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379)
 }
 
 // --------------- Miscellaneous helper functions ---------------
@@ -270,4 +330,36 @@ func RemoveOperationAnnotation(etcdObjMeta metav1.ObjectMeta) {
 // ArePodsManagedByEtcdDruid checks if the management of pods is handled by etcd-druid for an Etcd resource.
 func ArePodsManagedByEtcdDruid(etcd *Etcd) bool {
 	return len(etcd.Spec.ExternallyManagedMemberAddresses) == 0
+}
+
+// GetCondition returns the condition with the given type from the Etcd status,
+// or nil when no such condition is present.
+func GetCondition(etcd *Etcd, condType ConditionType) *Condition {
+	for i := range etcd.Status.Conditions {
+		if etcd.Status.Conditions[i].Type == condType {
+			return &etcd.Status.Conditions[i]
+		}
+	}
+	return nil
+}
+
+// GetScaleOperationCompleteCondition returns the ScaleOperationComplete
+// condition, or nil if it has not been recorded. A cluster that has never been
+// scaled has no such condition.
+func GetScaleOperationCompleteCondition(etcd *Etcd) *Condition {
+	return GetCondition(etcd, ConditionTypeScaleOperationComplete)
+}
+
+// HasScaleOperationCompleted reports whether no scale operation is in progress,
+// that is, the ScaleOperationComplete condition is absent or not False.
+func HasScaleOperationCompleted(etcd *Etcd) bool {
+	cond := GetScaleOperationCompleteCondition(etcd)
+	return cond == nil || cond.Status != ConditionFalse
+}
+
+// IsScaleOperationInProgressWithReason reports whether a scale operation is in
+// progress (ScaleOperationComplete=False) for one of the given reasons.
+func IsScaleOperationInProgressWithReason(etcd *Etcd, reasons ...string) bool {
+	cond := GetScaleOperationCompleteCondition(etcd)
+	return cond != nil && cond.Status == ConditionFalse && slices.Contains(reasons, cond.Reason)
 }

@@ -101,11 +101,11 @@ func TestValidateUpdateSpecReplicas(t *testing.T) {
 			expectErr:       false,
 		},
 		{
-			name:            "Invalid update to replicas #1",
-			etcdName:        "etcd-invalid-dec",
+			name:            "Valid update to replicas #3",
+			etcdName:        "etcd-valid-dec",
 			initialReplicas: 5,
 			updatedReplicas: 3,
-			expectErr:       true,
+			expectErr:       false,
 		},
 	}
 

@@ -152,8 +152,37 @@ func emptyConfigMap(objectKey client.ObjectKey) *corev1.ConfigMap {
 	}
 }
 
+// checkSumExcludedConfigKeys are etcd config fields that are fully derived from
+// the replica count and member DNS names. They change on every scale-in/scale-out
+// but carry no configuration a running member must restart to pick up (membership
+// is tracked via etcd's own data dir and membership API). Excluding them from the
+// checksum keeps a scale operation from rolling the surviving pods and dropping
+// quorum. listen-peer-urls/listen-client-urls are intentionally NOT excluded: they
+// change only on a port or TLS-scheme change, which must roll the pods.
+var checkSumExcludedConfigKeys = []string{
+	"initial-cluster",
+	"initial-advertise-peer-urls",
+	"advertise-client-urls",
+}
+
 func computeCheckSum(cm *corev1.ConfigMap) (string, error) {
-	jsonData, err := json.Marshal(cm.Data)
+	etcdConfigYAML, ok := cm.Data[common.EtcdConfigFileName]
+	if !ok {
+		jsonData, err := json.Marshal(cm.Data)
+		if err != nil {
+			return "", err
+		}
+		return utils.ComputeSHA256Hex(jsonData), nil
+	}
+
+	etcdConfig := make(map[string]any)
+	if err := yaml.Unmarshal([]byte(etcdConfigYAML), &etcdConfig); err != nil {
+		return "", err
+	}
+	for _, key := range checkSumExcludedConfigKeys {
+		delete(etcdConfig, key)
+	}
+	jsonData, err := json.Marshal(etcdConfig)
 	if err != nil {
 		return "", err
 	}

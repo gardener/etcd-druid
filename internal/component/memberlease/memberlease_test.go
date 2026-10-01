@@ -14,6 +14,7 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
@@ -89,7 +90,7 @@ func TestGetExistingResourceNames(t *testing.T) {
 					existingObjects = append(existingObjects, lease)
 				}
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd.ObjectMeta), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(nil, tc.listErr, etcd.Namespace, kutil.MemberLeaseSelectorLabels(etcd.ObjectMeta), existingObjects...)
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			memberLeaseNames, err := operator.GetExistingResourceNames(opCtx, etcd.ObjectMeta)
@@ -152,7 +153,19 @@ func TestSync(t *testing.T) {
 			numExistingLeases:       3,
 		},
 		{
-			name:              "should not delete excess member leases when hibernating druid-managed members",
+			name:              "deletes surplus member leases when druid-managed cluster scales in from 3 to 1",
+			etcdReplicas:      3,
+			deltaEtcdReplicas: -2,
+			numExistingLeases: 3,
+		},
+		{
+			name:              "deletes surplus member leases when druid-managed cluster scales in from 5 to 3",
+			etcdReplicas:      5,
+			deltaEtcdReplicas: -2,
+			numExistingLeases: 5,
+		},
+		{
+			name:              "should not delete excess member leases when scaling druid-managed members to zero",
 			etcdReplicas:      3,
 			deltaEtcdReplicas: -3,
 			numExistingLeases: 3,
@@ -217,7 +230,7 @@ func TestSync(t *testing.T) {
 				testutils.CheckDruidError(g, tc.expectedErr, err)
 				g.Expect(memberLeasesPostSync).Should(HaveLen(tc.numExistingLeases))
 			} else {
-				if updatedEtcd.Spec.Replicas == 0 { // hibernation
+				if updatedEtcd.Spec.Replicas == 0 {
 					g.Expect(memberLeasesPostSync).To(ConsistOf(memberLeases(&etcd, etcd.UID, etcd.Spec.Replicas)))
 				} else {
 					g.Expect(memberLeasesPostSync).To(ConsistOf(memberLeases(&updatedEtcd, updatedEtcd.UID, updatedEtcd.Spec.Replicas)))
@@ -289,7 +302,7 @@ func TestTriggerDelete(t *testing.T) {
 			for _, nonTargetLeaseName := range nonTargetLeaseNames {
 				existingObjects = append(existingObjects, testutils.CreateLease(nonTargetLeaseName, nonTargetEtcd.Namespace, nonTargetEtcd.Name, nonTargetEtcd.UID, common.ComponentNameMemberLease))
 			}
-			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, getSelectorLabelsForAllMemberLeases(etcd.ObjectMeta), existingObjects...)
+			cl := testutils.CreateTestFakeClientForAllObjectsInNamespace(tc.deleteAllOfErr, nil, etcd.Namespace, kutil.MemberLeaseSelectorLabels(etcd.ObjectMeta), existingObjects...)
 			// ***************** Setup component operator and test *****************
 			operator := New(cl)
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())

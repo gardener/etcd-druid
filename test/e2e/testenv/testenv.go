@@ -7,11 +7,15 @@ package testenv
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	"github.com/gardener/etcd-druid/internal/component/clientservice"
@@ -25,10 +29,12 @@ import (
 	"github.com/gardener/etcd-druid/internal/component/snapshotlease"
 	"github.com/gardener/etcd-druid/internal/component/statefulset"
 	"github.com/gardener/etcd-druid/internal/images"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +42,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport/spdy"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -51,17 +61,19 @@ const (
 
 // TestEnvironment encapsulates the test environment for e2e tests.
 type TestEnvironment struct {
-	ctx       context.Context
-	cancelCtx context.CancelFunc
-	cl        client.Client
+	ctx        context.Context
+	cancelCtx  context.CancelFunc
+	cl         client.Client
+	restConfig *rest.Config
 }
 
 // NewTestEnvironment creates a new TestEnvironment instance.
-func NewTestEnvironment(ctx context.Context, cancelCtx context.CancelFunc, cl client.Client) *TestEnvironment {
+func NewTestEnvironment(ctx context.Context, cancelCtx context.CancelFunc, cl client.Client, restConfig *rest.Config) *TestEnvironment {
 	return &TestEnvironment{
-		ctx:       ctx,
-		cancelCtx: cancelCtx,
-		cl:        cl,
+		ctx:        ctx,
+		cancelCtx:  cancelCtx,
+		cl:         cl,
+		restConfig: restConfig,
 	}
 }
 
@@ -139,24 +151,41 @@ func (t *TestEnvironment) CreateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd,
 
 // HibernateAndCheckEtcd hibernates the Etcd object and checks if it is in hibernated state.
 func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	etcd.Spec.Replicas = 0
-	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		etcd.Spec.Replicas = 0
+		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
+		return t.cl.Update(t.ctx, etcd)
+	})).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // UnhibernateAndCheckEtcd unhibernates the Etcd object and checks if it is in unhibernated state.
 func (t *TestEnvironment) UnhibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, replicas int32, timeout time.Duration) {
-	etcd.Spec.Replicas = replicas
-	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		etcd.Spec.Replicas = replicas
+		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
+		return t.cl.Update(t.ctx, etcd)
+	})).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // UpdateAndCheckEtcd updates the Etcd object and checks if the update took effect.
 func (t *TestEnvironment) UpdateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-	g.Expect(t.cl.Update(t.ctx, etcd)).To(Succeed())
+	desiredSpec := *etcd.Spec.DeepCopy()
+	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
+			return err
+		}
+		etcd.Spec = desiredSpec
+		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
+		return t.cl.Update(t.ctx, etcd)
+	})).To(Succeed())
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
@@ -248,7 +277,7 @@ func (t *TestEnvironment) getOperatorRegistry() (component.Registry, error) {
 	reg.Register(component.ClientServiceKind, clientservice.New(t.Client()))
 	reg.Register(component.PeerServiceKind, peerservice.New(t.Client()))
 	reg.Register(component.ConfigMapKind, configmap.New(t.Client()))
-	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector))
+	reg.Register(component.StatefulSetKind, statefulset.New(t.Client(), imageVector, etcdclient.NewFactory()))
 
 	return reg, nil
 }
@@ -355,6 +384,239 @@ func (t *TestEnvironment) getEtcdPVCs(etcd *druidv1alpha1.Etcd) ([]corev1.Persis
 		return nil, fmt.Errorf("failed to list PVCs: %w", err)
 	}
 	return pvcList.Items, nil
+}
+
+// CheckEtcdPVCCount asserts that the number of PVCs associated with the Etcd
+// cluster eventually equals expectedCount. It is used by the scale-in e2e test
+// to verify that surplus member PVCs are cleaned up after a scale-in (DEP-08).
+func (t *TestEnvironment) CheckEtcdPVCCount(g *WithT, etcd *druidv1alpha1.Etcd, expectedCount int, timeout time.Duration) {
+	g.Eventually(func() error {
+		pvcs, err := t.getEtcdPVCs(etcd)
+		if err != nil {
+			return fmt.Errorf("failed to get etcd PVCs: %w", err)
+		}
+		if len(pvcs) != expectedCount {
+			return fmt.Errorf("etcd %s has %d PVCs, expected %d", etcd.Name, len(pvcs), expectedCount)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// CorruptEtcdMemberData deletes the data directory (new.etcd/member) of the
+// etcd member in the given pod without deleting the pod, so only its etcd
+// container restarts. The etcd image has no shell, so the deletion runs in an
+// ephemeral container that mounts the etcd data volume.
+func (t *TestEnvironment) CorruptEtcdMemberData(g *WithT, etcd *druidv1alpha1.Etcd, podName string, timeout time.Duration) {
+	pod := &corev1.Pod{}
+	g.Expect(t.cl.Get(t.ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: podName}, pod)).To(Succeed())
+	restarts := etcdContainerRestartCount(pod)
+
+	var dataVolumeMount *corev1.VolumeMount
+	for _, c := range pod.Spec.Containers {
+		if c.Name != common.ContainerNameEtcd {
+			continue
+		}
+		for _, vm := range c.VolumeMounts {
+			if vm.MountPath == common.VolumeMountPathEtcdData {
+				dataVolumeMount = vm.DeepCopy()
+			}
+		}
+	}
+	g.Expect(dataVolumeMount).NotTo(BeNil(), "etcd container of pod %s has no data volume mount", podName)
+
+	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{
+		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+			Name:            "corrupt-data",
+			Image:           "alpine/curl",
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Command:         []string{"/bin/sh", "-c", fmt.Sprintf("rm -rf %s/new.etcd/member", common.VolumeMountPathEtcdData)},
+			VolumeMounts:    []corev1.VolumeMount{*dataVolumeMount},
+		},
+	})
+	g.Expect(t.cl.SubResource("ephemeralcontainers").Update(t.ctx, pod)).To(Succeed())
+
+	// The etcd container fails on the missing data directory and is restarted
+	// by the kubelet in the same pod.
+	g.Eventually(func() error {
+		current := &corev1.Pod{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(pod), current); err != nil {
+			return err
+		}
+		if current.UID != pod.UID {
+			return fmt.Errorf("pod %s was recreated, expected only its etcd container to restart", podName)
+		}
+		if etcdContainerRestartCount(current) <= restarts {
+			return fmt.Errorf("etcd container of pod %s has not restarted yet", podName)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// etcdContainerRestartCount returns the restart count of the etcd container of pod.
+func etcdContainerRestartCount(pod *corev1.Pod) int32 {
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.Name == common.ContainerNameEtcd {
+			return cs.RestartCount
+		}
+	}
+	return 0
+}
+
+// CheckEtcdMemberRejoined asserts that the etcd member in the given pod
+// eventually rejoins the etcd cluster as a voting member and sees all
+// spec.replicas members. It asks that member directly with a serializable
+// MemberList, so the answer comes from the member's own state.
+func (t *TestEnvironment) CheckEtcdMemberRejoined(g *WithT, etcd *druidv1alpha1.Etcd, podName string, timeout time.Duration) {
+	memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+	g.Eventually(func() error {
+		pod := corev1.Pod{}
+		if err := t.cl.Get(t.ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: podName}, &pod); err != nil {
+			return err
+		}
+		cli, closeFn, err := t.newEtcdClientForPod(etcd, pod)
+		if err != nil {
+			return err
+		}
+		defer closeFn()
+
+		ctx, cancel := context.WithTimeout(t.ctx, 10*time.Second)
+		defer cancel()
+		resp, err := cli.MemberList(ctx, clientv3.WithSerializable())
+		if err != nil {
+			return fmt.Errorf("failed to list etcd members from pod %s: %w", podName, err)
+		}
+		if len(resp.Members) != int(etcd.Spec.Replicas) {
+			return fmt.Errorf("etcd member %s sees %d members, expected %d", memberName, len(resp.Members), etcd.Spec.Replicas)
+		}
+		for _, m := range resp.Members {
+			if m.Name != memberName {
+				continue
+			}
+			if m.IsLearner {
+				return fmt.Errorf("etcd member %s is still a learner", memberName)
+			}
+			return nil
+		}
+		return fmt.Errorf("etcd member %s has not rejoined the etcd cluster yet", memberName)
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// CheckEtcdMemberCount asserts that the live etcd member list eventually has
+// exactly expectedCount members. It port-forwards to an etcd pod and calls
+// MemberList, so ghost members left in etcd after a scale-in are detected.
+func (t *TestEnvironment) CheckEtcdMemberCount(g *WithT, etcd *druidv1alpha1.Etcd, expectedCount int, timeout time.Duration) {
+	g.Eventually(func() error {
+		count, err := t.getEtcdMemberCount(etcd)
+		if err != nil {
+			return err
+		}
+		if count != expectedCount {
+			return fmt.Errorf("etcd %s has %d members, expected %d", etcd.Name, count, expectedCount)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// getEtcdMemberCount returns the number of members in the live etcd member list,
+// read through a port-forward to the first running etcd pod.
+func (t *TestEnvironment) getEtcdMemberCount(etcd *druidv1alpha1.Etcd) (int, error) {
+	pods, err := t.getEtcdPods(etcd)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get etcd pods: %w", err)
+	}
+	idx := slices.IndexFunc(pods, func(p corev1.Pod) bool { return p.Status.Phase == corev1.PodRunning })
+	if idx < 0 {
+		return 0, fmt.Errorf("no running etcd pod for %s", etcd.Name)
+	}
+
+	cli, closeFn, err := t.newEtcdClientForPod(etcd, pods[idx])
+	if err != nil {
+		return 0, err
+	}
+	defer closeFn()
+
+	ctx, cancel := context.WithTimeout(t.ctx, 10*time.Second)
+	defer cancel()
+	resp, err := cli.MemberList(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list etcd members: %w", err)
+	}
+	return len(resp.Members), nil
+}
+
+// newEtcdClientForPod returns an etcd client connected to the etcd member in
+// pod through a port-forward, and a function that closes the client and the
+// port-forward.
+func (t *TestEnvironment) newEtcdClientForPod(etcd *druidv1alpha1.Etcd, pod corev1.Pod) (*clientv3.Client, func(), error) {
+	localPort, stop, err := t.portForward(pod, druidv1alpha1.GetClientPort(etcd))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	scheme, tlsConfig, err := kutil.GetEtcdClientSchemeAndTLSConfig(t.ctx, t.cl, etcd)
+	if err != nil {
+		close(stop)
+		return nil, nil, fmt.Errorf("failed to build etcd client TLS config: %w", err)
+	}
+	if tlsConfig != nil {
+		// The server certificate is issued for the client Service name, not for
+		// the local port-forward address.
+		tlsConfig.ServerName = druidv1alpha1.GetClientServiceName(etcd.ObjectMeta)
+	}
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{fmt.Sprintf("%s://127.0.0.1:%d", scheme, localPort)},
+		DialTimeout: 10 * time.Second,
+		TLS:         tlsConfig,
+	})
+	if err != nil {
+		close(stop)
+		return nil, nil, fmt.Errorf("failed to create etcd client: %w", err)
+	}
+	return cli, func() {
+		_ = cli.Close()
+		close(stop)
+	}, nil
+}
+
+// portForward forwards a free local port to remotePort on pod. It returns the
+// local port and a channel that stops the forward when closed.
+func (t *TestEnvironment) portForward(pod corev1.Pod, remotePort int32) (uint16, chan struct{}, error) {
+	transport, upgrader, err := spdy.RoundTripperFor(t.restConfig)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create port-forward round tripper: %w", err)
+	}
+	reqURL, err := url.Parse(fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", t.restConfig.Host, pod.Namespace, pod.Name))
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to build port-forward URL: %w", err)
+	}
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, reqURL)
+
+	stop := make(chan struct{})
+	ready := make(chan struct{})
+	fw, err := portforward.NewOnAddresses(dialer, []string{"127.0.0.1"}, []string{fmt.Sprintf("0:%d", remotePort)}, stop, ready, io.Discard, io.Discard)
+	if err != nil {
+		close(stop)
+		return 0, nil, fmt.Errorf("failed to create port-forward to pod %s: %w", pod.Name, err)
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- fw.ForwardPorts() }()
+
+	select {
+	case <-ready:
+	case err := <-errCh:
+		close(stop)
+		return 0, nil, fmt.Errorf("port-forward to pod %s failed: %w", pod.Name, err)
+	case <-time.After(30 * time.Second):
+		close(stop)
+		return 0, nil, fmt.Errorf("timed out waiting for port-forward to pod %s", pod.Name)
+	}
+
+	ports, err := fw.GetPorts()
+	if err != nil || len(ports) == 0 {
+		close(stop)
+		return 0, nil, fmt.Errorf("failed to get forwarded port for pod %s: %v", pod.Name, err)
+	}
+	return ports[0].Local, stop, nil
 }
 
 // DeployZeroDowntimeValidatorJob deploys the zero downtime validator job.

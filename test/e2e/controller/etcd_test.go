@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 		_, _ = fmt.Fprintf(os.Stderr, "KUBECONFIG not provided: %v\n", err)
 		os.Exit(1)
 	}
-	cl, err := e2eutils.GetKubernetesClient(kubeconfigPath)
+	cl, restConfig, err := e2eutils.GetKubernetesClient(kubeconfigPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to create Kubernetes client: %v\n", err)
 		os.Exit(1)
@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), timeoutTest)
 
-	testEnv = testenv.NewTestEnvironment(ctx, cancelCtx, cl)
+	testEnv = testenv.NewTestEnvironment(ctx, cancelCtx, cl, restConfig)
 	if err = testEnv.PrepareScheme(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to prepare scheme: %v\n", err)
 		os.Exit(1)
@@ -269,6 +269,10 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 			}, timeoutEtcdCreation, timeoutEtcdDisruptionStart).Should(Succeed())
 			logger.Info("BootstrappedWithExistingCluster=True and status snapshot recorded")
 
+			// After the join, source and target form a single cluster, so the live
+			// member list on the target holds both sets: 2 * clusterSize members.
+			testEnv.CheckEtcdMemberCount(g, targetEtcd, 2*clusterSize, timeoutEtcdCreation)
+
 			// Capture the recorded JoinedAt to verify stickiness — later reconciles must
 			// not overwrite the original timestamp.
 			targetAfterJoin, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
@@ -290,6 +294,37 @@ func TestBootstrapWithExistingCluster(t *testing.T) {
 					"JoinedAt must not be rewritten on later reconciles")
 			}, timeoutEtcdDisruptionStart, pollingInterval).Should(Succeed())
 			logger.Info("condition and JoinedAt are stable")
+
+			// Decommission phase: remove the joined source members from the target's
+			// bootstrapWithExistingCluster spec. This triggers BootstrapMembersRemoval,
+			// which removes the source members from the etcd cluster and prunes the
+			// status snapshot, converging back to the target's own clusterSize members.
+			logger.Info("decommissioning source members: removing bootstrapWithExistingCluster from the target spec")
+			target, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+			g.Expect(err).NotTo(HaveOccurred())
+			// The whole spec object must be removed, not just .Members: members is a
+			// +required, MinItems=1 field, so an object with an empty members list is
+			// rejected by the CRD. Clearing the pointer is the API-valid decommission
+			// signal (see GetBootstrapMemberNames: an unset spec field decommissions
+			// all joined source members).
+			target.Spec.Etcd.BootstrapWithExistingCluster = nil
+			testEnv.UpdateAndCheckEtcd(g, target, timeoutEtcdUpdation)
+			logger.Info("successfully updated target spec to remove source members")
+
+			// The 3 source members must be removed from the etcd cluster (leaving the
+			// target's own clusterSize members), the status snapshot must be pruned,
+			// and ScaleOperationComplete must return to True.
+			testEnv.CheckEtcdMemberCount(g, target, clusterSize, timeoutEtcdUpdation)
+			g.Eventually(func(g Gomega) {
+				etcd, err := testEnv.GetEtcd(targetEtcdName, testNamespace)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(etcd.Status.BootstrapWithExistingCluster).To(BeNil(),
+					"status snapshot must be pruned once all joined source members are removed")
+				g.Expect(etcd.Status.Conditions).To(ContainElement(Satisfy(func(condition druidv1alpha1.Condition) bool {
+					return condition.Type == druidv1alpha1.ConditionTypeScaleOperationComplete && condition.Status == druidv1alpha1.ConditionTrue
+				})), "ScaleOperationComplete must return to True after the decommission completes")
+			}, timeoutEtcdUpdation, timeoutEtcdDisruptionStart).Should(Succeed())
+			logger.Info("source members decommissioned and status pruned")
 
 			logger.Info("finished running bootstrapWithExistingCluster test")
 			testSucceeded = true
@@ -368,12 +403,113 @@ func TestScaleOut(t *testing.T) {
 				logger.Info("creating Etcd")
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
+				// A single-member cluster starts with exactly one member PVC.
+				testEnv.CheckEtcdPVCCount(g, etcd, 1, timeoutEtcdCreation)
+				testEnv.CheckEtcdMemberCount(g, etcd, 1, timeoutEtcdCreation)
 
 				logger.Info("scaling out Etcd to 3 replicas")
 				etcd.Spec.Replicas = 3
 				updateEtcdTLSAndLabels(etcd, true, tc.peerTLSEnabledAfterScaleOut, true, tc.additionalLabelsAfterScaleOut)
 				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
 				logger.Info("successfully scaled out Etcd to 3 replicas")
+				// A scaled-out cluster must have one PVC and one live member per replica.
+				testEnv.CheckEtcdPVCCount(g, etcd, 3, timeoutEtcdUpdation)
+				testEnv.CheckEtcdMemberCount(g, etcd, 3, timeoutEtcdUpdation)
+
+				logger.Info("finished running tests")
+				testSucceeded = true
+			})
+		}
+	}
+}
+
+// TestScaleIn tests scale-in of an Etcd cluster across several replica
+// transitions. For every case it verifies that surplus members are removed from
+// the etcd cluster (no ghost members), surplus PVCs are deleted, and
+// ScaleOperationComplete returns to True on completion (asserted by
+// UpdateAndCheckEtcd via CheckEtcdReady). A zero-downtime validator asserts
+// the cluster kept serving requests throughout the scale-in.
+func TestScaleIn(t *testing.T) {
+	t.Parallel()
+	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
+
+	testCases := []struct {
+		name string
+		// initialReplicas is the replica count the cluster is created with.
+		initialReplicas int32
+		// targetReplicas is the replica count the cluster is scaled in to.
+		targetReplicas int32
+		purpose        string
+	}{
+		{
+			name:            "3to1",
+			initialReplicas: 3,
+			targetReplicas:  1,
+			purpose:         "scale in 3 -> 1 with zero downtime",
+		},
+		{
+			name:            "3to2",
+			initialReplicas: 3,
+			targetReplicas:  2,
+			purpose:         "scale in 3 -> 2 with zero downtime",
+		},
+		{
+			name:            "5to3",
+			initialReplicas: 5,
+			targetReplicas:  3,
+			purpose:         "scale in 5 -> 3 with zero downtime",
+		},
+	}
+
+	for _, provider := range providers {
+		for _, tc := range testCases {
+			tcName := fmt.Sprintf("scalein-%s-%s", tc.name, e2eutils.GetProviderSuffix(provider))
+			t.Run(tcName, func(t *testing.T) {
+				t.Parallel()
+				g := NewWithT(t)
+				var testSucceeded bool
+
+				testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
+				logger := log.WithName(tcName).WithValues("etcdName", e2eutils.DefaultEtcdName, "namespace", testNamespace)
+				defer func() {
+					e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+				}()
+				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
+
+				logger.Info("running tests", "purpose", tc.purpose)
+				etcd := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
+					WithReplicas(tc.initialReplicas).
+					WithClientTLS().
+					WithPeerTLS().
+					WithDefaultBackup().
+					WithBackupRestoreTLS().
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName)).
+					WithEtcdClientPort(ptr.To[int32](2379)).
+					Build()
+
+				logger.Info("creating Etcd", "replicas", tc.initialReplicas)
+				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
+				logger.Info("successfully created Etcd")
+				testEnv.CheckEtcdPVCCount(g, etcd, int(tc.initialReplicas), timeoutEtcdCreation)
+				testEnv.CheckEtcdMemberCount(g, etcd, int(tc.initialReplicas), timeoutEtcdCreation)
+
+				logger.Info("starting zero-downtime validator job")
+				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
+				logger.Info("started running zero-downtime validator job")
+
+				logger.Info("scaling in Etcd", "replicas", tc.targetReplicas)
+				etcd.Spec.Replicas = tc.targetReplicas
+				testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
+				logger.Info("successfully scaled in Etcd")
+
+				// Surplus members are removed from the etcd cluster (no ghost
+				// members) and their PVCs are cleaned up.
+				testEnv.CheckEtcdMemberCount(g, etcd, int(tc.targetReplicas), timeoutEtcdUpdation)
+				testEnv.CheckEtcdPVCCount(g, etcd, int(tc.targetReplicas), timeoutEtcdUpdation)
+
+				logger.Info("checking that no downtime occurred during scale-in")
+				testEnv.CheckForDowntime(g, testNamespace, false)
+				logger.Info("successfully verified no downtime occurred during scale-in")
 
 				logger.Info("finished running tests")
 				testSucceeded = true
@@ -515,6 +651,12 @@ func TestRecovery(t *testing.T) {
 		numMembersToBeCorrupted int
 		numPodsToBeDeleted      int
 		expectDowntime          bool
+		// scaleOutFromReplicas, when set, creates the Etcd with this many replicas
+		// and scales it out to replicas before the disruption.
+		scaleOutFromReplicas int32
+		// corruptFirstMemberDataInPlace deletes the data directory of the first
+		// member without deleting its pod, so only its etcd container restarts.
+		corruptFirstMemberDataInPlace bool
 	}{
 		{
 			name:               "1-del-1-pod",
@@ -566,6 +708,14 @@ func TestRecovery(t *testing.T) {
 			numMembersToBeCorrupted: 1,
 			expectDowntime:          true,
 		},
+		{
+			name:                          "1-to-3-corrupt-first-mem-in-place",
+			purpose:                       "test Etcd scaled out from 1 to 3 replicas by corrupting data of the first member without deleting its pod",
+			replicas:                      3,
+			scaleOutFromReplicas:          1,
+			corruptFirstMemberDataInPlace: true,
+			expectDowntime:                false,
+		},
 	}
 
 	for _, provider := range providers {
@@ -584,8 +734,12 @@ func TestRecovery(t *testing.T) {
 				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
+				initialReplicas := tc.replicas
+				if tc.scaleOutFromReplicas > 0 {
+					initialReplicas = tc.scaleOutFromReplicas
+				}
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
-					WithReplicas(tc.replicas).
+					WithReplicas(initialReplicas).
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
@@ -600,6 +754,14 @@ func TestRecovery(t *testing.T) {
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
+				if tc.scaleOutFromReplicas > 0 {
+					logger.Info("scaling out Etcd", "replicas", tc.replicas)
+					etcd.Spec.Replicas = tc.replicas
+					testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
+					testEnv.CheckEtcdMemberCount(g, etcd, int(tc.replicas), timeoutEtcdUpdation)
+					logger.Info("successfully scaled out Etcd", "replicas", tc.replicas)
+				}
+
 				logger.Info("starting zero-downtime validator job")
 				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
 				logger.Info("started running zero-downtime validator job")
@@ -607,9 +769,16 @@ func TestRecovery(t *testing.T) {
 				logger.Info("disrupting Etcd")
 				numPodsToBeDeleted := max(tc.numPodsToBeDeleted, tc.numMembersToBeCorrupted)
 				testEnv.DisruptEtcd(g, etcd, numPodsToBeDeleted, tc.numMembersToBeCorrupted, timeoutEtcdDisruptionStart)
+				firstMemberPodName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0)
+				if tc.corruptFirstMemberDataInPlace {
+					testEnv.CorruptEtcdMemberData(g, etcd, firstMemberPodName, timeoutEtcdDisruptionStart)
+				}
 				logger.Info("successfully disrupted Etcd")
 
 				logger.Info("waiting for Etcd to be ready again")
+				if tc.corruptFirstMemberDataInPlace {
+					testEnv.CheckEtcdMemberRejoined(g, etcd, firstMemberPodName, timeoutEtcdRecovery)
+				}
 				testEnv.CheckEtcdReady(g, etcd, timeoutEtcdRecovery)
 				logger.Info("Etcd is ready again")
 

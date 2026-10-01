@@ -38,14 +38,19 @@ func getKubeconfig(kubeconfigPath string) (*rest.Config, error) {
 	return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 }
 
-// GetKubernetesClient creates a Kubernetes client using the provided kubeconfig path.
-func GetKubernetesClient(kubeconfigPath string) (client.Client, error) {
+// GetKubernetesClient creates a Kubernetes client using the provided kubeconfig
+// path. It also returns the REST config, which is needed to port-forward to pods.
+func GetKubernetesClient(kubeconfigPath string) (client.Client, *rest.Config, error) {
 	config, err := getKubeconfig(kubeconfigPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return client.New(config, client.Options{})
+	cl, err := client.New(config, client.Options{})
+	if err != nil {
+		return nil, nil, err
+	}
+	return cl, config, nil
 }
 
 // ParseBackupProviders parses a comma-separated string of backup providers
