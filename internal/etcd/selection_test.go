@@ -257,6 +257,15 @@ func TestMembersSplit(t *testing.T) {
 	}
 }
 
+// TestMembersNames verifies that Names returns the member names in order and
+// an empty list for no members.
+func TestMembersNames(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	g.Expect(Members{{Name: "etcd-main-1"}, {Name: "etcd-main-0"}}.Names()).To(Equal(MemberNames{"etcd-main-1", "etcd-main-0"}))
+	g.Expect(Members(nil).Names()).To(BeEmpty())
+}
+
 // memberNamesOf returns the names of ms in order, or nil when ms is empty.
 func memberNamesOf(ms Members) []string {
 	var names []string

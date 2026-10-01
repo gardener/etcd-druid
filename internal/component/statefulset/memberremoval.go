@@ -32,7 +32,9 @@ const (
 // below quorum. A member is surplus when the live cluster contains it but the
 // desired spec does not, which happens in two cases: a scale-in (spec.replicas
 // lowered) and a bootstrap members removal (a joined bootstrapWithExistingCluster
-// source member dropped from spec). It is a no-op when neither applies.
+// source member dropped from spec). For externally managed members it also
+// covers an address removed from spec.externallyManagedMemberAddresses. It is a
+// no-op when none applies.
 func (r _resource) ensureSurplusMembersAreRemoved(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	shouldRemove, err := r.shouldRemoveSurplusMembers(ctx, etcd)
 	if err != nil || !shouldRemove {
@@ -54,17 +56,14 @@ func (r _resource) ensureSurplusMembersAreRemoved(ctx component.OperatorContext,
 		return err
 	}
 
-	// Bootstrap decommission: hold until every member of the Etcd is live and
-	// healthy, so the target cluster stands on its own before any source member
-	// leaves.
-	namesWithoutBootstrappedMembers := druidv1alpha1.GetMemberNames(etcd)
-	withoutBootstrappedMembers, _ := liveMembers.Split(namesWithoutBootstrappedMembers)
-	if druidv1alpha1.HasBootstrapMembersToDecommission(etcd) &&
-		(len(withoutBootstrappedMembers) != len(namesWithoutBootstrappedMembers) || !withoutBootstrappedMembers.AllHealthy()) {
-		ctx.Logger.Info("holding bootstrap member decommission: not all members of the Etcd are live and healthy yet")
-		return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
-			fmt.Sprintf("cannot decommission bootstrap members: waiting for all members of the Etcd to become live and healthy for etcd %v",
-				client.ObjectKeyFromObject(etcd)))
+	// For a bootstrap decommission, wait until the target cluster stands on its
+	// own before any source member leaves. For externally managed members, wait
+	// so that a member that is still joining (added but not started, so it has
+	// no name yet) is not taken for surplus.
+	if druidv1alpha1.HasBootstrapMembersToDecommission(etcd) || !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+		if err := checkAllMembersHealthy(ctx, etcd, liveMembers); err != nil {
+			return err
+		}
 	}
 
 	retained, surplus := liveMembers.Split(druidv1alpha1.ExpectedMemberNames(etcd))
@@ -112,6 +111,14 @@ func (r _resource) shouldRemoveSurplusMembers(ctx component.OperatorContext, etc
 		return false, nil
 	}
 
+	// etcd-druid does not manage the pods of externally managed members, so it
+	// cannot detect a scale-in from the StatefulSet. Once the cluster has formed,
+	// any live member that is not in spec.externallyManagedMemberAddresses is
+	// surplus.
+	if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+		return len(etcd.Status.Members) > 0, nil
+	}
+
 	// Surplus members only exist during a scale-in or bootstrap members removal.
 	// Skip the MemberList dial otherwise: during a config-only change (e.g. a
 	// peer/client TLS transition) it would time out and abort the very Sync that
@@ -138,6 +145,48 @@ func (r _resource) shouldRemoveSurplusMembers(ctx component.OperatorContext, etc
 			fmt.Sprintf("failed to get existing StatefulSet while checking for surplus members for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
 	return existingSts != nil && existingSts.Status.ReadyReplicas > 0, nil
+}
+
+// checkAllMembersHealthy returns a requeue error unless every member of the
+// Etcd (its own members, not the bootstrap source members) has joined the etcd
+// cluster and is healthy. The error and the log name the members that have not
+// joined, the members that are not healthy, and the surplus members whose
+// removal is held back.
+func checkAllMembersHealthy(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, liveMembers etcdmember.Members) error {
+	names := druidv1alpha1.GetMemberNames(etcd)
+	members, _ := liveMembers.Split(names)
+	joined := members.Names()
+
+	var notJoined, unhealthy []string
+	for _, name := range names {
+		if !joined.Has(name) {
+			notJoined = append(notJoined, name)
+		}
+	}
+	for _, m := range members {
+		if !m.IsHealthy() {
+			unhealthy = append(unhealthy, m.Name)
+		}
+	}
+	if len(notJoined) == 0 && len(unhealthy) == 0 {
+		return nil
+	}
+
+	// A member that has been added but not started has no name yet; it is
+	// joining, so it is not reported as held back.
+	var heldBack []string
+	_, surplus := liveMembers.Split(druidv1alpha1.ExpectedMemberNames(etcd))
+	for _, m := range surplus {
+		if m.Name != "" {
+			heldBack = append(heldBack, m.Name)
+		}
+	}
+
+	ctx.Logger.Info("holding surplus member removal until all members of the Etcd have joined the etcd cluster and are healthy",
+		"notJoined", notJoined, "unhealthy", unhealthy, "heldBack", heldBack)
+	return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
+		fmt.Sprintf("cannot remove surplus members %v for etcd %v: waiting for members to join the etcd cluster %v and to become healthy %v",
+			heldBack, client.ObjectKeyFromObject(etcd), notJoined, unhealthy))
 }
 
 // newEtcdClient dials the etcd cluster and returns an etcd client. The caller

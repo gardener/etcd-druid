@@ -85,6 +85,15 @@ func (ms Members) AllHealthy() bool {
 	return true
 }
 
+// Names returns the names of the members in ms, in order.
+func (ms Members) Names() MemberNames {
+	names := make(MemberNames, 0, len(ms))
+	for _, m := range ms {
+		names = append(names, m.Name)
+	}
+	return names
+}
+
 // Split returns the members whose name is in names and the members whose name
 // is not. Both results keep the order of ms.
 func (ms Members) Split(names MemberNames) (in, out Members) {

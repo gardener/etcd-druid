@@ -440,6 +440,109 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 	})
 }
 
+// TestEnsureMemberRemovalExternallyManagedMembers verifies surplus member
+// removal for externally managed members: a live member whose address is no
+// longer in spec.externallyManagedMemberAddresses is removed without any scale
+// condition or StatefulSet replicas, but only once the cluster has formed and
+// every member in spec is live and healthy.
+func TestEnsureMemberRemovalExternallyManagedMembers(t *testing.T) {
+	const (
+		ip0 = "10.0.0.1"
+		ip1 = "10.0.0.2"
+		ip2 = "10.0.0.3"
+	)
+	member := func(ip string) string { return fmt.Sprintf("%s-%s", removalEtcdName, ip) }
+
+	tests := []struct {
+		name string
+		// noStatusMembers leaves status.members empty (cluster not formed yet).
+		noStatusMembers bool
+		liveMembers     []etcdmember.Member
+		wantRequeue     bool
+		// wantErrMsg, when set, must be contained in the requeue error.
+		wantErrMsg  string
+		wantRemoved []uint64
+	}{
+		{
+			name:            "cluster not formed yet -> no-op",
+			noStatusMembers: true,
+			liveMembers:     []etcdmember.Member{healthyLeader(0x1, member(ip0)), healthyVoter(0x2, member(ip1)), healthyVoter(0x3, member(ip2))},
+		},
+		{
+			name:        "address removed from spec -> surplus member removed",
+			liveMembers: []etcdmember.Member{healthyLeader(0x1, member(ip0)), healthyVoter(0x2, member(ip1)), healthyVoter(0x3, member(ip2))},
+			wantRequeue: true,
+			wantRemoved: []uint64{0x3},
+		},
+		{
+			name: "removed member already stopped -> still removed",
+			liveMembers: []etcdmember.Member{
+				healthyLeader(0x1, member(ip0)),
+				healthyVoter(0x2, member(ip1)),
+				{ID: 0x3, Name: member(ip2), Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnknown},
+			},
+			wantRequeue: true,
+			wantRemoved: []uint64{0x3},
+		},
+		{
+			name:        "every live member in spec -> no-op",
+			liveMembers: []etcdmember.Member{healthyLeader(0x1, member(ip0)), healthyVoter(0x2, member(ip1))},
+		},
+		{
+			name: "member in spec still joining -> hold, no removal",
+			liveMembers: []etcdmember.Member{
+				healthyLeader(0x1, member(ip0)),
+				{ID: 0x4, Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnknown}, // added, not started: no name
+				healthyVoter(0x3, member(ip2)),
+			},
+			wantRequeue: true,
+			wantErrMsg:  fmt.Sprintf("cannot remove surplus members [%s] for etcd test-ns/etcd-main: waiting for members to join the etcd cluster [%s] and to become healthy []", member(ip2), member(ip1)),
+		},
+		{
+			name: "member in spec unhealthy -> hold, no removal",
+			liveMembers: []etcdmember.Member{
+				healthyLeader(0x1, member(ip0)),
+				{ID: 0x2, Name: member(ip1), Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+				healthyVoter(0x3, member(ip2)),
+			},
+			wantRequeue: true,
+			wantErrMsg:  fmt.Sprintf("cannot remove surplus members [%s] for etcd test-ns/etcd-main: waiting for members to join the etcd cluster [] and to become healthy [%s]", member(ip2), member(ip1)),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			// spec keeps ip0 and ip1; ip2 has been removed.
+			etcd := testutils.EtcdBuilderWithoutDefaults(removalEtcdName, removalNamespace).
+				WithReplicas(2).
+				WithExternallyManagedMembers([]string{ip0, ip1}).
+				Build()
+			etcd.UID = removalEtcdUID
+			if !tc.noStatusMembers {
+				etcd.Status.Members = []druidv1alpha1.EtcdMemberStatus{{Name: member(ip0)}, {Name: member(ip1)}, {Name: member(ip2)}}
+			}
+			cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(etcd.DeepCopy()).Build()
+			fakeClient := &etcdfake.Client{Members: tc.liveMembers}
+			r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: fakeClient}}
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+			err := r.ensureSurplusMembersAreRemoved(opCtx, etcd)
+			if tc.wantRequeue {
+				g.Expect(druiderr.AsDruidError(err).Code).To(Equal(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)))
+				if tc.wantErrMsg != "" {
+					g.Expect(err.Error()).To(ContainSubstring(tc.wantErrMsg))
+				}
+			} else {
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			g.Expect(fakeClient.RemoveCalls).To(Equal(tc.wantRemoved))
+		})
+	}
+}
+
 // TestSplitExpectedMembersBootstrapRemoval verifies that a joined bootstrap
 // member no longer present in spec is surplus even without a replica change,
 // while the Etcd's own members and the bootstrap members still in spec are
