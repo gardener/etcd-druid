@@ -651,6 +651,12 @@ func TestRecovery(t *testing.T) {
 		numMembersToBeCorrupted int
 		numPodsToBeDeleted      int
 		expectDowntime          bool
+		// scaleOutFromReplicas, when set, creates the Etcd with this many replicas
+		// and scales it out to replicas before the disruption.
+		scaleOutFromReplicas int32
+		// corruptFirstMemberDataInPlace deletes the data directory of the first
+		// member without deleting its pod, so only its etcd container restarts.
+		corruptFirstMemberDataInPlace bool
 	}{
 		{
 			name:               "1-del-1-pod",
@@ -702,6 +708,14 @@ func TestRecovery(t *testing.T) {
 			numMembersToBeCorrupted: 1,
 			expectDowntime:          true,
 		},
+		{
+			name:                          "1-to-3-corrupt-first-mem-in-place",
+			purpose:                       "test Etcd scaled out from 1 to 3 replicas by corrupting data of the first member without deleting its pod",
+			replicas:                      3,
+			scaleOutFromReplicas:          1,
+			corruptFirstMemberDataInPlace: true,
+			expectDowntime:                false,
+		},
 	}
 
 	for _, provider := range providers {
@@ -720,8 +734,12 @@ func TestRecovery(t *testing.T) {
 				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
+				initialReplicas := tc.replicas
+				if tc.scaleOutFromReplicas > 0 {
+					initialReplicas = tc.scaleOutFromReplicas
+				}
 				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
-					WithReplicas(tc.replicas).
+					WithReplicas(initialReplicas).
 					WithEtcdClientPort(ptr.To[int32](2379)).
 					WithClientTLS().
 					WithPeerTLS().
@@ -736,6 +754,14 @@ func TestRecovery(t *testing.T) {
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
 				logger.Info("successfully created Etcd")
 
+				if tc.scaleOutFromReplicas > 0 {
+					logger.Info("scaling out Etcd", "replicas", tc.replicas)
+					etcd.Spec.Replicas = tc.replicas
+					testEnv.UpdateAndCheckEtcd(g, etcd, timeoutEtcdUpdation)
+					testEnv.CheckEtcdMemberCount(g, etcd, int(tc.replicas), timeoutEtcdUpdation)
+					logger.Info("successfully scaled out Etcd", "replicas", tc.replicas)
+				}
+
 				logger.Info("starting zero-downtime validator job")
 				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
 				logger.Info("started running zero-downtime validator job")
@@ -743,9 +769,16 @@ func TestRecovery(t *testing.T) {
 				logger.Info("disrupting Etcd")
 				numPodsToBeDeleted := max(tc.numPodsToBeDeleted, tc.numMembersToBeCorrupted)
 				testEnv.DisruptEtcd(g, etcd, numPodsToBeDeleted, tc.numMembersToBeCorrupted, timeoutEtcdDisruptionStart)
+				firstMemberPodName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, 0)
+				if tc.corruptFirstMemberDataInPlace {
+					testEnv.CorruptEtcdMemberData(g, etcd, firstMemberPodName, timeoutEtcdDisruptionStart)
+				}
 				logger.Info("successfully disrupted Etcd")
 
 				logger.Info("waiting for Etcd to be ready again")
+				if tc.corruptFirstMemberDataInPlace {
+					testEnv.CheckEtcdMemberRejoined(g, etcd, firstMemberPodName, timeoutEtcdRecovery)
+				}
 				testEnv.CheckEtcdReady(g, etcd, timeoutEtcdRecovery)
 				logger.Info("Etcd is ready again")
 
