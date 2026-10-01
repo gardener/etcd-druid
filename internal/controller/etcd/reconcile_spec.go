@@ -138,7 +138,7 @@ func (r *Reconciler) recordScaleOperationComplete(ctx component.OperatorContext,
 		}
 	}
 
-	if err := r.patchScaleOperationCondition(ctx, etcd, druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation); err != nil {
+	if err := r.patchScaleOperationCondition(ctx, etcd, newScaleOperationCondition(druidv1alpha1.ConditionTrue, druidv1alpha1.ScaleOperationReasonNoScaleOperation)); err != nil {
 		ctx.Logger.Error(err, "failed to mark ScaleOperationComplete condition")
 		return ctrlutils.ReconcileWithError(err)
 	}
@@ -175,8 +175,7 @@ func (r *Reconciler) hasSurplusMembersInCluster(ctx component.OperatorContext, e
 			etcd.Namespace, etcd.Name, err)
 	}
 
-	expected := append(druidv1alpha1.GetMemberNames(etcd), druidv1alpha1.GetBootstrapMemberNames(etcd)...)
-	_, surplus := etcdmember.Members(members).Split(expected)
+	_, surplus := etcdmember.Members(members).Split(druidv1alpha1.ExpectedMemberNames(etcd))
 	for _, m := range surplus {
 		ctx.Logger.Info("surplus etcd member still present in cluster", "member", m.Name)
 	}

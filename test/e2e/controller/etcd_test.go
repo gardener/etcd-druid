@@ -439,29 +439,24 @@ func TestScaleIn(t *testing.T) {
 		initialReplicas int32
 		// targetReplicas is the replica count the cluster is scaled in to.
 		targetReplicas int32
-		// zeroDowntime runs the zero-downtime validator and asserts no downtime.
-		zeroDowntime bool
-		purpose      string
+		purpose        string
 	}{
 		{
 			name:            "3to1",
 			initialReplicas: 3,
 			targetReplicas:  1,
-			zeroDowntime:    true,
 			purpose:         "scale in 3 -> 1 with zero downtime",
 		},
 		{
 			name:            "3to2",
 			initialReplicas: 3,
 			targetReplicas:  2,
-			zeroDowntime:    true,
 			purpose:         "scale in 3 -> 2 with zero downtime",
 		},
 		{
-			name:            "5to3-zerodowntime",
+			name:            "5to3",
 			initialReplicas: 5,
 			targetReplicas:  3,
-			zeroDowntime:    true,
 			purpose:         "scale in 5 -> 3 with zero downtime",
 		},
 	}
@@ -482,17 +477,15 @@ func TestScaleIn(t *testing.T) {
 				e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, e2eutils.DefaultEtcdName, provider)
 
 				logger.Info("running tests", "purpose", tc.purpose)
-				etcdBuilder := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
+				etcd := testutils.EtcdBuilderWithoutDefaults(e2eutils.DefaultEtcdName, testNamespace).
 					WithReplicas(tc.initialReplicas).
 					WithClientTLS().
 					WithPeerTLS().
 					WithDefaultBackup().
 					WithBackupRestoreTLS().
-					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName))
-				if tc.zeroDowntime {
-					etcdBuilder = etcdBuilder.WithEtcdClientPort(ptr.To[int32](2379))
-				}
-				etcd := etcdBuilder.Build()
+					WithStorageProvider(provider, fmt.Sprintf("%s/%s", testNamespace, e2eutils.DefaultEtcdName)).
+					WithEtcdClientPort(ptr.To[int32](2379)).
+					Build()
 
 				logger.Info("creating Etcd", "replicas", tc.initialReplicas)
 				testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
@@ -500,11 +493,9 @@ func TestScaleIn(t *testing.T) {
 				testEnv.CheckEtcdPVCCount(g, etcd, int(tc.initialReplicas), timeoutEtcdCreation)
 				testEnv.CheckEtcdMemberCount(g, etcd, int(tc.initialReplicas), timeoutEtcdCreation)
 
-				if tc.zeroDowntime {
-					logger.Info("starting zero-downtime validator job")
-					testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
-					logger.Info("started running zero-downtime validator job")
-				}
+				logger.Info("starting zero-downtime validator job")
+				testEnv.DeployZeroDowntimeValidatorJob(g, testNamespace, druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), *etcd.Spec.Etcd.ClientPort, etcd.Spec.Etcd.ClientUrlTLS, timeoutDeployJob)
+				logger.Info("started running zero-downtime validator job")
 
 				logger.Info("scaling in Etcd", "replicas", tc.targetReplicas)
 				etcd.Spec.Replicas = tc.targetReplicas
@@ -516,11 +507,9 @@ func TestScaleIn(t *testing.T) {
 				testEnv.CheckEtcdMemberCount(g, etcd, int(tc.targetReplicas), timeoutEtcdUpdation)
 				testEnv.CheckEtcdPVCCount(g, etcd, int(tc.targetReplicas), timeoutEtcdUpdation)
 
-				if tc.zeroDowntime {
-					logger.Info("checking that no downtime occurred during scale-in")
-					testEnv.CheckForDowntime(g, testNamespace, false)
-					logger.Info("successfully verified no downtime occurred during scale-in")
-				}
+				logger.Info("checking that no downtime occurred during scale-in")
+				testEnv.CheckForDowntime(g, testNamespace, false)
+				logger.Info("successfully verified no downtime occurred during scale-in")
 
 				logger.Info("finished running tests")
 				testSucceeded = true

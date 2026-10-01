@@ -6,7 +6,6 @@ package statefulset
 
 import (
 	"fmt"
-	"slices"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -68,8 +67,7 @@ func (r _resource) ensureSurplusMembersAreRemoved(ctx component.OperatorContext,
 				client.ObjectKeyFromObject(etcd)))
 	}
 
-	expectedNames := slices.Concat(namesWithoutBootstrappedMembers, druidv1alpha1.GetBootstrapMemberNames(etcd))
-	retained, surplus := liveMembers.Split(expectedNames)
+	retained, surplus := liveMembers.Split(druidv1alpha1.ExpectedMemberNames(etcd))
 	candidate := etcdmember.SelectNextRemovalCandidate(surplus)
 	if candidate == nil {
 		return nil

@@ -62,7 +62,8 @@ func (r _resource) deleteSurplusPVCs(ctx component.OperatorContext, etcd *druidv
 // StatefulSet can be at 0 while higher-ordinal PVCs from the previous cluster
 // still exist and must be kept.
 func isPVCCleanupNeeded(etcd *druidv1alpha1.Etcd) bool {
-	return etcd.Spec.Replicas != 0 && druidv1alpha1.IsScaleInInProgress(etcd)
+	return etcd.Spec.Replicas != 0 &&
+		druidv1alpha1.IsScaleOperationInProgressWithReason(etcd, druidv1alpha1.ScaleOperationReasonScalingIn)
 }
 
 // listMemberPVCs lists the PVCs owned by this etcd via its default labels.

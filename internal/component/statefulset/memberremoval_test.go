@@ -471,8 +471,7 @@ func TestSplitExpectedMembersBootstrapRemoval(t *testing.T) {
 		healthyVoter(0xa, "etcd-source-1"), // not in spec → surplus
 	}
 
-	expected := append(druidv1alpha1.GetMemberNames(etcd), druidv1alpha1.GetBootstrapMemberNames(etcd)...)
-	retained, surplus := liveMembers.Split(expected)
+	retained, surplus := liveMembers.Split(druidv1alpha1.ExpectedMemberNames(etcd))
 	g.Expect(surplus).To(HaveLen(1))
 	g.Expect(surplus[0].Name).To(Equal("etcd-source-1"))
 	g.Expect(retained).To(HaveLen(4))

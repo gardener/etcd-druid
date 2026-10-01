@@ -177,6 +177,13 @@ func GetBootstrapMemberNames(etcd *Etcd) []string {
 	return names
 }
 
+// ExpectedMemberNames returns the names of the members the Etcd expects in the
+// etcd cluster: its own members plus the source members listed in
+// spec.etcd.bootstrapWithExistingCluster. Any other live member is surplus.
+func ExpectedMemberNames(etcd *Etcd) []string {
+	return slices.Concat(GetMemberNames(etcd), GetBootstrapMemberNames(etcd))
+}
+
 // GetBootstrapMemberNamesToDecommission returns the names of the members recorded as
 // joined in status.bootstrapWithExistingCluster.members that are no longer
 // present in spec.etcd.bootstrapWithExistingCluster.members. When the spec field
@@ -336,37 +343,23 @@ func GetCondition(etcd *Etcd, condType ConditionType) *Condition {
 	return nil
 }
 
-// IsScaleInInProgress reports whether a scale-in operation is currently recorded
-// in the Etcd status (ScaleOperationComplete=False/ScalingIn).
-func IsScaleInInProgress(etcd *Etcd) bool {
-	cond := GetCondition(etcd, ConditionTypeScaleOperationComplete)
-	return cond != nil && cond.Status == ConditionFalse && cond.Reason == ScaleOperationReasonScalingIn
+// GetScaleOperationCompleteCondition returns the ScaleOperationComplete
+// condition, or nil if it has not been recorded. A cluster that has never been
+// scaled has no such condition.
+func GetScaleOperationCompleteCondition(etcd *Etcd) *Condition {
+	return GetCondition(etcd, ConditionTypeScaleOperationComplete)
 }
 
-// GetScaleOperationCompleteCondition returns the status and reason of the
-// ScaleOperationComplete condition, defaulting to ConditionTrue/NoScaleOperation
-// when the condition is not yet present. The default preserves the "no operation
-// in progress" view so a missing condition (or a transient inability to observe
-// the cluster) is never mistaken for an in-flight scale operation.
-func GetScaleOperationCompleteCondition(etcd *Etcd) (ConditionStatus, string) {
-	cond := GetCondition(etcd, ConditionTypeScaleOperationComplete)
-	if cond == nil {
-		return ConditionTrue, ScaleOperationReasonNoScaleOperation
-	}
-	return cond.Status, cond.Reason
-}
-
-// HasScaleOperationCompleted reports whether any scale operation has converged,
-// i.e. the ScaleOperationComplete condition is not recorded as in-progress
-// (status other than False, including a missing condition).
+// HasScaleOperationCompleted reports whether no scale operation is in progress,
+// that is, the ScaleOperationComplete condition is absent or not False.
 func HasScaleOperationCompleted(etcd *Etcd) bool {
-	status, _ := GetScaleOperationCompleteCondition(etcd)
-	return status != ConditionFalse
+	cond := GetScaleOperationCompleteCondition(etcd)
+	return cond == nil || cond.Status != ConditionFalse
 }
 
-// IsScaleOperationInProgressWithReason reports whether a scale operation is
-// in-progress (ScaleOperationComplete=False) for one of the given reasons.
+// IsScaleOperationInProgressWithReason reports whether a scale operation is in
+// progress (ScaleOperationComplete=False) for one of the given reasons.
 func IsScaleOperationInProgressWithReason(etcd *Etcd, reasons ...string) bool {
-	status, reason := GetScaleOperationCompleteCondition(etcd)
-	return status == ConditionFalse && slices.Contains(reasons, reason)
+	cond := GetScaleOperationCompleteCondition(etcd)
+	return cond != nil && cond.Status == ConditionFalse && slices.Contains(reasons, cond.Reason)
 }

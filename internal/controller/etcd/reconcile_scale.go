@@ -23,121 +23,114 @@ import (
 // opposite-direction changes while an operation is active. It only sets False;
 // recordScaleOperationComplete advances it to True on completion.
 func (r *Reconciler) detectAndRecordScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ctrlutils.ReconcileStepResult {
-	status, reason, err := r.determineScaleOperationInProgress(ctx, etcd)
+	desired, err := r.determineScaleOperationInProgress(ctx, etcd)
 	if err != nil {
 		ctx.Logger.Error(err, "failed to determine scale operation; requeuing")
 		return ctrlutils.ReconcileWithError(err)
 	}
-
-	if !scaleConditionNeedsUpdate(etcd, status, reason) {
+	if desired == nil || !scaleConditionNeedsUpdate(etcd, desired) {
 		return ctrlutils.ContinueReconcile()
 	}
 
-	ctx.Logger.Info("recording scale operation condition", "status", status, "reason", reason)
-	if err := r.patchScaleOperationCondition(ctx, etcd, status, reason); err != nil {
+	ctx.Logger.Info("recording scale operation in progress", "reason", desired.Reason)
+	if err := r.patchScaleOperationCondition(ctx, etcd, desired); err != nil {
 		ctx.Logger.Error(err, "failed to record ScaleOperationComplete condition")
 		return ctrlutils.ReconcileWithError(err)
 	}
 	return ctrlutils.ContinueReconcile()
 }
 
-// determineScaleOperationInProgress reports the ScaleOperationComplete status and
-// reason for the etcd. When a scale operation is in progress it returns False with
-// the reason ScalingIn, ScalingOut, or BootstrapMembersRemoval; BootstrapMembersRemoval
-// takes precedence when it applies together with a replica change. Otherwise it returns
-// the existing condition unchanged; recordScaleOperationComplete sets the condition to
-// True once the operation finishes. It returns an error when the StatefulSet cannot be
-// read, so the caller requeues and retries rather than acting on a stale condition.
-func (r *Reconciler) determineScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (druidv1alpha1.ConditionStatus, string, error) {
-	// BootstrapMembersRemoval takes precedence: the operator has removed joined
-	// source members (or unset bootstrapWithExistingCluster) that the target had
-	// already joined. Only members recorded in status are meaningful here.
+// determineScaleOperationInProgress returns the ScaleOperationComplete condition
+// (False) for the scale operation in progress, with the reason ScalingIn,
+// ScalingOut, or BootstrapMembersRemoval. BootstrapMembersRemoval takes precedence
+// when it applies together with a replica change. It returns nil when no scale
+// operation is in progress, leaving the condition as is;
+// recordScaleOperationComplete sets it to True once the operation finishes. It
+// returns an error when the StatefulSet cannot be read, so the caller requeues
+// and retries rather than acting on a stale condition.
+func (r *Reconciler) determineScaleOperationInProgress(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Condition, error) {
+	// The operator has removed joined source members (or unset
+	// bootstrapWithExistingCluster) that the target had already joined. Only
+	// members recorded in status are meaningful here.
 	if druidv1alpha1.HasBootstrapMembersToDecommission(etcd) {
-		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval, nil
+		return newScaleOperationCondition(druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonBootstrapMembersRemoval), nil
 	}
 
 	sts, err := kubernetes.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get StatefulSet while detecting scale operation for %v: %w",
+		return nil, fmt.Errorf("failed to get StatefulSet while detecting scale operation for %v: %w",
 			client.ObjectKeyFromObject(etcd), err)
 	}
-	// No observed replica count to compare against; preserve the existing
-	// condition rather than asserting no scale operation is in progress.
+	// No observed replica count to compare against.
 	if sts == nil || sts.Spec.Replicas == nil {
-		status, reason := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
-		return status, reason, nil
+		return nil, nil
 	}
 
 	// Transitions to or from zero replicas are handled by the existing
 	// scale-to-zero code path and are never treated as a scale-in/out.
 	stsReplicas := *sts.Spec.Replicas
 	if etcd.Spec.Replicas == 0 || stsReplicas == 0 {
-		status, reason := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
-		return status, reason, nil
+		return nil, nil
 	}
 
 	switch {
 	case etcd.Spec.Replicas < stsReplicas:
-		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingIn, nil
+		return newScaleOperationCondition(druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingIn), nil
 	case etcd.Spec.Replicas > stsReplicas:
-		return druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingOut, nil
+		return newScaleOperationCondition(druidv1alpha1.ConditionFalse, druidv1alpha1.ScaleOperationReasonScalingOut), nil
 	default:
-		// Replica counts match: no active scale signal. Preserve the existing
-		// condition and let recordScaleOperationComplete advance it on completion.
-		status, reason := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
-		return status, reason, nil
+		return nil, nil
 	}
 }
 
-// scaleConditionNeedsUpdate reports whether the current ScaleOperationComplete
-// condition already matches the desired status and reason, avoiding a redundant
-// status patch every reconcile.
-func scaleConditionNeedsUpdate(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus, reason string) bool {
-	existing := druidv1alpha1.GetCondition(etcd, druidv1alpha1.ConditionTypeScaleOperationComplete)
-	if existing == nil {
-		// Only add the condition when there is an actual operation to record (an
-		// in-flight operation is status False); a brand-new resource with no scale
-		// operation does not need a True entry.
-		return status == druidv1alpha1.ConditionFalse
+// newScaleOperationCondition returns a ScaleOperationComplete condition with the
+// given status and reason, and the message for that reason.
+func newScaleOperationCondition(status druidv1alpha1.ConditionStatus, reason string) *druidv1alpha1.Condition {
+	return &druidv1alpha1.Condition{
+		Type:    druidv1alpha1.ConditionTypeScaleOperationComplete,
+		Status:  status,
+		Reason:  reason,
+		Message: scaleOperationMessage(reason),
 	}
-	return existing.Status != status || existing.Reason != reason
 }
 
-// patchScaleOperationCondition upserts the ScaleOperationComplete condition on
-// the Etcd status sub-resource with the given status and reason.
-func (r *Reconciler) patchScaleOperationCondition(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus, reason string) error {
+// scaleConditionNeedsUpdate reports whether the recorded ScaleOperationComplete
+// condition differs from desired in status or reason, avoiding a redundant status
+// patch every reconcile.
+func scaleConditionNeedsUpdate(etcd *druidv1alpha1.Etcd, desired *druidv1alpha1.Condition) bool {
+	existing := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
+	return existing == nil || existing.Status != desired.Status || existing.Reason != desired.Reason
+}
+
+// patchScaleOperationCondition upserts desired as the ScaleOperationComplete
+// condition on the Etcd status sub-resource.
+func (r *Reconciler) patchScaleOperationCondition(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, desired *druidv1alpha1.Condition) error {
 	originalEtcd := etcd.DeepCopy()
-	upsertScaleOperationCondition(etcd, status, reason)
+	upsertScaleOperationCondition(etcd, desired)
 	return r.client.Status().Patch(ctx, etcd, client.MergeFrom(originalEtcd))
 }
 
-// upsertScaleOperationCondition sets (or inserts) the ScaleOperationComplete
-// condition on etcd.Status.Conditions. LastTransitionTime advances only when the
-// status value changes; LastUpdateTime always advances.
-func upsertScaleOperationCondition(etcd *druidv1alpha1.Etcd, status druidv1alpha1.ConditionStatus, reason string) {
+// upsertScaleOperationCondition sets (or inserts) desired as the
+// ScaleOperationComplete condition on etcd.Status.Conditions. LastTransitionTime
+// advances only when the status value changes; LastUpdateTime always advances.
+func upsertScaleOperationCondition(etcd *druidv1alpha1.Etcd, desired *druidv1alpha1.Condition) {
 	now := metav1.Now()
-	message := scaleOperationMessage(reason)
-
-	cond := druidv1alpha1.GetCondition(etcd, druidv1alpha1.ConditionTypeScaleOperationComplete)
+	cond := druidv1alpha1.GetScaleOperationCompleteCondition(etcd)
 	if cond == nil {
-		etcd.Status.Conditions = append(etcd.Status.Conditions, druidv1alpha1.Condition{
-			Type:               druidv1alpha1.ConditionTypeScaleOperationComplete,
-			Status:             status,
-			LastTransitionTime: now,
-			LastUpdateTime:     now,
-			Reason:             reason,
-			Message:            message,
-		})
+		added := *desired
+		added.LastTransitionTime = now
+		added.LastUpdateTime = now
+		etcd.Status.Conditions = append(etcd.Status.Conditions, added)
 		return
 	}
 
-	if cond.Status != status {
+	if cond.Status != desired.Status {
 		cond.LastTransitionTime = now
 	}
-	cond.Status = status
+	cond.Status = desired.Status
 	cond.LastUpdateTime = now
-	cond.Reason = reason
-	cond.Message = message
+	cond.Reason = desired.Reason
+	cond.Message = desired.Message
 }
 
 // scaleOperationMessage returns a human-readable message for the given reason.

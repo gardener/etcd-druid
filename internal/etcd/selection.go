@@ -18,10 +18,6 @@ import "sort"
 //     voters except the candidate) still form a quorum of the remaining voters,
 //     i.e. at least ⌊(remaining voters)/2⌋ + 1. Unknown and Unhealthy members
 //     are fail-closed and do not count as healthy.
-//
-// This mirrors the quorum check etcd applies to MemberRemove when
-// strict-reconfig-check is enabled, so the controller holds with a clear reason
-// instead of issuing a removal that would leave the cluster without quorum.
 func QuorumSafeToRemove(members Members, candidateID uint64) bool {
 	var candidate *Member
 	for i := range members {

@@ -278,6 +278,41 @@ func TestGetBootstrapMemberNames(t *testing.T) {
 	}
 }
 
+func TestExpectedMemberNames(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		replicas  int32
+		bootstrap *BootstrapWithExistingCluster
+		want      []string
+	}{
+		{name: "no bootstrap members", replicas: 2, want: []string{etcdName + "-0", etcdName + "-1"}},
+		{
+			name:      "own members followed by bootstrap members",
+			replicas:  2,
+			bootstrap: &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			want:      []string{etcdName + "-0", etcdName + "-1", "etcd-source-0"},
+		},
+		{
+			name:      "zero replicas keeps bootstrap members",
+			replicas:  0,
+			bootstrap: &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			want:      []string{"etcd-source-0"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{
+				ObjectMeta: metav1.ObjectMeta{Name: etcdName, Namespace: etcdNamespace},
+				Spec:       EtcdSpec{Replicas: test.replicas, Etcd: EtcdConfig{BootstrapWithExistingCluster: test.bootstrap}},
+			}
+			g.Expect(ExpectedMemberNames(etcd)).To(Equal(test.want))
+		})
+	}
+}
+
 func TestGetBootstrapMemberNamesToDecommission(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -332,6 +367,88 @@ func TestGetBootstrapMemberNamesToDecommission(t *testing.T) {
 				etcd.Status.BootstrapWithExistingCluster = &BootstrapWithExistingClusterStatus{Members: members}
 			}
 			g.Expect(GetBootstrapMemberNamesToDecommission(etcd)).To(Equal(tc.want))
+		})
+	}
+}
+
+// TestGetScaleOperationCompleteCondition verifies that GetScaleOperationCompleteCondition
+// returns the recorded ScaleOperationComplete condition, or nil when it is absent.
+func TestGetScaleOperationCompleteCondition(t *testing.T) {
+	t.Parallel()
+	scaleCond := Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionFalse, Reason: ScaleOperationReasonScalingIn}
+	readyCond := Condition{Type: ConditionTypeReady, Status: ConditionTrue}
+	tests := []struct {
+		name       string
+		conditions []Condition
+		expected   *Condition
+	}{
+		{name: "no conditions -> nil", conditions: nil, expected: nil},
+		{name: "only other conditions -> nil", conditions: []Condition{readyCond}, expected: nil},
+		{name: "condition recorded -> that condition", conditions: []Condition{readyCond, scaleCond}, expected: &scaleCond},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{Status: EtcdStatus{Conditions: tc.conditions}}
+			g.Expect(GetScaleOperationCompleteCondition(etcd)).To(Equal(tc.expected))
+		})
+	}
+}
+
+// TestScaleOperationProgressHelpers verifies HasScaleOperationCompleted and
+// IsScaleOperationInProgressWithReason for an absent, completed, and in-progress
+// ScaleOperationComplete condition.
+func TestScaleOperationProgressHelpers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                    string
+		condition               *Condition
+		reasons                 []string
+		expectedCompleted       bool
+		expectedInProgressMatch bool
+	}{
+		{
+			name:                    "absent condition -> completed, not in progress",
+			condition:               nil,
+			reasons:                 []string{ScaleOperationReasonScalingIn},
+			expectedCompleted:       true,
+			expectedInProgressMatch: false,
+		},
+		{
+			name:                    "True -> completed, not in progress",
+			condition:               &Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionTrue, Reason: ScaleOperationReasonNoScaleOperation},
+			reasons:                 []string{ScaleOperationReasonScalingIn},
+			expectedCompleted:       true,
+			expectedInProgressMatch: false,
+		},
+		{
+			name:                    "False with a matching reason -> in progress",
+			condition:               &Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionFalse, Reason: ScaleOperationReasonScalingIn},
+			reasons:                 []string{ScaleOperationReasonScalingIn, ScaleOperationReasonBootstrapMembersRemoval},
+			expectedCompleted:       false,
+			expectedInProgressMatch: true,
+		},
+		{
+			name:                    "False with another reason -> in progress, no match",
+			condition:               &Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionFalse, Reason: ScaleOperationReasonScalingOut},
+			reasons:                 []string{ScaleOperationReasonScalingIn},
+			expectedCompleted:       false,
+			expectedInProgressMatch: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{}
+			if tc.condition != nil {
+				etcd.Status.Conditions = []Condition{*tc.condition}
+			}
+			g.Expect(HasScaleOperationCompleted(etcd)).To(Equal(tc.expectedCompleted))
+			g.Expect(IsScaleOperationInProgressWithReason(etcd, tc.reasons...)).To(Equal(tc.expectedInProgressMatch))
 		})
 	}
 }

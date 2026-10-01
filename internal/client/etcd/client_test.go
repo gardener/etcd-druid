@@ -195,36 +195,6 @@ func TestListMembersHealthProbes(t *testing.T) {
 	g.Expect(byName["etcd-main-2"].Role).To(Equal(etcdmember.MemberRoleMember))
 }
 
-// TestListMembersPermissionDeniedIsHealthy verifies that a member whose
-// Get("health") returns ErrPermissionDenied is treated as healthy: the read
-// reached consensus, which is the signal we care about (mirrors etcdctl).
-func TestListMembersPermissionDeniedIsHealthy(t *testing.T) {
-	t.Parallel()
-
-	api := &fakeAPI{
-		listResp: &clientv3.MemberListResponse{
-			Members: []*etcdserverpb.Member{
-				pbMember(1, "etcd-main-0", []string{"http://10.0.0.1:2379"}, false),
-			},
-		},
-		statusResp: map[string]*clientv3.StatusResponse{
-			"http://10.0.0.1:2379": {Leader: 1},
-		},
-	}
-	dialFn := healthDialer(map[string]error{
-		"http://10.0.0.1:2379": rpctypes.ErrPermissionDenied,
-	}, nil, nil)
-
-	c := newTestClient(api, dialFn)
-	members, err := c.MemberList(context.Background())
-
-	g := NewWithT(t)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(members).To(HaveLen(1))
-	g.Expect(members[0].Health).To(Equal(etcdmember.MemberHealthHealthy))
-	g.Expect(members[0].Role).To(Equal(etcdmember.MemberRoleLeader))
-}
-
 // TestListMembersDialFailureIsUnhealthy verifies that when the per-member client
 // cannot be dialed, the member is fail-closed to Unknown.
 func TestListMembersDialFailureIsUnhealthy(t *testing.T) {

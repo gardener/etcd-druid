@@ -311,8 +311,7 @@ func (c *etcdClient) resolveAndSetLeader(ctx context.Context, members []etcdmemb
 //  2. KV Get: a per-endpoint client dials the specific member and issues a
 //     linearizable Get to confirm it can serve requests. Status can return
 //     successfully even when a member is isolated or lagging; the KV Get is
-//     the authoritative health signal. ErrPermissionDenied is treated as
-//     healthy (the proposal went through consensus).
+//     the authoritative health signal.
 //
 // When dialFn is nil (unit tests that skip the KV probe), a successful Status
 // is sufficient to declare the member healthy. Fail-closed.
@@ -339,8 +338,7 @@ func (c *etcdClient) probeMemberHealthy(ctx context.Context, urls []string) bool
 
 // probeEndpointKV dials the given endpoints with a fresh probeClient and issues
 // a Get to verify the member can serve requests. The client is closed after the
-// probe. ErrPermissionDenied is treated as healthy (the proposal reached
-// consensus). Any other error is fail-closed.
+// probe. Any error is fail-closed.
 func (c *etcdClient) probeEndpointKV(ctx context.Context, endpoints []string) bool {
 	kvClient, err := c.dialFn(endpoints)
 	if err != nil {
@@ -350,7 +348,7 @@ func (c *etcdClient) probeEndpointKV(ctx context.Context, endpoints []string) bo
 	kvCtx, kvCancel := context.WithTimeout(ctx, defaultStatusTimeout)
 	_, kvErr := kvClient.Get(kvCtx, healthProbeKey)
 	kvCancel()
-	return kvErr == nil || errors.Is(kvErr, rpctypes.ErrPermissionDenied)
+	return kvErr == nil
 }
 
 // probeLeaderID resolves the cluster leader by querying healthy members and
