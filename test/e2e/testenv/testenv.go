@@ -402,6 +402,105 @@ func (t *TestEnvironment) CheckEtcdPVCCount(g *WithT, etcd *druidv1alpha1.Etcd, 
 	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
+// CorruptEtcdMemberData deletes the data directory (new.etcd/member) of the
+// etcd member in the given pod without deleting the pod, so only its etcd
+// container restarts. The etcd image has no shell, so the deletion runs in an
+// ephemeral container that mounts the etcd data volume.
+func (t *TestEnvironment) CorruptEtcdMemberData(g *WithT, etcd *druidv1alpha1.Etcd, podName string, timeout time.Duration) {
+	pod := &corev1.Pod{}
+	g.Expect(t.cl.Get(t.ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: podName}, pod)).To(Succeed())
+	restarts := etcdContainerRestartCount(pod)
+
+	var dataVolumeMount *corev1.VolumeMount
+	for _, c := range pod.Spec.Containers {
+		if c.Name != common.ContainerNameEtcd {
+			continue
+		}
+		for _, vm := range c.VolumeMounts {
+			if vm.MountPath == common.VolumeMountPathEtcdData {
+				dataVolumeMount = vm.DeepCopy()
+			}
+		}
+	}
+	g.Expect(dataVolumeMount).NotTo(BeNil(), "etcd container of pod %s has no data volume mount", podName)
+
+	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{
+		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+			Name:            "corrupt-data",
+			Image:           "alpine/curl",
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			Command:         []string{"/bin/sh", "-c", fmt.Sprintf("rm -rf %s/new.etcd/member", common.VolumeMountPathEtcdData)},
+			VolumeMounts:    []corev1.VolumeMount{*dataVolumeMount},
+		},
+	})
+	g.Expect(t.cl.SubResource("ephemeralcontainers").Update(t.ctx, pod)).To(Succeed())
+
+	// The etcd container fails on the missing data directory and is restarted
+	// by the kubelet in the same pod.
+	g.Eventually(func() error {
+		current := &corev1.Pod{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(pod), current); err != nil {
+			return err
+		}
+		if current.UID != pod.UID {
+			return fmt.Errorf("pod %s was recreated, expected only its etcd container to restart", podName)
+		}
+		if etcdContainerRestartCount(current) <= restarts {
+			return fmt.Errorf("etcd container of pod %s has not restarted yet", podName)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// etcdContainerRestartCount returns the restart count of the etcd container of pod.
+func etcdContainerRestartCount(pod *corev1.Pod) int32 {
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.Name == common.ContainerNameEtcd {
+			return cs.RestartCount
+		}
+	}
+	return 0
+}
+
+// CheckEtcdMemberRejoined asserts that the etcd member in the given pod
+// eventually rejoins the etcd cluster as a voting member and sees all
+// spec.replicas members. It asks that member directly with a serializable
+// MemberList, so the answer comes from the member's own state.
+func (t *TestEnvironment) CheckEtcdMemberRejoined(g *WithT, etcd *druidv1alpha1.Etcd, podName string, timeout time.Duration) {
+	memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, podName)
+	g.Eventually(func() error {
+		pod := corev1.Pod{}
+		if err := t.cl.Get(t.ctx, types.NamespacedName{Namespace: etcd.Namespace, Name: podName}, &pod); err != nil {
+			return err
+		}
+		cli, closeFn, err := t.newEtcdClientForPod(etcd, pod)
+		if err != nil {
+			return err
+		}
+		defer closeFn()
+
+		ctx, cancel := context.WithTimeout(t.ctx, 10*time.Second)
+		defer cancel()
+		resp, err := cli.MemberList(ctx, clientv3.WithSerializable())
+		if err != nil {
+			return fmt.Errorf("failed to list etcd members from pod %s: %w", podName, err)
+		}
+		if len(resp.Members) != int(etcd.Spec.Replicas) {
+			return fmt.Errorf("etcd member %s sees %d members, expected %d", memberName, len(resp.Members), etcd.Spec.Replicas)
+		}
+		for _, m := range resp.Members {
+			if m.Name != memberName {
+				continue
+			}
+			if m.IsLearner {
+				return fmt.Errorf("etcd member %s is still a learner", memberName)
+			}
+			return nil
+		}
+		return fmt.Errorf("etcd member %s has not rejoined the etcd cluster yet", memberName)
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
 // CheckEtcdMemberCount asserts that the live etcd member list eventually has
 // exactly expectedCount members. It port-forwards to an etcd pod and calls
 // MemberList, so ghost members left in etcd after a scale-in are detected.
@@ -430,15 +529,34 @@ func (t *TestEnvironment) getEtcdMemberCount(etcd *druidv1alpha1.Etcd) (int, err
 		return 0, fmt.Errorf("no running etcd pod for %s", etcd.Name)
 	}
 
-	localPort, stop, err := t.portForward(pods[idx], druidv1alpha1.GetClientPort(etcd))
+	cli, closeFn, err := t.newEtcdClientForPod(etcd, pods[idx])
 	if err != nil {
 		return 0, err
 	}
-	defer close(stop)
+	defer closeFn()
+
+	ctx, cancel := context.WithTimeout(t.ctx, 10*time.Second)
+	defer cancel()
+	resp, err := cli.MemberList(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list etcd members: %w", err)
+	}
+	return len(resp.Members), nil
+}
+
+// newEtcdClientForPod returns an etcd client connected to the etcd member in
+// pod through a port-forward, and a function that closes the client and the
+// port-forward.
+func (t *TestEnvironment) newEtcdClientForPod(etcd *druidv1alpha1.Etcd, pod corev1.Pod) (*clientv3.Client, func(), error) {
+	localPort, stop, err := t.portForward(pod, druidv1alpha1.GetClientPort(etcd))
+	if err != nil {
+		return nil, nil, err
+	}
 
 	scheme, tlsConfig, err := kutil.GetEtcdClientSchemeAndTLSConfig(t.ctx, t.cl, etcd)
 	if err != nil {
-		return 0, fmt.Errorf("failed to build etcd client TLS config: %w", err)
+		close(stop)
+		return nil, nil, fmt.Errorf("failed to build etcd client TLS config: %w", err)
 	}
 	if tlsConfig != nil {
 		// The server certificate is issued for the client Service name, not for
@@ -451,17 +569,13 @@ func (t *TestEnvironment) getEtcdMemberCount(etcd *druidv1alpha1.Etcd) (int, err
 		TLS:         tlsConfig,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to create etcd client: %w", err)
+		close(stop)
+		return nil, nil, fmt.Errorf("failed to create etcd client: %w", err)
 	}
-	defer func() { _ = cli.Close() }()
-
-	ctx, cancel := context.WithTimeout(t.ctx, 10*time.Second)
-	defer cancel()
-	resp, err := cli.MemberList(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to list etcd members: %w", err)
-	}
-	return len(resp.Members), nil
+	return cli, func() {
+		_ = cli.Close()
+		close(stop)
+	}, nil
 }
 
 // portForward forwards a free local port to remotePort on pod. It returns the
