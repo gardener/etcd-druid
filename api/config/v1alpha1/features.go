@@ -88,8 +88,16 @@ func init() {
 }
 
 // IsEnabled checks if a feature is enabled.
+// It first checks if the feature was explicitly set via SetEnabledFeaturesFromMap,
+// then falls back to the enabledByDefault value from the maturity level spec.
 func (f *featureGate) IsEnabled(feature string) bool {
-	return f.enabledFeatures[feature]
+	if enabled, ok := f.enabledFeatures[feature]; ok {
+		return enabled
+	}
+	if spec, ok := f.knownFeatures[feature]; ok {
+		return spec.enabledByDefault
+	}
+	return false
 }
 
 // SetEnabledFeaturesFromMap sets enabled state for features from the given map.
