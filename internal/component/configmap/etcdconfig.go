@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -97,7 +98,7 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AutoCompactionMode:           ptr.Deref(etcd.Spec.Common.AutoCompactionMode, druidv1alpha1.Periodic),
 		AutoCompactionRetention:      ptr.Deref(etcd.Spec.Common.AutoCompactionRetention, defaultAutoCompactionRetention),
 		ListenPeerUrls:               fmt.Sprintf("%s://0.0.0.0:%d", peerScheme, ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)),
-		ListenClientUrls:             fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)),
+		ListenClientUrls:             fmt.Sprintf("%s://0.0.0.0:%d", clientScheme, ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)),
 		AdvertisePeerUrls:            getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
 		AdvertiseClientUrls:          getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
 		NextClusterVersionCompatible: true,
@@ -186,7 +187,7 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 	case advertiseURLTypePeer:
 		port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	case advertiseURLTypeClient:
-		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 	default:
 		return nil
 	}

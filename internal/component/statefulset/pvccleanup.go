@@ -6,15 +6,15 @@ package statefulset
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -22,30 +22,24 @@ import (
 // ErrDeletePVC indicates an error deleting a surplus PersistentVolumeClaim during scale-in.
 const ErrDeletePVC druidapicommon.ErrorCode = "ERR_DELETE_PVC"
 
-// deleteSurplusPVCs deletes the PVCs of pod ordinals at or above the desired
-// replica count during a scale-in. A StatefulSet does not reclaim its per-pod
-// PVCs when scaled down, so without this the storage of removed members leaks.
-// Surplus PVCs are found by listing, so PVCs left behind after the StatefulSet
-// has already shrunk are still cleaned up. The pvc-protection finalizer keeps a
-// PVC until its pod is gone, so deletion can be issued before the shrink.
-func (r _resource) deleteSurplusPVCs(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	if !isPVCCleanupNeeded(etcd) {
+// deleteSurplusPVCs deletes the PVCs of pod ordinals in [etcd.Spec.Replicas,
+// existingSTS.Spec.Replicas) during a scale-in. A StatefulSet does not reclaim
+// its per-pod PVCs when scaled down, so without this the storage of removed
+// members leaks. The pvc-protection finalizer keeps a PVC until its pod is
+// gone, so deletion can be issued before the shrink.
+func (r _resource) deleteSurplusPVCs(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, existingSTS *appsv1.StatefulSet) error {
+	if !isPVCCleanupNeeded(etcd) || existingSTS == nil {
 		return nil
 	}
 
-	pvcs, err := r.listMemberPVCs(ctx, etcd)
-	if err != nil {
-		return err
-	}
-
 	prefix := pvcNamePrefix(etcd)
-	for i := range pvcs {
-		pvc := &pvcs[i]
-		if !isSurplusPVC(pvc, prefix, etcd.Spec.Replicas) {
-			continue
-		}
-		if pvc.DeletionTimestamp != nil {
-			continue
+	stsReplicas := ptr.Deref(existingSTS.Spec.Replicas, 0)
+	for ordinal := etcd.Spec.Replicas; ordinal < stsReplicas; ordinal++ {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s%d", prefix, ordinal),
+				Namespace: etcd.Namespace,
+			},
 		}
 		ctx.Logger.Info("deleting surplus PVC for scale-in", "pvc", pvc.Name)
 		if err := client.IgnoreNotFound(r.client.Delete(ctx, pvc)); err != nil {
@@ -66,36 +60,9 @@ func isPVCCleanupNeeded(etcd *druidv1alpha1.Etcd) bool {
 		druidv1alpha1.IsScaleOperationInProgressWithReason(etcd, druidv1alpha1.ScaleOperationReasonScalingIn)
 }
 
-// listMemberPVCs lists the PVCs owned by this etcd via its default labels.
-func (r _resource) listMemberPVCs(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) ([]corev1.PersistentVolumeClaim, error) {
-	pvcList := &corev1.PersistentVolumeClaimList{}
-	if err := r.client.List(ctx, pvcList,
-		client.InNamespace(etcd.Namespace),
-		client.MatchingLabels(druidv1alpha1.GetDefaultLabels(etcd.ObjectMeta)),
-	); err != nil {
-		return nil, druiderr.WrapError(err, ErrDeletePVC, component.OperationSync,
-			fmt.Sprintf("failed to list PVCs while deleting surplus PVCs for etcd: %v", client.ObjectKeyFromObject(etcd)))
-	}
-	return pvcList.Items, nil
-}
-
 // pvcNamePrefix is the "<volumeClaimTemplate>-<statefulSet>-" prefix shared by
 // every member PVC; the pod ordinal is the suffix.
 func pvcNamePrefix(etcd *druidv1alpha1.Etcd) string {
 	vctName := ptr.Deref(etcd.Spec.VolumeClaimTemplate, etcd.Name)
 	return fmt.Sprintf("%s-%s-", vctName, druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta))
-}
-
-// isSurplusPVC reports whether pvc backs a pod ordinal at or above replicas.
-// Non-member PVCs and names without an ordinal suffix are never surplus.
-func isSurplusPVC(pvc *corev1.PersistentVolumeClaim, prefix string, replicas int32) bool {
-	ordinalStr, ok := strings.CutPrefix(pvc.Name, prefix)
-	if !ok {
-		return false
-	}
-	ordinal, err := strconv.Atoi(ordinalStr)
-	if err != nil {
-		return false
-	}
-	return int32(ordinal) >= replicas // #nosec G115 G109 -- pod ordinal is a small non-negative index; the conversion cannot overflow.
 }

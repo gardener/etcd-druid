@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -102,7 +103,7 @@ func newStsBuilder(client client.Client,
 		etcdBackupRestoreImage:         etcdBackupRestoreImage,
 		initContainerImage:             initContainerImage,
 		sts:                            sts,
-		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient),
+		clientPort:                     ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient),
 		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
 		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
 		wrapperPort:                    ptr.Deref(etcd.Spec.Etcd.WrapperPort, common.DefaultPortEtcdWrapper),

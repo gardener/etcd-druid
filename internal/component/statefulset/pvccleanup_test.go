@@ -39,7 +39,6 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 		extraPVCs         []int
 		scaleInInProgress bool
 		deleteIntercept   func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error
-		listIntercept     func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error
 		wantErrCode       druidapicommon.ErrorCode
 		wantDeleted       []int
 		wantKept          []int
@@ -48,15 +47,6 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 			name:              "scale-in 5->3 deletes ordinals 3 and 4, keeps 0-2",
 			specReplicas:      3,
 			stsReplicas:       5,
-			scaleInInProgress: true,
-			wantDeleted:       []int{3, 4},
-			wantKept:          []int{0, 1, 2},
-		},
-		{
-			name:              "STS already shrunk to 3 still deletes leaked ordinals 3 and 4",
-			specReplicas:      3,
-			stsReplicas:       3,
-			extraPVCs:         []int{3, 4},
 			scaleInInProgress: true,
 			wantDeleted:       []int{3, 4},
 			wantKept:          []int{0, 1, 2},
@@ -94,20 +84,7 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 			wantErrCode: ErrDeletePVC,
 		},
 		{
-			name:              "List returns server error -> surfaces as ErrDeletePVC",
-			specReplicas:      3,
-			stsReplicas:       5,
-			scaleInInProgress: true,
-			listIntercept: func(_ context.Context, _ client.WithWatch, list client.ObjectList, _ ...client.ListOption) error {
-				if _, ok := list.(*corev1.PersistentVolumeClaimList); ok {
-					return fmt.Errorf("server error")
-				}
-				return nil
-			},
-			wantErrCode: ErrDeletePVC,
-		},
-		{
-			name:              "surplus PVC absent from store (deleted between List and Delete) -> succeeds",
+			name:              "surplus PVC already deleted -> succeeds",
 			specReplicas:      3,
 			stsReplicas:       5,
 			scaleInInProgress: true,
@@ -151,22 +128,15 @@ func TestDeleteSurplusPVCs(t *testing.T) {
 				objs = append(objs, testutils.CreatePVC(sts, podName, corev1.ClaimBound))
 			}
 			clientBuilder := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(objs...)
-			funcs := interceptor.Funcs{}
 			if tc.deleteIntercept != nil {
-				funcs.Delete = tc.deleteIntercept
-			}
-			if tc.listIntercept != nil {
-				funcs.List = tc.listIntercept
-			}
-			if tc.deleteIntercept != nil || tc.listIntercept != nil {
-				clientBuilder = clientBuilder.WithInterceptorFuncs(funcs)
+				clientBuilder = clientBuilder.WithInterceptorFuncs(interceptor.Funcs{Delete: tc.deleteIntercept})
 			}
 			cl := clientBuilder.Build()
 
 			r := _resource{client: cl}
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
 
-			err := r.deleteSurplusPVCs(opCtx, etcd)
+			err := r.deleteSurplusPVCs(opCtx, etcd, sts)
 			if tc.wantErrCode != "" {
 				g.Expect(err).To(HaveOccurred())
 				derr := druiderr.AsDruidError(err)

@@ -438,6 +438,71 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 		g.Expect(fakeClient.MoveLeaderCalls).To(Equal([]uint64{0xa}), "leadership must go to the Etcd's own member etcd-main-0")
 		g.Expect(fakeClient.RemoveCalls).To(BeEmpty(), "the former leader is removed on the next reconcile")
 	})
+
+	t.Run("unhealthy bootstrap member -> removed once quorum-safe", func(t *testing.T) {
+		g := NewWithT(t)
+		etcd := newEtcd()
+		sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), removalNamespace, removalEtcdUID, 1)
+		sts.Spec.Replicas = ptr.To(int32(1))
+		sts.Status.ReadyReplicas = 1
+		cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).
+			WithObjects(etcd.DeepCopy(), sts).WithStatusSubresource(&druidv1alpha1.Etcd{}).Build()
+
+		// The source member is unhealthy, but the remaining voter is healthy, so
+		// removing it is quorum-safe.
+		fakeClient := &etcdfake.Client{Members: []etcdmember.Member{
+			healthyLeader(0x1, "etcd-main-0"),
+			{ID: 0x9, Name: "etcd-source-0", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+		}}
+		r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: fakeClient}}
+		opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+		err := r.ensureSurplusMembersAreRemoved(opCtx, etcd)
+		g.Expect(err).To(HaveOccurred()) // requeue after removal
+		derr := druiderr.AsDruidError(err)
+		g.Expect(derr).NotTo(BeNil())
+		g.Expect(derr.Code).To(Equal(druidapicommon.ErrorCode(druiderr.ErrRequeueAfter)))
+		g.Expect(fakeClient.RemoveCalls).To(Equal([]uint64{0x9}), "the unhealthy source member is removed since doing so is quorum-safe")
+	})
+
+	t.Run("healthy STS members but several unhealthy bootstrap voters -> quorum-unsafe, held back", func(t *testing.T) {
+		g := NewWithT(t)
+		etcd := newEtcd()
+		etcd.Spec.Etcd.BootstrapWithExistingCluster.Members = []druidv1alpha1.BootstrapExistingMember{
+			{Name: "etcd-source-1"}, {Name: "etcd-source-2"}, {Name: "etcd-source-3"},
+		}
+		etcd.Status.BootstrapWithExistingCluster.Members = []druidv1alpha1.BootstrapJoinedMember{
+			{Name: "etcd-source-0"}, {Name: "etcd-source-1"}, {Name: "etcd-source-2"}, {Name: "etcd-source-3"},
+		}
+		etcd.Spec.Replicas = 3
+		sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), removalNamespace, removalEtcdUID, 3)
+		sts.Spec.Replicas = ptr.To(int32(3))
+		sts.Status.ReadyReplicas = 3
+		cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).
+			WithObjects(etcd.DeepCopy(), sts).WithStatusSubresource(&druidv1alpha1.Etcd{}).Build()
+
+		// The 3 STS members are healthy, so the bootstrap hold passes. All 4 source
+		// members are unhealthy. Removing the surplus etcd-source-0 would leave 6
+		// voters of which 3 are healthy, below the quorum of 4.
+		fakeClient := &etcdfake.Client{Members: []etcdmember.Member{
+			healthyLeader(0x1, "etcd-main-0"),
+			healthyVoter(0x2, "etcd-main-1"),
+			healthyVoter(0x3, "etcd-main-2"),
+			{ID: 0x6, Name: "etcd-source-3", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+			{ID: 0x7, Name: "etcd-source-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+			{ID: 0x8, Name: "etcd-source-0", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+			{ID: 0x9, Name: "etcd-source-1", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+		}}
+		r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: fakeClient}}
+		opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+		err := r.ensureSurplusMembersAreRemoved(opCtx, etcd)
+		g.Expect(err).To(HaveOccurred())
+		derr := druiderr.AsDruidError(err)
+		g.Expect(derr).NotTo(BeNil())
+		g.Expect(derr.Code).To(Equal(ErrQuorumUnsafeMemberRemoval))
+		g.Expect(fakeClient.RemoveCalls).To(BeEmpty(), "removal is held back since too few healthy voters would remain")
+	})
 }
 
 // TestEnsureMemberRemovalExternallyManagedMembers verifies surplus member
@@ -551,6 +616,56 @@ func TestShouldRemoveSurplusMembersExternallyManagedMembers(t *testing.T) {
 			// externally managed members.
 			cl := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(etcd.DeepCopy()).Build()
 			r := _resource{client: cl, clientFactory: &etcdfake.Factory{Client: &etcdfake.Client{}}}
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
+
+			got, err := r.shouldRemoveSurplusMembers(opCtx, etcd)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(got).To(Equal(tc.want))
+		})
+	}
+}
+
+// TestShouldRemoveSurplusMembersStatefulSetGate verifies that, during a
+// scale-in, surplus member removal runs whenever the StatefulSet has replicas,
+// even if none of its pods are ready yet, and is skipped without a StatefulSet
+// or when it is scaled to zero.
+func TestShouldRemoveSurplusMembersStatefulSetGate(t *testing.T) {
+	tests := []struct {
+		name          string
+		noSts         bool
+		stsReplicas   int32
+		readyReplicas int32
+		want          bool
+	}{
+		{name: "no StatefulSet -> false", noSts: true, want: false},
+		{name: "StatefulSet scaled to zero -> false", stsReplicas: 0, want: false},
+		{name: "StatefulSet with replicas but no ready pods -> true", stsReplicas: 3, readyReplicas: 0, want: true},
+		{name: "StatefulSet with ready pods -> true", stsReplicas: 3, readyReplicas: 3, want: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			etcd := testutils.EtcdBuilderWithoutDefaults(removalEtcdName, removalNamespace).
+				WithReplicas(1).
+				Build()
+			etcd.UID = removalEtcdUID
+			etcd.Status.Conditions = []druidv1alpha1.Condition{{
+				Type:   druidv1alpha1.ConditionTypeScaleOperationComplete,
+				Status: druidv1alpha1.ConditionFalse,
+				Reason: druidv1alpha1.ScaleOperationReasonScalingIn,
+			}}
+
+			clBuilder := fakeclient.NewClientBuilder().WithScheme(clientkubernetes.Scheme).WithObjects(etcd.DeepCopy())
+			if !tc.noSts {
+				sts := testutils.CreateStatefulSet(druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta), removalNamespace, removalEtcdUID, tc.stsReplicas)
+				sts.Spec.Replicas = ptr.To(tc.stsReplicas)
+				sts.Status.ReadyReplicas = tc.readyReplicas
+				clBuilder = clBuilder.WithObjects(sts)
+			}
+			r := _resource{client: clBuilder.Build(), clientFactory: &etcdfake.Factory{Client: &etcdfake.Client{}}}
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), "test-run")
 
 			got, err := r.shouldRemoveSurplusMembers(opCtx, etcd)

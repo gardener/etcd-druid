@@ -424,16 +424,24 @@ func (t *TestEnvironment) CorruptEtcdMemberData(g *WithT, etcd *druidv1alpha1.Et
 	}
 	g.Expect(dataVolumeMount).NotTo(BeNil(), "etcd container of pod %s has no data volume mount", podName)
 
-	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{
-		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
-			Name:            "corrupt-data",
-			Image:           "alpine/curl",
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Command:         []string{"/bin/sh", "-c", fmt.Sprintf("rm -rf %s/new.etcd/member", common.VolumeMountPathEtcdData)},
-			VolumeMounts:    []corev1.VolumeMount{*dataVolumeMount},
-		},
-	})
-	g.Expect(t.cl.SubResource("ephemeralcontainers").Update(t.ctx, pod)).To(Succeed())
+	// Re-fetch the pod on each attempt so that a resource version conflict with
+	// a concurrent update (e.g. by the kubelet) is retried.
+	g.Eventually(func() error {
+		current := &corev1.Pod{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(pod), current); err != nil {
+			return err
+		}
+		current.Spec.EphemeralContainers = append(current.Spec.EphemeralContainers, corev1.EphemeralContainer{
+			EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+				Name:            "corrupt-data",
+				Image:           "alpine/curl",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command:         []string{"/bin/sh", "-c", fmt.Sprintf("rm -rf %s/new.etcd/member", common.VolumeMountPathEtcdData)},
+				VolumeMounts:    []corev1.VolumeMount{*dataVolumeMount},
+			},
+		})
+		return t.cl.SubResource("ephemeralcontainers").Update(t.ctx, current)
+	}, timeout, defaultPollingInterval).Should(Succeed())
 
 	// The etcd container fails on the missing data directory and is restarted
 	// by the kubelet in the same pod.

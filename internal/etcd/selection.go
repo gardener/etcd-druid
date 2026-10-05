@@ -94,16 +94,13 @@ func SelectLeaderTransferee(retained Members, lastPreference MemberNames) *Membe
 	return fallback
 }
 
-// OrderRemovalCandidates orders an already-selected candidate set into the
-// sequence in which members should be removed: learners first, then non-leader
-// voters, and the leader last. This ordering only sequences the removals within
-// the selected set; it does not change which members are removed. Removing the
-// leader last avoids an unnecessary leadership change mid-operation.
+// OrderRemovalCandidates returns candidates in the order they should be removed:
+// learners, then unhealthy voters, then healthy voters, and the leader last.
+// Removing the leader last avoids a leadership change mid-operation, and
+// removing unhealthy voters first sheds a failing member early. Members of the
+// same kind are ordered by member ID for determinism.
 //
-// The leader is derived from each Member's Role (MemberRoleLeader). Within a
-// tier, unhealthy members are ordered before healthy ones so that a failing
-// member is shed first, and members of equal health are ordered by member ID
-// for determinism.
+// It only orders the given set; it does not decide which members are removed.
 func OrderRemovalCandidates(candidates Members) Members {
 	ordered := make(Members, len(candidates))
 	copy(ordered, candidates)
@@ -113,29 +110,18 @@ func OrderRemovalCandidates(candidates Members) Members {
 		case m.IsLearner():
 			return 0
 		case m.Role == MemberRoleLeader:
-			return 2
+			return 3
+		case m.Health != MemberHealthHealthy:
+			return 1
 		default:
-			return 1
+			return 2
 		}
-	}
-
-	// unhealthyFirst returns 0 for unhealthy members and 1 for healthy ones, so
-	// that within a tier the unhealthy members sort ahead of the healthy ones.
-	unhealthyFirst := func(m Member) int {
-		if m.Health == MemberHealthHealthy {
-			return 1
-		}
-		return 0
 	}
 
 	sort.SliceStable(ordered, func(i, j int) bool {
 		ti, tj := tier(ordered[i]), tier(ordered[j])
 		if ti != tj {
 			return ti < tj
-		}
-		hi, hj := unhealthyFirst(ordered[i]), unhealthyFirst(ordered[j])
-		if hi != hj {
-			return hi < hj
 		}
 		return ordered[i].ID < ordered[j].ID
 	})

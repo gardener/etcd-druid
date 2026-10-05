@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -283,7 +284,7 @@ func buildEtcd(clientPort, peerPort, backupPort, wrapperPort *int32, trafficDist
 }
 
 func matchClientService(g *WithT, etcd *druidv1alpha1.Etcd, actualSvc corev1.Service) {
-	clientPort := ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	clientPort := ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 	backupPort := ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
 	peerPort := ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	etcdObjMeta := etcd.ObjectMeta

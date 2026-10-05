@@ -10,6 +10,8 @@ import (
 	"math/big"
 	"slices"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -245,7 +247,7 @@ func GetStatefulSetName(etcdObjMeta metav1.ObjectMeta) string {
 
 // GetClientPort returns the etcd client port, defaulting to 2379 when unset.
 func GetClientPort(etcd *Etcd) int32 {
-	return ptr.Deref(etcd.Spec.Etcd.ClientPort, 2379)
+	return ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 }
 
 // --------------- Miscellaneous helper functions ---------------

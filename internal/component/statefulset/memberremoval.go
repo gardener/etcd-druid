@@ -14,6 +14,7 @@ import (
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -84,8 +85,13 @@ func (r _resource) ensureSurplusMembersAreRemoved(ctx component.OperatorContext,
 	// former leader on the next reconcile.
 	if candidate.Role == etcdmember.MemberRoleLeader {
 		moved, err := moveLeadershipAway(ctx, etcd, etcdClient, *candidate, retained)
-		if err != nil || moved {
+		if err != nil {
 			return err
+		}
+		if moved {
+			return druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
+				fmt.Sprintf("moved leadership away from %s; requeuing to remove the former leader for etcd %v",
+					candidate.Name, client.ObjectKeyFromObject(etcd)))
 		}
 	}
 
@@ -138,16 +144,16 @@ func (r _resource) shouldRemoveSurplusMembers(ctx component.OperatorContext, etc
 		return false, nil
 	}
 
-	// If no StatefulSet exists yet (initial cluster creation), or if no pods are
-	// ready (cluster is still bootstrapping or fully down), there are no etcd
-	// members to remove. Skip the MemberList dial entirely to avoid a connection
-	// timeout against a client Service that has no endpoints yet.
+	// Without a StatefulSet, or with one scaled to zero, there are no members to
+	// remove and no endpoints to dial. Ready pods are not required: a scale-in
+	// requested while the cluster is still starting must wait here until the
+	// cluster is reachable, instead of skipping member removal.
 	existingSts, err := r.getExistingStatefulSet(ctx, etcd.ObjectMeta)
 	if err != nil {
 		return false, druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
 			fmt.Sprintf("failed to get existing StatefulSet while checking for surplus members for etcd: %v", client.ObjectKeyFromObject(etcd)))
 	}
-	return existingSts != nil && existingSts.Status.ReadyReplicas > 0, nil
+	return existingSts != nil && ptr.Deref(existingSts.Spec.Replicas, 0) > 0, nil
 }
 
 // newEtcdClient dials the etcd cluster and returns an etcd client. The caller
@@ -174,10 +180,10 @@ func getLiveMembersFromCluster(ctx component.OperatorContext, etcd *druidv1alpha
 // moveLeadershipAway transfers leadership from leader, which is about to be
 // removed, to a healthy voting member in retained. Bootstrap members listed in
 // spec.etcd.bootstrapWithExistingCluster are passed as the last preference, so
-// leadership goes to any other retained member first. On a successful transfer
-// it returns true together with a requeue error, so the former leader is
-// removed on the next reconcile. When no member can take over, it returns false
-// and the caller removes the leader directly.
+// leadership goes to any other retained member first. It returns true on a
+// successful transfer, so the caller can requeue and remove the former leader
+// on the next reconcile. When no member can take over, it returns false and
+// the caller removes the leader directly.
 func moveLeadershipAway(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, etcdClient etcdclient.Client, leader etcdmember.Member, retained etcdmember.Members) (bool, error) {
 	transferee := etcdmember.SelectLeaderTransferee(retained, druidv1alpha1.GetBootstrapMemberNames(etcd))
 	if transferee == nil {
@@ -188,12 +194,10 @@ func moveLeadershipAway(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd,
 	ctx.Logger.Info("moving etcd leadership before removing the leader",
 		"leader", leader.Name, "transferee", transferee.Name)
 	if err := etcdClient.MoveLeader(ctx, leader.ClientURLs, transferee.ID); err != nil {
-		return true, druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
+		return false, druiderr.WrapError(err, ErrRemoveEtcdMember, component.OperationPreSync,
 			fmt.Sprintf("failed to move leadership from %s to %s for etcd: %v", leader.Name, transferee.Name, client.ObjectKeyFromObject(etcd)))
 	}
-	return true, druiderr.New(druiderr.ErrRequeueAfter, component.OperationPreSync,
-		fmt.Sprintf("moved leadership from %s to %s; requeuing to remove the former leader for etcd %v",
-			leader.Name, transferee.Name, client.ObjectKeyFromObject(etcd)))
+	return true, nil
 }
 
 // checkQuorumSafeMemberRemoval refuses to remove candidate when doing so would

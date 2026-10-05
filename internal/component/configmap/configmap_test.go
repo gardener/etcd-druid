@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -961,7 +962,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
+			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient))),
 			"advertise-client-urls": Equal(expectedAdvertiseURLsAsInterface(etcd, advertiseURLTypeClient, "https")),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 				"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
@@ -973,7 +974,7 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-			"listen-client-urls": Equal(fmt.Sprintf("http://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
+			"listen-client-urls": Equal(fmt.Sprintf("http://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient))),
 		}))
 		g.Expect(actualETCDConfig).ToNot(HaveKey("client-transport-security"))
 	}
@@ -985,7 +986,7 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 	case advertiseURLTypePeer:
 		port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	case advertiseURLTypeClient:
-		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 	default:
 		return nil
 	}

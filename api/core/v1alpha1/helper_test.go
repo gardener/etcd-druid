@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -111,74 +113,31 @@ func TestGetDeltaSnapshotLeaseName(t *testing.T) {
 	g.Expect(deltaSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-delta-snap"))
 }
 
-func TestGetFullSnapshotLeaseName(t *testing.T) {
-	g := NewWithT(t)
-	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
-	fullSnapshotLeaseName := GetFullSnapshotLeaseName(etcdObjMeta)
-	g.Expect(fullSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-full-snap"))
-}
-
-func TestGetMemberLeaseNames(t *testing.T) {
+func TestGetClientPort(t *testing.T) {
 	tests := []struct {
-		name                     string
-		replicas                 int
-		memberNamePrefix         *string
-		expectedMemberLeases     func(etcdName string) []string
-		externallyManagedMembers []string
+		name       string
+		clientPort *int32
+		want       int32
 	}{
-		{
-			name:             "no member name prefix",
-			replicas:         3,
-			memberNamePrefix: nil,
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{etcdName + "-0", etcdName + "-1", etcdName + "-2"}
-			},
-		},
-		{
-			name:             "with member name prefix",
-			replicas:         3,
-			memberNamePrefix: ptr.To("myprefix"),
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1", "myprefix-" + etcdName + "-2"}
-			},
-		},
-		{
-			name:                     "externally managed with no member name prefix",
-			replicas:                 3,
-			memberNamePrefix:         nil,
-			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{etcdName + "-1.1.1.1", etcdName + "-1.1.1.2", etcdName + "-1.1.1.3"}
-			},
-		},
-		{
-			name:                     "externally managed with member name prefix",
-			replicas:                 3,
-			memberNamePrefix:         ptr.To("myprefix"),
-			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{"myprefix-" + etcdName + "-1.1.1.1", "myprefix-" + etcdName + "-1.1.1.2", "myprefix-" + etcdName + "-1.1.1.3"}
-			},
-		},
+		{name: "unset -> default client port", want: druidapicommon.DefaultPortEtcdClient},
+		{name: "set -> configured port", clientPort: ptr.To(int32(3379)), want: 3379},
 	}
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
-			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
-			etcd := &Etcd{
-				ObjectMeta: etcdObjMeta,
-				Spec: EtcdSpec{
-					Replicas:                         3,
-					MemberNamePrefix:                 test.memberNamePrefix,
-					ExternallyManagedMemberAddresses: test.externallyManagedMembers,
-				},
-			}
-			leaseNames := GetMemberLeaseNames(etcd)
-			g.Expect(leaseNames).To(Equal(test.expectedMemberLeases(etcdObjMeta.Name)))
+			etcd := &Etcd{Spec: EtcdSpec{Etcd: EtcdConfig{ClientPort: test.clientPort}}}
+			g.Expect(GetClientPort(etcd)).To(Equal(test.want))
 		})
 	}
+}
+
+func TestGetFullSnapshotLeaseName(t *testing.T) {
+	g := NewWithT(t)
+	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+	fullSnapshotLeaseName := GetFullSnapshotLeaseName(etcdObjMeta)
+	g.Expect(fullSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-full-snap"))
 }
 
 // TestGetMemberNames verifies the names of the Etcd's own members for

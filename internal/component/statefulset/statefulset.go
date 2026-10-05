@@ -336,7 +336,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 
 	// During a scale-in, delete the PVCs of the members being removed. A no-op
 	// outside a scale-in.
-	if err := r.deleteSurplusPVCs(ctx, etcd); err != nil {
+	if err := r.deleteSurplusPVCs(ctx, etcd, existingSTS); err != nil {
 		return err
 	}
 

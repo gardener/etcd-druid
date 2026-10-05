@@ -71,28 +71,25 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 // PreSync is a no-op for the member lease component.
 func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
 
-// Sync creates or updates the member leases for the given Etcd and deletes any
-// surplus leases whose ordinal is no longer within spec.replicas (e.g. after
-// a scale-in or member replacement).
+// Sync creates or updates the member leases for the given Etcd and deletes the
+// ones that are no longer required.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
-	return r.createOrUpdateLeases(ctx, etcd, objectKeys)
-}
+	createTasks := make([]utils.OperatorTask, len(objectKeys))
+	var errs error
 
-// createOrUpdateLeases concurrently creates or updates the leases for all desired member ordinals.
-func (r _resource) createOrUpdateLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, objectKeys []client.ObjectKey) error {
-	tasks := make([]utils.OperatorTask, len(objectKeys))
 	for i, objKey := range objectKeys {
-		tasks[i] = utils.OperatorTask{
+		createTasks[i] = utils.OperatorTask{
 			Name: "CreateOrUpdate-" + objKey.String(),
 			Fn: func(ctx component.OperatorContext) error {
 				return r.doCreateOrUpdate(ctx, etcd, objKey)
 			},
 		}
 	}
-	var errs error
-	for _, err := range utils.RunConcurrently(ctx, tasks) {
-		errs = multierror.Append(errs, err)
+	if errorList := utils.RunConcurrently(ctx, createTasks); len(errorList) > 0 {
+		for _, err := range errorList {
+			errs = multierror.Append(errs, err)
+		}
 	}
 
 	if err := r.deleteStaleMemberLeases(ctx, etcd); err != nil {
@@ -101,12 +98,11 @@ func (r _resource) createOrUpdateLeases(ctx component.OperatorContext, etcd *dru
 	return errs
 }
 
-// deleteStaleMemberLeases deletes member leases that exist but are no longer required.
-// This covers both externally-managed member replacement and druid-managed scale-in.
+// deleteStaleMemberLeases deletes member leases that exist but are no longer
+// required, e.g. after a scale-in or when an externally managed member is replaced.
 func (r _resource) deleteStaleMemberLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
-	// When scaled to zero the desired lease set is empty, so every existing lease
-	// would look stale. Skip deletion to preserve member identity for the next
-	// scale-out.
+	// Hibernation: the desired lease set is empty, but the leases must be kept
+	// for when the cluster wakes up.
 	if etcd.Spec.Replicas == 0 {
 		return nil
 	}
@@ -155,7 +151,7 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 func (r _resource) doDelete(ctx component.OperatorContext, objectKey client.ObjectKey) error {
 	err := r.client.Delete(ctx, emptyMemberLease(objectKey))
 	if apierrors.IsNotFound(err) {
-		// The lease is already gone; nothing to do and nothing to log.
+		ctx.Logger.Info("No member lease found, Deletion is a No-Op", "objectKey", objectKey)
 		return nil
 	}
 	if err != nil {

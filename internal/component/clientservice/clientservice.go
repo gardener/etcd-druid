@@ -164,7 +164,7 @@ func emptyClientService(objectKey client.ObjectKey) *corev1.Service {
 
 func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
 	backupPort := ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)
-	clientPort := ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+	clientPort := ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 	peerPort := ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 
 	return []corev1.ServicePort{

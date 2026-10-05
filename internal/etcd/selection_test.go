@@ -158,6 +158,19 @@ func TestOrderRemovalCandidates(t *testing.T) {
 			wantIDs: []uint64{3, 2, 4, 1},
 		},
 		{
+			name: "unhealthy voters before healthy voters, learners first, leader last",
+			candidates: []Member{
+				{ID: 1, Name: "etcd-main-0", Role: MemberRoleLeader, Health: MemberHealthUnhealthy},
+				healthyVoter(2, "etcd-main-1"),
+				{ID: 3, Name: "etcd-main-2", Role: MemberRoleMember, Health: MemberHealthUnknown},
+				{ID: 4, Name: "etcd-main-3", Role: MemberRoleLearner, Health: MemberHealthUnhealthy},
+				{ID: 5, Name: "etcd-main-4", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+			},
+			// learner(4); unhealthy voters by ID: 3, 5; healthy voter 2; leader 1
+			// last even when unhealthy.
+			wantIDs: []uint64{4, 3, 5, 2, 1},
+		},
+		{
 			name: "no leader in set: voters ordered by member ID",
 			candidates: []Member{
 				healthyVoter(12, "etcd-main-2"),
@@ -332,11 +345,10 @@ func TestSelectLeaderTransferee(t *testing.T) {
 			wantID:         2,
 		},
 		{
-			name: "unhealthy, learner and leader members are skipped",
+			name: "unhealthy and learner members are skipped",
 			retained: Members{
 				{ID: 1, Name: "t-0", Role: MemberRoleMember, Health: MemberHealthUnknown},
 				{ID: 2, Name: "t-1", Role: MemberRoleLearner, Health: MemberHealthHealthy},
-				{ID: 3, Name: "t-2", Role: MemberRoleLeader, Health: MemberHealthHealthy},
 			},
 			wantNil: true,
 		},

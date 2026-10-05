@@ -11,3 +11,6 @@ const (
 	// EtcdOpsTaskFinalizerName is the name of the etcdopstask finalizer.
 	EtcdOpsTaskFinalizerName = "druid.gardener.cloud/etcd-ops-task"
 )
+
+// DefaultPortEtcdClient is the default port for the etcd client.
+const DefaultPortEtcdClient int32 = 2379

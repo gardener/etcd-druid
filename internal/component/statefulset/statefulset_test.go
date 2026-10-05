@@ -552,41 +552,13 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
-	iv := testutils.CreateImageVector(true, true)
 
 	const (
 		initialReplicas int32 = 5
 		targetReplicas  int32 = 3
 	)
 
-	// Seed a fully in-sync StatefulSet at the initial size by running createOrPatch
-	// once, so the subsequent scale-in Sync goes straight to the shrink path
-	// (handleTLSChanges is a no-op when the STS already matches the etcd spec).
-	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
-		WithReplicas(initialReplicas).
-		Build()
-	cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
-	operator := New(cl, iv, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
-	opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
-	opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
-
-	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
-	seededSTS, err := getLatestStatefulSet(cl, etcd)
-	g.Expect(err).To(Succeed())
-	g.Expect(seededSTS.Spec.Replicas).To(HaveValue(Equal(initialReplicas)))
-
-	// Create the PVCs the StatefulSet would have provisioned for ordinals 0..4.
-	for i := int32(0); i < initialReplicas; i++ {
-		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, int(i))
-		g.Expect(cl.Create(context.Background(), testutils.CreatePVC(seededSTS, podName, corev1.ClaimBound))).To(Succeed())
-	}
-
-	// Create member leases for all initial members so that handleTLSChanges can
-	// confirm peer-TLS state via IsPeerURLInSyncForAllMembers and return nil.
-	for _, leaseName := range druidv1alpha1.GetMemberLeaseNames(etcd) {
-		lease := testutils.CreateLease(leaseName, etcd.Namespace, etcd.Name, etcd.UID, common.ComponentNameMemberLease)
-		g.Expect(cl.Create(context.Background(), lease)).To(Succeed())
-	}
+	etcd, cl, operator, opCtx := newSyncedEtcdWithPVCs(t, g, initialReplicas)
 
 	// Request a scale-in and mark the in-flight condition the detector would have set.
 	etcd.Spec.Replicas = targetReplicas
@@ -618,8 +590,71 @@ func TestSyncScaleInShrinksStatefulSet(t *testing.T) {
 	}
 }
 
+// TestSyncHibernationKeepsPVCs verifies that hibernating a cluster (spec.replicas
+// set to 0) shrinks the StatefulSet to 0 replicas but does not delete the
+// members' PVCs or mark them for deletion: unhibernation reuses that storage to
+// restore the cluster.
+func TestSyncHibernationKeepsPVCs(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	const initialReplicas int32 = 3
+
+	etcd, cl, operator, opCtx := newSyncedEtcdWithPVCs(t, g, initialReplicas)
+
+	// Hibernate: a transition to 0 replicas is not a scale-in, so no
+	// ScaleOperationComplete=False/ScalingIn condition is set.
+	etcd.Spec.Replicas = 0
+
+	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
+
+	hibernatedSTS, err := getLatestStatefulSet(cl, etcd)
+	g.Expect(err).To(Succeed())
+	g.Expect(hibernatedSTS.Spec.Replicas).To(HaveValue(Equal(int32(0))), "StatefulSet must be shrunk to 0 replicas")
+
+	vctName := ptr.Deref(etcd.Spec.VolumeClaimTemplate, etcd.Name)
+	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
+	for _, ordinal := range []int32{0, 1, 2} {
+		pvcName := fmt.Sprintf("%s-%s-%d", vctName, stsName, ordinal)
+		pvc := &corev1.PersistentVolumeClaim{}
+		g.Expect(cl.Get(context.Background(), client.ObjectKey{Namespace: etcd.Namespace, Name: pvcName}, pvc)).To(Succeed(),
+			"PVC for ordinal %d must survive hibernation", ordinal)
+		g.Expect(pvc.DeletionTimestamp).To(BeNil(), "PVC for ordinal %d must not be marked for deletion", ordinal)
+	}
+}
+
 // ----------------------------- TriggerDelete -------------------------------
 // ---------------------------- Helper Functions -----------------------------
+
+// newSyncedEtcdWithPVCs returns an Etcd with the given replicas whose
+// StatefulSet, PVCs and member leases already exist, so that a following Sync
+// goes straight to the replica change under test.
+func newSyncedEtcdWithPVCs(t *testing.T, g *WithT, replicas int32) (*druidv1alpha1.Etcd, client.Client, component.Operator, component.OperatorContext) {
+	t.Helper()
+	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+		WithReplicas(replicas).
+		Build()
+	cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
+	operator := New(cl, testutils.CreateImageVector(true, true), &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
+	opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+	opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
+
+	g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
+	seededSTS, err := getLatestStatefulSet(cl, etcd)
+	g.Expect(err).To(Succeed())
+	g.Expect(seededSTS.Spec.Replicas).To(HaveValue(Equal(replicas)))
+
+	for i := range int(replicas) {
+		podName := druidv1alpha1.GetOrdinalPodName(etcd.ObjectMeta, i)
+		g.Expect(cl.Create(context.Background(), testutils.CreatePVC(seededSTS, podName, corev1.ClaimBound))).To(Succeed())
+	}
+	// Member leases let handleTLSChanges confirm the peer TLS state and return.
+	for _, leaseName := range druidv1alpha1.GetMemberLeaseNames(etcd) {
+		lease := testutils.CreateLease(leaseName, etcd.Namespace, etcd.Name, etcd.UID, common.ComponentNameMemberLease)
+		g.Expect(cl.Create(context.Background(), lease)).To(Succeed())
+	}
+	return etcd, cl, operator, opCtx
+}
 
 func getLatestStatefulSet(cl client.Client, etcd *druidv1alpha1.Etcd) (*appsv1.StatefulSet, error) {
 	sts := &appsv1.StatefulSet{}
