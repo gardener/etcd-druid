@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -111,6 +113,26 @@ func TestGetDeltaSnapshotLeaseName(t *testing.T) {
 	g.Expect(deltaSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-delta-snap"))
 }
 
+func TestGetClientPort(t *testing.T) {
+	tests := []struct {
+		name       string
+		clientPort *int32
+		want       int32
+	}{
+		{name: "unset -> default client port", want: druidapicommon.DefaultPortEtcdClient},
+		{name: "set -> configured port", clientPort: ptr.To(int32(3379)), want: 3379},
+	}
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{Spec: EtcdSpec{Etcd: EtcdConfig{ClientPort: test.clientPort}}}
+			g.Expect(GetClientPort(etcd)).To(Equal(test.want))
+		})
+	}
+}
+
 func TestGetFullSnapshotLeaseName(t *testing.T) {
 	g := NewWithT(t)
 	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
@@ -118,46 +140,54 @@ func TestGetFullSnapshotLeaseName(t *testing.T) {
 	g.Expect(fullSnapshotLeaseName).To(Equal(etcdObjMeta.Name + "-full-snap"))
 }
 
-func TestGetMemberLeaseNames(t *testing.T) {
+// TestGetMemberNames verifies the names of the Etcd's own members for
+// druid-managed pods and for externally managed members, and that bootstrap
+// members are left out.
+func TestGetMemberNames(t *testing.T) {
 	tests := []struct {
 		name                     string
-		replicas                 int
+		replicas                 int32
 		memberNamePrefix         *string
-		expectedMemberLeases     func(etcdName string) []string
 		externallyManagedMembers []string
+		bootstrap                *BootstrapWithExistingCluster
+		expectedNames            func(etcdName string) []string
 	}{
 		{
-			name:             "no member name prefix",
-			replicas:         3,
-			memberNamePrefix: nil,
-			expectedMemberLeases: func(etcdName string) []string {
+			name:     "druid-managed pods",
+			replicas: 3,
+			expectedNames: func(etcdName string) []string {
 				return []string{etcdName + "-0", etcdName + "-1", etcdName + "-2"}
 			},
 		},
 		{
+			name:     "zero replicas",
+			replicas: 0,
+			expectedNames: func(_ string) []string {
+				return []string{}
+			},
+		},
+		{
 			name:             "with member name prefix",
-			replicas:         3,
+			replicas:         2,
 			memberNamePrefix: ptr.To("myprefix"),
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1", "myprefix-" + etcdName + "-2"}
+			expectedNames: func(etcdName string) []string {
+				return []string{"myprefix-" + etcdName + "-0", "myprefix-" + etcdName + "-1"}
 			},
 		},
 		{
-			name:                     "externally managed with no member name prefix",
+			name:                     "externally managed members",
 			replicas:                 3,
-			memberNamePrefix:         nil,
-			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{etcdName + "-1.1.1.1", etcdName + "-1.1.1.2", etcdName + "-1.1.1.3"}
+			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2"},
+			expectedNames: func(etcdName string) []string {
+				return []string{etcdName + "-1.1.1.1", etcdName + "-1.1.1.2"}
 			},
 		},
 		{
-			name:                     "externally managed with member name prefix",
-			replicas:                 3,
-			memberNamePrefix:         ptr.To("myprefix"),
-			externallyManagedMembers: []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"},
-			expectedMemberLeases: func(etcdName string) []string {
-				return []string{"myprefix-" + etcdName + "-1.1.1.1", "myprefix-" + etcdName + "-1.1.1.2", "myprefix-" + etcdName + "-1.1.1.3"}
+			name:      "bootstrap members are left out",
+			replicas:  2,
+			bootstrap: &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			expectedNames: func(etcdName string) []string {
+				return []string{etcdName + "-0", etcdName + "-1"}
 			},
 		},
 	}
@@ -170,13 +200,214 @@ func TestGetMemberLeaseNames(t *testing.T) {
 			etcd := &Etcd{
 				ObjectMeta: etcdObjMeta,
 				Spec: EtcdSpec{
-					Replicas:                         3,
+					Replicas:                         test.replicas,
 					MemberNamePrefix:                 test.memberNamePrefix,
 					ExternallyManagedMemberAddresses: test.externallyManagedMembers,
+					Etcd:                             EtcdConfig{BootstrapWithExistingCluster: test.bootstrap},
 				},
 			}
-			leaseNames := GetMemberLeaseNames(etcd)
-			g.Expect(leaseNames).To(Equal(test.expectedMemberLeases(etcdObjMeta.Name)))
+			g.Expect(GetMemberNames(etcd)).To(Equal(test.expectedNames(etcdObjMeta.Name)))
+		})
+	}
+}
+
+// TestGetBootstrapMemberNames verifies that the names listed in
+// spec.etcd.bootstrapWithExistingCluster are returned in order.
+func TestGetBootstrapMemberNames(t *testing.T) {
+	tests := []struct {
+		name          string
+		bootstrap     *BootstrapWithExistingCluster
+		expectedNames []string
+	}{
+		{name: "bootstrapWithExistingCluster unset", bootstrap: nil, expectedNames: nil},
+		{
+			name:          "bootstrapWithExistingCluster set",
+			bootstrap:     &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}, {Name: "etcd-source-1"}}},
+			expectedNames: []string{"etcd-source-0", "etcd-source-1"},
+		},
+	}
+	t.Parallel()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{Spec: EtcdSpec{Etcd: EtcdConfig{BootstrapWithExistingCluster: test.bootstrap}}}
+			g.Expect(GetBootstrapMemberNames(etcd)).To(Equal(test.expectedNames))
+		})
+	}
+}
+
+func TestExpectedMemberNames(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		replicas  int32
+		bootstrap *BootstrapWithExistingCluster
+		want      []string
+	}{
+		{name: "no bootstrap members", replicas: 2, want: []string{etcdName + "-0", etcdName + "-1"}},
+		{
+			name:      "own members followed by bootstrap members",
+			replicas:  2,
+			bootstrap: &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			want:      []string{etcdName + "-0", etcdName + "-1", "etcd-source-0"},
+		},
+		{
+			name:      "zero replicas keeps bootstrap members",
+			replicas:  0,
+			bootstrap: &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			want:      []string{"etcd-source-0"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{
+				ObjectMeta: metav1.ObjectMeta{Name: etcdName, Namespace: etcdNamespace},
+				Spec:       EtcdSpec{Replicas: test.replicas, Etcd: EtcdConfig{BootstrapWithExistingCluster: test.bootstrap}},
+			}
+			g.Expect(ExpectedMemberNames(etcd)).To(Equal(test.want))
+		})
+	}
+}
+
+func TestGetBootstrapMemberNamesToDecommission(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		spec *BootstrapWithExistingCluster
+		// joined are the member names recorded as joined in status.
+		joined []string
+		want   []string
+	}{
+		{
+			name:   "no joined members recorded -> nil",
+			spec:   &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			joined: nil,
+			want:   nil,
+		},
+		{
+			name:   "all joined members still in spec -> nil",
+			spec:   &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}, {Name: "etcd-source-1"}}},
+			joined: []string{"etcd-source-0", "etcd-source-1"},
+			want:   nil,
+		},
+		{
+			name:   "joined member no longer in spec -> that member",
+			spec:   &BootstrapWithExistingCluster{Members: []BootstrapExistingMember{{Name: "etcd-source-0"}}},
+			joined: []string{"etcd-source-0", "etcd-source-1"},
+			want:   []string{"etcd-source-1"},
+		},
+		{
+			name:   "spec bootstrap unset -> all joined members",
+			spec:   nil,
+			joined: []string{"etcd-source-0", "etcd-source-1"},
+			want:   []string{"etcd-source-0", "etcd-source-1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
+			etcd := &Etcd{
+				ObjectMeta: etcdObjMeta,
+				Spec: EtcdSpec{
+					Replicas: 3,
+					Etcd:     EtcdConfig{BootstrapWithExistingCluster: tc.spec},
+				},
+			}
+			if tc.joined != nil {
+				members := make([]BootstrapJoinedMember, 0, len(tc.joined))
+				for _, name := range tc.joined {
+					members = append(members, BootstrapJoinedMember{Name: name})
+				}
+				etcd.Status.BootstrapWithExistingCluster = &BootstrapWithExistingClusterStatus{Members: members}
+			}
+			g.Expect(GetBootstrapMemberNamesToDecommission(etcd)).To(Equal(tc.want))
+		})
+	}
+}
+
+// TestGetScaleOperationCompleteCondition verifies that GetScaleOperationCompleteCondition
+// returns the recorded ScaleOperationComplete condition, or nil when it is absent.
+func TestGetScaleOperationCompleteCondition(t *testing.T) {
+	t.Parallel()
+	scaleCond := Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionFalse, Reason: ScaleOperationReasonScalingIn}
+	readyCond := Condition{Type: ConditionTypeReady, Status: ConditionTrue}
+	tests := []struct {
+		name       string
+		conditions []Condition
+		expected   *Condition
+	}{
+		{name: "no conditions -> nil", conditions: nil, expected: nil},
+		{name: "only other conditions -> nil", conditions: []Condition{readyCond}, expected: nil},
+		{name: "condition recorded -> that condition", conditions: []Condition{readyCond, scaleCond}, expected: &scaleCond},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{Status: EtcdStatus{Conditions: tc.conditions}}
+			g.Expect(GetScaleOperationCompleteCondition(etcd)).To(Equal(tc.expected))
+		})
+	}
+}
+
+// TestScaleOperationProgressHelpers verifies HasScaleOperationCompleted and
+// IsScaleOperationInProgressWithReason for an absent, completed, and in-progress
+// ScaleOperationComplete condition.
+func TestScaleOperationProgressHelpers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                    string
+		condition               *Condition
+		reasons                 []string
+		expectedCompleted       bool
+		expectedInProgressMatch bool
+	}{
+		{
+			name:                    "absent condition -> completed, not in progress",
+			condition:               nil,
+			reasons:                 []string{ScaleOperationReasonScalingIn},
+			expectedCompleted:       true,
+			expectedInProgressMatch: false,
+		},
+		{
+			name:                    "True -> completed, not in progress",
+			condition:               &Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionTrue, Reason: ScaleOperationReasonNoScaleOperation},
+			reasons:                 []string{ScaleOperationReasonScalingIn},
+			expectedCompleted:       true,
+			expectedInProgressMatch: false,
+		},
+		{
+			name:                    "False with a matching reason -> in progress",
+			condition:               &Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionFalse, Reason: ScaleOperationReasonScalingIn},
+			reasons:                 []string{ScaleOperationReasonScalingIn, ScaleOperationReasonBootstrapMembersRemoval},
+			expectedCompleted:       false,
+			expectedInProgressMatch: true,
+		},
+		{
+			name:                    "False with another reason -> in progress, no match",
+			condition:               &Condition{Type: ConditionTypeScaleOperationComplete, Status: ConditionFalse, Reason: ScaleOperationReasonScalingOut},
+			reasons:                 []string{ScaleOperationReasonScalingIn},
+			expectedCompleted:       false,
+			expectedInProgressMatch: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &Etcd{}
+			if tc.condition != nil {
+				etcd.Status.Conditions = []Condition{*tc.condition}
+			}
+			g.Expect(HasScaleOperationCompleted(etcd)).To(Equal(tc.expectedCompleted))
+			g.Expect(IsScaleOperationInProgressWithReason(etcd, tc.reasons...)).To(Equal(tc.expectedInProgressMatch))
 		})
 	}
 }

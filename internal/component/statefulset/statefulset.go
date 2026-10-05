@@ -12,6 +12,7 @@ import (
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
@@ -52,16 +53,18 @@ const (
 )
 
 type _resource struct {
-	client      client.Client
-	imageVector imagevector.ImageVector
-	logger      logr.Logger
+	client        client.Client
+	imageVector   imagevector.ImageVector
+	clientFactory etcdclient.Factory
+	logger        logr.Logger
 }
 
 // New returns a new statefulset component operator.
-func New(client client.Client, imageVector imagevector.ImageVector) component.Operator {
+func New(client client.Client, imageVector imagevector.ImageVector, clientFactory etcdclient.Factory) component.Operator {
 	return &_resource{
-		client:      client,
-		imageVector: imageVector,
+		client:        client,
+		imageVector:   imageVector,
+		clientFactory: clientFactory,
 	}
 }
 
@@ -87,8 +90,26 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 }
 
 // PreSync performs pre-sync operations for the statefulset component.
+//
+// Ordering matters: the pre-sync snapshot is taken before any surplus etcd member
+// is removed, so a safety snapshot of the cluster exists before membership is
+// mutated during a scale-in or bootstrap members removal. When the backup store is
+// disabled there is no snapshot to sequence, so member removal still runs.
 func (r _resource) PreSync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	r.logger = ctx.Logger.WithValues("component", component.StatefulSetKind, "operation", component.OperationPreSync)
+
+	if err := r.ensurePreSyncSnapshotIfNeeded(ctx, etcd); err != nil {
+		return err
+	}
+
+	return r.ensureSurplusMembersAreRemoved(ctx, etcd)
+}
+
+// ensurePreSyncSnapshotIfNeeded takes a pre-sync snapshot when one is warranted:
+// the backup store is enabled, a StatefulSet with a non-zero replica count exists,
+// and either the cluster is scaling to zero or a tracked image/replica change is
+// pending (and the skip-snapshot annotation is absent). It is a no-op otherwise.
+func (r _resource) ensurePreSyncSnapshotIfNeeded(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	if !etcd.IsBackupStoreEnabled() {
 		return nil
 	}
@@ -287,6 +308,7 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 			component.OperationSync,
 			fmt.Sprintf("Error getting StatefulSet: %v for etcd: %v", objectKey, druidv1alpha1.GetNamespaceName(etcd.ObjectMeta)))
 	}
+
 	// There is no StatefulSet present. Create one.
 	if existingSTS == nil {
 		// Check etcd observed generation to determine if the etcd cluster is new or not.
@@ -310,6 +332,12 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 				return err
 			}
 		}
+	}
+
+	// During a scale-in, delete the PVCs of the members being removed. A no-op
+	// outside a scale-in.
+	if err := r.deleteSurplusPVCs(ctx, etcd, existingSTS); err != nil {
+		return err
 	}
 
 	return r.createOrPatch(ctx, etcd)

@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 		_, _ = fmt.Fprintf(os.Stderr, "KUBECONFIG not provided: %v\n", err)
 		os.Exit(1)
 	}
-	cl, err := e2eutils.GetKubernetesClient(kubeconfigPath)
+	cl, restConfig, err := e2eutils.GetKubernetesClient(kubeconfigPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to create Kubernetes client: %v\n", err)
 		os.Exit(1)
@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 
 	ctx, cancelCtx := context.WithTimeout(context.Background(), timeoutTest)
 
-	testEnv = testenv.NewTestEnvironment(ctx, cancelCtx, cl)
+	testEnv = testenv.NewTestEnvironment(ctx, cancelCtx, cl, restConfig)
 	if err = testEnv.PrepareScheme(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to prepare scheme: %v\n", err)
 		os.Exit(1)

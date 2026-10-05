@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -861,6 +862,36 @@ func TestTriggerDelete(t *testing.T) {
 	}
 }
 
+// ---------------------------- computeCheckSum ------------------------------
+
+// TestComputeCheckSumExcludesReplicaDerivedURLs verifies that the configmap
+// checksum ignores initial-cluster, initial-advertise-peer-urls and
+// advertise-client-urls so a scale-in/scale-out (which only changes those
+// replica-derived fields) does not roll the surviving pods, while a change to
+// any other field still produces a different checksum.
+func TestComputeCheckSumExcludesReplicaDerivedURLs(t *testing.T) {
+	g := NewWithT(t)
+
+	checkSumForReplicas := func(replicas int32) string {
+		etcd := buildEtcd(replicas, true, true, nil)
+		cm := newConfigMap(g, etcd)
+		checkSum, err := computeCheckSum(cm)
+		g.Expect(err).ToNot(HaveOccurred())
+		return checkSum
+	}
+
+	threeReplicas := checkSumForReplicas(3)
+	g.Expect(checkSumForReplicas(2)).To(Equal(threeReplicas), "scale-in 3->2 must not change the checksum")
+	g.Expect(checkSumForReplicas(5)).To(Equal(threeReplicas), "scale-out 3->5 must not change the checksum")
+
+	etcd := buildEtcd(3, true, true, nil)
+	etcd.Spec.Etcd.ClientPort = ptr.To[int32](9999)
+	cmPortChanged := newConfigMap(g, etcd)
+	portChanged, err := computeCheckSum(cmPortChanged)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(portChanged).ToNot(Equal(threeReplicas), "a client port change must change the checksum")
+}
+
 // ---------------------------- Helper Functions -----------------------------
 func buildEtcd(replicas int32, clientTLSEnabled, peerTLSEnabled bool, externallyManagedMemberAddresses []string) *druidv1alpha1.Etcd {
 	etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(replicas)
@@ -931,7 +962,7 @@ func matchConfigMap(g *WithT, etcd *druidv1alpha1.Etcd, actualConfigMap corev1.C
 func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actualETCDConfig map[string]any) {
 	if etcd.Spec.Etcd.ClientUrlTLS != nil {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
+			"listen-client-urls":    Equal(fmt.Sprintf("https://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient))),
 			"advertise-client-urls": Equal(expectedAdvertiseURLsAsInterface(etcd, advertiseURLTypeClient, "https")),
 			"client-transport-security": MatchKeys(IgnoreExtras, Keys{
 				"cert-file":        Equal("/var/etcd/ssl/server/tls.crt"),
@@ -943,7 +974,7 @@ func matchClientTLSRelatedConfiguration(g *WithT, etcd *druidv1alpha1.Etcd, actu
 		}))
 	} else {
 		g.Expect(actualETCDConfig).To(MatchKeys(IgnoreExtras|IgnoreMissing, Keys{
-			"listen-client-urls": Equal(fmt.Sprintf("http://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient))),
+			"listen-client-urls": Equal(fmt.Sprintf("http://0.0.0.0:%d", ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient))),
 		}))
 		g.Expect(actualETCDConfig).ToNot(HaveKey("client-transport-security"))
 	}
@@ -955,7 +986,7 @@ func expectedAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme st
 	case advertiseURLTypePeer:
 		port = ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 	case advertiseURLTypeClient:
-		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, common.DefaultPortEtcdClient)
+		port = ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 	default:
 		return nil
 	}

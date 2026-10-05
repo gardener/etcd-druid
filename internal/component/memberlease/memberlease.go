@@ -14,10 +14,11 @@ import (
 	"github.com/gardener/etcd-druid/internal/component"
 	druiderr "github.com/gardener/etcd-druid/internal/errors"
 	"github.com/gardener/etcd-druid/internal/utils"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/hashicorp/go-multierror"
 	coordinationv1 "k8s.io/api/coordination/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -52,7 +53,7 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 	if err := r.client.List(ctx,
 		objMetaList,
 		client.InNamespace(etcdObjMeta.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta)),
+		client.MatchingLabels(kutil.MemberLeaseSelectorLabels(etcdObjMeta)),
 	); err != nil {
 		return resourceNames, druiderr.WrapError(err,
 			ErrListMemberLease,
@@ -70,7 +71,8 @@ func (r _resource) GetExistingResourceNames(ctx component.OperatorContext, etcdO
 // PreSync is a no-op for the member lease component.
 func (r _resource) PreSync(_ component.OperatorContext, _ *druidv1alpha1.Etcd) error { return nil }
 
-// Sync creates or updates the member leases for the given Etcd.
+// Sync creates or updates the member leases for the given Etcd and deletes the
+// ones that are no longer required.
 func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	objectKeys := getObjectKeys(etcd)
 	createTasks := make([]utils.OperatorTask, len(objectKeys))
@@ -90,17 +92,20 @@ func (r _resource) Sync(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd)
 		}
 	}
 
-	if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
-		if err := r.deleteStaleMemberLeases(ctx, etcd); err != nil {
-			errs = multierror.Append(errs, err)
-		}
+	if err := r.deleteStaleMemberLeases(ctx, etcd); err != nil {
+		errs = multierror.Append(errs, err)
 	}
 	return errs
 }
 
-// deleteStaleMemberLeases deletes member leases that exist but are no longer required.
-// This can happen if a member is removed/replaced when configured with externally managed members.
+// deleteStaleMemberLeases deletes member leases that exist but are no longer
+// required, e.g. after a scale-in or when an externally managed member is replaced.
 func (r _resource) deleteStaleMemberLeases(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
+	// Hibernation: the desired lease set is empty, but the leases must be kept
+	// for when the cluster wakes up.
+	if etcd.Spec.Replicas == 0 {
+		return nil
+	}
 	existingLeaseNames, err := r.GetExistingResourceNames(ctx, etcd.ObjectMeta)
 	if err != nil {
 		return err
@@ -144,17 +149,18 @@ func (r _resource) doCreateOrUpdate(ctx component.OperatorContext, etcd *druidv1
 }
 
 func (r _resource) doDelete(ctx component.OperatorContext, objectKey client.ObjectKey) error {
-	if err := r.client.Delete(ctx, emptyMemberLease(objectKey)); err != nil {
-		if errors.IsNotFound(err) {
-			ctx.Logger.Info("No member lease found, Deletion is a No-Op", "objectKey", objectKey)
-			return nil
-		}
+	err := r.client.Delete(ctx, emptyMemberLease(objectKey))
+	if apierrors.IsNotFound(err) {
+		ctx.Logger.Info("No member lease found, Deletion is a No-Op", "objectKey", objectKey)
+		return nil
+	}
+	if err != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
-			component.OperationTriggerDelete,
+			component.OperationSync,
 			fmt.Sprintf("Failed to delete member lease: %v", objectKey))
 	}
-	ctx.Logger.Info("deleted", "component", "member-lease", "objectKey", objectKey)
+	ctx.Logger.Info("deleted stale member lease", "objectKey", objectKey)
 	return nil
 }
 
@@ -164,7 +170,7 @@ func (r _resource) TriggerDelete(ctx component.OperatorContext, etcdObjMeta meta
 	if err := r.client.DeleteAllOf(ctx,
 		&coordinationv1.Lease{},
 		client.InNamespace(etcdObjMeta.Namespace),
-		client.MatchingLabels(getSelectorLabelsForAllMemberLeases(etcdObjMeta))); err != nil {
+		client.MatchingLabels(kutil.MemberLeaseSelectorLabels(etcdObjMeta))); err != nil {
 		return druiderr.WrapError(err,
 			ErrDeleteMemberLease,
 			component.OperationTriggerDelete,
@@ -186,13 +192,6 @@ func getObjectKeys(etcd *druidv1alpha1.Etcd) []client.ObjectKey {
 		objectKeys = append(objectKeys, client.ObjectKey{Name: leaseName, Namespace: etcd.Namespace})
 	}
 	return objectKeys
-}
-
-func getSelectorLabelsForAllMemberLeases(etcdObjMeta metav1.ObjectMeta) map[string]string {
-	leaseMatchingLabels := map[string]string{
-		druidv1alpha1.LabelComponentKey: common.ComponentNameMemberLease,
-	}
-	return utils.MergeMaps(druidv1alpha1.GetDefaultLabels(etcdObjMeta), leaseMatchingLabels)
 }
 
 func getLabels(etcd *druidv1alpha1.Etcd, leaseName string) map[string]string {

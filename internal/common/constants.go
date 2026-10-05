@@ -54,8 +54,6 @@ const (
 const (
 	// DefaultPortEtcdPeer is the default port for the etcd server used for peer communication.
 	DefaultPortEtcdPeer int32 = 2380
-	// DefaultPortEtcdClient is the default port for the etcd client.
-	DefaultPortEtcdClient int32 = 2379
 	// DefaultPortEtcdWrapper is the default port for the etcd-wrapper HTTP server.
 	DefaultPortEtcdWrapper int32 = 9095
 	// DefaultPortEtcdBackupRestore is the default port for the HTTP server in the etcd-backup-restore container.

@@ -692,7 +692,7 @@ func getDefaultEtcd(name, namespace string) *druidv1alpha1.Etcd {
 						"memory": ParseQuantity("1000Mi"),
 					},
 				},
-				ClientPort:  ptr.To(common.DefaultPortEtcdClient),
+				ClientPort:  ptr.To(druidapicommon.DefaultPortEtcdClient),
 				ServerPort:  ptr.To(common.DefaultPortEtcdPeer),
 				WrapperPort: ptr.To(common.DefaultPortEtcdWrapper),
 			},
