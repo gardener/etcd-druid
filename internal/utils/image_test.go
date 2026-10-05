@@ -70,6 +70,7 @@ func testWithEtcdWrapperAndEtcdBRImagesInSpec(g *WithT, etcd *druidv1alpha1.Etcd
 	g.Expect(initContainerImg).To(Equal(vectorInitContainerImage.String()))
 }
 
+// TODO: @Shreyas-s14 set the image keys to default values on GA enablement of UpgradeEtcdVersion feature gate.
 func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
 	etcd.Spec.Etcd.Image = nil
 	etcd.Spec.Backup.Image = nil
@@ -77,11 +78,11 @@ func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
-	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
+	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
 	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
-	vectorBackupRestoreImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestore)
+	vectorBackupRestoreImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestoreNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
 	vectorInitContainerImage, err := iv.FindImage(common.ImageKeyAlpine)
@@ -95,7 +96,7 @@ func testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage(g *WithT, etcd *druidv1alp
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
-	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
+	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
 	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
