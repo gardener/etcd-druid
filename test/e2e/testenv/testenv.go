@@ -35,6 +35,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -566,16 +567,18 @@ func (t *TestEnvironment) newEtcdClientForPod(etcd *druidv1alpha1.Etcd, pod core
 		close(stop)
 		return nil, nil, fmt.Errorf("failed to build etcd client TLS config: %w", err)
 	}
-	if tlsConfig != nil {
-		// The server certificate is issued for the client Service name, not for
-		// the local port-forward address.
-		tlsConfig.ServerName = druidv1alpha1.GetClientServiceName(etcd.ObjectMeta)
-	}
-	cli, err := clientv3.New(clientv3.Config{
+	cfg := clientv3.Config{
 		Endpoints:   []string{fmt.Sprintf("%s://127.0.0.1:%d", scheme, localPort)},
 		DialTimeout: 10 * time.Second,
 		TLS:         tlsConfig,
-	})
+	}
+	if tlsConfig != nil {
+		// grpc-go >= v1.75 no longer honours tls.Config.ServerName; the authority
+		// must be set explicitly so the certificate (issued for the Service name,
+		// not for 127.0.0.1) is verified correctly over a port-forward.
+		cfg.DialOptions = []grpc.DialOption{grpc.WithAuthority(druidv1alpha1.GetClientServiceName(etcd.ObjectMeta))}
+	}
+	cli, err := clientv3.New(cfg)
 	if err != nil {
 		close(stop)
 		return nil, nil, fmt.Errorf("failed to create etcd client: %w", err)
