@@ -72,6 +72,10 @@ func testWithEtcdWrapperAndEtcdBRImagesInSpec(g *WithT, etcd *druidv1alpha1.Etcd
 
 // TODO: @Shreyas-s14 set the image keys to default values on GA enablement of UpgradeEtcdVersion feature gate.
 func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
+	err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: true},
+	)
+	g.Expect(err).ToNot(HaveOccurred())
 	etcd.Spec.Etcd.Image = nil
 	etcd.Spec.Backup.Image = nil
 	iv := testutils.CreateImageVector(true, true)
@@ -91,6 +95,10 @@ func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv
 }
 
 func testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage(g *WithT, etcd *druidv1alpha1.Etcd) {
+	err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: true},
+	)
+	g.Expect(err).ToNot(HaveOccurred())
 	etcd.Spec.Etcd.Image = nil
 	iv := testutils.CreateImageVector(true, false)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)

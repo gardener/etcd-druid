@@ -88,16 +88,8 @@ func init() {
 }
 
 // IsEnabled checks if a feature is enabled.
-// It first checks if the feature was explicitly set via SetEnabledFeaturesFromMap,
-// then falls back to the enabledByDefault value from the maturity level spec.
 func (f *featureGate) IsEnabled(feature string) bool {
-	if enabled, ok := f.enabledFeatures[feature]; ok {
-		return enabled
-	}
-	if spec, ok := f.knownFeatures[feature]; ok {
-		return spec.enabledByDefault
-	}
-	return false
+	return f.enabledFeatures[feature]
 }
 
 // SetEnabledFeaturesFromMap sets enabled state for features from the given map.
@@ -105,6 +97,9 @@ func (f *featureGate) IsEnabled(feature string) bool {
 // 1. The feature is not known.
 // 2. The feature is locked to a default value. As an example if a consumer attempts to disable a ga feature then that will be disallowed as it has been locked to true by default.
 func (f *featureGate) SetEnabledFeaturesFromMap(featureMap map[string]bool) error {
+	for feature, spec := range f.knownFeatures {
+		f.enabledFeatures[feature] = spec.enabledByDefault
+	}
 	var errs []error
 	for feature, enabled := range featureMap {
 		maturityLevelSpec, ok := f.knownFeatures[feature]
