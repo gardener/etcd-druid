@@ -7,6 +7,7 @@ package statefulset
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -254,7 +255,7 @@ func (s StatefulSetMatcher) matchBackupRestoreContainer() gomegatypes.GomegaMatc
 		"Resources":    Equal(containerResources),
 		"VolumeMounts": s.matchBackupRestoreContainerVolMounts(),
 	}
-	if len(s.etcd.Spec.Backup.EnvVar) > 0 {
+	if len(s.etcd.Spec.Backup.EnvVar) > 0 || s.etcd.Spec.Backup.DynamicEndpoints != nil {
 		fields["Env"] = s.matchBackupRestoreContainerEnvVars()
 	}
 	return MatchFields(IgnoreExtras, fields)
@@ -312,6 +313,9 @@ func (s StatefulSetMatcher) matchBackupRestoreContainerVolMounts() gomegatypes.G
 		if etcdBackupVolMountMatcher != nil {
 			volMountMatchers = append(volMountMatchers, etcdBackupVolMountMatcher)
 		}
+	}
+	if s.etcd.Spec.Backup.DynamicEndpoints != nil {
+		volMountMatchers = append(volMountMatchers, matchVolMount(common.VolumeNameDynamicEndpoints, common.VolumeMountPathDynamicEndpoints))
 	}
 	for _, vm := range s.etcd.Spec.Backup.VolumeMounts {
 		volMountMatchers = append(volMountMatchers, matchVolMount(vm.Name, vm.MountPath))
@@ -372,7 +376,13 @@ func (s StatefulSetMatcher) matchEtcdContainerEnvVars() gomegatypes.GomegaMatche
 }
 
 func (s StatefulSetMatcher) matchBackupRestoreContainerEnvVars() gomegatypes.GomegaMatcher {
-	envMatchers := make([]gomegatypes.GomegaMatcher, 0, len(s.etcd.Spec.Backup.EnvVar))
+	envMatchers := make([]gomegatypes.GomegaMatcher, 0, len(s.etcd.Spec.Backup.EnvVar)+1)
+	if s.etcd.Spec.Backup.DynamicEndpoints != nil {
+		envMatchers = append(envMatchers, MatchFields(IgnoreExtras, Fields{
+			"Name":  Equal(common.EnvEndpoints),
+			"Value": Equal(filepath.Join(common.VolumeMountPathDynamicEndpoints, s.etcd.Spec.Backup.DynamicEndpoints.EndpointsFileName)),
+		}))
+	}
 	for _, ev := range s.etcd.Spec.Backup.EnvVar {
 		envMatchers = append(envMatchers, Equal(ev))
 	}
@@ -425,6 +435,18 @@ func (s StatefulSetMatcher) matchPodVolumes() gomegatypes.GomegaMatcher {
 		if backupVolMatcher != nil {
 			volMatchers = append(volMatchers, backupVolMatcher)
 		}
+	}
+	if s.etcd.Spec.Backup.DynamicEndpoints != nil {
+		hostPathType := corev1.HostPathDirectoryOrCreate
+		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{
+			"Name": Equal(common.VolumeNameDynamicEndpoints),
+			"VolumeSource": MatchFields(IgnoreExtras|IgnoreMissing, Fields{
+				"HostPath": PointTo(MatchFields(IgnoreExtras, Fields{
+					"Path": Equal(s.etcd.Spec.Backup.DynamicEndpoints.HostPathDir),
+					"Type": PointTo(Equal(hostPathType)),
+				})),
+			}),
+		}))
 	}
 	for _, vol := range s.etcd.Spec.Volumes {
 		volMatchers = append(volMatchers, MatchFields(IgnoreExtras, Fields{

@@ -35,9 +35,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -143,54 +145,76 @@ func (t *TestEnvironment) GetEtcd(name, namespace string) (*druidv1alpha1.Etcd, 
 	return etcd, nil
 }
 
+// CreateEtcd creates the Etcd object, without waiting for any resulting cluster state.
+func (t *TestEnvironment) CreateEtcd(g *WithT, etcd *druidv1alpha1.Etcd) {
+	g.Expect(t.cl.Create(t.ctx, etcd)).To(Succeed())
+}
+
 // CreateAndCheckEtcd creates an etcd object and checks if it is ready.
 func (t *TestEnvironment) CreateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
-	g.Expect(t.cl.Create(t.ctx, etcd)).To(Succeed())
+	t.CreateEtcd(g, etcd)
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
-// HibernateAndCheckEtcd hibernates the Etcd object and checks if it is in hibernated state.
-func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+// UpdateEtcd applies mutator to the given Etcd object and updates it, retrying on update
+// conflicts caused by concurrent modifications (e.g. status updates by etcd-druid). The
+// object is re-fetched before each attempt and the mutator is applied to the fresh copy.
+// The DruidOperationReconcile annotation is set to trigger reconciliation of the changes.
+func (t *TestEnvironment) UpdateEtcd(g *WithT, etcd *druidv1alpha1.Etcd, mutator func(*druidv1alpha1.Etcd)) {
 	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
 			return err
 		}
-		etcd.Spec.Replicas = 0
+		mutator(etcd)
 		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
 		return t.cl.Update(t.ctx, etcd)
 	})).To(Succeed())
+}
+
+// HibernateAndCheckEtcd hibernates the Etcd object and checks if it is in hibernated state.
+func (t *TestEnvironment) HibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.UpdateEtcd(g, etcd, func(etcd *druidv1alpha1.Etcd) {
+		etcd.Spec.Replicas = 0
+	})
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // UnhibernateAndCheckEtcd unhibernates the Etcd object and checks if it is in unhibernated state.
 func (t *TestEnvironment) UnhibernateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, replicas int32, timeout time.Duration) {
-	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
-			return err
-		}
+	t.UpdateEtcd(g, etcd, func(etcd *druidv1alpha1.Etcd) {
 		etcd.Spec.Replicas = replicas
-		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-		return t.cl.Update(t.ctx, etcd)
-	})).To(Succeed())
+	})
 	t.CheckEtcdReady(g, etcd, timeout)
 }
 
 // UpdateAndCheckEtcd updates the Etcd object and checks if the update took effect.
 func (t *TestEnvironment) UpdateAndCheckEtcd(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
 	desiredSpec := *etcd.Spec.DeepCopy()
-	g.Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	t.UpdateEtcd(g, etcd, func(etcd *druidv1alpha1.Etcd) {
+		etcd.Spec = desiredSpec
+	})
+	t.CheckEtcdReady(g, etcd, timeout)
+}
+
+// WaitForReconciliation waits until the etcd object's observed generation matches its generation.
+func (t *TestEnvironment) WaitForReconciliation(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	g.Eventually(func() error {
 		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), etcd); err != nil {
 			return err
 		}
-		etcd.Spec = desiredSpec
-		etcd.SetAnnotations(map[string]string{druidv1alpha1.DruidOperationAnnotation: druidv1alpha1.DruidOperationReconcile})
-		return t.cl.Update(t.ctx, etcd)
-	})).To(Succeed())
-	t.CheckEtcdReady(g, etcd, timeout)
+		if etcd.Status.ObservedGeneration == nil {
+			return fmt.Errorf("etcd %s status observed generation is nil", etcd.Name)
+		}
+		if *etcd.Status.ObservedGeneration != etcd.Generation {
+			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
 // CheckEtcdReady checks if the Etcd object is ready.
 func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	t.WaitForReconciliation(g, etcd, timeout)
 	g.Eventually(func() error {
 		ctx, cancelFunc := context.WithTimeout(t.ctx, timeout)
 		defer cancelFunc()
@@ -199,34 +223,28 @@ func (t *TestEnvironment) CheckEtcdReady(g *WithT, etcd *druidv1alpha1.Etcd, tim
 			return err
 		}
 
-		// Ensure the etcd cluster's current generation matches the observed generation
-		if etcd.Status.ObservedGeneration == nil {
-			return fmt.Errorf("etcd %s status observed generation is nil", etcd.Name)
-		}
-		if *etcd.Status.ObservedGeneration != etcd.Generation {
-			return fmt.Errorf("etcd '%s' is not at the expected generation (observed: %d, expected: %d)", etcd.Name, *etcd.Status.ObservedGeneration, etcd.Generation)
-		}
-
-		etcdPods, err := t.getEtcdPods(etcd)
-		if err != nil {
-			return fmt.Errorf("failed to get etcd pods: %w", err)
-		}
-		if len(etcdPods) != int(etcd.Spec.Replicas) {
-			return fmt.Errorf("etcd %s has %d pods, expected %d", etcd.Name, len(etcdPods), etcd.Spec.Replicas)
-		}
-
-		// if replicas is 0, the subsequent checks do not apply
-		if etcd.Spec.Replicas == 0 {
-			return nil
-		}
-
-		for _, pod := range etcdPods {
-			if pod.Status.Phase != corev1.PodRunning {
-				return fmt.Errorf("etcd %s pod %s is not running", etcd.Name, pod.Name)
+		if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+			etcdPods, err := t.getEtcdPods(etcd)
+			if err != nil {
+				return fmt.Errorf("failed to get etcd pods: %w", err)
 			}
-			for _, containerStatus := range pod.Status.ContainerStatuses {
-				if !containerStatus.Ready {
-					return fmt.Errorf("etcd %s pod %s container %s is not ready", etcd.Name, pod.Name, containerStatus.Name)
+			if len(etcdPods) != int(etcd.Spec.Replicas) {
+				return fmt.Errorf("etcd %s has %d pods, expected %d", etcd.Name, len(etcdPods), etcd.Spec.Replicas)
+			}
+
+			// if replicas is 0, the subsequent checks do not apply
+			if etcd.Spec.Replicas == 0 {
+				return nil
+			}
+
+			for _, pod := range etcdPods {
+				if pod.Status.Phase != corev1.PodRunning {
+					return fmt.Errorf("etcd %s pod %s is not running", etcd.Name, pod.Name)
+				}
+				for _, containerStatus := range pod.Status.ContainerStatuses {
+					if !containerStatus.Ready {
+						return fmt.Errorf("etcd %s pod %s container %s is not ready", etcd.Name, pod.Name, containerStatus.Name)
+					}
 				}
 			}
 		}
@@ -526,15 +544,17 @@ func (t *TestEnvironment) CheckEtcdMemberCount(g *WithT, etcd *druidv1alpha1.Etc
 }
 
 // getEtcdMemberCount returns the number of members in the live etcd member list,
-// read through a port-forward to the first running etcd pod.
+// read through a port-forward to the first ready etcd pod. Pods that are not ready
+// yet are skipped so that no port-forward is attempted against an etcd that is
+// still starting (which would only produce connection-refused noise).
 func (t *TestEnvironment) getEtcdMemberCount(etcd *druidv1alpha1.Etcd) (int, error) {
 	pods, err := t.getEtcdPods(etcd)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get etcd pods: %w", err)
 	}
-	idx := slices.IndexFunc(pods, func(p corev1.Pod) bool { return p.Status.Phase == corev1.PodRunning })
+	idx := slices.IndexFunc(pods, func(p corev1.Pod) bool { return kutil.HasPodReadyConditionTrue(&p) })
 	if idx < 0 {
-		return 0, fmt.Errorf("no running etcd pod for %s", etcd.Name)
+		return 0, fmt.Errorf("no ready etcd pod for %s", etcd.Name)
 	}
 
 	cli, closeFn, err := t.newEtcdClientForPod(etcd, pods[idx])
@@ -1042,4 +1062,64 @@ func (t *TestEnvironment) GetSnapshotRevisions(etcdObjectMeta metav1.ObjectMeta)
 	}
 
 	return fullSnapshotRevision, deltaSnapshotRevision, nil
+}
+
+// VerifyMemberLeases checks that exactly the given addresses have member leases (no missing,
+// no stragglers) and that those leases are being renewed.
+func (t *TestEnvironment) VerifyMemberLeases(g *WithT, etcd *druidv1alpha1.Etcd, expectedAddresses []string, timeout time.Duration) {
+	expectedLeaseNames := make(map[string]struct{}, len(expectedAddresses))
+	for _, addr := range expectedAddresses {
+		expectedLeaseNames[druidv1alpha1.GetMemberNameFromAddress(etcd, addr)] = struct{}{}
+	}
+
+	g.Eventually(func() error {
+		leaseList := &coordinationv1.LeaseList{}
+		if err := t.cl.List(t.ctx, leaseList, client.InNamespace(etcd.Namespace), client.MatchingLabels(kutil.MemberLeaseSelectorLabels(etcd.ObjectMeta))); err != nil {
+			return fmt.Errorf("failed to list member leases for etcd %s/%s: %w", etcd.Namespace, etcd.Name, err)
+		}
+
+		actualLeaseNames := make([]string, 0, len(leaseList.Items))
+		for _, lease := range leaseList.Items {
+			actualLeaseNames = append(actualLeaseNames, lease.Name)
+			if _, ok := expectedLeaseNames[lease.Name]; !ok {
+				return fmt.Errorf("unexpected member lease %s found", lease.Name)
+			}
+			if lease.Spec.RenewTime == nil {
+				return fmt.Errorf("member lease %s has nil RenewTime", lease.Name)
+			}
+			if lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity == "" {
+				return fmt.Errorf("member lease %s has empty HolderIdentity", lease.Name)
+			}
+		}
+		if len(actualLeaseNames) != len(expectedLeaseNames) {
+			return fmt.Errorf("found member leases %v, expected %d lease(s) for addresses %v", actualLeaseNames, len(expectedLeaseNames), expectedAddresses)
+		}
+		return nil
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
+// VerifyStatefulSetZeroReplicas confirms the StatefulSet exists with 0 replicas.
+func (t *TestEnvironment) VerifyStatefulSetZeroReplicas(g *WithT, etcd *druidv1alpha1.Etcd) {
+	stsName := druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)
+	sts := &appsv1.StatefulSet{}
+	g.Expect(t.cl.Get(t.ctx, types.NamespacedName{Name: stsName, Namespace: etcd.Namespace}, sts)).To(Succeed())
+	g.Expect(sts.Spec.Replicas).ToNot(BeNil())
+	g.Expect(*sts.Spec.Replicas).To(Equal(int32(0)))
+	g.Expect(sts.Status.Replicas).To(Equal(int32(0)))
+}
+
+// VerifyNoServicesOrPDB confirms that ClientService, PeerService, and PodDisruptionBudget
+// do not exist for an Etcd cluster with externally managed members.
+func (t *TestEnvironment) VerifyNoServicesOrPDB(g *WithT, etcd *druidv1alpha1.Etcd) {
+	clientSvc := &corev1.Service{}
+	err := t.cl.Get(t.ctx, types.NamespacedName{Name: druidv1alpha1.GetClientServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, clientSvc)
+	g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "client service should not exist for externally managed members")
+
+	peerSvc := &corev1.Service{}
+	err = t.cl.Get(t.ctx, types.NamespacedName{Name: druidv1alpha1.GetPeerServiceName(etcd.ObjectMeta), Namespace: etcd.Namespace}, peerSvc)
+	g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "peer service should not exist for externally managed members")
+
+	pdb := &policyv1.PodDisruptionBudget{}
+	err = t.cl.Get(t.ctx, types.NamespacedName{Name: druidv1alpha1.GetPodDisruptionBudgetName(etcd.ObjectMeta), Namespace: etcd.Namespace}, pdb)
+	g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "PDB should not exist for externally managed members")
 }
