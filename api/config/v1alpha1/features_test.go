@@ -58,11 +58,19 @@ func TestDefaultFeatureGate(t *testing.T) {
 				UpgradeEtcdVersion: false,
 			},
 		},
+		{
+			name:            "UpgradeEtcdVersion is enabled by default when unset (beta)",
+			enabledFeatures: map[string]bool{},
+			expectedEnabledFeatures: map[string]bool{
+				UpgradeEtcdVersion: true,
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
+			DefaultFeatureGates.enabledFeatures = map[string]bool{}
 			err := DefaultFeatureGates.SetEnabledFeaturesFromMap(test.enabledFeatures)
 			if test.expectedError {
 				g.Expect(err).ToNot(BeNil())

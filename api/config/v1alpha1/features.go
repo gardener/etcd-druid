@@ -97,6 +97,9 @@ func (f *featureGate) IsEnabled(feature string) bool {
 // 1. The feature is not known.
 // 2. The feature is locked to a default value. As an example if a consumer attempts to disable a ga feature then that will be disallowed as it has been locked to true by default.
 func (f *featureGate) SetEnabledFeaturesFromMap(featureMap map[string]bool) error {
+	for feature, spec := range f.knownFeatures {
+		f.enabledFeatures[feature] = spec.enabledByDefault
+	}
 	var errs []error
 	for feature, enabled := range featureMap {
 		maturityLevelSpec, ok := f.knownFeatures[feature]

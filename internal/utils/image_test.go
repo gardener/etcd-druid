@@ -70,18 +70,23 @@ func testWithEtcdWrapperAndEtcdBRImagesInSpec(g *WithT, etcd *druidv1alpha1.Etcd
 	g.Expect(initContainerImg).To(Equal(vectorInitContainerImage.String()))
 }
 
+// TODO: @Shreyas-s14 set the image keys to default values on GA enablement of UpgradeEtcdVersion feature gate.
 func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv1alpha1.Etcd) {
+	err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: true},
+	)
+	g.Expect(err).ToNot(HaveOccurred())
 	etcd.Spec.Etcd.Image = nil
 	etcd.Spec.Backup.Image = nil
 	iv := testutils.CreateImageVector(true, true)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
-	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
+	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
 	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
-	vectorBackupRestoreImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestore)
+	vectorBackupRestoreImage, err := iv.FindImage(common.ImageKeyEtcdBackupRestoreNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdBackupRestoreImage).To(Equal(vectorBackupRestoreImage.String()))
 	vectorInitContainerImage, err := iv.FindImage(common.ImageKeyAlpine)
@@ -90,12 +95,16 @@ func testWithNoImageInSpecAndIVWithEtcdWrapperAndBRImages(g *WithT, etcd *druidv
 }
 
 func testSpecWithEtcdBRImageAndIVWithEtcdWrapperImage(g *WithT, etcd *druidv1alpha1.Etcd) {
+	err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+		map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: true},
+	)
+	g.Expect(err).ToNot(HaveOccurred())
 	etcd.Spec.Etcd.Image = nil
 	iv := testutils.CreateImageVector(true, false)
 	etcdImage, etcdBackupRestoreImage, initContainerImage, err := utils.GetEtcdImages(etcd, iv)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).ToNot(BeEmpty())
-	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapper)
+	vectorEtcdImage, err := iv.FindImage(common.ImageKeyEtcdWrapperNext)
 	g.Expect(err).To(BeNil())
 	g.Expect(etcdImage).To(Equal(vectorEtcdImage.String()))
 	g.Expect(etcdBackupRestoreImage).ToNot(BeNil())
