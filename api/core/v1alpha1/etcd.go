@@ -336,10 +336,13 @@ type EtcdConfig struct {
 	// ListenMetricsURLs defines the URLs on which etcd listens for its metrics and /health endpoint.
 	// When set, etcd exposes these on a dedicated plain-HTTP listener separate from the (potentially
 	// TLS-protected) client URL, allowing monitoring systems to scrape metrics and probe health
-	// without requiring client TLS certificates.
+	// without requiring client TLS certificates. Only the http scheme is supported: etcd serves TLS
+	// on this listener using the peer transport security, which this field does not configure, so an
+	// https URL here would leave etcd unable to start.
 	// Example: ["http://0.0.0.0:2381"]
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:XValidation:rule="self.all(u, u.startsWith('http://'))",message="listenMetricsURLs must use the http scheme"
 	ListenMetricsURLs []string `json:"listenMetricsURLs,omitempty"`
 	// Resources defines the compute Resources required by etcd container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
