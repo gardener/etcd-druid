@@ -218,3 +218,45 @@ func TestComputeScheduleInterval(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractMetricsPort(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name         string
+		urls         []string
+		expectedPort int32
+	}{
+		{
+			name:         "returns 0 when no URLs given",
+			urls:         nil,
+			expectedPort: 0,
+		},
+		{
+			name:         "extracts port from http URL",
+			urls:         []string{"http://0.0.0.0:2381"},
+			expectedPort: 2381,
+		},
+		{
+			name:         "extracts port from first URL when multiple are given",
+			urls:         []string{"http://0.0.0.0:2381", "http://127.0.0.1:2382"},
+			expectedPort: 2381,
+		},
+		{
+			name:         "skips unparseable URLs and falls through to next",
+			urls:         []string{"://bad", "http://0.0.0.0:2381"},
+			expectedPort: 2381,
+		},
+		{
+			name:         "returns 0 when all URLs are unparseable",
+			urls:         []string{"://bad1", "://bad2"},
+			expectedPort: 0,
+		},
+	}
+	g := NewWithT(t)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g.Expect(ExtractMetricsPort(tc.urls)).To(Equal(tc.expectedPort))
+		})
+	}
+}

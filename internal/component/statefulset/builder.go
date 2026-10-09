@@ -72,6 +72,7 @@ type stsBuilder struct {
 	serverPort  int32
 	backupPort  int32
 	wrapperPort int32
+	metricsPort int32
 	// skipSetOrUpdateForbiddenFields if its true then it will set/update values to fields which are forbidden to be updated for an existing StatefulSet.
 	// Updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden.
 	// Only for a new StatefulSet should this be set to true.
@@ -107,6 +108,7 @@ func newStsBuilder(client client.Client,
 		serverPort:                     ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer),
 		backupPort:                     ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
 		wrapperPort:                    ptr.Deref(etcd.Spec.Etcd.WrapperPort, common.DefaultPortEtcdWrapper),
+		metricsPort:                    utils.ExtractMetricsPort(etcd.Spec.Etcd.ListenMetricsURLs),
 		skipSetOrUpdateForbiddenFields: skipSetOrUpdateForbiddenFields,
 	}, nil
 }
@@ -367,25 +369,33 @@ func (b *stsBuilder) getEtcdDataVolumeMount() corev1.VolumeMount {
 }
 
 func (b *stsBuilder) getEtcdContainer() corev1.Container {
+	ports := []corev1.ContainerPort{
+		{
+			Name:          serverPortName,
+			Protocol:      corev1.ProtocolTCP,
+			ContainerPort: b.serverPort,
+		},
+		{
+			Name:          clientPortName,
+			Protocol:      corev1.ProtocolTCP,
+			ContainerPort: b.clientPort,
+		},
+	}
+	if b.metricsPort != 0 {
+		ports = append(ports, corev1.ContainerPort{
+			Name:          metricsPortName,
+			Protocol:      corev1.ProtocolTCP,
+			ContainerPort: b.metricsPort,
+		})
+	}
 	return corev1.Container{
 		Name:            common.ContainerNameEtcd,
 		Image:           b.etcdImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Args:            b.getEtcdContainerCommandArgs(),
 		ReadinessProbe:  b.getEtcdContainerReadinessProbe(),
-		Ports: []corev1.ContainerPort{
-			{
-				Name:          serverPortName,
-				Protocol:      corev1.ProtocolTCP,
-				ContainerPort: b.serverPort,
-			},
-			{
-				Name:          clientPortName,
-				Protocol:      corev1.ProtocolTCP,
-				ContainerPort: b.clientPort,
-			},
-		},
-		Resources: ptr.Deref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
+		Ports:           ports,
+		Resources:       ptr.Deref(b.etcd.Spec.Etcd.Resources, defaultResourceRequirements),
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: ptr.To(false),
 		},

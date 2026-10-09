@@ -882,3 +882,65 @@ func TestValidateSpecEtcdBackendBboltFreelistType(t *testing.T) {
 		})
 	}
 }
+
+// runs the CEL validation on etcd.spec.etcd.listenMetricsURLs: only the http scheme is allowed,
+// since etcd would use peer transport security (not configured by this field) to serve https here.
+func TestValidateSpecEtcdListenMetricsURLs(t *testing.T) {
+	skipCELTestsForOlderK8sVersions(t)
+
+	tests := []struct {
+		name      string
+		etcdName  string
+		urls      []string
+		expectErr bool
+	}{
+		{
+			name:      "unset — field omitted, should be accepted",
+			etcdName:  "etcd-listen-metrics-unset",
+			urls:      nil,
+			expectErr: false,
+		},
+		{
+			name:      "valid: single http URL",
+			etcdName:  "etcd-listen-metrics-valid-1",
+			urls:      []string{"http://0.0.0.0:2381"},
+			expectErr: false,
+		},
+		{
+			name:      "valid: multiple http URLs",
+			etcdName:  "etcd-listen-metrics-valid-2",
+			urls:      []string{"http://0.0.0.0:2381", "http://127.0.0.1:2381"},
+			expectErr: false,
+		},
+		{
+			name:      "invalid: https scheme is rejected",
+			etcdName:  "etcd-listen-metrics-invalid-1",
+			urls:      []string{"https://0.0.0.0:2381"},
+			expectErr: true,
+		},
+		{
+			name:      "invalid: scheme-less URL is rejected",
+			etcdName:  "etcd-listen-metrics-invalid-2",
+			urls:      []string{"0.0.0.0:2381"},
+			expectErr: true,
+		},
+		{
+			name:      "invalid: one https entry among http entries is rejected",
+			etcdName:  "etcd-listen-metrics-invalid-3",
+			urls:      []string{"http://0.0.0.0:2381", "https://127.0.0.1:2381"},
+			expectErr: true,
+		},
+	}
+
+	testNs, g := setupTestEnvironment(t)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(3).Build()
+			if test.urls != nil {
+				etcd.Spec.Etcd.ListenMetricsURLs = test.urls
+			}
+			validateEtcdCreation(g, etcd, test.expectErr)
+		})
+	}
+}
