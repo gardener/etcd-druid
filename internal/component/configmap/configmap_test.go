@@ -760,6 +760,38 @@ func TestPrepareInitialClusterWithBootstrapMembers(t *testing.T) {
 	})
 }
 
+func TestCreateEtcdConfigListenMetricsURLs(t *testing.T) {
+	g := NewWithT(t)
+	t.Parallel()
+
+	t.Run("should omit listen-metrics-urls when not set", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).WithReplicas(1).Build()
+		cfg := createEtcdConfig(etcd)
+		g.Expect(cfg.ListenMetricsUrls).To(BeEmpty())
+	})
+
+	t.Run("should set listen-metrics-urls from a single URL", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+			WithReplicas(1).
+			WithListenMetricsURLs([]string{"http://0.0.0.0:2381"}).
+			Build()
+		cfg := createEtcdConfig(etcd)
+		g.Expect(cfg.ListenMetricsUrls).To(Equal("http://0.0.0.0:2381"))
+	})
+
+	t.Run("should join multiple listen-metrics-urls with commas", func(t *testing.T) {
+		t.Parallel()
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+			WithReplicas(1).
+			WithListenMetricsURLs([]string{"http://0.0.0.0:2381", "http://127.0.0.1:2381"}).
+			Build()
+		cfg := createEtcdConfig(etcd)
+		g.Expect(cfg.ListenMetricsUrls).To(Equal("http://0.0.0.0:2381,http://127.0.0.1:2381"))
+	})
+}
+
 func TestSyncWhenConfigMapExists(t *testing.T) {
 	testCases := []struct {
 		name        string

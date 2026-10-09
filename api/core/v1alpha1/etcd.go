@@ -333,6 +333,14 @@ type EtcdConfig struct {
 	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
 	// +optional
 	Metrics *MetricsLevel `json:"metrics,omitempty"`
+	// ListenMetricsURLs defines the URLs on which etcd listens for its metrics and /health endpoint.
+	// When set, etcd exposes these on a dedicated plain-HTTP listener separate from the (potentially
+	// TLS-protected) client URL, allowing monitoring systems to scrape metrics and probe health
+	// without requiring client TLS certificates.
+	// Example: ["http://0.0.0.0:2381"]
+	// +optional
+	// +listType=atomic
+	ListenMetricsURLs []string `json:"listenMetricsURLs,omitempty"`
 	// Resources defines the compute Resources required by etcd container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional

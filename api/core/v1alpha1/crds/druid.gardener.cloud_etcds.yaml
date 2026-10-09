@@ -1142,6 +1142,17 @@ spec:
                   image:
                     description: Image defines the etcd container image and tag
                     type: string
+                  listenMetricsURLs:
+                    description: |-
+                      ListenMetricsURLs defines the URLs on which etcd listens for its metrics and /health endpoint.
+                      When set, etcd exposes these on a dedicated plain-HTTP listener separate from the (potentially
+                      TLS-protected) client URL, allowing monitoring systems to scrape metrics and probe health
+                      without requiring client TLS certificates.
+                      Example: ["http://0.0.0.0:2381"]
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: atomic
                   metrics:
                     description: Metrics defines the level of detail for exported
                       metrics of etcd, specify 'extensive' to include histogram metrics.
