@@ -11,6 +11,7 @@ import (
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	mockmanager "github.com/gardener/etcd-druid/internal/mock/controller-runtime/manager"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -53,7 +54,7 @@ func TestNewReconciler_DefaultsNilConcurrentSyncs(t *testing.T) {
 			mgr := mockmanager.NewMockManager(mockCtrl)
 			mgr.EXPECT().GetClient().AnyTimes().Return(testutils.NewTestClientBuilder().Build())
 
-			r := NewReconciler(mgr, tc.input)
+			r := NewReconciler(mgr, tc.input, &etcdclientfake.Factory{})
 			g.Expect(r).ToNot(BeNil())
 			g.Expect(r.config.ConcurrentSyncs).ToNot(BeNil())
 			g.Expect(*r.config.ConcurrentSyncs).To(Equal(tc.expectedSyncs))
@@ -142,7 +143,7 @@ func TestReconcile_DrivesProcedureWhenEligible(t *testing.T) {
 		maps.Copy(p.Labels, sts.Spec.Selector.MatchLabels)
 	}
 	cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts, etcd, p0, p1, p2).Build()
-	r := &Reconciler{client: cl, logger: logr.Discard()}
+	r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}})
 	g.Expect(err).ToNot(HaveOccurred())

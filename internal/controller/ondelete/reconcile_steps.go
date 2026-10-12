@@ -11,22 +11,22 @@ import (
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	// requeueAfterInFlight is the requeue delay used whenever the reconciler is
+	// requeueAfterInFlight is the ceiling for requeue delay used whenever the reconciler is
 	// waiting on a physical event (pod deletion, recreation, or readiness).
-	// The Pod watch usually re-enqueues sooner via a state change; this is the ceiling.
 	requeueAfterInFlight = 10 * time.Second
-
 	// podDeletionPollInterval is how often deleteSelected polls the cache for a
 	// pod's terminating state to become visible.
 	podDeletionPollInterval = 200 * time.Millisecond
@@ -35,25 +35,18 @@ const (
 	podDeletionPollTimeout = 10 * time.Second
 )
 
-// executePodUpdateProcedure runs the pod update procedure per DEP-07 and issues
-// at most one Delete per invocation.
-func (r *Reconciler) executePodUpdateProcedure(
-	ctx context.Context,
-	logger logr.Logger,
-	sts *appsv1.StatefulSet,
-	etcd *druidv1alpha1.Etcd,
-	pods []corev1.Pod,
-) (ctrl.Result, error) {
-	outdated, current := partitionByRevision(pods, sts)
-	logger.V(1).Info("classified pods", "outdated", len(outdated), "current", len(current), "updateRevision", sts.Status.UpdateRevision)
+// executePodUpdateProcedure runs the pod update procedure
+func (r *Reconciler) executePodUpdateProcedure(ctx context.Context, logger logr.Logger, sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd, pods []corev1.Pod) (ctrl.Result, error) {
+	outdatedPodSet, currentPodSet := partitionByRevision(pods, sts)
+	logger.V(1).Info("classified pods", "outdated", len(outdatedPodSet), "current", len(currentPodSet), "updateRevision", sts.Status.UpdateRevision)
 
 	// Step 1: no outdated pods -> rollout complete.
-	if len(outdated) == 0 {
-		logger.V(1).Info("step 1: rollout complete")
+	if len(outdatedPodSet) == 0 {
+		logger.V(1).Info("rollout complete: all pods are upto date")
 		return ctrl.Result{}, nil
 	}
 
-	// Hold if the pod set is mid-flight: a prior Delete has not settled, or the
+	// If the pod set is mid-flight, hold the update process. Reasons being, a prior Delete has not settled, or the
 	// StatefulSet controller has not yet created every desired pod (scale-up).
 	// Blocks all subsequent steps because they reason about pod identity/count.
 	if reason := podSetInFlightReason(sts, pods); reason != "" {
@@ -61,107 +54,116 @@ func (r *Reconciler) executePodUpdateProcedure(
 		return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
 	}
 
-	// Step 2: prefer non-participating outdated pods. Safe regardless of quorum
-	// state — a non-participating pod contributes nothing to quorum.
-	if pod, bucket := selectNonParticipatingOutdated(logger, outdated); pod != nil {
-		logger.Info("step 2: deleting non-participating outdated pod", "pod", pod.Name, "bucket", bucket)
-		return r.deleteSelected(ctx, logger, pod)
+	if ptr.Deref(sts.Spec.Replicas, 0) == 1 {
+		logger.Info("single-node cluster: deleting the sole outdated pod", "pod", outdatedPodSet[0].Name)
+		return r.deleteSelectedPodAndWait(ctx, logger, &outdatedPodSet[0])
 	}
 
-	// Step 3: before touching a participating pod, every already-updated pod
-	// must be participating.
-	if unready := unreadyUpdatedPodNames(current); len(unready) > 0 {
+	members, result, err := r.listLiveMembers(ctx, logger, etcd)
+	if err != nil || members == nil {
+		return result, err
+	}
+
+	// If the quorum is lost, it is better to delete all outdated members together to recover faster as it does not make the cluster go into a bad state.
+	if !etcdmember.HasQuorum(members) {
+		logger.Info("cluster has lost quorum: deleting all outdated pods to recover", "outdated", podNamesFromList(outdatedPodSet))
+		return r.deleteAllOutdatedPods(ctx, logger, outdatedPodSet)
+	}
+
+	// Step 2: prefer outdated non-participating pods first.
+	// The operation is safe regardless of quorum state because a non-participating pod contributes nothing to quorum.
+	if pod, bucket := selectOutdatedNonParticipatingPods(logger, outdatedPodSet); pod != nil {
+		logger.Info("step 2: deleting non-participating outdated pod", "pod", pod.Name, "bucket", bucket)
+		return r.deleteIfQuorumSafe(ctx, logger, etcd, members, pod)
+	}
+
+	// Step 3: before deleting a participating pod, all updated pods must be participating.
+	if unready := updatedNotParticipatingPodNames(currentPodSet); len(unready) > 0 {
 		logger.Info("step 3: holding for updated pods to rejoin quorum", "waitingOn", unready)
 		return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
 	}
 
-	// Step 4: pick one participating outdated pod, follower before leader.
-	pod, role, err := r.selectParticipatingOutdated(ctx, logger, etcd, outdated)
+	// Step 4: pick one participating outdated pod in the order of follower before leader to minimise the number of leader elections.
+	pod, role, err := r.selectOutdatedParticipatingPods(ctx, logger, etcd, outdatedPodSet)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	if pod != nil {
 		logger.Info("step 4: deleting participating outdated pod", "pod", pod.Name, "role", role)
-		return r.deleteSelected(ctx, logger, pod)
+		return r.deleteIfQuorumSafe(ctx, logger, etcd, members, pod)
 	}
 
-	// generally unreachable due to the gates above. Kept as a defensive mechanism.
-	logger.V(1).Info("no pod selected despite outdated pods existing, requeuing", "outdatedCount", len(outdated))
+	// this should be unreachable due to the above gates but is kept only as a defensive mechanism.
+	logger.V(1).Info("no pod selected despite outdated pods existing, requeuing", "outdatedCount", len(outdatedPodSet))
 	return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
 }
 
-// partitionByRevision splits pods into outdated and current sets by comparing
+// partitionByRevision splits the given set of pods into outdated and current sets by comparing
 // each pod's controller-revision-hash against sts.Status.UpdateRevision.
-func partitionByRevision(pods []corev1.Pod, sts *appsv1.StatefulSet) (outdated, current []corev1.Pod) {
+func partitionByRevision(pods []corev1.Pod, sts *appsv1.StatefulSet) (outdatedPodSet, currentPodSet []corev1.Pod) {
 	for i := range pods {
 		if isPodOutdated(&pods[i], sts) {
-			outdated = append(outdated, pods[i])
+			outdatedPodSet = append(outdatedPodSet, pods[i])
 		} else {
-			current = append(current, pods[i])
+			currentPodSet = append(currentPodSet, pods[i])
 		}
 	}
-	return outdated, current
+	return outdatedPodSet, currentPodSet
 }
 
 // podSetInFlightReason returns a short reason string if the pod set is not yet
-// at its target shape, or the empty string when it is settled. The pod set is
-// in flight if any pod is terminating (a prior Delete has not completed) or if
-// the observed pod count is below sts.Spec.Replicas (STS controller has not
-// finished creating pods; e.g. mid-scale-up or mid-recreate).
+// at its target shape, or the empty string if and wwhen it is settled.
 func podSetInFlightReason(sts *appsv1.StatefulSet, pods []corev1.Pod) string {
-	if terminating := terminatingPodNames(pods); len(terminating) > 0 {
-		return fmt.Sprintf("pods terminating: %v", terminating)
+	if terminatingPodSet := terminatingPodNames(pods); len(terminatingPodSet) > 0 {
+		return fmt.Sprintf("pods terminating: %v", terminatingPodSet)
 	}
-	desired := int32(0)
-	if sts.Spec.Replicas != nil {
-		desired = *sts.Spec.Replicas
-	}
-	if int32(len(pods)) < desired {
-		return fmt.Sprintf("pod count %d below desired %d", len(pods), desired)
+	desiredReplicaCount := ptr.Deref(sts.Spec.Replicas, 0)
+	if int32(len(pods)) < desiredReplicaCount {
+		return fmt.Sprintf("pod count %d below desired %d", len(pods), desiredReplicaCount)
 	}
 	return ""
 }
 
-// selectNonParticipatingOutdated returns the highest-priority non-participating
-// outdated pod for Step 2 (priority: Dead > Transient > Alive). Unknown-state
-// pods are skipped: insufficient evidence to say they are non-participating.
-func selectNonParticipatingOutdated(logger logr.Logger, outdated []corev1.Pod) (*corev1.Pod, string) {
-	var dead, transient, alive []*corev1.Pod
-	for i := range outdated {
-		pod := &outdated[i]
-		if isParticipating(pod) {
+// selectOutdatedNonParticipatingPods returns the highest-priority non-participating
+// outdated pod for Step 2 (priority: Dead > Transient > Alive).
+// Pods with Unknown-state are skipped due to insufficient evidence to say they are non-participating.
+func selectOutdatedNonParticipatingPods(logger logr.Logger, outdatedPodSet []corev1.Pod) (*corev1.Pod, string) {
+	var deadPodSet, transientPodSet, alivePodSet []*corev1.Pod
+	for i := range outdatedPodSet {
+		pod := &outdatedPodSet[i]
+		if isPodParticipating(pod) {
 			continue
 		}
 		switch classifyEtcdContainer(pod) {
 		case containerStateDead:
-			dead = append(dead, pod)
+			deadPodSet = append(deadPodSet, pod)
 		case containerStateTransient:
-			transient = append(transient, pod)
+			transientPodSet = append(transientPodSet, pod)
 		case containerStateAlive:
-			alive = append(alive, pod)
+			alivePodSet = append(alivePodSet, pod)
 		}
 	}
 	logger.V(1).Info("non-participating outdated pod classification",
-		"dead", podNames(dead), "transient", podNames(transient), "alive", podNames(alive))
+		"dead", podNames(deadPodSet), "transient", podNames(transientPodSet), "alive", podNames(alivePodSet))
 
-	if len(dead) > 0 {
-		return dead[0], "Dead"
+	if len(deadPodSet) > 0 {
+		return deadPodSet[0], "Dead"
 	}
-	if len(transient) > 0 {
-		return transient[0], "Transient"
+	if len(transientPodSet) > 0 {
+		return transientPodSet[0], "Transient"
 	}
-	if len(alive) > 0 {
-		return alive[0], "Alive"
+	if len(alivePodSet) > 0 {
+		return alivePodSet[0], "Alive"
 	}
 	return nil, ""
 }
 
-// unreadyUpdatedPodNames returns the names of current-revision pods that are
+// updatedNotParticipatingPodNames returns the names of current revision pods that are
 // not participating in quorum.
-func unreadyUpdatedPodNames(current []corev1.Pod) []string {
+func updatedNotParticipatingPodNames(current []corev1.Pod) []string {
 	var names []string
 	for i := range current {
-		if !isParticipating(&current[i]) {
+		if !isPodParticipating(&current[i]) {
 			names = append(names, current[i].Name)
 		}
 	}
@@ -170,22 +172,22 @@ func unreadyUpdatedPodNames(current []corev1.Pod) []string {
 
 // terminatingPodNames returns the names of pods with DeletionTimestamp set.
 func terminatingPodNames(pods []corev1.Pod) []string {
-	var names []string
+	var terminatingPodNames []string
 	for i := range pods {
 		if pods[i].DeletionTimestamp != nil {
-			names = append(names, pods[i].Name)
+			terminatingPodNames = append(terminatingPodNames, pods[i].Name)
 		}
 	}
-	return names
+	return terminatingPodNames
 }
 
-// selectParticipatingOutdated picks a Step 4 candidate, follower before leader.
-// A lease-read failure is treated as an unknown role and the pod is classified
+// selectOutdatedParticipatingPods picks a follower before leader.
+// A lease-read failure is also treated as an unknown role and the pod is classified
 // as a follower.
-func (r *Reconciler) selectParticipatingOutdated(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, outdated []corev1.Pod) (*corev1.Pod, string, error) {
+func (r *Reconciler) selectOutdatedParticipatingPods(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, outdatedPodSet []corev1.Pod) (*corev1.Pod, string, error) {
 	var followers, leaders []*corev1.Pod
-	for i := range outdated {
-		pod := &outdated[i]
+	for i := range outdatedPodSet {
+		pod := &outdatedPodSet[i]
 		role, err := r.memberRole(ctx, etcd, pod)
 		if err != nil {
 			logger.V(1).Info("treating pod as a follower after lease-read failure", "pod", pod.Name, "err", err.Error())
@@ -208,41 +210,104 @@ func (r *Reconciler) selectParticipatingOutdated(ctx context.Context, logger log
 	return nil, "", nil
 }
 
-// deleteSelected issues a Delete for the pod and waits until the local cache
-// observes the resulting terminating state, so a rapid successive reconcile
-// does not see stale pre-delete state.
-func (r *Reconciler) deleteSelected(ctx context.Context, logger logr.Logger, pod *corev1.Pod) (ctrl.Result, error) {
-	if pod.DeletionTimestamp != nil {
-		logger.V(1).Info("selected pod is already terminating, requeuing", "pod", pod.Name)
+// listLiveMembers dials the etcd cluster and returns its live membership
+func (r *Reconciler) listLiveMembers(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) (etcdmember.Members, ctrl.Result, error) {
+	etcdClient, err := r.clientFactory.NewClient(ctx, r.client, etcd)
+	if err != nil {
+		logger.Info("holding: failed to create etcd client, requeuing", "err", err.Error())
+		return nil, ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
+	}
+	defer func() {
+		if cerr := etcdClient.Close(); cerr != nil {
+			logger.Error(cerr, "failed to close etcd client")
+		}
+	}()
+
+	members, err := etcdClient.MemberList(ctx)
+	if err != nil {
+		logger.Info("holding: failed to list etcd members, requeuing", "err", err.Error())
+		return nil, ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
+	}
+	return members, ctrl.Result{}, nil
+}
+
+// deleteIfQuorumSafe deletes the selected pod only when removing its etcd member
+// keeps a healthy voting quorum.
+func (r *Reconciler) deleteIfQuorumSafe(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, members etcdmember.Members, pod *corev1.Pod) (ctrl.Result, error) {
+	memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, pod.Name)
+	var member *etcdmember.Member
+	for i := range members {
+		if members[i].Name == memberName {
+			member = &members[i]
+			break
+		}
+	}
+	if member == nil {
+		logger.Info("holding: selected pod has no live etcd member, requeuing", "pod", pod.Name, "member", memberName)
 		return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
 	}
-	if err := r.client.Delete(ctx, pod); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			logger.V(1).Info("pod already deleted by another actor, requeuing", "pod", pod.Name)
-			return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
-		}
-		return ctrl.Result{}, fmt.Errorf("failed to delete pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	if !etcdmember.QuorumSafeToRemove(members, member.ID) {
+		logger.Info("holding: deleting selected pod would break quorum, requeuing", "pod", pod.Name, "member", memberName)
+		return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
 	}
-	if err := r.waitForPodDeletionObserved(ctx, logger, pod); err != nil {
-		return ctrl.Result{}, err
+	return r.deleteSelectedPodAndWait(ctx, logger, pod)
+}
+
+// deleteAllOutdatedPods deletes every outdated pod in one pass.
+func (r *Reconciler) deleteAllOutdatedPods(ctx context.Context, logger logr.Logger, outdatedPodSet []corev1.Pod) (ctrl.Result, error) {
+	for i := range outdatedPodSet {
+		if _, err := r.deleteSelectedPod(ctx, logger, &outdatedPodSet[i]); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
 }
 
+// deleteSelectedPodAndWait issues a Delete for the pod and waits until the local cache observes the
+// resulting terminating state, to make sure successive reconciles do not see stale pre-delete state.
+func (r *Reconciler) deleteSelectedPodAndWait(ctx context.Context, logger logr.Logger, pod *corev1.Pod) (ctrl.Result, error) {
+	deleted, err := r.deleteSelectedPod(ctx, logger, pod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if deleted {
+		if err := r.waitForPodDeletionObserved(ctx, logger, pod); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	return ctrl.Result{RequeueAfter: requeueAfterInFlight}, nil
+}
+
+// deleteSelectedPod deletes a single pod, guarding against a pod that is already
+// terminating or already gone.
+// It reports whether this call was able to issue the Delete.
+func (r *Reconciler) deleteSelectedPod(ctx context.Context, logger logr.Logger, pod *corev1.Pod) (bool, error) {
+	if pod.DeletionTimestamp != nil {
+		logger.V(1).Info("selected pod is already terminating, skipping delete", "pod", pod.Name)
+		return false, nil
+	}
+	if err := r.client.Delete(ctx, pod); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			logger.V(1).Info("pod already deleted by another actor", "pod", pod.Name)
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to delete pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	return true, nil
+}
+
 // waitForPodDeletionObserved blocks until the local cache reflects the pod's
-// deletion (DeletionTimestamp set or the pod gone) or the poll timeout expires.
-// Timing out is non-fatal: the top gate on the next reconcile still holds if
-// the cache is still stale.
+// deletion or the poll timeout expires.
 func (r *Reconciler) waitForPodDeletionObserved(ctx context.Context, logger logr.Logger, pod *corev1.Pod) error {
 	err := wait.PollUntilContextTimeout(ctx, podDeletionPollInterval, podDeletionPollTimeout, true,
 		func(ctx context.Context) (bool, error) {
 			observed := &corev1.Pod{}
-			getErr := r.client.Get(ctx, client.ObjectKeyFromObject(pod), observed)
-			if apierrors.IsNotFound(getErr) {
+			errGetPod := r.client.Get(ctx, client.ObjectKeyFromObject(pod), observed)
+			if apierrors.IsNotFound(errGetPod) {
 				return true, nil
 			}
-			if getErr != nil {
-				return false, getErr
+			if errGetPod != nil {
+				return false, errGetPod
 			}
 			return observed.DeletionTimestamp != nil, nil
 		})
@@ -264,6 +329,18 @@ func podNames(pods []*corev1.Pod) []string {
 	names := make([]string, 0, len(pods))
 	for _, p := range pods {
 		names = append(names, p.Name)
+	}
+	return names
+}
+
+// podNamesFromList returns the names of the given pods, or nil for empty input.
+func podNamesFromList(pods []corev1.Pod) []string {
+	if len(pods) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(pods))
+	for i := range pods {
+		names = append(names, pods[i].Name)
 	}
 	return names
 }

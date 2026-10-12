@@ -164,7 +164,7 @@ func TestIsParticipating(t *testing.T) {
 			if tc.status != nil {
 				pod.Status.ContainerStatuses = []corev1.ContainerStatus{*tc.status}
 			}
-			g.Expect(isParticipating(pod)).To(Equal(tc.expected))
+			g.Expect(isPodParticipating(pod)).To(Equal(tc.expected))
 		})
 	}
 }
@@ -177,7 +177,7 @@ func TestFindEtcdContainerStatus(t *testing.T) {
 			{Name: common.ContainerNameEtcdBackupRestore, Ready: true},
 			{Name: common.ContainerNameEtcd, Ready: true},
 		}}}
-		status := findEtcdContainerStatus(pod)
+		status := etcdContainerStatus(pod)
 		g.Expect(status).ToNot(BeNil())
 		g.Expect(status.Name).To(Equal(common.ContainerNameEtcd))
 	})
@@ -186,11 +186,11 @@ func TestFindEtcdContainerStatus(t *testing.T) {
 		pod := &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
 			{Name: common.ContainerNameEtcdBackupRestore, Ready: true},
 		}}}
-		g.Expect(findEtcdContainerStatus(pod)).To(BeNil())
+		g.Expect(etcdContainerStatus(pod)).To(BeNil())
 	})
 
 	t.Run("returns nil for an empty container-statuses slice", func(t *testing.T) {
-		g.Expect(findEtcdContainerStatus(&corev1.Pod{})).To(BeNil())
+		g.Expect(etcdContainerStatus(&corev1.Pod{})).To(BeNil())
 	})
 }
 

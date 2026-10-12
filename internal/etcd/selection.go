@@ -54,6 +54,28 @@ func QuorumSafeToRemove(members Members, candidateID uint64) bool {
 	return healthyVotersAfter >= quorumAfter
 }
 
+// HasQuorum reports whether the live cluster currently has a healthy voting
+// quorum: at least ⌊voters/2⌋ + 1 voters are healthy. Only MemberHealthHealthy
+// counts; Unknown and Unhealthy are fail-closed. A list with no voters returns
+// false, so an empty or all-learner list is never treated as having quorum.
+func HasQuorum(members Members) bool {
+	voters := 0
+	healthyVoters := 0
+	for _, m := range members {
+		if !m.IsVoter() {
+			continue
+		}
+		voters++
+		if m.IsHealthy() {
+			healthyVoters++
+		}
+	}
+	if voters == 0 {
+		return false
+	}
+	return healthyVoters >= voters/2+1
+}
+
 // SelectNextRemovalCandidate returns the surplus member to remove next, or nil
 // when surplus is empty. Ordering follows OrderRemovalCandidates (learners
 // first, leader last).

@@ -12,6 +12,7 @@ import (
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -28,20 +29,24 @@ import (
 
 // Reconciler performs the OnDelete pod-update procedure on watched StatefulSets.
 type Reconciler struct {
-	client client.Client
-	config druidconfigv1alpha1.OnDeleteControllerConfiguration
-	logger logr.Logger
+	client        client.Client
+	config        druidconfigv1alpha1.OnDeleteControllerConfiguration
+	logger        logr.Logger
+	clientFactory etcdclient.Factory
 }
 
-// NewReconciler constructs a Reconciler for the OnDelete controller.
-func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteControllerConfiguration) *Reconciler {
+// NewReconciler constructs a Reconciler for the OnDelete controller. The etcd
+// client factory is required: the pod-update procedure validates every delete
+// against live cluster membership which requires an etcd client.
+func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteControllerConfiguration, clientFactory etcdclient.Factory) *Reconciler {
 	if config.ConcurrentSyncs == nil {
 		config.ConcurrentSyncs = ptr.To(druidconfigv1alpha1.DefaultOnDeleteControllerConcurrentSyncs)
 	}
 	return &Reconciler{
-		client: mgr.GetClient(),
-		config: config,
-		logger: log.Log.WithName(controllerName),
+		client:        mgr.GetClient(),
+		config:        config,
+		logger:        log.Log.WithName(controllerName),
+		clientFactory: clientFactory,
 	}
 }
 
@@ -62,7 +67,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to get StatefulSet %s: %w", req.NamespacedName, err)
 	}
 
-	// Additional defence in depth against any stale cache results.
 	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
 		return ctrl.Result{}, nil
 	}
@@ -88,28 +92,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // getOwningEtcd returns the Etcd controller-owner of sts
 func (r *Reconciler) getOwningEtcd(ctx context.Context, sts *appsv1.StatefulSet) (*druidv1alpha1.Etcd, error) {
 	etcdKind := druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind
-	var ownerName string
+	var ownerEtcdName string
 	for _, ref := range sts.OwnerReferences {
 		if ref.Kind == etcdKind && ref.APIVersion == druidv1alpha1.SchemeGroupVersion.String() {
-			ownerName = ref.Name
+			ownerEtcdName = ref.Name
 			break
 		}
 	}
-	if ownerName == "" {
+	if ownerEtcdName == "" {
 		return nil, nil
 	}
 	etcd := &druidv1alpha1.Etcd{}
-	if err := r.client.Get(ctx, client.ObjectKey{Namespace: sts.Namespace, Name: ownerName}, etcd); err != nil {
+	if err := r.client.Get(ctx, client.ObjectKey{Namespace: sts.Namespace, Name: ownerEtcdName}, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to get owning Etcd %s/%s: %w", sts.Namespace, ownerName, err)
+		return nil, fmt.Errorf("failed to get owning Etcd %s/%s: %w", sts.Namespace, ownerEtcdName, err)
 	}
 	return etcd, nil
 }
 
-// listStsPods lists the pods matched by sts.Spec.Selector. Label-based rather
-// than owner-ref-based so a freshly-created pod without OwnerReference is observed.
+// listStsPods lists the pods matched by sts.Spec.Selector. It is deliberately made to use label filtering rather
+// than owner-ref-based so that a newly created pod without OwnerReference is also considered.
 func (r *Reconciler) listStsPods(ctx context.Context, sts *appsv1.StatefulSet) ([]corev1.Pod, error) {
 	if sts.Spec.Selector == nil {
 		return nil, fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	etcdfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	clientkubernetes "github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -776,7 +777,7 @@ func TestSync_UpdateStrategyDrivenByFeatureGate(t *testing.T) {
 				WithReplicas(3).
 				Build()
 			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
-			operator := New(cl, iv)
+			operator := New(cl, iv, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
 			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
 			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
 
