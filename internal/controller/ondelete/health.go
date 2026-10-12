@@ -35,15 +35,15 @@ var waitingReasonsTransient = map[string]struct{}{
 
 // classifyEtcdContainer classifies the etcd container's state as per the health assessment done in docs/proposals/07-quorum-aware-pod-updates.md.
 func classifyEtcdContainer(pod *corev1.Pod) containerState {
-	status := findEtcdContainerStatus(pod)
-	if status == nil {
+	etcdContainerStatus := etcdContainerStatus(pod)
+	if etcdContainerStatus == nil {
 		return containerStateUnknown
 	}
-	if status.State.Terminated != nil {
+	if etcdContainerStatus.State.Terminated != nil {
 		return containerStateDead
 	}
-	if status.State.Waiting != nil {
-		reason := status.State.Waiting.Reason
+	if etcdContainerStatus.State.Waiting != nil {
+		reason := etcdContainerStatus.State.Waiting.Reason
 		if _, ok := waitingReasonsDead[reason]; ok {
 			return containerStateDead
 		}
@@ -53,22 +53,22 @@ func classifyEtcdContainer(pod *corev1.Pod) containerState {
 		// Unrecognised Waiting reason: marking transiet to be on the side of "still coming up".
 		return containerStateTransient
 	}
-	if status.State.Running != nil {
+	if etcdContainerStatus.State.Running != nil {
 		return containerStateAlive
 	}
 	return containerStateUnknown
 }
 
-// isParticipating reports whether the etcd container is contributing to quorum or not using its Ready field which is a linearizable call.
-func isParticipating(pod *corev1.Pod) bool {
-	status := findEtcdContainerStatus(pod)
-	if status == nil {
+// isPodParticipating reports whether the etcd container of the pod is contributing to quorum or not using its Ready field which is a linearizable call.
+func isPodParticipating(pod *corev1.Pod) bool {
+	etcdContainerStatus := etcdContainerStatus(pod)
+	if etcdContainerStatus == nil {
 		return false
 	}
-	return status.Ready
+	return etcdContainerStatus.Ready
 }
 
-func findEtcdContainerStatus(pod *corev1.Pod) *corev1.ContainerStatus {
+func etcdContainerStatus(pod *corev1.Pod) *corev1.ContainerStatus {
 	for i := range pod.Status.ContainerStatuses {
 		if pod.Status.ContainerStatuses[i].Name == common.ContainerNameEtcd {
 			return &pod.Status.ContainerStatuses[i]

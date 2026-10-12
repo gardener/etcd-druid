@@ -14,8 +14,10 @@ import (
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/controller/ondelete"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
@@ -34,21 +36,27 @@ import (
 type reconcilerTestEnv struct {
 	itTestEnv  setup.DruidTestEnvironment
 	reconciler *ondelete.Reconciler
+	etcdClient *etcdclientfake.Client
 }
 
 func initializeOnDeleteReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTestEnvironment) reconcilerTestEnv {
 	g := NewWithT(t)
 	var reconciler *ondelete.Reconciler
+	// The reconciler is given a fake factory. It defaults to a healthy 3-member cluster (member names match the
+	// pods the tests create) so the quorum gate is transparent and the end-to-end
+	// wiring (watches, predicates, deletes) is what gets exercised. Tests that need
+	// an unhealthy cluster overwrite etcdClient.Members before triggering a reconcile.
+	etcdClient := etcdclientfake.NewClient(testutils.TestEtcdName, 3)
 	g.Expect(itTestEnv.CreateManager(testutils.NewTestClientBuilder())).To(Succeed())
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
 		reconciler = ondelete.NewReconciler(mgr, druidconfigv1alpha1.OnDeleteControllerConfiguration{
 			ConcurrentSyncs: ptr.To(3),
-		})
+		}, &etcdclientfake.Factory{Client: etcdClient})
 		g.Expect(reconciler.RegisterWithManager(mgr)).To(Succeed())
 	})
 	g.Expect(itTestEnv.StartManager()).To(Succeed())
 	t.Log("successfully registered ondelete reconciler and started manager")
-	return reconcilerTestEnv{itTestEnv: itTestEnv, reconciler: reconciler}
+	return reconcilerTestEnv{itTestEnv: itTestEnv, reconciler: reconciler, etcdClient: etcdClient}
 }
 
 // createEtcdAndStatefulSet creates a minimal Etcd + StatefulSet pair for a test.
@@ -252,6 +260,42 @@ func createMemberLeases(ctx context.Context, t *testing.T, cl client.Client, nam
 
 // followerFor returns EtcdRoleMember for every replica index
 func followerFor(_ int) druidv1alpha1.EtcdRole { return druidv1alpha1.EtcdRoleMember }
+
+// liveMembers builds a member list of `replicas` voters named to match the test
+// StatefulSet's pods (<TestEtcdName>-<ordinal>), with ordinal 0 as the leader and
+// the health of each member taken from healthFor. It is used to drive the fake
+// etcd client so the reconciler's quorum gate sees a specific cluster state.
+func liveMembers(replicas int, healthFor func(int) etcdmember.MemberHealth) []etcdmember.Member {
+	members := make([]etcdmember.Member, 0, replicas)
+	for i := 0; i < replicas; i++ {
+		role := etcdmember.MemberRoleMember
+		if i == 0 {
+			role = etcdmember.MemberRoleLeader
+		}
+		members = append(members, etcdmember.Member{
+			ID:     uint64(i) + 1, // #nosec G115 -- small loop index
+			Name:   fmt.Sprintf("%s-%d", testutils.TestEtcdName, i),
+			Role:   role,
+			Health: healthFor(i),
+		})
+	}
+	return members
+}
+
+// healthyExcept returns a health function that reports every member Healthy
+// except those at the given indices, which report Unhealthy.
+func healthyExcept(unhealthy ...int) func(int) etcdmember.MemberHealth {
+	bad := make(map[int]struct{}, len(unhealthy))
+	for _, i := range unhealthy {
+		bad[i] = struct{}{}
+	}
+	return func(i int) etcdmember.MemberHealth {
+		if _, ok := bad[i]; ok {
+			return etcdmember.MemberHealthUnhealthy
+		}
+		return etcdmember.MemberHealthHealthy
+	}
+}
 
 // consistentlyPodNotDeleted asserts that within the window the pod is neither
 // terminating nor gone. Used to prove the reconciler is holding.

@@ -68,6 +68,8 @@ func TestOnDeleteReconciler(t *testing.T) {
 		{"status-only-statefulset-update-does-not-cause-a-delete", testStatusOnlyUpdateDoesNotTrigger},
 		{"step-3-holds-when-a-current-revision-pod-is-not-ready", testStep3HoldsUnreadyUpdated},
 		{"scale-up-holds-top-gate-until-pod-count-matches-desired", testScaleUpHoldsTopGate},
+		{"quorum-veto-holds-when-a-delete-would-break-quorum", testQuorumVetoHolds},
+		{"quorum-lost-deletes-all-outdated-pods-together", testQuorumLostBatchDeletes},
 	}
 
 	g := NewWithT(t)
@@ -226,6 +228,62 @@ func testScaleUpHoldsTopGate(t *testing.T, ns string, env reconcilerTestEnv) {
 
 	// p0 must NOT be deleted; the top gate holds.
 	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-0", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+}
+
+// testQuorumVetoHolds verifies that when the live cluster is one failure away
+// from losing quorum, the controller refuses to delete an otherwise-eligible
+// outdated pod — the pre-delete quorum gate holds instead of inducing a loss.
+func testQuorumVetoHolds(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	// Live cluster: 3 voters, one already Unhealthy. Removing any healthy voter
+	// would leave 1 healthy of 2 — below the quorum floor — so every delete is vetoed.
+	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(2)))
+	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
+	// All three pods outdated and participating (the lagging K8s signal). The
+	// quorum gate, not the K8s signal, must stop the delete.
+	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
+	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+
+	for i := 0; i < 3; i++ {
+		consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+	}
+}
+
+// testQuorumLostBatchDeletes verifies that once quorum is already lost, the
+// controller abandons the one-pod-per-reconcile discipline and deletes every
+// outdated pod together so the cluster can recover.
+func testQuorumLostBatchDeletes(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	// Live cluster: 3 voters, only 1 healthy -> quorum is already lost.
+	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(1, 2)))
+	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
+	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
+	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+
+	// All three outdated pods must be deleted (or terminating) in a single cycle.
+	g := NewWithT(t)
+	g.Eventually(func() int {
+		var deleted int
+		for i := range 3 {
+			key := types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}
+			pod := &corev1.Pod{}
+			err := cl.Get(ctx, key, pod)
+			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
+				deleted++
+			}
+		}
+		return deleted
+	}, 30*time.Second, 500*time.Millisecond).Should(Equal(3))
 }
 
 // testRollingUpdateStsIgnored verifies the onDeleteStrategy predicate: a

@@ -140,6 +140,70 @@ func TestQuorumSafeToRemove(t *testing.T) {
 	}
 }
 
+func TestHasQuorum(t *testing.T) {
+	tests := []struct {
+		name    string
+		members []Member
+		want    bool
+	}{
+		{
+			name:    "empty list is fail-closed",
+			members: nil,
+			want:    false,
+		},
+		{
+			name: "only learners, no voters is fail-closed",
+			members: []Member{
+				{ID: 1, Name: "e-0", Role: MemberRoleLearner, Health: MemberHealthHealthy},
+			},
+			want: false,
+		},
+		{
+			name: "3 voters all healthy has quorum",
+			members: []Member{
+				{ID: 1, Name: "e-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+				healthyVoter(2, "e-1"),
+				healthyVoter(3, "e-2"),
+			},
+			want: true,
+		},
+		{
+			name: "3 voters, 2 healthy is exactly at the floor",
+			members: []Member{
+				{ID: 1, Name: "e-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+				healthyVoter(2, "e-1"),
+				{ID: 3, Name: "e-2", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+			},
+			want: true,
+		},
+		{
+			name: "3 voters, only 1 healthy is below the floor",
+			members: []Member{
+				{ID: 1, Name: "e-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+				{ID: 2, Name: "e-1", Role: MemberRoleMember, Health: MemberHealthUnhealthy},
+				{ID: 3, Name: "e-2", Role: MemberRoleMember, Health: MemberHealthUnknown},
+			},
+			want: false,
+		},
+		{
+			name: "learners do not count toward the quorum floor",
+			members: []Member{
+				{ID: 1, Name: "e-0", Role: MemberRoleLeader, Health: MemberHealthHealthy},
+				healthyVoter(2, "e-1"),
+				{ID: 3, Name: "e-2", Role: MemberRoleLearner, Health: MemberHealthHealthy},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(HasQuorum(tc.members)).To(Equal(tc.want))
+		})
+	}
+}
+
 func TestOrderRemovalCandidates(t *testing.T) {
 	tests := []struct {
 		name       string

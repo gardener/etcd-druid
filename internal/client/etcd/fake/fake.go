@@ -72,6 +72,14 @@ func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 	return live, nil
 }
 
+// SetMembers replaces the member list under the lock, so a test can change the
+// reported cluster state while a reconciler goroutine may be calling MemberList.
+func (f *Client) SetMembers(members []etcdmember.Member) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Members = members
+}
+
 // MemberRemove implements clientetcd.Cluster.
 func (f *Client) MemberRemove(_ context.Context, id uint64) error {
 	f.mu.Lock()
