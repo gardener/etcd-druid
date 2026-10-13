@@ -85,7 +85,7 @@ func waitForOnDeleteRolloutComplete(g *WithT, env *testenv.TestEnvironment, logg
 		if err := env.Client().List(env.Context(), pods, client.InNamespace(etcd.Namespace), client.MatchingLabels(sts.Spec.Selector.MatchLabels)); err != nil {
 			return err
 		}
-		if int32(len(pods.Items)) != *sts.Spec.Replicas {
+		if len(pods.Items) != int(*sts.Spec.Replicas) {
 			return fmt.Errorf("expected %d pods, got %d", *sts.Spec.Replicas, len(pods.Items))
 		}
 		for i := range pods.Items {
