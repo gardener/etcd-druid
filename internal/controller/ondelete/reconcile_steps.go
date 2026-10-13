@@ -117,8 +117,8 @@ func podSetInFlightReason(sts *appsv1.StatefulSet, pods []corev1.Pod) string {
 	if terminatingPodSet := terminatingPodNames(pods); len(terminatingPodSet) > 0 {
 		return fmt.Sprintf("pods terminating: %v", terminatingPodSet)
 	}
-	desiredReplicaCount := ptr.Deref(sts.Spec.Replicas, 0)
-	if int32(len(pods)) < desiredReplicaCount {
+	desiredReplicaCount := int(ptr.Deref(sts.Spec.Replicas, 0))
+	if len(pods) < desiredReplicaCount {
 		return fmt.Sprintf("pod count %d below desired %d", len(pods), desiredReplicaCount)
 	}
 	return ""

@@ -220,7 +220,7 @@ func TestUnreadyUpdatedPodNames(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 
-	t.Run("all participating -> empty", func(t *testing.T) {
+	t.Run("all participating -> empty", func(_ *testing.T) {
 		pods := []corev1.Pod{
 			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-1", testStsNamespace, testRevNew, true),
@@ -228,7 +228,7 @@ func TestUnreadyUpdatedPodNames(t *testing.T) {
 		g.Expect(updatedNotParticipatingPodNames(pods)).To(BeEmpty())
 	})
 
-	t.Run("returns the single non-participating pod's name", func(t *testing.T) {
+	t.Run("returns the single non-participating pod's name", func(_ *testing.T) {
 		pods := []corev1.Pod{
 			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-1", testStsNamespace, testRevNew, false),
@@ -237,7 +237,7 @@ func TestUnreadyUpdatedPodNames(t *testing.T) {
 		g.Expect(updatedNotParticipatingPodNames(pods)).To(ConsistOf("p-1"))
 	})
 
-	t.Run("returns all non-participating pod names, preserving list order", func(t *testing.T) {
+	t.Run("returns all non-participating pod names, preserving list order", func(_ *testing.T) {
 		pods := []corev1.Pod{
 			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-1", testStsNamespace, testRevNew, false),
@@ -368,7 +368,7 @@ func TestDeleteSelected(t *testing.T) {
 	ctx := context.Background()
 	g := NewWithT(t)
 
-	t.Run("terminating pod is not re-deleted, but a requeue is returned", func(t *testing.T) {
+	t.Run("terminating pod is not re-deleted, but a requeue is returned", func(_ *testing.T) {
 		pod := withDeletionTimestamp(makeStsPod("p-0", testStsNamespace, testRevOld, false))
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(pod).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
@@ -379,7 +379,7 @@ func TestDeleteSelected(t *testing.T) {
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("normal delete requeues", func(t *testing.T) {
+	t.Run("normal delete requeues", func(_ *testing.T) {
 		pod := makeStsPod("p-0", testStsNamespace, testRevOld, false)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(pod).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
@@ -391,7 +391,7 @@ func TestDeleteSelected(t *testing.T) {
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{}))).To(BeTrue())
 	})
 
-	t.Run("pod-not-found on Delete is a benign race and requeues without error", func(t *testing.T) {
+	t.Run("pod-not-found on Delete is a benign race and requeues without error", func(_ *testing.T) {
 		pod := makeStsPod("p-ghost", testStsNamespace, testRevOld, false)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build() // pod not present
 		r := &Reconciler{client: cl, logger: logr.Discard()}
@@ -656,17 +656,19 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 	t.Run("Quorum check hold : holds Step 4 when deleting the selected pod would break quorum", func(t *testing.T) {
 		g := NewWithT(t)
-		// All three pods are outdated and look participating via the lagging K8s
-		// signal, but the live cluster has only 2 healthy voters of 3. Removing one
-		// would drop healthy voters below the floor, so the delete must be vetoed.
-		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
+		// member-0 is already updated but Unhealthy in the live view; member-1 and
+		// member-2 are outdated, participating by the K8s signal, and healthy. The
+		// two deletion candidates are therefore member-1 and member-2, and removing
+		// either leaves 1 healthy voter of 2 — below the floor — so the delete must
+		// be vetoed whichever one Step 4 selects.
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: membersFactory(
-			etcdmember.Member{ID: 1, Name: testStsName + "-0", Role: etcdmember.MemberRoleLeader, Health: etcdmember.MemberHealthHealthy},
+			etcdmember.Member{ID: 1, Name: testStsName + "-0", Role: etcdmember.MemberRoleLeader, Health: etcdmember.MemberHealthUnhealthy},
 			etcdmember.Member{ID: 2, Name: testStsName + "-1", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
-			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
+			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
 		)}
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})

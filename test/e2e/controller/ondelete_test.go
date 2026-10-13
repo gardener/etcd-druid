@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	e2eutils "github.com/gardener/etcd-druid/test/e2e/utils"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
@@ -51,9 +52,9 @@ func testOnDelete3ReplicaZeroDowntime(t *testing.T, tcName string, log logr.Logg
 	testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 	logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 	defer func() {
-		cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+		e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 	}()
-	initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
+	e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 		WithReplicas(3).
@@ -96,9 +97,9 @@ func testOnDeleteScaleUpPlusTemplateChange(t *testing.T, tcName string, log logr
 	testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 	logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 	defer func() {
-		cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+		e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 	}()
-	initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
+	e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 		WithReplicas(1).
@@ -133,9 +134,9 @@ func testOnDeleteResumesAfterOperatorRestart(t *testing.T, tcName string, log lo
 	testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
 	logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
 	defer func() {
-		cleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+		e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
 	}()
-	initializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
+	e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
 
 	etcd := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
 		WithReplicas(3).

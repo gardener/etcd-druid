@@ -123,7 +123,7 @@ func TestUpdateRevisionChangedPredicate(t *testing.T) {
 	p := updateRevisionChanged()
 
 	// Every Create is accepted so the controller can pick up mid-rollouts on restart.
-	t.Run("Create is always accepted", func(t *testing.T) {
+	t.Run("Create is always accepted", func(_ *testing.T) {
 		g.Expect(p.Create(event.CreateEvent{Object: stsWithStrategy("x", appsv1.OnDeleteStatefulSetStrategyType, "rev-1")})).To(BeTrue())
 	})
 
@@ -136,7 +136,7 @@ func TestUpdateRevisionChangedPredicate(t *testing.T) {
 		})
 	}
 
-	t.Run("Update with non-StatefulSet objects is filtered out", func(t *testing.T) {
+	t.Run("Update with non-StatefulSet objects is filtered out", func(_ *testing.T) {
 		notAnSts := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "not-an-sts"}}
 		g.Expect(p.Update(event.UpdateEvent{ObjectOld: notAnSts, ObjectNew: notAnSts})).To(BeFalse())
 	})

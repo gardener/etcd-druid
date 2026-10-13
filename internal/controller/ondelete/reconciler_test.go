@@ -158,7 +158,7 @@ func TestGetOwningEtcd(t *testing.T) {
 	ctx := context.Background()
 	g := NewWithT(t)
 
-	t.Run("returns nil when no Etcd owner reference is set", func(t *testing.T) {
+	t.Run("returns nil when no Etcd owner reference is set", func(_ *testing.T) {
 		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
 		sts.OwnerReferences = nil
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts).Build()
@@ -168,7 +168,7 @@ func TestGetOwningEtcd(t *testing.T) {
 		g.Expect(etcd).To(BeNil())
 	})
 
-	t.Run("returns nil when the Etcd owner exists in OwnerReferences but the resource is missing", func(t *testing.T) {
+	t.Run("returns nil when the Etcd owner exists in OwnerReferences but the resource is missing", func(_ *testing.T) {
 		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
 		// Only the STS is present. The Etcd referenced in ownerReferences doesn't exist.
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts).Build()
@@ -178,7 +178,7 @@ func TestGetOwningEtcd(t *testing.T) {
 		g.Expect(etcd).To(BeNil())
 	})
 
-	t.Run("returns the Etcd when the owner exists", func(t *testing.T) {
+	t.Run("returns the Etcd when the owner exists", func(_ *testing.T) {
 		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
 		etcd := etcdFixture()
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts, etcd).Build()
@@ -194,7 +194,7 @@ func TestListStsPods(t *testing.T) {
 	ctx := context.Background()
 	g := NewWithT(t)
 
-	t.Run("returns error when selector is nil", func(t *testing.T) {
+	t.Run("returns error when selector is nil", func(_ *testing.T) {
 		sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace}}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
@@ -202,7 +202,7 @@ func TestListStsPods(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 	})
 
-	t.Run("returns only the pods matching the selector", func(t *testing.T) {
+	t.Run("returns only the pods matching the selector", func(_ *testing.T) {
 		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
 		match1 := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "match-1", Namespace: testStsNamespace, Labels: sts.Spec.Selector.MatchLabels}}
 		match2 := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "match-2", Namespace: testStsNamespace, Labels: sts.Spec.Selector.MatchLabels}}
