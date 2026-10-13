@@ -231,21 +231,24 @@ func testScaleUpHoldsTopGate(t *testing.T, ns string, env reconcilerTestEnv) {
 }
 
 // testQuorumVetoHolds verifies that when the live cluster is one failure away
-// from losing quorum, the controller refuses to delete an otherwise-eligible
-// outdated pod — the pre-delete quorum gate holds instead of inducing a loss.
+// from losing quorum, the controller refuses to delete an outdated pod whose
+// removal would breach quorum — the pre-delete quorum gate holds.
 func testQuorumVetoHolds(t *testing.T, ns string, env reconcilerTestEnv) {
 	ctx := env.itTestEnv.GetContext()
 	cl := env.itTestEnv.GetClient()
 
-	// Live cluster: 3 voters, one already Unhealthy. Removing any healthy voter
-	// would leave 1 healthy of 2 — below the quorum floor — so every delete is vetoed.
-	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(2)))
+	// Live cluster: 3 voters, member-0 already Unhealthy. The two deletion
+	// candidates (member-1 and member-2) are both healthy, and removing either
+	// would leave 1 healthy voter of 2 — below the quorum floor — so whichever
+	// Step 4 selects, the delete must be vetoed.
+	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(0)))
 	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
 	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	// All three pods outdated and participating (the lagging K8s signal). The
-	// quorum gate, not the K8s signal, must stop the delete.
+	// All three pods outdated and participating by the lagging K8s signal; member-0
+	// is unhealthy only in the live etcd view, so the quorum gate (not the K8s
+	// signal) is what must stop the delete.
 	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
 	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
 

@@ -172,7 +172,7 @@ func TestIsParticipating(t *testing.T) {
 func TestFindEtcdContainerStatus(t *testing.T) {
 	g := NewWithT(t)
 
-	t.Run("returns the etcd container's status when both containers are present", func(t *testing.T) {
+	t.Run("returns the etcd container's status when both containers are present", func(_ *testing.T) {
 		pod := &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
 			{Name: common.ContainerNameEtcdBackupRestore, Ready: true},
 			{Name: common.ContainerNameEtcd, Ready: true},
@@ -182,14 +182,14 @@ func TestFindEtcdContainerStatus(t *testing.T) {
 		g.Expect(status.Name).To(Equal(common.ContainerNameEtcd))
 	})
 
-	t.Run("returns nil when the etcd container is absent", func(t *testing.T) {
+	t.Run("returns nil when the etcd container is absent", func(_ *testing.T) {
 		pod := &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{
 			{Name: common.ContainerNameEtcdBackupRestore, Ready: true},
 		}}}
 		g.Expect(etcdContainerStatus(pod)).To(BeNil())
 	})
 
-	t.Run("returns nil for an empty container-statuses slice", func(t *testing.T) {
+	t.Run("returns nil for an empty container-statuses slice", func(_ *testing.T) {
 		g.Expect(etcdContainerStatus(&corev1.Pod{})).To(BeNil())
 	})
 }
