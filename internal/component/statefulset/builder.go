@@ -147,10 +147,11 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 	// controller only acts on deleting the pods and never mutates StatefulSet spec. The field
 	// is rewritten on every Sync, so a gate flip converges on the next reconcile.
 	// See DEP-07 Transitioning Between Strategies for the transition semantics
-	stsUpdateStrategy := appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
-	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete) {
-		stsUpdateStrategy.Type = appsv1.OnDeleteStatefulSetStrategyType
-	}
+	stsUpdateStrategy := utils.IfConditionOr(
+		druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete),
+		appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType},
+		appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType},
+	)
 	b.sts.Spec.UpdateStrategy = stsUpdateStrategy
 
 	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace, "updateStrategy", stsUpdateStrategy.Type)
