@@ -27,7 +27,7 @@ import (
 // For RollingUpdate the fast path uses status field comparisons. For OnDelete
 // it lists pods and compares controller-revision-hash against updateRevision,
 // because the K8s StatefulSet controller does not promote status.currentRevision
-// under OnDelete on K8s < v1.37 (kubernetes/kubernetes#73492, #106055, fix in
+// under OnDelete on K8s < v1.37 (kubernetes/kubernetes#73492,#106055, fix in
 // #136833). The pod-level path stays valid post-v1.37; do not gate it on the
 // Kubernetes version.
 func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string) {
@@ -56,33 +56,56 @@ func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int3
 	return true, ""
 }
 
+// ListStatefulSetPods lists the pods selected by sts.Spec.Selector in the
+// StatefulSet's namespace. It errors if the selector is nil or matches
+// everything, so callers never operate on an unintended pod set.
+func ListStatefulSetPods(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) ([]corev1.Pod, error) {
+	if sts.Spec.Selector == nil {
+		return nil, fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
+	}
+	selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse statefulSet %s/%s spec.selector: %w", sts.Namespace, sts.Name, err)
+	}
+	if selector.Empty() {
+		return nil, fmt.Errorf("statefulSet %s/%s spec.selector matched everything; refusing to list", sts.Namespace, sts.Name)
+	}
+	list := &corev1.PodList{}
+	if err := cl.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: selector}); err != nil {
+		return nil, fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
+	}
+	return list.Items, nil
+}
+
+// IsStatefulSetPodOutdated reports whether the pod's controller-revision-hash
+// differs from sts.Status.UpdateRevision. A StatefulSet with an empty
+// updateRevision has no target revision yet, so no pod is considered outdated.
+func IsStatefulSetPodOutdated(pod *corev1.Pod, sts *appsv1.StatefulSet) bool {
+	if sts.Status.UpdateRevision == "" {
+		return false
+	}
+	return pod.Labels[appsv1.StatefulSetRevisionLabel] != sts.Status.UpdateRevision
+}
+
 // AreAllStsPodsAtUpdateRevision reports whether every non-terminating pod of sts
 // carries sts.Status.UpdateRevision on its controller-revision-hash label. On
 // mismatch it returns the name of the first offending pod, useful for reason
 // strings. Terminating pods are excluded so a pod recreation does not flap the
 // answer.
 func AreAllStsPodsAtUpdateRevision(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (bool, string, error) {
-	updateRevision := sts.Status.UpdateRevision
-	if updateRevision == "" {
+	if sts.Status.UpdateRevision == "" {
 		return false, "", nil
 	}
-	if sts.Spec.Selector == nil {
-		return false, "", fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
-	}
-	sel, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
+	pods, err := ListStatefulSetPods(ctx, cl, sts)
 	if err != nil {
-		return false, "", fmt.Errorf("failed to parse statefulSet %s/%s spec.selector: %w", sts.Namespace, sts.Name, err)
+		return false, "", err
 	}
-	list := &corev1.PodList{}
-	if err := cl.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: sel}); err != nil {
-		return false, "", fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
-	}
-	for i := range list.Items {
-		pod := &list.Items[i]
+	for i := range pods {
+		pod := &pods[i]
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		if pod.Labels[appsv1.StatefulSetRevisionLabel] != updateRevision {
+		if IsStatefulSetPodOutdated(pod, sts) {
 			return false, pod.Name, nil
 		}
 	}

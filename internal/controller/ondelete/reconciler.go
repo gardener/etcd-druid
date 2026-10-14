@@ -13,12 +13,11 @@ import (
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	pods, err := r.listStsPods(ctx, sts)
+	pods, err := kubernetes.ListStatefulSetPods(ctx, r.client, sts)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -110,24 +109,4 @@ func (r *Reconciler) getOwningEtcd(ctx context.Context, sts *appsv1.StatefulSet)
 		return nil, fmt.Errorf("failed to get owning Etcd %s/%s: %w", sts.Namespace, ownerEtcdName, err)
 	}
 	return etcd, nil
-}
-
-// listStsPods lists the pods matched by sts.Spec.Selector. It is deliberately made to use label filtering rather
-// than owner-ref-based so that a newly created pod without OwnerReference is also considered.
-func (r *Reconciler) listStsPods(ctx context.Context, sts *appsv1.StatefulSet) ([]corev1.Pod, error) {
-	if sts.Spec.Selector == nil {
-		return nil, fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
-	}
-	selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse statefulSet %s/%s spec.selector: %w", sts.Namespace, sts.Name, err)
-	}
-	if selector.Empty() {
-		return nil, fmt.Errorf("statefulSet %s/%s spec.selector matched everything; refusing to list", sts.Namespace, sts.Name)
-	}
-	list := &corev1.PodList{}
-	if err := r.client.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: selector}); err != nil {
-		return nil, fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
-	}
-	return list.Items, nil
 }

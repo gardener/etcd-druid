@@ -613,3 +613,76 @@ func stsPod(name, revision string, selector map[string]string) *corev1.Pod {
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: stsNamespace, Labels: labels},
 	}
 }
+
+func TestListStatefulSetPods(t *testing.T) {
+	g := NewWithT(t)
+	t.Parallel()
+
+	t.Run("nil selector -> error", func(_ *testing.T) {
+		sts := onDeleteSTS("rev-2", 3)
+		sts.Spec.Selector = nil
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		_, err := ListStatefulSetPods(context.Background(), cl, sts)
+		g.Expect(err).To(HaveOccurred())
+	})
+
+	t.Run("returns only the pods matching the selector", func(_ *testing.T) {
+		sts := onDeleteSTS("rev-2", 3)
+		match1 := stsPod("match-1", "rev-2", sts.Spec.Selector.MatchLabels)
+		match2 := stsPod("match-2", "rev-1", sts.Spec.Selector.MatchLabels)
+		other := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: stsNamespace, Labels: map[string]string{"unrelated": "yes"}}}
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(match1, match2, other).Build()
+
+		got, err := ListStatefulSetPods(context.Background(), cl, sts)
+		g.Expect(err).ToNot(HaveOccurred())
+		names := make([]string, 0, len(got))
+		for i := range got {
+			names = append(names, got[i].Name)
+		}
+		g.Expect(names).To(ConsistOf("match-1", "match-2"))
+	})
+}
+
+func TestIsStatefulSetPodOutdated(t *testing.T) {
+	tests := []struct {
+		name        string
+		podLabels   map[string]string
+		updateRev   string
+		expectedOut bool
+	}{
+		{
+			name:        "pod is at target revision -> not outdated",
+			podLabels:   map[string]string{appsv1.StatefulSetRevisionLabel: "rev-2"},
+			updateRev:   "rev-2",
+			expectedOut: false,
+		},
+		{
+			name:        "pod is at older revision -> outdated",
+			podLabels:   map[string]string{appsv1.StatefulSetRevisionLabel: "rev-1"},
+			updateRev:   "rev-2",
+			expectedOut: true,
+		},
+		{
+			name:        "pod has no controller-revision-hash label -> outdated",
+			podLabels:   nil,
+			updateRev:   "rev-2",
+			expectedOut: true,
+		},
+		{
+			name:        "empty target revision -> not outdated (STS controller has not populated it yet)",
+			podLabels:   map[string]string{appsv1.StatefulSetRevisionLabel: "rev-1"},
+			updateRev:   "",
+			expectedOut: false,
+		},
+	}
+
+	g := NewWithT(t)
+	t.Parallel()
+	for _, tc := range tests {
+		t.Run(tc.name, func(_ *testing.T) {
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: tc.podLabels}}
+			sts := &appsv1.StatefulSet{Status: appsv1.StatefulSetStatus{UpdateRevision: tc.updateRev}}
+			g.Expect(IsStatefulSetPodOutdated(pod, sts)).To(Equal(tc.expectedOut))
+		})
+	}
+}

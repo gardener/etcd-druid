@@ -190,36 +190,6 @@ func TestGetOwningEtcd(t *testing.T) {
 	})
 }
 
-func TestListStsPods(t *testing.T) {
-	ctx := context.Background()
-	g := NewWithT(t)
-
-	t.Run("returns error when selector is nil", func(_ *testing.T) {
-		sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace}}
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard()}
-		_, err := r.listStsPods(ctx, sts)
-		g.Expect(err).To(HaveOccurred())
-	})
-
-	t.Run("returns only the pods matching the selector", func(_ *testing.T) {
-		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
-		match1 := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "match-1", Namespace: testStsNamespace, Labels: sts.Spec.Selector.MatchLabels}}
-		match2 := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "match-2", Namespace: testStsNamespace, Labels: sts.Spec.Selector.MatchLabels}}
-		other := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: testStsNamespace, Labels: map[string]string{"unrelated": "yes"}}}
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(match1, match2, other).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard()}
-
-		got, err := r.listStsPods(ctx, sts)
-		g.Expect(err).ToNot(HaveOccurred())
-		gotNames := []string{}
-		for _, p := range got {
-			gotNames = append(gotNames, p.Name)
-		}
-		g.Expect(gotNames).To(ConsistOf("match-1", "match-2"))
-	})
-}
-
 // stsFixtureWithOwner builds an OnDelete StatefulSet with the standard test
 // selector and an OwnerReference pointing at etcdFixture().
 func stsFixtureWithOwner(name, namespace, updateRevision string, replicas int32) *appsv1.StatefulSet {

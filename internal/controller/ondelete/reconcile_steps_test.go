@@ -225,7 +225,7 @@ func TestUnreadyUpdatedPodNames(t *testing.T) {
 			*makeStsPod("p-0", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-1", testStsNamespace, testRevNew, true),
 		}
-		g.Expect(updatedNotParticipatingPodNames(pods)).To(BeEmpty())
+		g.Expect(updatedNonParticipatingPodNames(pods)).To(BeEmpty())
 	})
 
 	t.Run("returns the single non-participating pod's name", func(_ *testing.T) {
@@ -234,7 +234,7 @@ func TestUnreadyUpdatedPodNames(t *testing.T) {
 			*makeStsPod("p-1", testStsNamespace, testRevNew, false),
 			*makeStsPod("p-2", testStsNamespace, testRevNew, true),
 		}
-		g.Expect(updatedNotParticipatingPodNames(pods)).To(ConsistOf("p-1"))
+		g.Expect(updatedNonParticipatingPodNames(pods)).To(ConsistOf("p-1"))
 	})
 
 	t.Run("returns all non-participating pod names, preserving list order", func(_ *testing.T) {
@@ -245,7 +245,7 @@ func TestUnreadyUpdatedPodNames(t *testing.T) {
 			*makeStsPod("p-3", testStsNamespace, testRevNew, true),
 			*makeStsPod("p-4", testStsNamespace, testRevNew, false),
 		}
-		g.Expect(updatedNotParticipatingPodNames(pods)).To(Equal([]string{"p-1", "p-2", "p-4"}))
+		g.Expect(updatedNonParticipatingPodNames(pods)).To(Equal([]string{"p-1", "p-2", "p-4"}))
 	})
 }
 
@@ -373,9 +373,9 @@ func TestDeleteSelected(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(pod).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		result, err := r.deleteSelectedPodAndWait(ctx, logr.Discard(), pod)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(requeued(result)).To(BeTrue())
+		result := r.deleteSelectedPodAndWait(ctx, logr.Discard(), pod)
+		g.Expect(result.HasErrors()).To(BeFalse())
+		g.Expect(result.NeedsRequeue()).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{})).To(Succeed())
 	})
 
@@ -384,9 +384,9 @@ func TestDeleteSelected(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(pod).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		result, err := r.deleteSelectedPodAndWait(ctx, logr.Discard(), pod)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(requeued(result)).To(BeTrue())
+		result := r.deleteSelectedPodAndWait(ctx, logr.Discard(), pod)
+		g.Expect(result.HasErrors()).To(BeFalse())
+		g.Expect(result.NeedsRequeue()).To(BeTrue())
 		// Pod should be gone from the fake client.
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(pod), &corev1.Pod{}))).To(BeTrue())
 	})
@@ -396,9 +396,9 @@ func TestDeleteSelected(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build() // pod not present
 		r := &Reconciler{client: cl, logger: logr.Discard()}
 
-		result, err := r.deleteSelectedPodAndWait(ctx, logr.Discard(), pod)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(requeued(result)).To(BeTrue())
+		result := r.deleteSelectedPodAndWait(ctx, logr.Discard(), pod)
+		g.Expect(result.HasErrors()).To(BeFalse())
+		g.Expect(result.NeedsRequeue()).To(BeTrue())
 	})
 }
 
