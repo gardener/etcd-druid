@@ -65,6 +65,24 @@ func TestDefaultFeatureGate(t *testing.T) {
 				UpgradeEtcdVersion: true,
 			},
 		},
+		{
+			name: "QuorumAwareUpdatesWithOnDelete can be enabled",
+			enabledFeatures: map[string]bool{
+				QuorumAwareUpdatesWithOnDelete: true,
+			},
+			expectedEnabledFeatures: map[string]bool{
+				QuorumAwareUpdatesWithOnDelete: true,
+			},
+		},
+		{
+			name: "QuorumAwareUpdatesWithOnDelete can be disabled (alpha feature)",
+			enabledFeatures: map[string]bool{
+				QuorumAwareUpdatesWithOnDelete: false,
+			},
+			expectedEnabledFeatures: map[string]bool{
+				QuorumAwareUpdatesWithOnDelete: false,
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -85,12 +103,6 @@ func TestDefaultFeatureGate(t *testing.T) {
 }
 
 func TestSetEnabledFeaturesFromMap(t *testing.T) {
-	fg := newFeatureGate()
-	fg.knownFeatures = map[string]maturityLevelSpec{
-		"feature1": maturityLevelSpecAlpha,
-		"feature2": maturityLevelSpecBeta,
-		"feature3": maturityLevelSpecGA,
-	}
 	tests := []struct {
 		name            string
 		enabledFeatures map[string]bool
@@ -128,11 +140,17 @@ func TestSetEnabledFeaturesFromMap(t *testing.T) {
 			expectedError:   false,
 		},
 	}
-	g := NewWithT(t)
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
+			fg := newFeatureGate()
+			fg.knownFeatures = map[string]maturityLevelSpec{
+				"feature1": maturityLevelSpecAlpha,
+				"feature2": maturityLevelSpecBeta,
+				"feature3": maturityLevelSpecGA,
+			}
 			err := fg.SetEnabledFeaturesFromMap(test.enabledFeatures)
 			if test.expectedError {
 				g.Expect(err).ToNot(BeNil())
@@ -144,17 +162,6 @@ func TestSetEnabledFeaturesFromMap(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
-	fg := newFeatureGate()
-	fg.knownFeatures = map[string]maturityLevelSpec{
-		"feature1": maturityLevelSpecAlpha,
-		"feature2": maturityLevelSpecBeta,
-		"feature3": maturityLevelSpecGA,
-	}
-	fg.enabledFeatures = map[string]bool{
-		"feature1": false,
-		"feature2": true,
-		"feature3": true,
-	}
 	tests := []struct {
 		name     string
 		feature  string
@@ -176,11 +183,22 @@ func TestIsEnabled(t *testing.T) {
 			expected: false,
 		},
 	}
-	g := NewWithT(t)
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
+			fg := newFeatureGate()
+			fg.knownFeatures = map[string]maturityLevelSpec{
+				"feature1": maturityLevelSpecAlpha,
+				"feature2": maturityLevelSpecBeta,
+				"feature3": maturityLevelSpecGA,
+			}
+			fg.enabledFeatures = map[string]bool{
+				"feature1": false,
+				"feature2": true,
+				"feature3": true,
+			}
 			g.Expect(fg.IsEnabled(test.feature)).To(Equal(test.expected))
 		})
 	}

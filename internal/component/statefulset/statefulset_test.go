@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	etcdfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	clientkubernetes "github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -731,5 +732,60 @@ func buildStatefulSetWithImages(objMeta metav1.ObjectMeta, replicas int32, image
 		Status: appsv1.StatefulSetStatus{
 			Replicas: replicas,
 		},
+	}
+}
+
+// ---------------------------- Update strategy gate ----------------------------
+
+// TestSync_UpdateStrategyDrivenByFeatureGate verifies that the StatefulSet
+// component sets spec.updateStrategy.type based on the current effective state
+// of the QuorumAwareUpdatesWithOnDelete feature gate. Runs NON-parallel because
+// it mutates a package-level global (DefaultFeatureGates).
+func TestSync_UpdateStrategyDrivenByFeatureGate(t *testing.T) {
+	tests := []struct {
+		name             string
+		gateOn           bool
+		expectedStrategy appsv1.StatefulSetUpdateStrategyType
+	}{
+		{
+			name:             "gate off -> RollingUpdate",
+			gateOn:           false,
+			expectedStrategy: appsv1.RollingUpdateStatefulSetStrategyType,
+		},
+		{
+			name:             "gate on -> OnDelete",
+			gateOn:           true,
+			expectedStrategy: appsv1.OnDeleteStatefulSetStrategyType,
+		},
+	}
+
+	g := NewWithT(t)
+	iv := testutils.CreateImageVector(true, true)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Flip the gate for this subtest and restore on completion.
+			t.Cleanup(func() {
+				g.Expect(druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(map[string]bool{
+					druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete: false,
+				})).To(Succeed())
+			})
+			g.Expect(druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(map[string]bool{
+				druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete: tc.gateOn,
+			})).To(Succeed())
+
+			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+				WithReplicas(3).
+				Build()
+			cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{buildBackupSecret()}, getObjectKey(etcd.ObjectMeta))
+			operator := New(cl, iv, &etcdfake.Factory{Client: etcdfake.NewClient("etcd-test", 1)})
+			opCtx := component.NewOperatorContext(context.Background(), logr.Discard(), uuid.NewString())
+			opCtx.Data[common.CheckSumKeyConfigMap] = testutils.TestConfigMapCheckSum
+
+			g.Expect(operator.Sync(opCtx, etcd)).To(Succeed())
+
+			sts, err := getLatestStatefulSet(cl, etcd)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(sts.Spec.UpdateStrategy.Type).To(Equal(tc.expectedStrategy))
+		})
 	}
 }

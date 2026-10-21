@@ -57,6 +57,8 @@ config.yaml: |
     etcdOpsTask:
       concurrentSyncs: {{ .Values.operatorConfig.controllers.etcdOpsTask.concurrentSyncs }}
       requeueInterval: {{ .Values.operatorConfig.controllers.etcdOpsTask.requeueInterval }}
+    ondelete:
+      concurrentSyncs: {{ .Values.operatorConfig.controllers.ondelete.concurrentSyncs }}
   webhooks:
     etcdComponentProtection:
       enabled: {{ .Values.operatorConfig.webhooks.etcdComponentProtection.enabled }}

@@ -9,10 +9,12 @@ import (
 	"time"
 
 	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/compaction"
 	"github.com/gardener/etcd-druid/internal/controller/etcd"
 	"github.com/gardener/etcd-druid/internal/controller/etcdcopybackupstask"
 	"github.com/gardener/etcd-druid/internal/controller/etcdopstask"
+	"github.com/gardener/etcd-druid/internal/controller/ondelete"
 	"github.com/gardener/etcd-druid/internal/controller/secret"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,6 +50,13 @@ func Register(mgr ctrl.Manager, controllerConfig druidconfigv1alpha1.ControllerC
 			return err
 		}
 		if err = compactionReconciler.RegisterWithManager(mgr); err != nil {
+			return err
+		}
+	}
+
+	// The OnDelete controller is registered only when its feature gate is on.
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete) {
+		if err = ondelete.NewReconciler(mgr, controllerConfig.OnDelete, etcdclient.NewFactory()).RegisterWithManager(mgr); err != nil {
 			return err
 		}
 	}

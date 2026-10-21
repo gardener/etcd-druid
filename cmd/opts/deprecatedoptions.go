@@ -57,7 +57,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
 	d.addDeprecatedEtcdOpsTaskControllerFlags(fs)
 	d.addDeprecatedSecretControllerFlags(fs)
 	d.addDeprecatedEtcdComponentProtectionWebhookFlags(fs)
-	fs.StringVar(&d.featureGates, "feature-gates", "", "A set of key-value pairs that describe feature gates for alpha/beta features. Options are: UpgradeEtcdVersion=true|false")
+	fs.StringVar(&d.featureGates, "feature-gates", "", "A set of key-value pairs that describe feature gates for alpha/beta features. Options are: UpgradeEtcdVersion=true|false, QuorumAwareUpdatesWithOnDelete=true|false")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedControllerManagerFlags(fs *flag.FlagSet) {
