@@ -10,6 +10,7 @@ const (
 
 // constants for container ports
 const (
-	serverPortName = "server"
-	clientPortName = "client"
+	serverPortName  = "server"
+	clientPortName  = "client"
+	metricsPortName = "metrics"
 )

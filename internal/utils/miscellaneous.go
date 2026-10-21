@@ -9,12 +9,40 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// ExtractMetricsPort returns the port number from the first parseable URL in urls that carries
+// one, or 0 if none do. Shared between the statefulset builder (container port) and the client
+// service builder (Service port), so both expose the dedicated metrics listener consistently.
+func ExtractMetricsPort(urls []string) int32 {
+	for _, rawURL := range urls {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			continue
+		}
+
+		portStr := u.Port()
+		if portStr == "" {
+			continue
+		}
+
+		port, err := strconv.ParseInt(portStr, 10, 32)
+		if err != nil {
+			continue
+		}
+
+		return int32(port)
+	}
+
+	return 0
+}
 
 // MergeMaps merges the contents of maps. All maps will be processed in the order
 // in which they are sent. For overlapping keys across source maps, value in the merged map

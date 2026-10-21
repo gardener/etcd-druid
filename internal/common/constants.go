@@ -58,6 +58,8 @@ const (
 	DefaultPortEtcdWrapper int32 = 9095
 	// DefaultPortEtcdBackupRestore is the default port for the HTTP server in the etcd-backup-restore container.
 	DefaultPortEtcdBackupRestore int32 = 8080
+	// DefaultPortEtcdMetrics is the default port for the etcd dedicated metrics/health endpoint.
+	DefaultPortEtcdMetrics int32 = 2381
 )
 
 // Constants for environment variables
