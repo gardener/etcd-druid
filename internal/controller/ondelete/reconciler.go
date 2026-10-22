@@ -51,7 +51,6 @@ func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteContr
 
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
-// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch
 // +kubebuilder:rbac:groups=druid.gardener.cloud,resources=etcds,verbs=get;list;watch
 
 // Reconcile reconciles to perform the pod update procedure.

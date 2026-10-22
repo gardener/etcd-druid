@@ -80,6 +80,7 @@ func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 	return live, nil
 }
 
+// ObserveQuorum returns ObserveQuorumErr when set, otherwise the configured QuorumState.
 func (f *Client) ObserveQuorum(_ context.Context) (etcdmember.QuorumState, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

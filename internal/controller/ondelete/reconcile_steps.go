@@ -51,28 +51,51 @@ type podUpdateState struct {
 // podUpdateStepFn is one step of the pod-update procedure.
 type podUpdateStepFn func(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult
 
-// executePodUpdateProcedure runs the pod update process as an ordered set of steps
+// executePodUpdateProcedure runs the pod update procedure
 func (r *Reconciler) executePodUpdateProcedure(ctx context.Context, logger logr.Logger, sts *appsv1.StatefulSet, etcd *druidv1alpha1.Etcd, pods []corev1.Pod) (ctrl.Result, error) {
 	s := &podUpdateState{sts: sts, etcd: etcd, pods: pods}
-	steps := []podUpdateStepFn{
-		r.classifyPods,            // partition pods by revision
-		r.completeIfAllUpToDate,   // Step 1 of DEP-07
-		r.holdIfPodSetInFlight,    // in-flight gate
-		r.handleSingleNodeCluster, // single-node short-circuit (no quorum to protect)
-		r.listLiveMembers,         // dial etcd once, before any multi-node delete
-		r.recoverIfQuorumLost,     // quorum already lost -> batch-delete all outdated
-		r.deleteNonParticipating,  // Step 2 of DEP-07
-		r.holdForUpdatedToRejoin,  // Step 3 of DEP-07
-		r.deleteParticipating,     // Step 4 of DEP-07
+
+	if result := runRolloutSteps(ctx, logger, s,
+		r.classifyPods,          // partition pods by revision
+		r.completeIfAllUpToDate, // nothing outdated -> rollout complete
+		r.holdIfPodSetInFlight,  // a prior delete / scale-up has not settled -> hold
+	); ctrlutils.ShortCircuitReconcileFlow(result) {
+		return result.ReconcileResult()
 	}
+
+	if isSingleMemberCluster(sts) {
+		return r.reconcileSingleMemberRollout(ctx, logger, s).ReconcileResult()
+	}
+	return r.reconcileMultiMemberRollout(ctx, logger, s).ReconcileResult()
+}
+
+// runRolloutSteps runs steps in order, short-circuiting on the first step that
+// does not continue, otherwise returning ContinueReconcile.
+func runRolloutSteps(ctx context.Context, logger logr.Logger, s *podUpdateState, steps ...podUpdateStepFn) ctrlutils.ReconcileStepResult {
 	for _, step := range steps {
 		if result := step(ctx, logger, s); ctrlutils.ShortCircuitReconcileFlow(result) {
-			return result.ReconcileResult()
+			return result
 		}
 	}
-	// Unreachable in practice: Step 4 always short-circuits when outdated pods remain.
-	logger.V(1).Info("no pod selected despite outdated pods existing, requeuing", "outdatedCount", len(s.outdated))
-	return ctrlutils.ReconcileAfter(requeueAfterInFlight, "no pod selected; requeuing defensively").ReconcileResult()
+	return ctrlutils.ContinueReconcile()
+}
+
+// reconcileSingleMemberRollout handles a 1-replica cluster: there is no quorum to
+// protect, so the sole outdated pod is deleted without dialing etcd.
+func (r *Reconciler) reconcileSingleMemberRollout(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
+	logger.Info("single-member cluster: deleting the sole outdated pod", "pod", s.outdated[0].Name)
+	return r.deleteSelectedPodAndWait(ctx, logger, &s.outdated[0])
+}
+
+// reconcileMultiMemberRollout runs a series of quorum-aware steps to progress the pod update process.
+func (r *Reconciler) reconcileMultiMemberRollout(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
+	return runRolloutSteps(ctx, logger, s,
+		r.listLiveMembers,            // dial etcd once: observe quorum + list members
+		r.recoverIfQuorumLost,        // conclusive quorum loss -> batch-delete all outdated
+		r.deleteNextNonParticipating, // delete a non-participating outdated pod
+		r.holdForUpdatedToRejoin,     // gate: hold until updated pods rejoin, before touching a participant
+		r.deleteNextParticipating,    // delete one participating outdated pod (follower before leader)
+	)
 }
 
 // classifyPods partitions the pod set into outdated and current by revision.
@@ -100,16 +123,6 @@ func (r *Reconciler) holdIfPodSetInFlight(_ context.Context, logger logr.Logger,
 		return ctrlutils.ReconcileAfter(requeueAfterInFlight, reason)
 	}
 	return ctrlutils.ContinueReconcile()
-}
-
-// handleSingleNodeCluster short-circuits a 1-replica cluster: there is no quorum
-// to protect, so the sole outdated pod is deleted without dialing etcd.
-func (r *Reconciler) handleSingleNodeCluster(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
-	if ptr.Deref(s.sts.Spec.Replicas, 0) != 1 {
-		return ctrlutils.ContinueReconcile()
-	}
-	logger.Info("single-node cluster: deleting the sole outdated pod", "pod", s.outdated[0].Name)
-	return r.deleteSelectedPodAndWait(ctx, logger, &s.outdated[0])
 }
 
 // listLiveMembers dials the etcd cluster once and records its live membership
@@ -156,15 +169,29 @@ func (r *Reconciler) recoverIfQuorumLost(ctx context.Context, logger logr.Logger
 	return r.deleteAllOutdatedPods(ctx, logger, s.outdated)
 }
 
-// deleteNonParticipating deletes one non-participating outdated pod (Step 2),
-// subject to the quorum check. These contribute nothing to quorum, so they are
-// preferred before any participating pod.
-func (r *Reconciler) deleteNonParticipating(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
-	pod, bucket := selectOutdatedNonParticipatingPods(logger, s.outdated)
+// deleteNextNonParticipating deletes one non-participating outdated pod. These
+// contribute nothing to quorum, so they are updated first.
+// The quorum check guards the deletion.
+func (r *Reconciler) deleteNextNonParticipating(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
+	nonParticipating, _ := partitionOutdatedByParticipation(s.outdated)
+	pod := selectNextPodForUpdate(s.etcd, nonParticipating, s.members)
 	if pod == nil {
 		return ctrlutils.ContinueReconcile()
 	}
-	logger.Info("step 2: deleting non-participating outdated pod", "pod", pod.Name, "bucket", bucket)
+	logger.Info("deleting non-participating outdated pod", "pod", pod.Name)
+	return r.deleteIfQuorumSafe(ctx, logger, s.etcd, s.members, pod)
+}
+
+// deleteNextParticipating deletes one participating outdated pod (follower before leader)
+// Called only after the rejoin gate confirms all updated pods are participating again.
+// The quorum check guards the deletion.
+func (r *Reconciler) deleteNextParticipating(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
+	_, participating := partitionOutdatedByParticipation(s.outdated)
+	pod := selectNextPodForUpdate(s.etcd, participating, s.members)
+	if pod == nil {
+		return ctrlutils.ContinueReconcile()
+	}
+	logger.Info("deleting participating outdated pod", "pod", pod.Name)
 	return r.deleteIfQuorumSafe(ctx, logger, s.etcd, s.members, pod)
 }
 
@@ -179,18 +206,21 @@ func (r *Reconciler) holdForUpdatedToRejoin(_ context.Context, logger logr.Logge
 	return ctrlutils.ContinueReconcile()
 }
 
-// deleteParticipating deletes one participating outdated pod (Step 4), follower
-// before leader to minimise leader elections, subject to the quorum check.
-func (r *Reconciler) deleteParticipating(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
-	pod, role, err := r.selectOutdatedParticipatingPods(ctx, logger, s.etcd, s.outdated)
-	if err != nil {
-		return ctrlutils.ReconcileWithError(err)
+// isSingleMemberCluster reports whether the StatefulSet manages a single replica.
+func isSingleMemberCluster(sts *appsv1.StatefulSet) bool {
+	return ptr.Deref(sts.Spec.Replicas, 0) == 1
+}
+
+// partitionOutdatedByParticipation splits outdated pods into non-participating and participating in quorum.
+func partitionOutdatedByParticipation(outdated []corev1.Pod) (nonParticipating, participating []corev1.Pod) {
+	for i := range outdated {
+		if readinessOfEtcdContainer(&outdated[i]) == etcdContainerNotReady {
+			nonParticipating = append(nonParticipating, outdated[i])
+		} else {
+			participating = append(participating, outdated[i])
+		}
 	}
-	if pod == nil {
-		return ctrlutils.ContinueReconcile()
-	}
-	logger.Info("step 4: deleting participating outdated pod", "pod", pod.Name, "role", role)
-	return r.deleteIfQuorumSafe(ctx, logger, s.etcd, s.members, pod)
+	return nonParticipating, participating
 }
 
 // partitionByRevision splits the given set of pods into outdated and current sets by comparing
@@ -219,46 +249,13 @@ func podSetInFlightReason(sts *appsv1.StatefulSet, pods []corev1.Pod) string {
 	return ""
 }
 
-// selectOutdatedNonParticipatingPods returns the highest-priority non-participating
-// outdated pod for Step 2 (priority: Dead > Transient > Alive).
-// Pods with Unknown-state are skipped due to insufficient evidence to say they are non-participating.
-func selectOutdatedNonParticipatingPods(logger logr.Logger, outdatedPodSet []corev1.Pod) (*corev1.Pod, string) {
-	var deadPodSet, transientPodSet, alivePodSet []*corev1.Pod
-	for i := range outdatedPodSet {
-		pod := &outdatedPodSet[i]
-		if isPodParticipating(pod) {
-			continue
-		}
-		switch classifyEtcdContainer(pod) {
-		case containerStateDead:
-			deadPodSet = append(deadPodSet, pod)
-		case containerStateTransient:
-			transientPodSet = append(transientPodSet, pod)
-		case containerStateAlive:
-			alivePodSet = append(alivePodSet, pod)
-		}
-	}
-	logger.V(1).Info("non-participating outdated pod classification",
-		"dead", podNames(deadPodSet), "transient", podNames(transientPodSet), "alive", podNames(alivePodSet))
-
-	if len(deadPodSet) > 0 {
-		return deadPodSet[0], "Dead"
-	}
-	if len(transientPodSet) > 0 {
-		return transientPodSet[0], "Transient"
-	}
-	if len(alivePodSet) > 0 {
-		return alivePodSet[0], "Alive"
-	}
-	return nil, ""
-}
-
 // updatedNonParticipatingPodNames returns the names of current revision pods that are
 // not participating in quorum.
 func updatedNonParticipatingPodNames(current []corev1.Pod) []string {
 	var names []string
 	for i := range current {
-		if !isPodParticipating(&current[i]) {
+		// A pod participates in quorum only when its etcd container is Ready.
+		if readinessOfEtcdContainer(&current[i]) != etcdContainerReady {
 			names = append(names, current[i].Name)
 		}
 	}
@@ -274,35 +271,6 @@ func terminatingPodNames(pods []corev1.Pod) []string {
 		}
 	}
 	return terminatingPodNames
-}
-
-// selectOutdatedParticipatingPods picks a follower before leader.
-// A lease-read failure is also treated as an unknown role and the pod is classified
-// as a follower.
-func (r *Reconciler) selectOutdatedParticipatingPods(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, outdatedPodSet []corev1.Pod) (*corev1.Pod, string, error) {
-	var followers, leaders []*corev1.Pod
-	for i := range outdatedPodSet {
-		pod := &outdatedPodSet[i]
-		role, err := r.memberRole(ctx, etcd, pod)
-		if err != nil {
-			logger.V(1).Info("treating pod as a follower after lease-read failure", "pod", pod.Name, "err", err.Error())
-		}
-		if isLeader(role) {
-			leaders = append(leaders, pod)
-		} else {
-			followers = append(followers, pod)
-		}
-	}
-	logger.V(1).Info("participating outdated pod classification",
-		"followers", podNames(followers), "leaders", podNames(leaders))
-
-	if len(followers) > 0 {
-		return followers[0], "Follower", nil
-	}
-	if len(leaders) > 0 {
-		return leaders[0], "Leader", nil
-	}
-	return nil, "", nil
 }
 
 // deleteIfQuorumSafe deletes the selected pod only when removing its etcd member
@@ -396,18 +364,6 @@ func (r *Reconciler) waitForPodDeletionObserved(ctx context.Context, logger logr
 		return fmt.Errorf("waiting for pod %s/%s deletion to be observed: %w", pod.Namespace, pod.Name, err)
 	}
 	return nil
-}
-
-// podNames returns the names of the given pods, or nil for empty input.
-func podNames(pods []*corev1.Pod) []string {
-	if len(pods) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(pods))
-	for _, p := range pods {
-		names = append(names, p.Name)
-	}
-	return names
 }
 
 // podNamesFromList returns the names of the given pods, or nil for empty input.
