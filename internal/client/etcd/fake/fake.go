@@ -31,7 +31,14 @@ type Client struct {
 	RemoveErr       error
 	MoveLeaderErr   error
 	CloseCalls      int
-	removed         map[uint64]struct{}
+	// QuorumState is the state ObserveQuorum returns when ObserveQuorumErr is nil.
+	// Defaults to QuorumStatePresent so tests that do not exercise quorum loss
+	// see a healthy cluster.
+	QuorumState etcdmember.QuorumState
+	// ObserveQuorumErr, when set, is returned by ObserveQuorum to simulate a
+	// transient/inconclusive failure.
+	ObserveQuorumErr error
+	removed          map[uint64]struct{}
 }
 
 // NewClient returns a Client with total voting members named
@@ -51,8 +58,9 @@ func NewClient(etcdName string, total int) *Client {
 		})
 	}
 	return &Client{
-		Members: members,
-		removed: make(map[uint64]struct{}),
+		Members:     members,
+		QuorumState: etcdmember.QuorumStatePresent,
+		removed:     make(map[uint64]struct{}),
 	}
 }
 
@@ -70,6 +78,15 @@ func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 		}
 	}
 	return live, nil
+}
+
+func (f *Client) ObserveQuorum(_ context.Context) (etcdmember.QuorumState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.ObserveQuorumErr != nil {
+		return "", f.ObserveQuorumErr
+	}
+	return f.QuorumState, nil
 }
 
 // SetMembers replaces the member list under the lock, so a test can change the

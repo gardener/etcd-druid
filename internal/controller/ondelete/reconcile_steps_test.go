@@ -682,17 +682,15 @@ func TestExecutePodUpdateProcedure(t *testing.T) {
 
 	t.Run("Quorum lost: deletes all outdated pods in one cycle to recover", func(t *testing.T) {
 		g := NewWithT(t)
-		// Only 1 of 3 voters is healthy -> quorum is already lost. There is nothing
-		// left to protect, so every outdated pod is deleted together.
+		// etcd conclusively reports no leader (ObserveQuorum -> Lost). There is
+		// nothing left to protect, so every outdated pod is deleted together.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: membersFactory(
-			etcdmember.Member{ID: 1, Name: testStsName + "-0", Role: etcdmember.MemberRoleLeader, Health: etcdmember.MemberHealthHealthy},
-			etcdmember.Member{ID: 2, Name: testStsName + "-1", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnhealthy},
-			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnknown},
-		)}
+		fakeClient := etcdclientfake.NewClient(testStsName, 3)
+		fakeClient.QuorumState = etcdmember.QuorumStateLost
+		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: &etcdclientfake.Factory{Client: fakeClient}}
 
 		result, err := r.executePodUpdateProcedure(ctx, logr.Discard(), sts, etcd, []corev1.Pod{*p0, *p1, *p2})
 		g.Expect(err).ToNot(HaveOccurred())

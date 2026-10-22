@@ -39,12 +39,13 @@ const (
 
 // podUpdateState is the shared structure to hold the information about the pod-update steps in a reconciliation.
 type podUpdateState struct {
-	sts      *appsv1.StatefulSet
-	etcd     *druidv1alpha1.Etcd
-	pods     []corev1.Pod
-	outdated []corev1.Pod
-	current  []corev1.Pod
-	members  etcdmember.Members
+	sts         *appsv1.StatefulSet
+	etcd        *druidv1alpha1.Etcd
+	pods        []corev1.Pod
+	outdated    []corev1.Pod
+	current     []corev1.Pod
+	members     etcdmember.Members
+	quorumState etcdmember.QuorumState
 }
 
 // podUpdateStepFn is one step of the pod-update procedure.
@@ -111,9 +112,8 @@ func (r *Reconciler) handleSingleNodeCluster(ctx context.Context, logger logr.Lo
 	return r.deleteSelectedPodAndWait(ctx, logger, &s.outdated[0])
 }
 
-// listLiveMembers dials the etcd cluster once and records its live membership on
-// the state for the quorum checks below. It fails closed: on any dial or list
-// error it holds without deleting.
+// listLiveMembers dials the etcd cluster once and records its live membership
+// and the conclusive quorum state of the cluster.
 func (r *Reconciler) listLiveMembers(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
 	etcdClient, err := r.clientFactory.NewClient(ctx, r.client, s.etcd)
 	if err != nil {
@@ -126,6 +126,16 @@ func (r *Reconciler) listLiveMembers(ctx context.Context, logger logr.Logger, s 
 		}
 	}()
 
+	// A conclusive quorum observation via a linearizable operation. A transient
+	// failure (timeout, dial error) is returned as an error and makes us hold,
+	// so we never treat an inconclusive signal as quorum loss.
+	quorumState, err := etcdClient.ObserveQuorum(ctx)
+	if err != nil {
+		logger.Info("holding: could not conclusively observe quorum, requeuing", "err", err.Error())
+		return ctrlutils.ReconcileAfter(requeueAfterInFlight, "could not conclusively observe quorum")
+	}
+	s.quorumState = quorumState
+
 	members, err := etcdClient.MemberList(ctx)
 	if err != nil {
 		logger.Info("holding: failed to list etcd members, requeuing", "err", err.Error())
@@ -135,14 +145,14 @@ func (r *Reconciler) listLiveMembers(ctx context.Context, logger logr.Logger, s 
 	return ctrlutils.ContinueReconcile()
 }
 
-// recoverIfQuorumLost batch-deletes all outdated pods when the live cluster has
-// already lost quorum: there is nothing left to protect, so recovering faster
-// beats the one-at-a-time cadence.
+// recoverIfQuorumLost batch-deletes all outdated pods only when etcd itself
+// reports a conclusive quorum loss (no leader). There is then nothing left to
+// protect, so recovering faster beats the one-at-a-time cadence.
 func (r *Reconciler) recoverIfQuorumLost(ctx context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
-	if etcdmember.HasQuorum(s.members) {
+	if s.quorumState != etcdmember.QuorumStateLost {
 		return ctrlutils.ContinueReconcile()
 	}
-	logger.Info("cluster has lost quorum: deleting all outdated pods to recover", "outdated", podNamesFromList(s.outdated))
+	logger.Info("cluster has conclusively lost quorum: deleting all outdated pods to recover", "outdated", podNamesFromList(s.outdated))
 	return r.deleteAllOutdatedPods(ctx, logger, s.outdated)
 }
 
@@ -296,7 +306,9 @@ func (r *Reconciler) selectOutdatedParticipatingPods(ctx context.Context, logger
 }
 
 // deleteIfQuorumSafe deletes the selected pod only when removing its etcd member
-// keeps a healthy voting quorum.
+// keeps a healthy voting quorum. The pod is mapped to its member by the etcd
+// member name (which carries spec.memberNamePrefix). It fails closed: if the pod
+// has no live member, or removal would break quorum, it holds without deleting.
 func (r *Reconciler) deleteIfQuorumSafe(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, members etcdmember.Members, pod *corev1.Pod) ctrlutils.ReconcileStepResult {
 	memberName := druidv1alpha1.GetMemberName(etcd.Spec.MemberNamePrefix, pod.Name)
 	var member *etcdmember.Member
@@ -310,8 +322,9 @@ func (r *Reconciler) deleteIfQuorumSafe(ctx context.Context, logger logr.Logger,
 		logger.Info("holding: selected pod has no live etcd member, requeuing", "pod", pod.Name, "member", memberName)
 		return ctrlutils.ReconcileAfter(requeueAfterInFlight, fmt.Sprintf("pod %s has no live etcd member", pod.Name))
 	}
-	if !etcdmember.QuorumSafeToRemove(members, member.ID) {
-		logger.Info("holding: deleting selected pod would break quorum, requeuing", "pod", pod.Name, "member", memberName)
+	canRemove, err := etcdmember.CanRemoveMemberWithoutLosingQuorum(members, member.ID)
+	if err != nil || !canRemove {
+		logger.Info("holding: deleting selected pod would break quorum, requeuing", "pod", pod.Name, "member", memberName, "err", err)
 		return ctrlutils.ReconcileAfter(requeueAfterInFlight, fmt.Sprintf("deleting pod %s would break quorum", pod.Name))
 	}
 	return r.deleteSelectedPodAndWait(ctx, logger, pod)
