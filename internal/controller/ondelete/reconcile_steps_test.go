@@ -66,7 +66,7 @@ func namesOf(pods []corev1.Pod) []string {
 	return names
 }
 
-func TestPodSetInFlightReason(t *testing.T) {
+func TestPodReplacementInFlight(t *testing.T) {
 	tests := []struct {
 		name               string
 		desiredReplicas    *int32
@@ -130,10 +130,12 @@ func TestPodSetInFlightReason(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			sts := &appsv1.StatefulSet{Spec: appsv1.StatefulSetSpec{Replicas: tc.desiredReplicas}}
-			reason := podSetInFlightReason(sts, tc.pods)
+			inFlight, reason := podReplacementInFlight(sts, tc.pods)
 			if tc.expectEmpty {
+				g.Expect(inFlight).To(BeFalse())
 				g.Expect(reason).To(BeEmpty())
 			} else {
+				g.Expect(inFlight).To(BeTrue())
 				g.Expect(reason).To(ContainSubstring(tc.expectReasonSubstr))
 			}
 		})

@@ -118,8 +118,8 @@ func (r *Reconciler) completeIfAllUpToDate(_ context.Context, logger logr.Logger
 // StatefulSet controller has not yet created every desired pod (scale-up).
 // Subsequent steps reason about pod identity/count, so they must not run yet.
 func (r *Reconciler) holdIfPodSetInFlight(_ context.Context, logger logr.Logger, s *podUpdateState) ctrlutils.ReconcileStepResult {
-	if reason := podSetInFlightReason(s.sts, s.pods); reason != "" {
-		logger.Info("holding: pod set in flight", "reason", reason)
+	if inFlight, reason := podReplacementInFlight(s.sts, s.pods); inFlight {
+		logger.Info("holding: pod replacement in flight", "reason", reason)
 		return ctrlutils.ReconcileAfter(requeueAfterInFlight, reason)
 	}
 	return ctrlutils.ContinueReconcile()
@@ -236,17 +236,16 @@ func partitionByRevision(pods []corev1.Pod, sts *appsv1.StatefulSet) (outdatedPo
 	return outdatedPodSet, currentPodSet
 }
 
-// podSetInFlightReason returns a short reason string if the pod set is not yet
-// at its target shape, or the empty string if and wwhen it is settled.
-func podSetInFlightReason(sts *appsv1.StatefulSet, pods []corev1.Pod) string {
-	if terminatingPodSet := terminatingPodNames(pods); len(terminatingPodSet) > 0 {
-		return fmt.Sprintf("pods terminating: %v", terminatingPodSet)
+// podReplacementInFlight reports whether the pod set is not yet settled, with a human-readable reason.
+func podReplacementInFlight(sts *appsv1.StatefulSet, pods []corev1.Pod) (bool, string) {
+	if terminating := terminatingPodNames(pods); len(terminating) > 0 {
+		return true, fmt.Sprintf("pods terminating: %v", terminating)
 	}
 	desiredReplicaCount := int(ptr.Deref(sts.Spec.Replicas, 0))
 	if len(pods) < desiredReplicaCount {
-		return fmt.Sprintf("pod count %d below desired %d", len(pods), desiredReplicaCount)
+		return true, fmt.Sprintf("pod count %d below desired %d", len(pods), desiredReplicaCount)
 	}
-	return ""
+	return false, ""
 }
 
 // updatedNonParticipatingPodNames returns the names of current revision pods that are
