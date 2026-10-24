@@ -59,7 +59,7 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 			expectedReason: "AllMembersUpdated",
 		},
 		{
-			name: "OnDelete: one pod at older revision -> False and message includes pod name",
+			name: "OnDelete: one pod at older revision -> False (generic message)",
 			buildObjects: func() []client.Object {
 				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
 				sel := sts.Spec.Selector.MatchLabels
@@ -72,7 +72,7 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 			},
 			expectedStatus:  druidv1alpha1.ConditionFalse,
 			expectedReason:  "NotAllMembersUpdated",
-			reasonSubstring: "p-behind",
+			reasonSubstring: "At least one member is not yet updated",
 		},
 		{
 			name: "OnDelete: observedGeneration lags spec generation -> False",

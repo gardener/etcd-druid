@@ -110,6 +110,7 @@ func TestIsStatefulSetReady(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(_ *testing.T) {
 			sts := testutils.CreateStatefulSet(stsName, stsNamespace, uuid.NewUUID(), 2)
+			sts.Spec.Replicas = &tc.etcdSpecReplicas // align sts.Spec.Replicas with the etcd desired count
 			sts.Generation = tc.specGeneration
 			sts.Status.ObservedGeneration = tc.statusObservedGeneration
 			sts.Status.ReadyReplicas = tc.statusReadyReplicas
@@ -117,7 +118,8 @@ func TestIsStatefulSetReady(t *testing.T) {
 			sts.Status.UpdatedReplicas = tc.statusUpdatedReplicas
 			sts.Status.CurrentRevision = tc.statusCurrentRevision
 			sts.Status.UpdateRevision = tc.statusUpdateRevision
-			stsReady, reasonMsg := IsStatefulSetReady(context.Background(), nil, tc.etcdSpecReplicas, sts)
+			stsReady, reasonMsg, err := IsStatefulSetReady(context.Background(), nil, tc.etcdSpecReplicas, sts)
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(stsReady).To(Equal(tc.expectedStsReady))
 			g.Expect(!utils.IsEmptyString(reasonMsg)).To(Equal(tc.expectedNotReadyReasonPresent))
 		})
@@ -491,7 +493,7 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 			expectedReady: true,
 		},
 		{
-			name: "OnDelete: one pod at older revision -> not ready with pod-name reason",
+			name: "OnDelete: one pod at older revision -> not ready (generic reason)",
 			buildObjects: func() (*appsv1.StatefulSet, []client.Object) {
 				sts := onDeleteSTS("rev-2", 3)
 				pods := []client.Object{
@@ -502,7 +504,7 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 				return sts, pods
 			},
 			expectedReady:        false,
-			expectedReasonSubstr: "p-1",
+			expectedReasonSubstr: "not all replicas",
 		},
 		{
 			name: "OnDelete: works even when status fields (currentRevision, currentReplicas) are stale",
@@ -529,7 +531,8 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 		t.Run(tc.name, func(_ *testing.T) {
 			sts, objs := tc.buildObjects()
 			cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-			ready, reason := IsStatefulSetReady(context.Background(), cl, *sts.Spec.Replicas, sts)
+			ready, reason, err := IsStatefulSetReady(context.Background(), cl, *sts.Spec.Replicas, sts)
+			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(ready).To(Equal(tc.expectedReady))
 			if tc.expectedReasonSubstr != "" {
 				g.Expect(reason).To(ContainSubstring(tc.expectedReasonSubstr))
@@ -538,61 +541,119 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 	}
 }
 
-func TestAreAllStsPodsAtUpdateRevision(t *testing.T) {
+func TestAreStatefulSetReplicasUpdated(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 
-	t.Run("empty updateRevision -> (false, empty, no error)", func(_ *testing.T) {
+	t.Run("OnDelete: empty updateRevision -> (false, no error)", func(_ *testing.T) {
 		sts := onDeleteSTS("", 3)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		all, name, err := AreAllStsPodsAtUpdateRevision(context.Background(), cl, sts)
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(all).To(BeFalse())
-		g.Expect(name).To(BeEmpty())
+		g.Expect(updated).To(BeFalse())
 	})
 
-	t.Run("nil selector -> error", func(_ *testing.T) {
+	t.Run("OnDelete: nil selector -> error", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
 		sts.Spec.Selector = nil
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		_, _, err := AreAllStsPodsAtUpdateRevision(context.Background(), cl, sts)
+		_, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
 		g.Expect(err).To(HaveOccurred())
 	})
 
-	t.Run("returns first mismatching pod's name", func(_ *testing.T) {
+	t.Run("OnDelete: all replicas present and at update revision -> true", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
 		objs := []client.Object{
-			stsPod("p-a", "rev-2", sts.Spec.Selector.MatchLabels),
-			stsPod("p-b", "rev-1", sts.Spec.Selector.MatchLabels),
+			stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPod("p-1", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
 		}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-		all, name, err := AreAllStsPodsAtUpdateRevision(context.Background(), cl, sts)
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(all).To(BeFalse())
-		g.Expect(name).To(Equal("p-b"))
+		g.Expect(updated).To(BeTrue())
 	})
 
-	t.Run("terminating pods are excluded from the check", func(_ *testing.T) {
+	t.Run("OnDelete: a pod still at the old revision -> false", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
-		// Only a terminating outdated pod is present; the answer should be true.
+		objs := []client.Object{
+			stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPod("p-1", "rev-1", sts.Spec.Selector.MatchLabels),
+			stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
+		}
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(updated).To(BeFalse())
+	})
+
+	t.Run("OnDelete: fewer non-terminating pods than replicas -> false (replacement not yet present)", func(_ *testing.T) {
+		// Only 2 of 3 replicas exist and both are at the update revision; the
+		// third was deleted and not yet recreated. The cardinality check must make
+		// this false rather than falsely reporting all updated.
+		sts := onDeleteSTS("rev-2", 3)
+		objs := []client.Object{
+			stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPod("p-1", "rev-2", sts.Spec.Selector.MatchLabels),
+		}
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(updated).To(BeFalse())
+	})
+
+	t.Run("OnDelete: terminating outdated pod leaves fewer than replicas -> false", func(_ *testing.T) {
+		// A single terminating outdated pod: non-terminating count is 0 < 3, so the
+		// rollout is NOT complete (the old behaviour wrongly returned true here).
+		sts := onDeleteSTS("rev-2", 3)
 		terminating := stsPod("p-terminating", "rev-1", sts.Spec.Selector.MatchLabels)
 		now := metav1.Now()
 		terminating.DeletionTimestamp = &now
 		terminating.Finalizers = []string{"kubernetes"}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(terminating).Build()
-		all, name, err := AreAllStsPodsAtUpdateRevision(context.Background(), cl, sts)
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(all).To(BeTrue())
-		g.Expect(name).To(BeEmpty())
+		g.Expect(updated).To(BeFalse())
 	})
 
-	t.Run("empty pod set -> all-at-revision is true", func(_ *testing.T) {
+	t.Run("OnDelete: empty pod set -> false (no replicas present)", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
-		all, name, err := AreAllStsPodsAtUpdateRevision(context.Background(), cl, sts)
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(all).To(BeTrue())
-		g.Expect(name).To(BeEmpty())
+		g.Expect(updated).To(BeFalse())
+	})
+
+	t.Run("RollingUpdate: UpdatedReplicas==desired and revisions equal -> true", func(_ *testing.T) {
+		sts := onDeleteSTS("rev-2", 3)
+		sts.Spec.UpdateStrategy.Type = appsv1.RollingUpdateStatefulSetStrategyType
+		sts.Status.UpdatedReplicas = 3
+		sts.Status.CurrentRevision = "rev-2"
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(updated).To(BeTrue())
+	})
+
+	t.Run("OnDelete: pod list error propagates as error", func(_ *testing.T) {
+		sts := onDeleteSTS("rev-2", 3)
+		// A selector that matches nothing will cause ListStatefulSetPods to
+		// fail because selector.Empty() is checked. Use nil selector to trigger an error.
+		sts.Spec.Selector = nil
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		_, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("nil spec.selector"))
+	})
+	t.Run("RollingUpdate: fewer updated replicas than desired -> false", func(_ *testing.T) {
+		sts := onDeleteSTS("rev-2", 3)
+		sts.Spec.UpdateStrategy.Type = appsv1.RollingUpdateStatefulSetStrategyType
+		sts.Status.UpdatedReplicas = 2
+		sts.Status.CurrentRevision = "rev-1"
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(updated).To(BeFalse())
 	})
 }
 

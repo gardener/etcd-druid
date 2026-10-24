@@ -19,41 +19,28 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// IsStatefulSetReady reports whether the StatefulSet is ready and up-to-date.
-//
-// For RollingUpdate the fast path uses status field comparisons. For OnDelete
-// it lists pods and compares controller-revision-hash against updateRevision,
-// because the K8s StatefulSet controller does not promote status.currentRevision
-// under OnDelete on K8s < v1.37 (kubernetes/kubernetes#73492,#106055, fix in
-// #136833). The pod-level path stays valid post-v1.37; do not gate it on the
-// Kubernetes version.
-func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string) {
+// IsStatefulSetReady reports whether the StatefulSet is ready and all desired
+// replicas are at the updateRevision. The final returned error is non-nil only
+// when readiness could not be determined (e.g. a pod listing fails)
+func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string, error) {
 	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
-		return false, fmt.Sprintf("observed generation %d is outdated in comparison to generation %d", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
+		return false, fmt.Sprintf("observed generation %d is outdated in comparison to generation %d", statefulSet.Status.ObservedGeneration, statefulSet.Generation), nil
 	}
 	if statefulSet.Status.ReadyReplicas < etcdReplicas {
-		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas)
+		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas), nil
 	}
-	if statefulSet.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
-		allUpdated, unupdatedName, err := AreAllStsPodsAtUpdateRevision(ctx, cl, statefulSet)
-		if err != nil {
-			return false, fmt.Sprintf("unable to determine pod-level revision state: %s", err.Error())
-		}
-		if !allUpdated {
-			return false, fmt.Sprintf("pod %s is not at the target StatefulSet revision %s", unupdatedName, statefulSet.Status.UpdateRevision)
-		}
-		return true, ""
+	allUpdated, err := AreStatefulSetReplicasUpdated(ctx, cl, statefulSet)
+	if err != nil {
+		return false, "", fmt.Errorf("unable to determine whether all StatefulSet replicas are updated: %w", err)
 	}
-	if statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision {
-		return false, fmt.Sprintf("Current StatefulSet revision %s is older than the updated StatefulSet revision %s)", statefulSet.Status.CurrentRevision, statefulSet.Status.UpdateRevision)
+	if !allUpdated {
+		return false, fmt.Sprintf("not all replicas are at the target StatefulSet revision %s", statefulSet.Status.UpdateRevision), nil
 	}
-	if statefulSet.Status.CurrentReplicas != statefulSet.Status.UpdatedReplicas {
-		return false, fmt.Sprintf("StatefulSet status.CurrentReplicas (%d) != status.UpdatedReplicas (%d)", statefulSet.Status.CurrentReplicas, statefulSet.Status.UpdatedReplicas)
-	}
-	return true, ""
+	return true, "", nil
 }
 
 // ListStatefulSetPods lists the pods selected by sts.Spec.Selector in the
@@ -87,29 +74,35 @@ func IsStatefulSetPodOutdated(pod *corev1.Pod, sts *appsv1.StatefulSet) bool {
 	return pod.Labels[appsv1.StatefulSetRevisionLabel] != sts.Status.UpdateRevision
 }
 
-// AreAllStsPodsAtUpdateRevision reports whether every non-terminating pod of sts
-// carries sts.Status.UpdateRevision on its controller-revision-hash label. On
-// mismatch it returns the name of the first offending pod, useful for reason
-// strings. Terminating pods are excluded so a pod recreation does not flap the
-// answer.
-func AreAllStsPodsAtUpdateRevision(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (bool, string, error) {
+// AreStatefulSetReplicasUpdated reports whether all pods requested by the
+// StatefulSet exist and are at the StatefulSet's updateRevision.
+// The desired replica count is taken from sts.Spec.Replicas.
+func AreStatefulSetReplicasUpdated(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (bool, error) {
 	if sts.Status.UpdateRevision == "" {
-		return false, "", nil
+		return false, nil
+	}
+	desired := ptr.Deref(sts.Spec.Replicas, 0)
+	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+		return sts.Status.UpdatedReplicas == desired &&
+			sts.Status.UpdateRevision == sts.Status.CurrentRevision, nil
 	}
 	pods, err := ListStatefulSetPods(ctx, cl, sts)
 	if err != nil {
-		return false, "", err
+		return false, err
 	}
+	updated := int32(0)
 	for i := range pods {
-		pod := &pods[i]
-		if pod.DeletionTimestamp != nil {
+		if pods[i].DeletionTimestamp != nil {
 			continue
 		}
-		if IsStatefulSetPodOutdated(pod, sts) {
-			return false, pod.Name, nil
+		if IsStatefulSetPodOutdated(&pods[i], sts) {
+			return false, nil
 		}
+		updated++
 	}
-	return true, "", nil
+	// Every desired replica must exist and be at the update revision.
+	// A missing replica means the rollout is not complete.
+	return updated == desired, nil
 }
 
 // GetStatefulSet fetches StatefulSet created for the etcd. Nil will be returned if one of these conditions are met:

@@ -74,7 +74,10 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.Replicas = sts.Status.CurrentReplicas
 		if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
-			ready, _ := kubernetes.IsStatefulSetReady(ctx, r.client, expectedReplicas, sts)
+			ready, _, err := kubernetes.IsStatefulSetReady(ctx, r.client, expectedReplicas, sts)
+			if err != nil {
+				return ctrlutils.ReconcileWithError(err)
+			}
 			etcd.Status.Ready = &ready
 		} else {
 			allMembersReady := false

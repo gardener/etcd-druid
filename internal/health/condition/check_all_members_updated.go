@@ -35,9 +35,18 @@ func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) 
 		res.message = fmt.Sprintf("Unable to fetch StatefulSet for etcd: %s", err.Error())
 		return res
 	} else if sts == nil {
+		// GetStatefulSet returns nil both when the StatefulSet does not exist and
+		// when it exists but is not controlled by this Etcd. Distinguish the two so
+		// the reason is accurate.
 		res.status = druidv1alpha1.ConditionUnknown
-		res.reason = "StatefulSetNotFound"
-		res.message = fmt.Sprintf("StatefulSet %s not found for etcd", etcd.Name)
+		existing := &appsv1.StatefulSet{}
+		if getErr := a.cl.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)}, existing); getErr == nil {
+			res.reason = "StatefulSetNotControlledByEtcd"
+			res.message = fmt.Sprintf("StatefulSet %s exists but is not controlled by etcd %s", existing.Name, etcd.Name)
+		} else {
+			res.reason = "StatefulSetNotFound"
+			res.message = fmt.Sprintf("StatefulSet not found for etcd %s", etcd.Name)
+		}
 		return res
 	}
 
@@ -48,39 +57,19 @@ func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) 
 		return res
 	}
 
-	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
-		allUpdated, unupdatedName, err := kubernetes.AreAllStsPodsAtUpdateRevision(ctx, a.cl, sts)
-		if err != nil {
-			res.status = druidv1alpha1.ConditionUnknown
-			res.reason = "UnableToDeterminePodRevisions"
-			res.message = fmt.Sprintf("Unable to compute pod-level revision state for StatefulSet %s: %s", sts.Name, err.Error())
-			return res
-		}
-		if allUpdated {
-			res.status = druidv1alpha1.ConditionTrue
-			res.reason = "AllMembersUpdated"
-			res.message = "All members reflect latest desired spec"
-			return res
-		}
-		res.status = druidv1alpha1.ConditionFalse
-		res.reason = "NotAllMembersUpdated"
-		if unupdatedName == "" {
-			res.message = "At least one member is not yet updated"
-		} else {
-			res.message = fmt.Sprintf("Pod %s is not at the target StatefulSet revision %s", unupdatedName, sts.Status.UpdateRevision)
-		}
+	allUpdated, err := kubernetes.AreStatefulSetReplicasUpdated(ctx, a.cl, sts)
+	if err != nil {
+		res.status = druidv1alpha1.ConditionUnknown
+		res.reason = "UnableToDetermineMemberRevisions"
+		res.message = fmt.Sprintf("Unable to determine whether all replicas of StatefulSet %s are updated: %s", sts.Name, err.Error())
 		return res
 	}
-
-	// RollingUpdate fast path.
-	if sts.Status.UpdatedReplicas == *sts.Spec.Replicas &&
-		sts.Status.UpdateRevision == sts.Status.CurrentRevision {
+	if allUpdated {
 		res.status = druidv1alpha1.ConditionTrue
 		res.reason = "AllMembersUpdated"
 		res.message = "All members reflect latest desired spec"
 		return res
 	}
-
 	res.status = druidv1alpha1.ConditionFalse
 	res.reason = "NotAllMembersUpdated"
 	res.message = "At least one member is not yet updated"
