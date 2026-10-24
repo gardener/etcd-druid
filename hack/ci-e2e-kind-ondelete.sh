@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Wraps ci-e2e-kind.sh to deploy etcd-druid with the QuorumAwareUpdatesWithOnDelete feature gate enabled, 
+# Wraps ci-e2e-kind.sh to deploy etcd-druid with the QuorumAwareUpdates feature gate enabled, 
 # then runs the full e2e suite. The gate activates the OnDelete-managed rollout path AND the
 # TestOnDeleteRollout suite, which is skipped when the gate is off.
 

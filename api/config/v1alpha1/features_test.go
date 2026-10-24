@@ -66,21 +66,21 @@ func TestDefaultFeatureGate(t *testing.T) {
 			},
 		},
 		{
-			name: "QuorumAwareUpdatesWithOnDelete can be enabled",
+			name: "QuorumAwareUpdates can be enabled",
 			enabledFeatures: map[string]bool{
-				QuorumAwareUpdatesWithOnDelete: true,
+				QuorumAwareUpdates: true,
 			},
 			expectedEnabledFeatures: map[string]bool{
-				QuorumAwareUpdatesWithOnDelete: true,
+				QuorumAwareUpdates: true,
 			},
 		},
 		{
-			name: "QuorumAwareUpdatesWithOnDelete can be disabled (alpha feature)",
+			name: "QuorumAwareUpdates can be disabled (alpha feature)",
 			enabledFeatures: map[string]bool{
-				QuorumAwareUpdatesWithOnDelete: false,
+				QuorumAwareUpdates: false,
 			},
 			expectedEnabledFeatures: map[string]bool{
-				QuorumAwareUpdatesWithOnDelete: false,
+				QuorumAwareUpdates: false,
 			},
 		},
 	}

@@ -148,7 +148,7 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 	// is rewritten on every Sync, so a gate flip converges on the next reconcile.
 	// See DEP-07 Transitioning Between Strategies for the transition semantics
 	stsUpdateStrategy := utils.IfConditionOr(
-		druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete),
+		druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdates),
 		appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType},
 		appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType},
 	)

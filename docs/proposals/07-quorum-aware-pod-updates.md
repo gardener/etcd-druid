@@ -62,12 +62,12 @@ For a single-node etcd cluster, concerns 1 and 2 do not apply: there is no quoru
 
 ### Feature Gate
 
-Quorum-aware pod updates with the `OnDelete` strategy are opt-in via a new feature gate, `QuorumAwareUpdatesWithOnDelete`, declared alongside the existing gates in `api/config/v1alpha1/features.go`. Operators enable it by setting it in the `featureGates` map of the operator configuration:
+Quorum-aware pod updates with the `OnDelete` strategy are opt-in via a new feature gate, `QuorumAwareUpdates`, declared alongside the existing gates in `api/config/v1alpha1/features.go`. Operators enable it by setting it in the `featureGates` map of the operator configuration:
 
 ```yaml
 # OperatorConfiguration
 featureGates:
-  QuorumAwareUpdatesWithOnDelete: true
+  QuorumAwareUpdates: true
 ```
 
 - **Maturity:** Alpha
@@ -232,7 +232,7 @@ To support both pre-fix and post-fix Kubernetes versions, the OnDelete controlle
 
 ### Transitioning Between Strategies
 
-The Etcd reconciler is the single owner of `StatefulSet.spec.updateStrategy.type`. On every reconciliation it sets this field based on the current state of the `QuorumAwareUpdatesWithOnDelete` feature gate: enabled → `OnDelete`, disabled → `RollingUpdate`. This invariant means that whenever the gate's effective state changes, the StatefulSet's strategy follows on the next reconciliation, and no manual intervention is required to keep the two in sync.
+The Etcd reconciler is the single owner of `StatefulSet.spec.updateStrategy.type`. On every reconciliation it sets this field based on the current state of the `QuorumAwareUpdates` feature gate: enabled → `OnDelete`, disabled → `RollingUpdate`. This invariant means that whenever the gate's effective state changes, the StatefulSet's strategy follows on the next reconciliation, and no manual intervention is required to keep the two in sync.
 
 The gate's effective state can change in two ways:
 

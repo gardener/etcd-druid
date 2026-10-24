@@ -21,7 +21,7 @@ topologySpreadConstraints: [ ]
 
 featureGates: { 
   UpgradeEtcdVersion: true,
-  QuorumAwareUpdatesWithOnDelete: false
+  QuorumAwareUpdates: false
 }
 
 webhookPKI:
@@ -89,7 +89,7 @@ operatorConfig:
         - system:serviceaccount:kube-system:generic-garbage-collector
   featureGates: { 
     UpgradeEtcdVersion: true,
-    QuorumAwareUpdatesWithOnDelete: false
+    QuorumAwareUpdates: false
   }
   logConfiguration:
     logLevel: info

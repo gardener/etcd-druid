@@ -28,12 +28,12 @@ const (
 	druidDeployNamespace           = "etcd-druid-e2e"
 	druidOperatorConfigMapName     = "etcd-druid-operator-config"
 	druidDeploymentName            = "etcd-druid"
-	quorumAwareUpdatesGateName     = "QuorumAwareUpdatesWithOnDelete"
+	quorumAwareUpdatesGateName     = "QuorumAwareUpdates"
 	timeoutOnDeleteRolloutStart    = 30 * time.Second
 	timeoutOnDeleteRolloutComplete = 8 * time.Minute
 )
 
-// skipIfOnDeleteGateDisabled skips the test unless the deployed operator has the QuorumAwareUpdatesWithOnDelete feature gate enabled.
+// skipIfOnDeleteGateDisabled skips the test unless the deployed operator has the QuorumAwareUpdates feature gate enabled.
 func skipIfOnDeleteGateDisabled(t *testing.T, env *testenv.TestEnvironment) {
 	t.Helper()
 	cm := &corev1.ConfigMap{}

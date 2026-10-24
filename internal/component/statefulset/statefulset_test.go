@@ -739,7 +739,7 @@ func buildStatefulSetWithImages(objMeta metav1.ObjectMeta, replicas int32, image
 
 // TestSync_UpdateStrategyDrivenByFeatureGate verifies that the StatefulSet
 // component sets spec.updateStrategy.type based on the current effective state
-// of the QuorumAwareUpdatesWithOnDelete feature gate. Runs NON-parallel because
+// of the QuorumAwareUpdates feature gate. Runs NON-parallel because
 // it mutates a package-level global (DefaultFeatureGates).
 func TestSync_UpdateStrategyDrivenByFeatureGate(t *testing.T) {
 	tests := []struct {
@@ -766,11 +766,11 @@ func TestSync_UpdateStrategyDrivenByFeatureGate(t *testing.T) {
 			// Flip the gate for this subtest and restore on completion.
 			t.Cleanup(func() {
 				g.Expect(druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(map[string]bool{
-					druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete: false,
+					druidconfigv1alpha1.QuorumAwareUpdates: false,
 				})).To(Succeed())
 			})
 			g.Expect(druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(map[string]bool{
-				druidconfigv1alpha1.QuorumAwareUpdatesWithOnDelete: tc.gateOn,
+				druidconfigv1alpha1.QuorumAwareUpdates: tc.gateOn,
 			})).To(Succeed())
 
 			etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
