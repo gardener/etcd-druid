@@ -484,9 +484,9 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 			buildObjects: func() (*appsv1.StatefulSet, []client.Object) {
 				sts := onDeleteSTS("rev-2", 3)
 				pods := []client.Object{
-					stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
-					stsPod("p-1", "rev-2", sts.Spec.Selector.MatchLabels),
-					stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
+					stsPodOwned("p-0", "rev-2", sts),
+					stsPodOwned("p-1", "rev-2", sts),
+					stsPodOwned("p-2", "rev-2", sts),
 				}
 				return sts, pods
 			},
@@ -497,9 +497,9 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 			buildObjects: func() (*appsv1.StatefulSet, []client.Object) {
 				sts := onDeleteSTS("rev-2", 3)
 				pods := []client.Object{
-					stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
-					stsPod("p-1", "rev-1", sts.Spec.Selector.MatchLabels), // outdated
-					stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
+					stsPodOwned("p-0", "rev-2", sts),
+					stsPodOwned("p-1", "rev-1", sts), // outdated
+					stsPodOwned("p-2", "rev-2", sts),
 				}
 				return sts, pods
 			},
@@ -515,9 +515,9 @@ func TestIsStatefulSetReady_OnDelete(t *testing.T) {
 				sts.Status.CurrentReplicas = 0
 				sts.Status.UpdatedReplicas = 0
 				pods := []client.Object{
-					stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
-					stsPod("p-1", "rev-2", sts.Spec.Selector.MatchLabels),
-					stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
+					stsPodOwned("p-0", "rev-2", sts),
+					stsPodOwned("p-1", "rev-2", sts),
+					stsPodOwned("p-2", "rev-2", sts),
 				}
 				return sts, pods
 			},
@@ -564,9 +564,9 @@ func TestAreStatefulSetReplicasUpdated(t *testing.T) {
 	t.Run("OnDelete: all replicas present and at update revision -> true", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
 		objs := []client.Object{
-			stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
-			stsPod("p-1", "rev-2", sts.Spec.Selector.MatchLabels),
-			stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPodOwned("p-0", "rev-2", sts),
+			stsPodOwned("p-1", "rev-2", sts),
+			stsPodOwned("p-2", "rev-2", sts),
 		}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
@@ -577,9 +577,9 @@ func TestAreStatefulSetReplicasUpdated(t *testing.T) {
 	t.Run("OnDelete: a pod still at the old revision -> false", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
 		objs := []client.Object{
-			stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
-			stsPod("p-1", "rev-1", sts.Spec.Selector.MatchLabels),
-			stsPod("p-2", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPodOwned("p-0", "rev-2", sts),
+			stsPodOwned("p-1", "rev-1", sts),
+			stsPodOwned("p-2", "rev-2", sts),
 		}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
@@ -593,8 +593,8 @@ func TestAreStatefulSetReplicasUpdated(t *testing.T) {
 		// this false rather than falsely reporting all updated.
 		sts := onDeleteSTS("rev-2", 3)
 		objs := []client.Object{
-			stsPod("p-0", "rev-2", sts.Spec.Selector.MatchLabels),
-			stsPod("p-1", "rev-2", sts.Spec.Selector.MatchLabels),
+			stsPodOwned("p-0", "rev-2", sts),
+			stsPodOwned("p-1", "rev-2", sts),
 		}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 		updated, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
@@ -606,7 +606,7 @@ func TestAreStatefulSetReplicasUpdated(t *testing.T) {
 		// A single terminating outdated pod: non-terminating count is 0 < 3, so the
 		// rollout is NOT complete (the old behaviour wrongly returned true here).
 		sts := onDeleteSTS("rev-2", 3)
-		terminating := stsPod("p-terminating", "rev-1", sts.Spec.Selector.MatchLabels)
+		terminating := stsPodOwned("p-terminating", "rev-1", sts)
 		now := metav1.Now()
 		terminating.DeletionTimestamp = &now
 		terminating.Finalizers = []string{"kubernetes"}
@@ -675,6 +675,14 @@ func stsPod(name, revision string, selector map[string]string) *corev1.Pod {
 	}
 }
 
+func stsPodOwned(name, revision string, sts *appsv1.StatefulSet) *corev1.Pod {
+	pod := stsPod(name, revision, sts.Spec.Selector.MatchLabels)
+	pod.OwnerReferences = []metav1.OwnerReference{
+		*metav1.NewControllerRef(sts, appsv1.SchemeGroupVersion.WithKind("StatefulSet")),
+	}
+	return pod
+}
+
 func TestListStatefulSetPods(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
@@ -689,8 +697,8 @@ func TestListStatefulSetPods(t *testing.T) {
 
 	t.Run("returns only the pods matching the selector", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
-		match1 := stsPod("match-1", "rev-2", sts.Spec.Selector.MatchLabels)
-		match2 := stsPod("match-2", "rev-1", sts.Spec.Selector.MatchLabels)
+		match1 := stsPodOwned("match-1", "rev-2", sts)
+		match2 := stsPodOwned("match-2", "rev-1", sts)
 		other := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: stsNamespace, Labels: map[string]string{"unrelated": "yes"}}}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(match1, match2, other).Build()
 

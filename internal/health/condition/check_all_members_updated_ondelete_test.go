@@ -47,12 +47,11 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 			name: "OnDelete: all pods at target revision -> True",
 			buildObjects: func() []client.Object {
 				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
-				sel := sts.Spec.Selector.MatchLabels
 				return []client.Object{
 					sts,
-					allMembersUpdatedPod("p-0", ns, "rev-2", sel),
-					allMembersUpdatedPod("p-1", ns, "rev-2", sel),
-					allMembersUpdatedPod("p-2", ns, "rev-2", sel),
+					allMembersUpdatedPod("p-0", ns, "rev-2", sts),
+					allMembersUpdatedPod("p-1", ns, "rev-2", sts),
+					allMembersUpdatedPod("p-2", ns, "rev-2", sts),
 				}
 			},
 			expectedStatus: druidv1alpha1.ConditionTrue,
@@ -62,12 +61,11 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 			name: "OnDelete: one pod at older revision -> False (generic message)",
 			buildObjects: func() []client.Object {
 				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
-				sel := sts.Spec.Selector.MatchLabels
 				return []client.Object{
 					sts,
-					allMembersUpdatedPod("p-0", ns, "rev-2", sel),
-					allMembersUpdatedPod("p-behind", ns, "rev-1", sel),
-					allMembersUpdatedPod("p-2", ns, "rev-2", sel),
+					allMembersUpdatedPod("p-0", ns, "rev-2", sts),
+					allMembersUpdatedPod("p-behind", ns, "rev-1", sts),
+					allMembersUpdatedPod("p-2", ns, "rev-2", sts),
 				}
 			},
 			expectedStatus:  druidv1alpha1.ConditionFalse,
@@ -91,12 +89,11 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
 				sts.Status.CurrentRevision = "rev-1"
 				sts.Status.UpdatedReplicas = 0 // upstream STS controller does not bump these under OnDelete
-				sel := sts.Spec.Selector.MatchLabels
 				return []client.Object{
 					sts,
-					allMembersUpdatedPod("p-0", ns, "rev-2", sel),
-					allMembersUpdatedPod("p-1", ns, "rev-2", sel),
-					allMembersUpdatedPod("p-2", ns, "rev-2", sel),
+					allMembersUpdatedPod("p-0", ns, "rev-2", sts),
+					allMembersUpdatedPod("p-1", ns, "rev-2", sts),
+					allMembersUpdatedPod("p-2", ns, "rev-2", sts),
 				}
 			},
 			expectedStatus: druidv1alpha1.ConditionTrue,
@@ -144,9 +141,13 @@ func onDeleteControlledSTS(name, namespace, updateRevision string, replicas, rea
 	}
 }
 
-func allMembersUpdatedPod(name, namespace, revision string, selector map[string]string) *corev1.Pod {
+func allMembersUpdatedPod(name, namespace, revision string, sts *appsv1.StatefulSet) *corev1.Pod {
 	labels := map[string]string{}
-	maps.Copy(labels, selector)
+	maps.Copy(labels, sts.Spec.Selector.MatchLabels)
 	labels[appsv1.StatefulSetRevisionLabel] = revision
-	return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels}}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels}}
+	pod.OwnerReferences = []metav1.OwnerReference{
+		*metav1.NewControllerRef(sts, appsv1.SchemeGroupVersion.WithKind("StatefulSet")),
+	}
+	return pod
 }

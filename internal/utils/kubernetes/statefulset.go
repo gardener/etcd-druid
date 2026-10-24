@@ -44,8 +44,7 @@ func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int3
 }
 
 // ListStatefulSetPods lists the pods selected by sts.Spec.Selector in the
-// StatefulSet's namespace. It errors if the selector is nil or matches
-// everything, so callers never operate on an unintended pod set.
+// StatefulSet's namespace and owned (via controller OwnerReference) by sts.
 func ListStatefulSetPods(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) ([]corev1.Pod, error) {
 	if sts.Spec.Selector == nil {
 		return nil, fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
@@ -61,7 +60,13 @@ func ListStatefulSetPods(ctx context.Context, cl client.Client, sts *appsv1.Stat
 	if err := cl.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: selector}); err != nil {
 		return nil, fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
 	}
-	return list.Items, nil
+	owned := make([]corev1.Pod, 0, len(list.Items))
+	for i := range list.Items {
+		if metav1.IsControlledBy(&list.Items[i], sts) {
+			owned = append(owned, list.Items[i])
+		}
+	}
+	return owned, nil
 }
 
 // IsStatefulSetPodOutdated reports whether the pod's controller-revision-hash

@@ -18,6 +18,7 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,23 +90,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 // getOwningEtcd returns the Etcd controller-owner of sts
 func (r *Reconciler) getOwningEtcd(ctx context.Context, sts *appsv1.StatefulSet) (*druidv1alpha1.Etcd, error) {
+	ownerRef := metav1.GetControllerOf(sts)
 	etcdKind := druidv1alpha1.SchemeGroupVersion.WithKind("Etcd").Kind
-	var ownerEtcdName string
-	for _, ref := range sts.OwnerReferences {
-		if ref.Kind == etcdKind && ref.APIVersion == druidv1alpha1.SchemeGroupVersion.String() {
-			ownerEtcdName = ref.Name
-			break
-		}
-	}
-	if ownerEtcdName == "" {
+	if ownerRef == nil ||
+		ownerRef.Kind != etcdKind ||
+		ownerRef.APIVersion != druidv1alpha1.SchemeGroupVersion.String() {
 		return nil, nil
 	}
 	etcd := &druidv1alpha1.Etcd{}
-	if err := r.client.Get(ctx, client.ObjectKey{Namespace: sts.Namespace, Name: ownerEtcdName}, etcd); err != nil {
+	if err := r.client.Get(ctx, client.ObjectKey{Namespace: sts.Namespace, Name: ownerRef.Name}, etcd); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to get owning Etcd %s/%s: %w", sts.Namespace, ownerEtcdName, err)
+		return nil, fmt.Errorf("failed to get owning Etcd %s/%s: %w", sts.Namespace, ownerRef.Name, err)
+	}
+	if !metav1.IsControlledBy(sts, etcd) {
+		return nil, nil
 	}
 	return etcd, nil
 }

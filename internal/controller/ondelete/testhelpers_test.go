@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 )
 
@@ -21,7 +22,7 @@ import (
 func stsFixture(name, namespace, updateRevision string, replicas int32) *appsv1.StatefulSet {
 	sel := &metav1.LabelSelector{MatchLabels: getStsLabels(name)}
 	return &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, UID: types.UID(name + "-uid")},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas: ptr.To(replicas),
 			Selector: sel,
@@ -31,6 +32,16 @@ func stsFixture(name, namespace, updateRevision string, replicas int32) *appsv1.
 		},
 		Status: appsv1.StatefulSetStatus{UpdateRevision: updateRevision},
 	}
+}
+
+// withStsOwner stamps a controller OwnerReference pointing at sts onto the pod.
+// ListStatefulSetPods now filters by controller ownership, so test pods must be
+// owned by their STS to be counted.
+func withStsOwner(pod *corev1.Pod, sts *appsv1.StatefulSet) *corev1.Pod {
+	pod.OwnerReferences = []metav1.OwnerReference{
+		*metav1.NewControllerRef(sts, appsv1.SchemeGroupVersion.WithKind("StatefulSet")),
+	}
+	return pod
 }
 
 // makeStsPod builds a pod that carries the labels of a StatefulSet with the

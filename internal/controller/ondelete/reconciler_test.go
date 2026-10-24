@@ -136,9 +136,9 @@ func TestReconcile_DrivesProcedureWhenEligible(t *testing.T) {
 
 	// All three replicas present: p0 is outdated and non-participating (Step 2
 	// target), p1 and p2 are current-revision and participating.
-	p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, false)
-	p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
-	p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevNew, true)
+	p0 := withStsOwner(makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, false), sts)
+	p1 := withStsOwner(makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true), sts)
+	p2 := withStsOwner(makeStsPod(testStsName+"-2", testStsNamespace, testRevNew, true), sts)
 	for _, p := range []*corev1.Pod{p0, p1, p2} {
 		maps.Copy(p.Labels, sts.Spec.Selector.MatchLabels)
 	}
