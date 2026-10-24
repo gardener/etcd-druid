@@ -48,7 +48,7 @@ func TestPartitionByRevision(t *testing.T) {
 	terminatingCurrent := withDeletionTimestamp(makeStsPod(testStsName+"-4", testStsNamespace, testRevNew, true))
 
 	pods := []corev1.Pod{*current1, *current2, *outdated, *terminatingOutdated, *terminatingCurrent}
-	outdatedGot, currentGot := partitionByRevision(pods, sts)
+	outdatedGot, currentGot := partitionByRevision(sts, pods)
 
 	// partitionByRevision classifies strictly by controller-revision-hash;
 	// terminating pods are included in whichever partition they belong to.

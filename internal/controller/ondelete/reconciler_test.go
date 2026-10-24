@@ -36,11 +36,6 @@ func TestNewReconciler_DefaultsNilConcurrentSyncs(t *testing.T) {
 		expectedSyncs int
 	}{
 		{
-			name:          "nil ConcurrentSyncs is defaulted",
-			input:         druidconfigv1alpha1.OnDeleteControllerConfiguration{},
-			expectedSyncs: druidconfigv1alpha1.DefaultOnDeleteControllerConcurrentSyncs,
-		},
-		{
 			name:          "explicit ConcurrentSyncs is preserved",
 			input:         druidconfigv1alpha1.OnDeleteControllerConfiguration{ConcurrentSyncs: ptr.To(7)},
 			expectedSyncs: 7,

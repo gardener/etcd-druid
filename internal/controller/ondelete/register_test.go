@@ -33,9 +33,10 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 			expectUpdate: true,
 		},
 		{
-			name:         "Create on RollingUpdate STS is filtered out",
+			name:         "Create on RollingUpdate STS is accepted (Reconcile bails early for non-OnDelete)",
+			oldStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
 			newStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
-			expectCreate: false,
+			expectCreate: true,
 			expectUpdate: false,
 		},
 		{
@@ -49,13 +50,13 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 			name:         "Update transitioning OUT of OnDelete is accepted (to let the controller notice the disengagement)",
 			oldStrategy:  appsv1.OnDeleteStatefulSetStrategyType,
 			newStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
-			expectCreate: false, // Create uses newStrategy only
+			expectCreate: true, // merged predicate accepts all Creates; Reconcile filters non-OnDelete
 			expectUpdate: true,
 		},
 		{
 			name:         "Update on non-StatefulSet object is filtered out",
 			object:       &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "not-an-sts"}},
-			expectCreate: false,
+			expectCreate: true, // CreateFunc accepts all; Reconcile ignores non-STS
 			expectUpdate: false,
 			expectDelete: false,
 		},
@@ -63,7 +64,7 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	p := onDeleteStrategy()
+	p := onDeleteRolloutTrigger()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -120,7 +121,7 @@ func TestUpdateRevisionChangedPredicate(t *testing.T) {
 
 	g := NewWithT(t)
 	t.Parallel()
-	p := updateRevisionChanged()
+	p := onDeleteRolloutTrigger()
 
 	// Every Create is accepted so the controller can pick up mid-rollouts on restart.
 	t.Run("Create is always accepted", func(_ *testing.T) {

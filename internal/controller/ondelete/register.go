@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -25,42 +24,17 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: *r.config.ConcurrentSyncs,
 		}).
-		For(&appsv1.StatefulSet{}, builder.WithPredicates(predicate.And(
-			onDeleteStrategy(),
-			updateRevisionChanged(),
-		))).
+		For(&appsv1.StatefulSet{}, builder.WithPredicates(onDeleteRolloutTrigger())).
 		Owns(&corev1.Pod{}).
 		Complete(r)
 }
 
-// onDeleteStrategy accepts events for StatefulSets whose current or previous
-// updateStrategy.Type is OnDelete, so a transition into OnDelete is observed.
-func onDeleteStrategy() predicate.Predicate {
-	isOnDelete := func(obj client.Object) bool {
-		sts, ok := obj.(*appsv1.StatefulSet)
-		if !ok {
-			return false
-		}
-		return sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType
-	}
+// onDeleteRolloutTrigger is the predicate for the OnDelete controller.
+func onDeleteRolloutTrigger() predicate.Predicate {
 	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return isOnDelete(e.Object)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return isOnDelete(e.ObjectNew) || isOnDelete(e.ObjectOld)
-		},
+		CreateFunc:  func(_ event.CreateEvent) bool { return true },
 		DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
 		GenericFunc: func(_ event.GenericEvent) bool { return false },
-	}
-}
-
-// updateRevisionChanged accepts every Create (so restarts pick up mid-rollouts
-// via artificial Create events on cache warmup) and Updates that change either
-// updateRevision or the strategy type.
-func updateRevisionChanged() predicate.Predicate {
-	return predicate.Funcs{
-		CreateFunc: func(_ event.CreateEvent) bool { return true },
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			oldSts, ok := e.ObjectOld.(*appsv1.StatefulSet)
 			if !ok {
@@ -70,12 +44,16 @@ func updateRevisionChanged() predicate.Predicate {
 			if !ok {
 				return false
 			}
+			// A new updateRevision means new pods need updating.
 			if oldSts.Status.UpdateRevision != newSts.Status.UpdateRevision {
 				return true
 			}
-			return oldSts.Spec.UpdateStrategy.Type != newSts.Spec.UpdateStrategy.Type
+			// A strategy-type transition means the gate was toggled
+			// reconcile so the controller can pick up or hand off the rollout.
+			if oldSts.Spec.UpdateStrategy.Type != newSts.Spec.UpdateStrategy.Type {
+				return true
+			}
+			return false
 		},
-		DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
-		GenericFunc: func(_ event.GenericEvent) bool { return false },
 	}
 }

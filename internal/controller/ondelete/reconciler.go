@@ -19,7 +19,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -39,9 +38,6 @@ type Reconciler struct {
 // client factory is required: the pod-update procedure validates every delete
 // against live cluster membership which requires an etcd client.
 func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteControllerConfiguration, clientFactory etcdclient.Factory) *Reconciler {
-	if config.ConcurrentSyncs == nil {
-		config.ConcurrentSyncs = ptr.To(druidconfigv1alpha1.DefaultOnDeleteControllerConcurrentSyncs)
-	}
 	return &Reconciler{
 		client:        mgr.GetClient(),
 		config:        config,
