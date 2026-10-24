@@ -56,9 +56,9 @@ func (r *Reconciler) executePodUpdateProcedure(ctx context.Context, logger logr.
 	s := &podRolloutState{sts: sts, etcd: etcd, pods: pods}
 
 	if result := runRolloutSteps(ctx, logger, s,
-		r.classifyPods,          // partition pods by revision
-		r.completeIfAllUpToDate, // nothing outdated -> rollout complete
-		r.holdIfPodSetInFlight,  // a prior delete / scale-up has not settled -> hold
+		r.classifyPods,                      // partition pods by revision
+		r.completeIfAllUpToDate,             // nothing outdated -> rollout complete
+		r.requeueIfPodsTerminatingOrMissing, // a prior delete / scale-up has not settled -> hold
 	); ctrlutils.ShortCircuitReconcileFlow(result) {
 		return result.ReconcileResult()
 	}
@@ -114,10 +114,10 @@ func (r *Reconciler) completeIfAllUpToDate(_ context.Context, logger logr.Logger
 	return ctrlutils.ContinueReconcile()
 }
 
-// holdIfPodSetInFlight holds while a prior Delete has not settled or the
+// requeueIfPodsTerminatingOrMissing requeues while a prior Delete has not settled or the
 // StatefulSet controller has not yet created every desired pod (scale-up).
 // Subsequent steps reason about pod identity/count, so they must not run yet.
-func (r *Reconciler) holdIfPodSetInFlight(_ context.Context, logger logr.Logger, s *podRolloutState) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) requeueIfPodsTerminatingOrMissing(_ context.Context, logger logr.Logger, s *podRolloutState) ctrlutils.ReconcileStepResult {
 	if inFlight, reason := podReplacementInFlight(s.sts, s.pods); inFlight {
 		logger.Info("holding: pod replacement in flight", "reason", reason)
 		return ctrlutils.ReconcileAfter(requeueAfterInFlight, reason)
