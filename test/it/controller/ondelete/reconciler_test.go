@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
@@ -264,9 +265,15 @@ func testQuorumLostBatchDeletes(t *testing.T, ns string, env reconcilerTestEnv) 
 	ctx := env.itTestEnv.GetContext()
 	cl := env.itTestEnv.GetClient()
 
-	// Live cluster: 3 voters, only 1 healthy -> quorum is already lost.
+	// Live cluster: 3 voters, only 1 healthy, and etcd reports no leader ->
+	// quorum is conclusively lost. Set both the member health (used by the
+	// selector) and QuorumState (the ObserveQuorum signal that drives batch-delete).
 	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(1, 2)))
-	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
+	env.etcdClient.QuorumState = etcdmember.QuorumStateLost
+	t.Cleanup(func() {
+		env.etcdClient.SetMembers(liveMembers(3, healthyExcept()))
+		env.etcdClient.QuorumState = etcdmember.QuorumStatePresent
+	})
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
 	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")

@@ -73,6 +73,63 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 			reasonSubstring: "At least one member is not yet updated",
 		},
 		{
+			name: "OnDelete: empty pod list (no replicas observed yet) -> False",
+			buildObjects: func() []client.Object {
+				// No pods at all: could happen immediately after STS creation before
+				// any pods are scheduled. Must be False, not True.
+				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
+				return []client.Object{sts}
+			},
+			expectedStatus: druidv1alpha1.ConditionFalse,
+			expectedReason: "NotAllMembersUpdated",
+		},
+		{
+			name: "OnDelete: fewer pods than spec.replicas, all at target revision -> False",
+			buildObjects: func() []client.Object {
+				// 2 of 3 pods exist and are updated; the third was deleted and not yet
+				// recreated. The cardinality check must prevent a false True here.
+				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
+				return []client.Object{
+					sts,
+					allMembersUpdatedPod("p-0", ns, "rev-2", sts),
+					allMembersUpdatedPod("p-1", ns, "rev-2", sts),
+				}
+			},
+			expectedStatus: druidv1alpha1.ConditionFalse,
+			expectedReason: "NotAllMembersUpdated",
+		},
+		{
+			name: "OnDelete: terminating outdated pod, no non-terminating pods -> False",
+			buildObjects: func() []client.Object {
+				// Only a terminating pod at the old revision. Non-terminating count is
+				// 0 < 3, so the rollout is not complete; must not return True.
+				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
+				pod := allMembersUpdatedPod("p-0", ns, "rev-1", sts)
+				now := metav1.Now()
+				pod.DeletionTimestamp = &now
+				pod.Finalizers = []string{"kubernetes"}
+				return []client.Object{sts, pod}
+			},
+			expectedStatus: druidv1alpha1.ConditionFalse,
+			expectedReason: "NotAllMembersUpdated",
+		},
+		{
+			name: "OnDelete: empty updateRevision (STS controller not yet populated it) -> False",
+			buildObjects: func() []client.Object {
+				// updateRevision is empty: target revision not known, so we cannot
+				// declare all members updated.
+				sts := onDeleteControlledSTS(etcdName, ns, "", 3, 3)
+				return []client.Object{
+					sts,
+					allMembersUpdatedPod("p-0", ns, "", sts),
+					allMembersUpdatedPod("p-1", ns, "", sts),
+					allMembersUpdatedPod("p-2", ns, "", sts),
+				}
+			},
+			expectedStatus: druidv1alpha1.ConditionFalse,
+			expectedReason: "NotAllMembersUpdated",
+		},
+		{
 			name: "OnDelete: observedGeneration lags spec generation -> False",
 			buildObjects: func() []client.Object {
 				sts := onDeleteControlledSTS(etcdName, ns, "rev-2", 3, 3)
