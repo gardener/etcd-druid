@@ -119,13 +119,13 @@ The OnDelete controller needs two kinds of signal: per-pod signals that help it 
    - A **passing** probe means the member is up and in contact with a healthy quorum: it is participating.
    - A **failing** probe means either this member is itself down or partitioned, or the cluster as a whole has lost quorum. The probe alone cannot distinguish these two cases: when quorum is lost, every pod's probe fails, including pods whose local etcd process is perfectly healthy.
 
-2. **Is the local etcd process alive?** This is a separate question from quorum participation, and it is what lets the controller pick a useful pod to delete first when quorum is lost (where readiness alone would mark every pod equally unready). The controller infers process liveness from the etcd container's state under `pod.status.containerStatuses[]`, classifying it as one of:
+2. **What is the etcd container's readiness state?** The controller classifies each pod into one of three readiness states derived from `pod.status.containerStatuses[]` for the etcd container:
 
-   - **Dead**: `state.Terminated` is set (the container has exited), or `state.Waiting` is set with a failure reason such as `CrashLoopBackOff`, `RunContainerError`, `ImagePullBackOff`, `ErrImagePull`, or `CreateContainerConfigError`.
-   - **Transient/starting**: `state.Waiting` is set with `ContainerCreating` or `PodInitializing` (the container is still being set up).
-   - **Alive**: `state.Running` is set, regardless of readiness.
+   - **Not ready**: the etcd container status is published and its readiness probe is failing. The pod is not participating in quorum.
+   - **Readiness unknown**: no status has been published yet.
+   - **Ready**: the etcd container's readiness probe is succeeding; the pod is participating in quorum.
 
-   This classification only labels the container's state; how the controller acts on each is decided in the [Pod Update Procedure](#pod-update-procedure).
+   This classification is used to *order* deletions (not-ready pods are updated first).
 
 Both per-pod signals can be *lagging*: the readiness probe only flips a member to not-ready after its `failureThreshold` consecutive failures, so a member that has silently gone bad can still report ready for several probe periods. That lag is acceptable for *selecting* a pod to delete, but not for *deciding whether a deletion is safe*. For the safety decision the controller consults etcd directly, giving the cluster-level signal:
 
@@ -148,34 +148,31 @@ The procedure in each reconciliation cycle:
 
 **Intermediate Step** Once at least one pod is outdated and the pod set is settled (no deletion in flight and the StatefulSet has created all desired pods), the controller fetches the live member list once for the remainder of the cycle. Single-node clusters are the exception: they have no quorum to protect, so the controller skips the live fetch and quorum checks entirely and proceeds straight to deleting the sole outdated pod (see [Single-Node Clusters](#single-node-clusters)). If the live view shows quorum is already lost, the controller takes the recovery path described above - deleting all outdated pods together - and skips the per-pod steps below. Otherwise it proceeds, applying the quorum check to each candidate before deleting it.
 
-**Step 2: Check for non-participating pods that need updating.** If any outdated pod is non-participating, select one for deletion using the following sub-priority (using the container-state classification from [Health Assessment](#health-assessment)):
+**Step 2: Check for non-participating pods that need updating.** If any outdated pod is non-participating (etcd container not-ready), select one for deletion. Selection across all outdated pods uses the following order comparison table:
 
-| Priority | Container state | Rationale |
-|----------|-----------------|-----------|
-| First | **Dead** | Already broken and contributing nothing. Recreating it at the new revision risks nothing and may fix it. |
-| Second | **Transient/starting** | Not serving yet. Recreating it at the new revision is cheap and makes update progress. |
-| Third | **Alive** but readiness failing | The most functional of the three: a live etcd process that rejoins the moment quorum returns, so it is kept running longest to help restore quorum quickly. Recreated last. |
+| Priority | Readiness | Role | Rationale |
+|----------|-----------|------|-----------|
+| First (delete first) | **Not ready** | any | Not participating in quorum, so a deletion cannot break it. Within this group, pick higher ordinal first for determinism. |
+| Second | Ready or unknown | Learner | Non-voting, so a deletion costs nothing to quorum. |
+| Third | Ready or unknown | Follower | Voting but not the leader, so deleting avoids a leader election. |
+| Fourth | Ready or unknown | Unknown role | Role could not be determined, so treated conservatively like a follower. |
+| Last (delete last) | Ready or unknown | **Leader** | Deleting the leader forces a leader election, so it is updated last. |
+
+Within the not-ready group role is irrelevant (a non-participating member triggers no leader election). When there's a tie at any level, higher ordinal is preferred.
 
 Delete the selected pod (subject to the quorum check below) and requeue. Deleting any of these pods causes the StatefulSet controller to recreate it at the new revision, so it leaves the outdated set and is never re-selected in this step. If a recreated pod cannot come back, the rollout holds at Step 3 (which waits for all updated pods to participate) rather than being retried here.
 
 **Step 3: Ensure all updated pods are participating.** Before touching any participating pod, verify that every pod already carrying the latest revision is in a participating state. If any updated pod is still non-participating (for example, a pod deleted in a previous cycle has not yet rejoined the quorum), requeue and wait. This prevents the controller from removing a second participating member while a previously-updated one is still recovering.
 
-**Step 4: Update one participating pod.** At this point, all outdated pods are participating. Select one for deletion using this priority:
+**Step 4: Update one participating pod.** At this point, all outdated pods are participating. Select one for deletion using the same total ordering as Step 2 comparator within the ready/unknown group, learner → follower → unknown-role → leader.
 
-| Priority | Role | Rationale |
-|----------|------|-----------|
-| First | Follower | Deleting a follower does not trigger a leader election. |
-| Second | Leader | Deleting the leader may trigger a brief leader election, so it is done last. |
-
-The controller determines member roles by reading the member lease's `holderIdentity` field, which contains the member ID and role.
-
-> **Known limitation.** Member lease updates can lag the actual leadership change by a brief interval, during which the controller may read a stale role. Concretely, consider a 3-member cluster `{m-0 (follower), m-1 (leader), m-2 (follower)}` where `m-2` has already been updated. Suppose at time `T1` a leadership change occurs and `m-0` becomes the new leader, but the member lease only reflects this at a later time `T3`. If the OnDelete controller looks up roles at some time `T2` with `T1 < T2 < T3`, it still sees `m-0` as a follower and selects it for the next deletion. Because `m-0` is in fact the current leader, deleting it triggers an additional leader election, exactly the outcome the follower-first priority was meant to avoid. This race is rare and inherent to using the lease as the role source; it is accepted as a known limitation. Note that the lease is used only to *order* the deletion, not to decide its *safety*: the quorum check below runs on the live member list, so a stale role can at worst cost one extra leader election, but it won't breach the quorum.
+> **Note:** The controller determines member roles from the live `MemberList` response (the same call used for the quorum check). The leader is identified from `StatusResponse.Leader` reported by any healthy member, not from a lease. Although the `MemberList` call is linearizable, the per-member `Status` probes that contain role and health data are made individually to each member endpoint after the list succeeds. A probe timeout or transient dial failure leaves that member's role as `Unknown`, which the comparator then treats as a follower. At worst this may cause the controller to delete what it believes is a follower when the member is in fact the leader, triggering one extra leader election.
 
 > **Note:** When the leader pod is deleted with a normal grace period, the etcd server attempts a graceful [leadership transfer](https://github.com/etcd-io/etcd/blob/326d5a2e7765d1d918865d2c3897f0a27320db80/server/etcdserver/server.go#L1319-L1331) to a follower before shutting down. This transfer is **best-effort**: etcd initiates it during shutdown but does not wait for it to succeed, so a leader election can still occur if the handover does not complete in time. In the common case the handover succeeds and the cluster avoids a full leader-election downtime, which is why an explicit move-leader call from the controller before updating a leader is not needed.
 
 Delete the selected pod (subject to the quorum check below) and requeue.
 
-**Quorum check before every deletion.** Steps 2 and 4 select *which* pod to delete from Kubernetes-level signals, but the deletion itself is gated on the live cluster view. Immediately before deleting, the controller maps the selected pod to its etcd member and confirms, from the live member list, that the healthy voting members surviving the removal still form a quorum. If removal would be unsafe — or if the pod cannot be mapped to a live member, or the member list could not be fetched — the controller holds and requeues instead of deleting. This is what makes the stale readiness probe and the stale lease role tolerable: they can only misguide the *selection* rarely when such events happen, but they never cause a deletion that breaches quorum, because the live check has the final say. Single-node clusters are exempt from this, as covered above.
+**Quorum check before every deletion.** Steps 2 and 4 select *which* pod to delete from Kubernetes-level signals, but the deletion itself is gated on the live cluster view. Immediately before deleting, the controller maps the selected pod to its etcd member and confirms, from the live member list, that the healthy voting members surviving the removal still form a quorum. If removal would be unsafe — or if the pod cannot be mapped to a live member, or the member list could not be fetched — the controller holds and requeues instead of deleting. This is what makes a stale readiness observation or an imprecise role determination tolerable: they can only misguide the *selection*, but never cause a deletion that breaches quorum, because the live check has the final say. Single-node clusters are exempt from this, as covered above.
 
 **Step 5: Repeat** until all pods are up to date.
 
