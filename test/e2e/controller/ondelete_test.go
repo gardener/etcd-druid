@@ -35,13 +35,6 @@ func TestOnDeleteRollout(t *testing.T) {
 		{"resume-after-operator-restart", testOnDeleteResumesAfterOperatorRestart},
 	}
 
-	// This gate-off scenario runs as a separate top-level test so it can use
-	// its gate off condition without conflicting with the subtests above which require the gate to be ON.
-	t.Run("ondelete-gate-off-uses-rolling-update", func(t *testing.T) {
-		t.Parallel()
-		testOnDeleteGateOff_UsesRollingUpdate(t, "ondelete-gate-off-uses-rolling-update", log)
-	})
-
 	for _, tc := range testCases {
 		tcName := fmt.Sprintf("ondelete-%s", tc.name)
 		t.Run(tcName, func(t *testing.T) {
@@ -49,6 +42,13 @@ func TestOnDeleteRollout(t *testing.T) {
 			tc.fn(t, tcName, log)
 		})
 	}
+}
+
+func TestOnDeleteGateOffUsesRollingUpdate(t *testing.T) {
+	skipIfOnDeleteGateEnabled(t, testEnv)
+	t.Parallel()
+	log := testr.NewWithOptions(t, testr.Options{LogTimestamp: true})
+	testOnDeleteGateOffUsesRollingUpdate(t, "ondelete-gate-off-uses-rolling-update", log)
 }
 
 // testOnDelete3ReplicaZeroDowntime tests that the 3 replica cluster update rolls without any downtime.
@@ -181,11 +181,11 @@ func testOnDeleteResumesAfterOperatorRestart(t *testing.T, tcName string, log lo
 	testSucceeded = true
 }
 
-// testOnDeleteGateOff_UsesRollingUpdate verifies that when the QuorumAwareUpdates
+// testOnDeleteGateOffUsesRollingUpdate verifies that when the QuorumAwareUpdates
 // feature gate is disabled, the Etcd reconciler keeps the StatefulSet
 // on the RollingUpdate strategy and an ordinary update completes normally.
 // Skipped when the gate is enabled since the gate-on tests already cover that path.
-func testOnDeleteGateOff_UsesRollingUpdate(t *testing.T, tcName string, log logr.Logger) {
+func testOnDeleteGateOffUsesRollingUpdate(t *testing.T, tcName string, log logr.Logger) {
 	skipIfOnDeleteGateEnabled(t, testEnv)
 
 	g := NewWithT(t)

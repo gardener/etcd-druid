@@ -12,6 +12,8 @@ import (
 	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 
 	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -28,25 +30,22 @@ func (a *allMembersUpdated) Check(ctx context.Context, etcd druidv1alpha1.Etcd) 
 		conType: druidv1alpha1.ConditionTypeAllMembersUpdated,
 	}
 
-	sts, err := kubernetes.GetStatefulSet(ctx, a.cl, &etcd)
-	if err != nil {
+	sts := &appsv1.StatefulSet{}
+	if err := a.cl.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)}, sts); err != nil {
 		res.status = druidv1alpha1.ConditionUnknown
-		res.reason = "UnableToFetchStatefulSet"
-		res.message = fmt.Sprintf("Unable to fetch StatefulSet for etcd: %s", err.Error())
-		return res
-	} else if sts == nil {
-		// GetStatefulSet returns nil both when the StatefulSet does not exist and
-		// when it exists but is not controlled by this Etcd. Distinguish the two so
-		// the reason is accurate.
-		res.status = druidv1alpha1.ConditionUnknown
-		existing := &appsv1.StatefulSet{}
-		if getErr := a.cl.Get(ctx, client.ObjectKey{Namespace: etcd.Namespace, Name: druidv1alpha1.GetStatefulSetName(etcd.ObjectMeta)}, existing); getErr == nil {
-			res.reason = "StatefulSetNotControlledByEtcd"
-			res.message = fmt.Sprintf("StatefulSet %s exists but is not controlled by etcd %s", existing.Name, etcd.Name)
-		} else {
+		if apierrors.IsNotFound(err) {
 			res.reason = "StatefulSetNotFound"
 			res.message = fmt.Sprintf("StatefulSet not found for etcd %s", etcd.Name)
+		} else {
+			res.reason = "UnableToFetchStatefulSet"
+			res.message = fmt.Sprintf("Unable to fetch StatefulSet for etcd: %s", err.Error())
 		}
+		return res
+	}
+	if !metav1.IsControlledBy(sts, &etcd) {
+		res.status = druidv1alpha1.ConditionUnknown
+		res.reason = "StatefulSetNotControlledByEtcd"
+		res.message = fmt.Sprintf("StatefulSet %s exists but is not controlled by etcd %s", sts.Name, etcd.Name)
 		return res
 	}
 

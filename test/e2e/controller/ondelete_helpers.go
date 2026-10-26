@@ -16,7 +16,6 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,11 +39,8 @@ func skipIfOnDeleteGateDisabled(t *testing.T, env *testenv.TestEnvironment) {
 	err := env.Client().Get(env.Context(), types.NamespacedName{
 		Name: druidOperatorConfigMapName, Namespace: druidDeployNamespace,
 	}, cm)
-	if apierrors.IsNotFound(err) {
-		t.Skipf("skipping: operator ConfigMap %s/%s not found", druidDeployNamespace, druidOperatorConfigMapName)
-	}
 	if err != nil {
-		t.Skipf("skipping: cannot read operator ConfigMap: %v", err)
+		t.Fatalf("cannot determine %s gate state from operator ConfigMap %s/%s: %v", quorumAwareUpdatesGateName, druidDeployNamespace, druidOperatorConfigMapName, err)
 	}
 
 	for _, v := range cm.Data {
@@ -133,11 +129,8 @@ func skipIfOnDeleteGateEnabled(t *testing.T, env *testenv.TestEnvironment) {
 	err := env.Client().Get(env.Context(), types.NamespacedName{
 		Name: druidOperatorConfigMapName, Namespace: druidDeployNamespace,
 	}, cm)
-	if apierrors.IsNotFound(err) {
-		return // if the configmap is missing, then the gate wouldn't be enabled
-	}
 	if err != nil {
-		return // unable to determine the gate state, so proceed
+		t.Fatalf("cannot determine %s gate state from operator ConfigMap %s/%s: %v", quorumAwareUpdatesGateName, druidDeployNamespace, druidOperatorConfigMapName, err)
 	}
 	for _, v := range cm.Data {
 		if strings.Contains(v, quorumAwareUpdatesGateName+": true") {

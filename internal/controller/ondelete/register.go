@@ -32,7 +32,10 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 // onDeleteRolloutTrigger is the predicate for the OnDelete controller.
 func onDeleteRolloutTrigger() predicate.Predicate {
 	return predicate.Funcs{
-		CreateFunc:  func(_ event.CreateEvent) bool { return true },
+		CreateFunc: func(e event.CreateEvent) bool {
+			sts, ok := e.Object.(*appsv1.StatefulSet)
+			return ok && sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType
+		},
 		DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
 		GenericFunc: func(_ event.GenericEvent) bool { return false },
 		UpdateFunc: func(e event.UpdateEvent) bool {
@@ -44,16 +47,11 @@ func onDeleteRolloutTrigger() predicate.Predicate {
 			if !ok {
 				return false
 			}
-			// A new updateRevision means new pods need updating.
-			if oldSts.Status.UpdateRevision != newSts.Status.UpdateRevision {
-				return true
+			if newSts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+				return false
 			}
-			// A strategy-type transition means the gate was toggled
-			// reconcile so the controller can pick up or hand off the rollout.
-			if oldSts.Spec.UpdateStrategy.Type != newSts.Spec.UpdateStrategy.Type {
-				return true
-			}
-			return false
+			return oldSts.Status.UpdateRevision != newSts.Status.UpdateRevision ||
+				oldSts.Spec.UpdateStrategy.Type != newSts.Spec.UpdateStrategy.Type
 		},
 	}
 }

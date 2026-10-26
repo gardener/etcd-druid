@@ -33,10 +33,10 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 			expectUpdate: true,
 		},
 		{
-			name:         "Create on RollingUpdate STS is accepted (Reconcile bails early for non-OnDelete)",
+			name:         "Create on RollingUpdate STS is filtered out",
 			oldStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
 			newStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
-			expectCreate: true,
+			expectCreate: false,
 			expectUpdate: false,
 		},
 		{
@@ -47,27 +47,27 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 			expectUpdate: true,
 		},
 		{
-			name:         "Update transitioning OUT of OnDelete is accepted (to let the controller notice the disengagement)",
+			name:         "Update transitioning OUT of OnDelete is filtered out",
 			oldStrategy:  appsv1.OnDeleteStatefulSetStrategyType,
 			newStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
-			expectCreate: true, // merged predicate accepts all Creates; Reconcile filters non-OnDelete
-			expectUpdate: true,
+			expectCreate: false,
+			expectUpdate: false,
 		},
 		{
-			name:         "Update on non-StatefulSet object is filtered out",
+			name:         "Create and Update on non-StatefulSet object are filtered out",
 			object:       &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "not-an-sts"}},
-			expectCreate: true, // CreateFunc accepts all; Reconcile ignores non-STS
+			expectCreate: false,
 			expectUpdate: false,
 			expectDelete: false,
 		},
 	}
 
-	g := NewWithT(t)
 	t.Parallel()
 	p := onDeleteRolloutTrigger()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			var oldObj, newObj client.Object
 			if tc.object != nil {
 				oldObj = tc.object
@@ -117,27 +117,44 @@ func TestUpdateRevisionChangedPredicate(t *testing.T) {
 			newStrategy:  appsv1.OnDeleteStatefulSetStrategyType,
 			expectUpdate: true,
 		},
+		{
+			name:         "revision change on RollingUpdate is filtered out",
+			oldRev:       "rev-1",
+			newRev:       "rev-2",
+			oldStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
+			newStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
+			expectUpdate: false,
+		},
+		{
+			name:         "revision change transitioning out of OnDelete is filtered out",
+			oldRev:       "rev-1",
+			newRev:       "rev-2",
+			oldStrategy:  appsv1.OnDeleteStatefulSetStrategyType,
+			newStrategy:  appsv1.RollingUpdateStatefulSetStrategyType,
+			expectUpdate: false,
+		},
 	}
 
-	g := NewWithT(t)
 	t.Parallel()
 	p := onDeleteRolloutTrigger()
 
-	// Every Create is accepted so the controller can pick up mid-rollouts on restart.
-	t.Run("Create is always accepted", func(_ *testing.T) {
+	t.Run("Create on OnDelete with an existing revision is accepted", func(t *testing.T) {
+		g := NewWithT(t)
 		g.Expect(p.Create(event.CreateEvent{Object: stsWithStrategy("x", appsv1.OnDeleteStatefulSetStrategyType, "rev-1")})).To(BeTrue())
 	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			oldSts := stsWithStrategy("x", tc.oldStrategy, tc.oldRev)
 			newSts := stsWithStrategy("x", tc.newStrategy, tc.newRev)
 			g.Expect(p.Update(event.UpdateEvent{ObjectOld: oldSts, ObjectNew: newSts})).To(Equal(tc.expectUpdate))
 		})
 	}
 
-	t.Run("Update with non-StatefulSet objects is filtered out", func(_ *testing.T) {
+	t.Run("Update with non-StatefulSet objects is filtered out", func(t *testing.T) {
+		g := NewWithT(t)
 		notAnSts := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "not-an-sts"}}
 		g.Expect(p.Update(event.UpdateEvent{ObjectOld: notAnSts, ObjectNew: notAnSts})).To(BeFalse())
 	})

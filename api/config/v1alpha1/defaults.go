@@ -177,7 +177,7 @@ func SetDefaults_SecretControllerConfiguration(secretCtrlConfig *SecretControlle
 	}
 }
 
-// DefaultOnDeleteControllerConcurrentSyncs is the default number of concurrent syncs for the OnDelete controller.
+// DefaultOnDeleteControllerConcurrentSyncs is the default number of concurrent workers for the OnDelete controller.
 const DefaultOnDeleteControllerConcurrentSyncs = 3
 
 // SetDefaults_OnDeleteControllerConfiguration sets defaults for the OnDelete controller configuration.

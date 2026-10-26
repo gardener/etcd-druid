@@ -47,7 +47,7 @@ Moving the pod update process under druid's control, via the `OnDelete` strategy
 2. **Reduce unnecessary leader elections.** Update followers before the leader, so the leader-election does not happen as frequently during a rollout.
 3. **Enable safer in-place volume changes.** A safer PVC resize procedure benefits from controlled replacement of pods, which is what `OnDelete` provides. The resize flow itself is out of scope for this DEP and is covered separately (see [Interaction with PVC Resizing](#interaction-with-pvc-resizing)).
 
-For a single-node etcd cluster, concerns 1 and 2 do not apply: there is no quorum to preserve and no leader-election to avoid.
+For a single-member etcd cluster, quorum cannot be preserved while replacing the sole member. The update therefore necessarily incurs transient unavailability, and there is no member-ordering decision to make.
 
 ### Goals
 
@@ -219,7 +219,7 @@ Two mechanisms protect etcd pods from being disrupted by external actors:
 
 ### Single-Node Clusters
 
-For single-node etcd clusters, the OnDelete controller follows the same procedure but with a simplification: there is only one pod, so there is no ordering decision to make. A single-node cluster also has no quorum to protect — deleting its sole pod is the only way to roll the update forward — so the controller skips the live member fetch and the quorum check entirely, deletes the single outdated pod, and waits for it to come back.
+For a single-member etcd cluster, quorum cannot be preserved while replacing the sole member. The controller therefore deletes the outdated pod and waits for its replacement, accepting a transient period of unavailability until the replacement becomes ready. Since there is no member-ordering decision to make and no deletion can preserve availability, the controller skips the live member fetch and quorum checks for this case.
 
 ### StatefulSet Status Fields
 

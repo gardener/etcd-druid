@@ -34,9 +34,7 @@ type Reconciler struct {
 	clientFactory etcdclient.Factory
 }
 
-// NewReconciler constructs a Reconciler for the OnDelete controller. The etcd
-// client factory is required: the pod-update procedure validates every delete
-// against live cluster membership which requires an etcd client.
+// NewReconciler constructs a Reconciler for the OnDelete controller.
 func NewReconciler(mgr manager.Manager, config druidconfigv1alpha1.OnDeleteControllerConfiguration, clientFactory etcdclient.Factory) *Reconciler {
 	return &Reconciler{
 		client:        mgr.GetClient(),
@@ -81,7 +79,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	return r.executePodUpdateProcedure(ctx, logger, sts, etcd, pods)
+	return r.reconcilePodRollout(ctx, logger, etcd, sts, pods)
 }
 
 // getOwningEtcd returns the Etcd controller-owner of sts

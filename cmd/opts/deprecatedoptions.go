@@ -110,6 +110,9 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdComponentProtectionWe
 	fs.StringSliceVar(&d.etcdComponentProtectionExemptServiceAccounts, "etcd-components-webhook-exempt-service-accounts", []string{}, "The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
 }
 
+// ToOperatorConfiguration converts the legacy flags to operator configuration.
+// controllers such as OnDelete which have no deprecated flags receive their
+// API defaults during option completion instead.
 func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfigv1alpha1.OperatorConfiguration {
 	config := &druidconfigv1alpha1.OperatorConfiguration{
 		TypeMeta: metav1.TypeMeta{

@@ -6,6 +6,7 @@ package condition_test
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"testing"
 
@@ -19,6 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	. "github.com/onsi/gomega"
 )
@@ -158,11 +161,11 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(tc.buildObjects()...).Build()
 			result := condition.AllMembersUpdatedCheck(cl).Check(context.Background(), etcd)
 			g.Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersUpdated))
@@ -173,6 +176,25 @@ func TestAllMembersUpdatedCheck_OnDelete(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAllMembersUpdatedCheck_OnDeleteListError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sts := onDeleteControlledSTS("test", "default", "rev-2", 3, 3)
+	listErr := errors.New("pod list unavailable")
+	cl := fake.NewClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts).WithInterceptorFuncs(interceptor.Funcs{
+		List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
+			return listErr
+		},
+	}).Build()
+	etcd := druidv1alpha1.Etcd{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
+	result := condition.AllMembersUpdatedCheck(cl).Check(context.Background(), etcd)
+
+	g.Expect(result.ConditionType()).To(Equal(druidv1alpha1.ConditionTypeAllMembersUpdated))
+	g.Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+	g.Expect(result.Reason()).To(Equal("UnableToDetermineMemberRevisions"))
+	g.Expect(result.Message()).To(ContainSubstring(listErr.Error()))
 }
 
 func onDeleteControlledSTS(name, namespace, updateRevision string, replicas, readyReplicas int32) *appsv1.StatefulSet {

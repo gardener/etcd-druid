@@ -24,6 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	. "github.com/onsi/gomega"
 )
@@ -635,15 +637,17 @@ func TestAreStatefulSetReplicasUpdated(t *testing.T) {
 		g.Expect(updated).To(BeTrue())
 	})
 
-	t.Run("OnDelete: pod list error propagates as error", func(_ *testing.T) {
+	t.Run("OnDelete: pod list error propagates as error", func(t *testing.T) {
+		g := NewWithT(t)
 		sts := onDeleteSTS("rev-2", 3)
-		// A selector that matches nothing will cause ListStatefulSetPods to
-		// fail because selector.Empty() is checked. Use nil selector to trigger an error.
-		sts.Spec.Selector = nil
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).Build()
+		listErr := errors.New("pod list unavailable")
+		cl := fake.NewClientBuilder().WithScheme(kubernetes.Scheme).WithInterceptorFuncs(interceptor.Funcs{
+			List: func(context.Context, client.WithWatch, client.ObjectList, ...client.ListOption) error {
+				return listErr
+			},
+		}).Build()
 		_, err := AreStatefulSetReplicasUpdated(context.Background(), cl, sts)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("nil spec.selector"))
+		g.Expect(errors.Is(err, listErr)).To(BeTrue())
 	})
 	t.Run("RollingUpdate: fewer updated replicas than desired -> false", func(_ *testing.T) {
 		sts := onDeleteSTS("rev-2", 3)
@@ -695,12 +699,24 @@ func TestListStatefulSetPods(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 	})
 
-	t.Run("returns only the pods matching the selector", func(_ *testing.T) {
+	t.Run("returns only matching pods controlled by this StatefulSet in its namespace", func(t *testing.T) {
+		g := NewWithT(t)
 		sts := onDeleteSTS("rev-2", 3)
 		match1 := stsPodOwned("match-1", "rev-2", sts)
 		match2 := stsPodOwned("match-2", "rev-1", sts)
+		unowned := stsPod("unowned", "rev-2", sts.Spec.Selector.MatchLabels)
+		nonController := stsPodOwned("non-controller", "rev-2", sts)
+		nonController.OwnerReferences[0].Controller = nil
+		falseController := stsPodOwned("false-controller", "rev-2", sts)
+		controller := false
+		falseController.OwnerReferences[0].Controller = &controller
+		staleOwner := stsPodOwned("stale-owner", "rev-2", sts)
+		staleOwner.OwnerReferences[0].UID = "previous-statefulset-uid"
+		otherNamespace := stsPodOwned("other-namespace", "rev-2", sts)
+		otherNamespace.Namespace = "other-ns"
 		other := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: stsNamespace, Labels: map[string]string{"unrelated": "yes"}}}
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(match1, match2, other).Build()
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).
+			WithObjects(match1, match2, unowned, nonController, falseController, staleOwner, otherNamespace, other).Build()
 
 		got, err := ListStatefulSetPods(context.Background(), cl, sts)
 		g.Expect(err).ToNot(HaveOccurred())
@@ -738,17 +754,17 @@ func TestIsStatefulSetPodOutdated(t *testing.T) {
 			expectedOut: true,
 		},
 		{
-			name:        "empty target revision -> not outdated (STS controller has not populated it yet)",
+			name:        "revision comparison does not special-case an empty target",
 			podLabels:   map[string]string{appsv1.StatefulSetRevisionLabel: "rev-1"},
 			updateRev:   "",
-			expectedOut: false,
+			expectedOut: true,
 		},
 	}
 
-	g := NewWithT(t)
 	t.Parallel()
 	for _, tc := range tests {
-		t.Run(tc.name, func(_ *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: tc.podLabels}}
 			sts := &appsv1.StatefulSet{Status: appsv1.StatefulSetStatus{UpdateRevision: tc.updateRev}}
 			g.Expect(IsStatefulSetPodOutdated(pod, sts)).To(Equal(tc.expectedOut))

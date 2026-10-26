@@ -33,6 +33,16 @@ func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int3
 	if statefulSet.Status.ReadyReplicas < etcdReplicas {
 		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas), nil
 	}
+	if statefulSet.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+		if statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision {
+			return false, fmt.Sprintf("Current StatefulSet revision %s is older than the updated StatefulSet revision %s", statefulSet.Status.CurrentRevision, statefulSet.Status.UpdateRevision), nil
+		}
+		if statefulSet.Status.CurrentReplicas != statefulSet.Status.UpdatedReplicas {
+			return false, fmt.Sprintf("StatefulSet status.CurrentReplicas (%d) != status.UpdatedReplicas (%d)", statefulSet.Status.CurrentReplicas, statefulSet.Status.UpdatedReplicas), nil
+		}
+		return true, "", nil
+	}
+	// CurrentRevision is not reliably updated for OnDelete, so check the pods directly for it.
 	allUpdated, err := AreStatefulSetReplicasUpdated(ctx, cl, statefulSet)
 	if err != nil {
 		return false, "", fmt.Errorf("unable to determine whether all StatefulSet replicas are updated: %w", err)
@@ -69,13 +79,8 @@ func ListStatefulSetPods(ctx context.Context, cl client.Client, sts *appsv1.Stat
 	return owned, nil
 }
 
-// IsStatefulSetPodOutdated reports whether the pod's controller-revision-hash
-// differs from sts.Status.UpdateRevision. A StatefulSet with an empty
-// updateRevision has no target revision yet, so no pod is considered outdated.
+// IsStatefulSetPodOutdated reports whether the pod's controller-revision-hash differs from sts.Status.UpdateRevision
 func IsStatefulSetPodOutdated(pod *corev1.Pod, sts *appsv1.StatefulSet) bool {
-	if sts.Status.UpdateRevision == "" {
-		return false
-	}
 	return pod.Labels[appsv1.StatefulSetRevisionLabel] != sts.Status.UpdateRevision
 }
 

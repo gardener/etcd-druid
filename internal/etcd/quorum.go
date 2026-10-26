@@ -20,21 +20,6 @@ const (
 // CanRemoveMemberWithoutLosingQuorum reports whether removing the member
 // identified by candidateID keeps a healthy voting quorum, using the health
 // embedded in each Member (populated from a live etcd Status probe).
-//
-// It returns an error when no member with candidateID exists in members, so the
-// caller can distinguish "removal would break quorum" from "candidate not found"
-// (the latter is a programming/observation error, not a quorum verdict).
-//
-// The rules are:
-//   - A learner candidate is always safe to remove: learners do not vote.
-//   - A voter candidate is safe only when the healthy voters surviving the
-//     removal still form a quorum of the remaining voters, i.e. at least
-//     ⌊(remaining voters)/2⌋ + 1. Unknown and Unhealthy members are fail-closed
-//     and do not count as healthy.
-//
-// Removing an already-unhealthy member is therefore safe whenever the remaining
-// voters hold quorum, which lets the caller shed a failing member even while the
-// cluster as a whole is degraded.
 func CanRemoveMemberWithoutLosingQuorum(members Members, candidateID uint64) (bool, error) {
 	candidate, found := memberByID(members, candidateID)
 	if !found {
