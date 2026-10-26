@@ -101,6 +101,94 @@ func waitForOnDeleteRolloutComplete(g *WithT, env *testenv.TestEnvironment, logg
 	}, timeout, 5*time.Second).Should(Succeed())
 }
 
+// assertRolloutConditions verifies that after a rollout completes the Etcd resource reports all members updated and ready.
+func assertRolloutConditions(g *WithT, env *testenv.TestEnvironment, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	logger.Info("asserting post-rollout status conditions")
+	g.Eventually(func() error {
+		fetched := &druidv1alpha1.Etcd{}
+		if err := env.Client().Get(env.Context(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, fetched); err != nil {
+			return err
+		}
+		if fetched.Status.Ready == nil || !*fetched.Status.Ready {
+			return fmt.Errorf("etcd.status.ready is not true")
+		}
+		for _, cond := range fetched.Status.Conditions {
+			if cond.Type == druidv1alpha1.ConditionTypeAllMembersUpdated {
+				if cond.Status != druidv1alpha1.ConditionTrue {
+					return fmt.Errorf("AllMembersUpdated condition is %s, want True", cond.Status)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("AllMembersUpdated condition not found")
+	}, timeout, 5*time.Second).Should(Succeed())
+	logger.Info("post-rollout conditions verified: AllMembersUpdated=True, etcd.status.ready=true")
+}
+
+// skipIfOnDeleteGateEnabled skips the test if the QuorumAwareUpdates gate is enabled.
+// Used for the gate-off scenario that verifies RollingUpdate behaviour is preserved.
+func skipIfOnDeleteGateEnabled(t *testing.T, env *testenv.TestEnvironment) {
+	t.Helper()
+	cm := &corev1.ConfigMap{}
+	err := env.Client().Get(env.Context(), types.NamespacedName{
+		Name: druidOperatorConfigMapName, Namespace: druidDeployNamespace,
+	}, cm)
+	if apierrors.IsNotFound(err) {
+		return // if the configmap is missing, then the gate wouldn't be enabled
+	}
+	if err != nil {
+		return // unable to determine the gate state, so proceed
+	}
+	for _, v := range cm.Data {
+		if strings.Contains(v, quorumAwareUpdatesGateName+": true") {
+			t.Skipf("skipping gate-off scenario: %s feature gate is enabled", quorumAwareUpdatesGateName)
+		}
+	}
+}
+
+// waitForRolloutInProgress blocks until the pod rollout has visibly started.
+// It covers the common observable mid-rollout states:
+//   - a pod is terminating
+//   - pod count is below desired i.e a pod was deleted and not yet recreated
+//   - a partial revision mix of versions exists.
+func waitForRolloutInProgress(g *WithT, env *testenv.TestEnvironment, logger logr.Logger, etcd *druidv1alpha1.Etcd, timeout time.Duration) {
+	logger.Info("waiting for rollout to be observably in progress")
+	g.Eventually(func() bool {
+		sts := &appsv1.StatefulSet{}
+		if err := env.Client().Get(env.Context(), types.NamespacedName{Name: etcd.Name, Namespace: etcd.Namespace}, sts); err != nil {
+			return false
+		}
+		if sts.Spec.Selector == nil || sts.Status.UpdateRevision == "" {
+			return false
+		}
+		pods := &corev1.PodList{}
+		if err := env.Client().List(env.Context(), pods, client.InNamespace(etcd.Namespace), client.MatchingLabels(sts.Spec.Selector.MatchLabels)); err != nil {
+			return false
+		}
+		// Case 1: a pod is mid-termination.
+		for i := range pods.Items {
+			if pods.Items[i].DeletionTimestamp != nil {
+				return true
+			}
+		}
+		// Case 2: pod count is below desired (deleted but not yet recreated).
+		if sts.Spec.Replicas != nil && len(pods.Items) < int(*sts.Spec.Replicas) {
+			return true
+		}
+		// Case 3: revision mix
+		updated, outdated := 0, 0
+		for i := range pods.Items {
+			if pods.Items[i].Labels[appsv1.StatefulSetRevisionLabel] == sts.Status.UpdateRevision {
+				updated++
+			} else {
+				outdated++
+			}
+		}
+		return updated > 0 && outdated > 0
+	}, timeout, 2*time.Second).Should(BeTrue(), "timed out waiting for rollout to start; no mid-rollout state observed")
+	logger.Info("confirmed: rollout is in progress")
+}
+
 // restartDruidOperator triggers a rollout restart of the etcd-druid deployment and waits for the new pod to be Ready.
 // Used by the mid-rollout-restart scenario to check the ondelete reconciler resumes correctly on operator restart.
 func restartDruidOperator(g *WithT, env *testenv.TestEnvironment, logger logr.Logger, timeout time.Duration) {
