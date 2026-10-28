@@ -55,6 +55,7 @@ type etcdConfig struct {
 	ListenClientUrls        string                       `json:"listen-client-urls"`
 	AdvertisePeerUrls       map[string][]string          `json:"initial-advertise-peer-urls"`
 	AdvertiseClientUrls     map[string][]string          `json:"advertise-client-urls"`
+	ListenMetricsUrls       string                       `json:"listen-metrics-urls,omitempty"`
 	ClientSecurity          *securityConfig              `json:"client-transport-security,omitempty"`
 	PeerSecurity            *securityConfig              `json:"peer-transport-security,omitempty"`
 	MemberNamePrefix        string                       `json:"member-name-prefix,omitempty"`
@@ -102,6 +103,9 @@ func createEtcdConfig(etcd *druidv1alpha1.Etcd) *etcdConfig {
 		AdvertisePeerUrls:            getAdvertiseURLs(etcd, advertiseURLTypePeer, peerScheme, peerSvcName),
 		AdvertiseClientUrls:          getAdvertiseURLs(etcd, advertiseURLTypeClient, clientScheme, peerSvcName),
 		NextClusterVersionCompatible: true,
+	}
+	if len(etcd.Spec.Etcd.ListenMetricsURLs) > 0 {
+		cfg.ListenMetricsUrls = strings.Join(etcd.Spec.Etcd.ListenMetricsURLs, ",")
 	}
 	cfg.PeerSecurity = peerSecurityConfig
 	cfg.ClientSecurity = clientSecurityConfig

@@ -576,6 +576,15 @@ func (eb *EtcdBuilder) WithGarbageCollection(period time.Duration, policy druidv
 	return eb
 }
 
+// WithListenMetricsURLs sets the dedicated metrics/health listener URLs on the etcd container.
+func (eb *EtcdBuilder) WithListenMetricsURLs(urls []string) *EtcdBuilder {
+	if eb == nil || eb.etcd == nil {
+		return nil
+	}
+	eb.etcd.Spec.Etcd.ListenMetricsURLs = urls
+	return eb
+}
+
 // WithEtcdEnv sets additional environment variables on the etcd container.
 func (eb *EtcdBuilder) WithEtcdEnv(env []corev1.EnvVar) *EtcdBuilder {
 	if eb == nil || eb.etcd == nil {
