@@ -1,0 +1,14 @@
+ocm:
+  component_name: github.com/gardener/etcd-backup-restore
+  component_version: v0.45.2
+release_notes:
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: renormalize
+  category: other
+  contents: Upgrade to `go1.26.10`
+  mimetype: text/markdown
+  reference: '[#1087](https://github.com/gardener/etcd-backup-restore/pull/1087)'
+  type: standard
