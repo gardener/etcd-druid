@@ -39,6 +39,8 @@ type Cluster interface {
 	MemberList(ctx context.Context) ([]etcdmember.Member, error)
 	// MemberRemove removes the member with the given ID. An already-absent member is treated as success.
 	MemberRemove(ctx context.Context, id uint64) error
+	// ObserveQuorum reports the cluster-level quorum state from a single linearizable operation
+	ObserveQuorum(ctx context.Context) (etcdmember.QuorumState, error)
 }
 
 // Maintenance is the maintenance sub-client, mirroring clientv3's Maintenance interface.
@@ -207,6 +209,27 @@ func (c *etcdClient) MemberRemove(ctx context.Context, id uint64) error {
 // Status returns the status of the given etcd endpoint.
 func (c *etcdClient) Status(ctx context.Context, endpoint string) (*clientv3.StatusResponse, error) {
 	return c.api.Status(ctx, endpoint)
+}
+
+// ObserveQuorum derives the cluster-level quorum state from a single linearizable MemberList
+// The outcome is mapped as follows :
+//   - success         => QuorumStatePresent (quorum existed at that instant)
+//   - ErrNoLeader     => QuorumStateLost    (etcd itself reports it cannot serve)
+//   - any other error => inconclusive, returned as an error so the caller holds
+//     rather than acting on a transient failures such as timeout, dial failure, etc.
+func (c *etcdClient) ObserveQuorum(ctx context.Context) (etcdmember.QuorumState, error) {
+	callCtx, cancel := context.WithTimeout(ctx, defaultCommandTimeout)
+	defer cancel()
+
+	_, err := c.api.MemberList(callCtx)
+	switch {
+	case err == nil:
+		return etcdmember.QuorumStatePresent, nil
+	case errors.Is(err, rpctypes.ErrNoLeader):
+		return etcdmember.QuorumStateLost, nil
+	default:
+		return "", fmt.Errorf("could not conclusively observe quorum: %w", err)
+	}
 }
 
 // MoveLeader asks the current leader to transfer leadership to the member with

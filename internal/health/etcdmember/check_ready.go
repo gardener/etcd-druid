@@ -57,7 +57,7 @@ func (r *readyCheck) Check(ctx context.Context, etcd druidv1alpha1.Etcd) []Resul
 	}
 
 	for _, lease := range leases {
-		var id, role, err = extractMemberIdAndRole(lease.Spec.HolderIdentity)
+		var id, role, err = ExtractMemberIdAndRole(lease.Spec.HolderIdentity)
 		if err != nil {
 			r.logger.Error(err, "failed to extract member ID and role from member lease's holder identity", "holderIdentity", lease.Spec.HolderIdentity)
 			continue
@@ -143,11 +143,11 @@ func asEtcdRole(roleStr string) *druidv1alpha1.EtcdRole {
 	}
 }
 
-// extractMemberIdAndRole extracts the member ID and role from the given member lease's holder identity.
+// ExtractMemberIdAndRole extracts the member ID and role from the given member lease's holder identity.
 // The expected formats of the holder identity are:
 //   - "<member-id>:<role>": from `etcd-backup-restore` versions <= v0.39.0
 //   - "<member-id>:<cluster-id>:<role>": from `etcd-backup-restore` versions > v0.39.0
-func extractMemberIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole, error) {
+func ExtractMemberIdAndRole(holderIdentity *string) (*string, *druidv1alpha1.EtcdRole, error) {
 	if holderIdentity == nil {
 		return nil, nil, fmt.Errorf("lease holder identity is nil")
 	}

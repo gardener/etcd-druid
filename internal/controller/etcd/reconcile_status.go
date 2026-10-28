@@ -54,7 +54,7 @@ func (r *Reconciler) mutateETCDStatusWithMemberStatusAndConditions(ctx component
 	return ctrlutils.ContinueReconcile()
 }
 
-func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, _ logr.Logger) ctrlutils.ReconcileStepResult {
+func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, logger logr.Logger) ctrlutils.ReconcileStepResult {
 	sts, err := kubernetes.GetStatefulSet(ctx, r.client, etcd)
 	if err != nil {
 		return ctrlutils.ReconcileWithError(err)
@@ -74,7 +74,13 @@ func (r *Reconciler) inspectStatefulSetAndMutateETCDStatus(ctx component.Operato
 		etcd.Status.ReadyReplicas = sts.Status.ReadyReplicas
 		etcd.Status.Replicas = sts.Status.CurrentReplicas
 		if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
-			ready, _ := kubernetes.IsStatefulSetReady(expectedReplicas, sts)
+			ready, notReadyReason, err := kubernetes.IsStatefulSetReady(ctx, r.client, expectedReplicas, sts)
+			if err != nil {
+				return ctrlutils.ReconcileWithError(err)
+			}
+			if !ready {
+				logger.Info("StatefulSet is not ready", "statefulSet", sts.Name, "reason", notReadyReason)
+			}
 			etcd.Status.Ready = &ready
 		} else {
 			allMembersReady := false
