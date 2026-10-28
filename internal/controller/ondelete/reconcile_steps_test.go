@@ -615,9 +615,9 @@ func leaseFor(name, namespace, holderIdentity string) *coordinationv1.Lease {
 }
 
 // requeued reports whether the given result will cause controller-runtime to
-// re-run Reconcile (either via Requeue or a positive RequeueAfter).
+// re-run Reconcile.
 func requeued(result ctrl.Result) bool {
-	return result.Requeue || result.RequeueAfter > 0
+	return result.RequeueAfter > 0
 }
 
 // healthyFactory returns a fake etcd client factory reporting a healthy cluster

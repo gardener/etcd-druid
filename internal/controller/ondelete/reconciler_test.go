@@ -29,7 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestNewReconciler_DefaultsNilConcurrentSyncs(t *testing.T) {
+func TestNewReconciler(t *testing.T) {
 	tests := []struct {
 		name          string
 		input         druidconfigv1alpha1.OnDeleteControllerConfiguration
@@ -116,7 +116,6 @@ func TestReconcile_BailsOut(t *testing.T) {
 			r := &Reconciler{client: cl, logger: logr.Discard()}
 			result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: testStsName, Namespace: testStsNamespace}})
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(result.Requeue).To(BeFalse())
 			g.Expect(result.RequeueAfter).To(BeZero())
 		})
 	}
@@ -142,7 +141,7 @@ func TestReconcile_DrivesProcedureWhenEligible(t *testing.T) {
 
 	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}})
 	g.Expect(err).ToNot(HaveOccurred())
-	g.Expect(result.Requeue || result.RequeueAfter > 0).To(BeTrue())
+	g.Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 
 	// p0 deleted from the fake client.
 	err = cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})
@@ -150,39 +149,42 @@ func TestReconcile_DrivesProcedureWhenEligible(t *testing.T) {
 }
 
 func TestGetOwningEtcd(t *testing.T) {
+	tests := []struct {
+		name         string
+		removeOwner  bool
+		etcdPresent  bool
+		expectedEtcd bool
+	}{
+		{name: "returns nil when no Etcd owner reference is set", removeOwner: true},
+		{name: "returns nil when the owning Etcd does not exist"},
+		{name: "returns the Etcd when the owner exists", etcdPresent: true, expectedEtcd: true},
+	}
+
 	ctx := context.Background()
-	g := NewWithT(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
+			if tc.removeOwner {
+				sts.OwnerReferences = nil
+			}
+			objs := []client.Object{sts}
+			if tc.etcdPresent {
+				objs = append(objs, etcdFixture())
+			}
+			cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
+			r := &Reconciler{client: cl, logger: logr.Discard()}
 
-	t.Run("returns nil when no Etcd owner reference is set", func(_ *testing.T) {
-		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
-		sts.OwnerReferences = nil
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard()}
-		etcd, err := r.getOwningEtcd(ctx, sts)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(etcd).To(BeNil())
-	})
-
-	t.Run("returns nil when the Etcd owner exists in OwnerReferences but the resource is missing", func(_ *testing.T) {
-		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
-		// Only the STS is present. The Etcd referenced in ownerReferences doesn't exist.
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard()}
-		etcd, err := r.getOwningEtcd(ctx, sts)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(etcd).To(BeNil())
-	})
-
-	t.Run("returns the Etcd when the owner exists", func(_ *testing.T) {
-		sts := stsFixtureWithOwner(testStsName, testStsNamespace, testRevNew, 3)
-		etcd := etcdFixture()
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(sts, etcd).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard()}
-		got, err := r.getOwningEtcd(ctx, sts)
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(got).ToNot(BeNil())
-		g.Expect(got.Name).To(Equal(etcd.Name))
-	})
+			got, err := r.getOwningEtcd(ctx, sts)
+			g.Expect(err).ToNot(HaveOccurred())
+			if !tc.expectedEtcd {
+				g.Expect(got).To(BeNil())
+				return
+			}
+			g.Expect(got).ToNot(BeNil())
+			g.Expect(got.Name).To(Equal(testStsName))
+		})
+	}
 }
 
 // stsFixtureWithOwner builds an OnDelete StatefulSet with the standard test

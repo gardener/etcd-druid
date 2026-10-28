@@ -71,7 +71,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if etcd == nil || etcd.DeletionTimestamp != nil {
+	if etcd == nil {
+		logger.V(1).Info("skipping: StatefulSet is not controlled by an existing Etcd")
+		return ctrl.Result{}, nil
+	}
+	if etcd.DeletionTimestamp != nil {
+		logger.V(1).Info("skipping: owning Etcd is being deleted", "etcd", etcd.Name)
 		return ctrl.Result{}, nil
 	}
 
