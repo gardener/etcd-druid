@@ -280,6 +280,44 @@ type BackupSpec struct {
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
+// ExternallyManagedMembersConfig configures externally managed etcd members and their endpoint discovery.
+// +kubebuilder:validation:XValidation:message="endpointsDiscovery may only be configured when addresses is non-empty",rule="!has(self.endpointsDiscovery) || !has(self.endpointsDiscovery.endpointsFilePath) || (has(self.addresses) && size(self.addresses) > 0)"
+// +kubebuilder:validation:XValidation:message="endpointsDiscovery cannot be enabled or disabled dynamically",rule="(has(oldSelf.endpointsDiscovery) && has(oldSelf.endpointsDiscovery.endpointsFilePath)) == (has(self.endpointsDiscovery) && has(self.endpointsDiscovery.endpointsFilePath))"
+// +kubebuilder:validation:XValidation:message="addresses field must only be set during creation",rule="has(oldSelf.addresses) == has(self.addresses)"
+type ExternallyManagedMembersConfig struct {
+	// Addresses defines the addresses of externally managed etcd members.
+	// Specifying addresses disables management of member Pods, Services and PDBs.
+	// Allowed values include IPv4/IPv6 addresses and hostnames, without a protocol or port.
+	// +optional
+	// +listType=set
+	Addresses []string `json:"addresses,omitempty"`
+	// EndpointsDiscovery configures endpoint discovery for etcd-backup-restore via an ENDPOINTS file.
+	// +optional
+	EndpointsDiscovery EndpointsDiscoveryConfig `json:"endpointsDiscovery,omitempty"`
+}
+
+// EndpointsDiscoveryConfig configures etcd endpoint discovery via an ENDPOINTS file.
+// When configured, etcd-backup-restore reads client endpoints from the file instead of static ConfigMap entries.
+// +kubebuilder:validation:XValidation:message="refreshInterval, if specified, must be greater than zero when refreshEnabled is true",rule="!has(self.refreshEnabled) || !self.refreshEnabled || !has(self.refreshInterval) || duration(self.refreshInterval).getSeconds() > 0"
+// +kubebuilder:validation:XValidation:message="endpointsFilePath must be set when refreshEnabled is true",rule="!has(self.refreshEnabled) || !self.refreshEnabled || has(self.endpointsFilePath)"
+type EndpointsDiscoveryConfig struct {
+	// EndpointsFilePath is the path to the ENDPOINTS file on the host node.
+	// Its parent directory is mounted into the backup-restore container.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	EndpointsFilePath string `json:"endpointsFilePath,omitempty"`
+	// RefreshEnabled enables the periodic refresh of the ENDPOINTS file from the live etcd member list.
+	// +optional
+	RefreshEnabled bool `json:"refreshEnabled,omitempty"`
+	// RefreshInterval is the interval at which the ENDPOINTS file is refreshed.
+	// If omitted, etcd-backup-restore uses its default of 30s.
+	// When specified, must be > 0 when RefreshEnabled is true.
+	// +optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
+	RefreshInterval *metav1.Duration `json:"refreshInterval,omitempty"`
+}
+
 // SnapshotCompactionSpec defines parameters related to the compaction job configuration.
 type SnapshotCompactionSpec struct {
 	// Resources defines compute Resources required by compaction job.
@@ -304,7 +342,11 @@ type SnapshotCompactionSpec struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || !has(self.clientUrlTls) || self.bootstrapWithExistingCluster.clientEndpoints.all(u, u.startsWith('https://'))",message="when clientUrlTls is enabled, all bootstrapWithExistingCluster clientEndpoints must use https://"
 // +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || has(self.clientUrlTls) || self.bootstrapWithExistingCluster.clientEndpoints.all(u, u.startsWith('http://'))",message="when clientUrlTls is not enabled, all bootstrapWithExistingCluster clientEndpoints must use http://"
 // +kubebuilder:validation:XValidation:rule="!has(self.bootstrapWithExistingCluster) || has(oldSelf.bootstrapWithExistingCluster)",message="etcd.spec.etcd.bootstrapWithExistingCluster cannot be added after the Etcd resource has been created"
+// +kubebuilder:validation:XValidation:message="etcd.spec.etcd.externallyManagedMembers field must only be set during creation",rule="has(oldSelf.externallyManagedMembers) == has(self.externallyManagedMembers)"
 type EtcdConfig struct {
+	// ExternallyManagedMembers configures externally managed etcd members.
+	// +optional
+	ExternallyManagedMembers *ExternallyManagedMembersConfig `json:"externallyManagedMembers,omitempty"`
 	// Quota defines the etcd DB quota.
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
@@ -343,7 +385,7 @@ type EtcdConfig struct {
 	// AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
 	// advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.
 	// Has no effect on externally managed members
-	// (spec.externallyManagedMemberAddresses).
+	// (spec.etcd.externallyManagedMembers.addresses).
 	// +optional
 	AdditionalAdvertisedURLs *AdditionalAdvertiseURLsSpec `json:"additionalAdvertisedURLs,omitempty"`
 	// PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.
@@ -588,6 +630,8 @@ type SchedulingConstraints struct {
 // +kubebuilder:validation:XValidation:message="etcd.spec.externallyManagedMemberAddresses field must only be set during creation.",rule="has(oldSelf.externallyManagedMemberAddresses) == has(self.externallyManagedMemberAddresses)"
 // +kubebuilder:validation:XValidation:message="all etcd.volumeMounts must reference a volume declared in spec.volumes",rule="!has(self.etcd.volumeMounts) || self.etcd.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name))"
 // +kubebuilder:validation:XValidation:message="all backup.volumeMounts must reference a volume declared in spec.volumes",rule="!has(self.backup.volumeMounts) || self.backup.volumeMounts.all(vm, has(self.volumes) && self.volumes.exists(v, v.name == vm.name))"
+// +kubebuilder:validation:XValidation:message="etcd.spec.etcd.externallyManagedMembers.addresses length must equal to etcd.spec.replicas",rule="!has(self.etcd.externallyManagedMembers) || !has(self.etcd.externallyManagedMembers.addresses) || self.replicas == self.etcd.externallyManagedMembers.addresses.size()"
+// +kubebuilder:validation:XValidation:message="spec.externallyManagedMemberAddresses and spec.etcd.externallyManagedMembers cannot both be set",rule="!has(self.externallyManagedMemberAddresses) || !has(self.etcd.externallyManagedMembers)"
 type EtcdSpec struct {
 	// MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.
 	// The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names).
@@ -643,6 +687,7 @@ type EtcdSpec struct {
 	// ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
 	// will disable components that are involved in management of etcd members like Pods, Services and PDBs.
 	// Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.
+	// Deprecated: use spec.etcd.externallyManagedMembers.addresses instead.
 	// +optional
 	// +listType=set
 	ExternallyManagedMemberAddresses []string `json:"externallyManagedMemberAddresses,omitempty"`

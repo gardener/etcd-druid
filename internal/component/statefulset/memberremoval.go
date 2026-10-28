@@ -34,7 +34,7 @@ const (
 // desired spec does not, which happens in two cases: a scale-in (spec.replicas
 // lowered) and a bootstrap members removal (a joined bootstrapWithExistingCluster
 // source member dropped from spec). For externally managed members it also
-// covers an address removed from spec.externallyManagedMemberAddresses. It is a
+// covers an address removed from spec.etcd.externallyManagedMembers.addresses. It is a
 // no-op when none applies.
 func (r _resource) ensureSurplusMembersAreRemoved(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd) error {
 	shouldRemove, err := r.shouldRemoveSurplusMembers(ctx, etcd)
@@ -122,7 +122,7 @@ func (r _resource) shouldRemoveSurplusMembers(ctx component.OperatorContext, etc
 
 	// etcd-druid does not manage the pods of externally managed members, so it
 	// cannot detect a scale-in from the StatefulSet. Once the cluster has formed,
-	// any live member that is not in spec.externallyManagedMemberAddresses is
+	// any live member that is not in spec.etcd.externallyManagedMembers.addresses is
 	// surplus.
 	if !druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
 		return len(etcd.Status.Members) > 0, nil

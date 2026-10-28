@@ -7,8 +7,10 @@ package etcd
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/test/utils"
 
 	. "github.com/onsi/gomega"
@@ -186,7 +188,7 @@ func TestValidateUpdateSpecVolumeClaimTemplate(t *testing.T) {
 	}
 }
 
-// TestValidateUpdateSpecExternallyManagedMemberAddresses checks the dynamic addition or removal of the field.
+// TestValidateUpdateSpecExternallyManagedMemberAddresses checks dynamic addition or removal of the new and deprecated address fields.
 func TestValidateUpdateSpecExternallyManagedMemberAddresses(t *testing.T) {
 	skipCELTestsForOlderK8sVersions(t)
 	testNs, g := setupTestEnvironment(t)
@@ -258,16 +260,27 @@ func TestValidateUpdateSpecExternallyManagedMemberAddresses(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			etcd := utils.EtcdBuilderWithoutDefaults(test.etcdName, testNs).WithReplicas(int32(test.initialReplicas)).Build()
-			etcd.Spec.ExternallyManagedMemberAddresses = test.initialExternallyManagedAddresses
-
-			cl := itTestEnv.GetClient()
-			ctx := context.Background()
-			g.Expect(cl.Create(ctx, etcd)).To(Succeed())
-
-			etcd.Spec.Replicas = int32(test.updatedReplicas)
-			etcd.Spec.ExternallyManagedMemberAddresses = test.updatedExternallyManagedAddresses
-			validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+			for _, deprecated := range []bool{false, true} {
+				t.Run(fmt.Sprintf("deprecated=%t", deprecated), func(t *testing.T) {
+					etcd := utils.EtcdBuilderWithoutDefaults(fmt.Sprintf("%s-%t", test.etcdName, deprecated), testNs).WithReplicas(int32(test.initialReplicas)).Build()
+					setAddresses := func(addresses []string) {
+						if deprecated {
+							etcd.Spec.ExternallyManagedMemberAddresses = addresses
+						} else if len(addresses) > 0 {
+							etcd.Spec.Etcd.ExternallyManagedMembers = &druidv1alpha1.ExternallyManagedMembersConfig{Addresses: addresses}
+						} else {
+							etcd.Spec.Etcd.ExternallyManagedMembers = nil
+						}
+					}
+					setAddresses(test.initialExternallyManagedAddresses)
+					cl := itTestEnv.GetClient()
+					ctx := context.Background()
+					g.Expect(cl.Create(ctx, etcd)).To(Succeed())
+					etcd.Spec.Replicas = int32(test.updatedReplicas)
+					setAddresses(test.updatedExternallyManagedAddresses)
+					validateEtcdUpdate(g, etcd, test.expectErr, ctx, cl)
+				})
+			}
 		})
 	}
 }
