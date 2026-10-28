@@ -1,0 +1,14 @@
+ocm:
+  component_name: github.com/gardener/etcd-wrapper
+  component_version: v0.8.3
+release_notes:
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: renormalize
+  category: other
+  contents: Upgrade to `go1.26.10`
+  mimetype: text/markdown
+  reference: '[#110](https://github.com/gardener/etcd-wrapper/pull/110)'
+  type: standard
