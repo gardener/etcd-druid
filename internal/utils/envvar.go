@@ -6,6 +6,7 @@ package utils
 
 import (
 	"fmt"
+	"path/filepath"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -62,6 +63,10 @@ func GetBackupRestoreContainerEnvVars(etcd *druidv1alpha1.Etcd) ([]corev1.EnvVar
 		envVars = append(envVars, GetEnvVarFromValue(common.EnvPodName, fmt.Sprintf("%s-$(%s)", etcd.Name, common.EnvPodIP)))
 	}
 	envVars = append(envVars, getEnvVarFromFieldPath(common.EnvPodNamespace, "metadata.namespace"))
+
+	if druidv1alpha1.IsEndpointsDiscoveryEnabled(etcd) {
+		envVars = append(envVars, GetEnvVarFromValue(common.EnvEndpoints, filepath.Join(common.VolumeMountPathDynamicEndpoints, filepath.Base(etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.EndpointsFilePath))))
+	}
 
 	if etcd.Spec.Backup.Store == nil {
 		return envVars, nil

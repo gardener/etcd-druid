@@ -507,7 +507,7 @@ func TestEnsureMemberRemovalBootstrapManagedMemberGate(t *testing.T) {
 
 // TestEnsureMemberRemovalExternallyManagedMembers verifies surplus member
 // removal for externally managed members: a live member whose address is no
-// longer in spec.externallyManagedMemberAddresses is removed without any scale
+// longer in spec.etcd.externallyManagedMembers.addresses is removed without any scale
 // condition or StatefulSet replicas, but only once the cluster has formed.
 func TestEnsureMemberRemovalExternallyManagedMembers(t *testing.T) {
 	const (
