@@ -1,0 +1,15 @@
+ocm:
+  component_name: github.com/gardener/etcd-wrapper
+  component_version: v0.8.1
+release_notes:
+- audience: dependency
+  author:
+    hostname: github.com
+    type: githubUser
+    username: anveshreddy18
+  category: other
+  contents: Upgrade Go builder to `1.26.5` and bump `grpc`, `golang.org/x/crypto`
+    and `golang.org/x/net` to fix reported vulnerabilities.
+  mimetype: text/markdown
+  reference: '[#98](https://github.com/gardener/etcd-wrapper/pull/98)'
+  type: standard
