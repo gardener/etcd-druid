@@ -1,0 +1,54 @@
+ocm:
+  component_name: github.com/gardener/etcd-backup-restore
+  component_version: v0.45.0
+release_notes:
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: CaptainIRS
+  category: feature
+  contents: When the ENDPOINTS environment variable is set to a file path, etcd-backup-restore
+    derives etcd client endpoints and served advertise URLs dynamically from that
+    file and a live member list call to the etcd cluster, instead of static config-map
+    entries. A background refresh loop (--enable-endpoints-refresh, --endpoints-refresh-interval)
+    keeps the file current. An empty file is valid bootstrap state.
+  mimetype: text/markdown
+  reference: '[#1053](https://github.com/gardener/etcd-backup-restore/pull/1053)'
+  type: standard
+- audience: user
+  author:
+    hostname: github.com
+    type: githubUser
+    username: anveshreddy18
+  category: noteworthy
+  contents: 'REVERTED: Removed deprecated support for passing storage endpoint via
+    credential secrets for AWS, GCP & Azure. Users must now use the [--store-endpoint-override](https://github.com/gardener/etcd-backup-restore/blob/36243e6fca29ac92342cd5ce92f67462b6e57c06/docs/deployment/getting_started.md?plain=1#L21)
+    flag for custom endpoints (emulators, S3-compatible providers, regional endpoints).
+    The following credential secret fields are no longer supported: `endpoint` (S3),
+    `domain`/`emulatorEnabled` (Azure), `storageAPIEndpoint`/`emulatorEnabled` (GCS).'
+  mimetype: text/markdown
+  reference: '[#1057](https://github.com/gardener/etcd-backup-restore/pull/1057)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: CaptainIRS
+  category: other
+  contents: Re-trigger release to fix component-descriptors. (no code changes)
+  mimetype: text/markdown
+  reference: '[#1064](https://github.com/gardener/etcd-backup-restore/pull/1064)'
+  type: standard
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: seshachalam-yv
+  category: feature
+  contents: Added a membership removal check to etcd-backup-restore that prevents
+    a scaled-in etcd member from re-adding itself as a learner after etcd-druid removes
+    it during a scale-in operation.
+  mimetype: text/markdown
+  reference: '[#1058](https://github.com/gardener/etcd-backup-restore/pull/1058)'
+  type: standard
