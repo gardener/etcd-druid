@@ -1,0 +1,17 @@
+ocm:
+  component_name: github.com/gardener/etcd-backup-restore
+  component_version: v0.45.3
+release_notes:
+- audience: operator
+  author:
+    hostname: github.com
+    type: githubUser
+    username: Perseus985
+  category: bugfix
+  contents: Runtime base image bumped from `distroless/static-debian12` to `distroless/static-debian13`.
+    The debian12 CA bundle still trusts the roots `emSign ECC Root CA - G3` and `AAA
+    Certificate Services`, whose eMudhra intermediate CA keys are publicly recoverable
+    (https://emudhra.we-have-a-problem.com/).
+  mimetype: text/markdown
+  reference: '[#1092](https://github.com/gardener/etcd-backup-restore/pull/1092)'
+  type: standard
