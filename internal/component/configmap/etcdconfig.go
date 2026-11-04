@@ -6,6 +6,7 @@ package configmap
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -167,7 +168,7 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 	} else {
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
-			fmt.Fprintf(&builder, "%s=%s://%s:%s,", memberName, peerScheme, memberAddress, serverPort)
+			fmt.Fprintf(&builder, "%s=%s://%s,", memberName, peerScheme, net.JoinHostPort(memberAddress, serverPort))
 		}
 	}
 
@@ -222,7 +223,7 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 		// configured addresses and do not use the internal headless service DNS.
 		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
-			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}
+			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s", scheme, net.JoinHostPort(memberAddress, strconv.Itoa(int(port))))}
 		}
 	}
 

@@ -9,7 +9,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
@@ -116,11 +118,11 @@ func newHTTPClient(ctx context.Context, cl client.Client, etcd *druidv1alpha1.Et
 
 // fullSnapshot makes an HTTP GET request to the etcd client service for a full snapshot.
 func fullSnapshot(ctx context.Context, etcd *druidv1alpha1.Etcd, httpClient httpClientInterface, httpScheme string) error {
+	backupPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)))
 	fullSnapshotURL := fmt.Sprintf(
-		"%s://%s:%d/snapshot/full",
+		"%s://%s/snapshot/full",
 		httpScheme,
-		druidv1alpha1.GetClientHostname(etcd),
-		ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore),
+		net.JoinHostPort(druidv1alpha1.GetClientHostname(etcd), backupPort),
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullSnapshotURL, nil)
 	if err != nil {

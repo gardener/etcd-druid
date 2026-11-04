@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
@@ -100,7 +102,8 @@ func (h *handler) Execute(ctx context.Context) taskhandler.Result {
 	}
 	h.httpClient = httpClient
 
-	url := fmt.Sprintf("%s://%s:%d/snapshot/%s", httpScheme, druidv1alpha1.GetClientHostname(etcd), ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore), h.config.Type)
+	backupPort := strconv.Itoa(int(ptr.Deref(etcd.Spec.Backup.Port, common.DefaultPortEtcdBackupRestore)))
+	url := fmt.Sprintf("%s://%s/snapshot/%s", httpScheme, net.JoinHostPort(druidv1alpha1.GetClientHostname(etcd), backupPort), h.config.Type)
 	if ptr.Deref(h.config.IsFinal, false) {
 		url += "?final=true"
 	}
