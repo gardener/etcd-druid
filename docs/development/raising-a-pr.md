@@ -63,3 +63,4 @@ For every pull-request, it is ***mandatory*** to raise an [Issue](https://github
 * Merge can only be done if the PR has approvals from atleast 2 reviewers.
 * Add an appropriate release note detailing what is introduced as part of this PR.
 * Before merging the PR, ensure that you squash and then merge.
+* After your PR get merged, if you'd like your fix backported to another branch for inclusion in a patch release, open a backport PR against that respective branch. A maintainer will include it if they are cutting the patch release.
