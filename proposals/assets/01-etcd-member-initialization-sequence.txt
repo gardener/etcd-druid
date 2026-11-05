@@ -1,0 +1,38 @@
+// build: https://sequencediagram.org
+
+title Etcd Member Initialization
+
+participant kubelet
+participant etcd container bootstrap script
+participant etcd-backup-restore sidecar container
+database etcd resource
+database etcd configuration template
+database backup
+database etcd client service
+participant etcd container etcd
+
+activate kubelet
+activate etcd resource
+activate etcd configuration template
+activate backup
+activate etcd client service
+kubelet->etcd container bootstrap script: (re)start
+activate etcd container bootstrap script
+kubelet->etcd-backup-restore sidecar container: (re)start
+activate etcd-backup-restore sidecar container
+etcd container bootstrap script->etcd-backup-restore sidecar container:initialize
+etcd-backup-restore sidecar container->etcd configuration template: Load
+etcd-backup-restore sidecar container->etcd resource: Get Status
+etcd-backup-restore sidecar container->etcd client service: List members
+etcd-backup-restore sidecar container->backup: Get latest backed up revision
+etcd-backup-restore sidecar container->etcd-backup-restore sidecar container: Check if WAL directory contains valid metadata
+etcd-backup-restore sidecar container->etcd client service: If necessary, remove old member and add new member
+etcd-backup-restore sidecar container->etcd resource: If necessary, remove old member and add new member
+etcd-backup-restore sidecar container->etcd-backup-restore sidecar container: Check if data directory contains valid data
+etcd-backup-restore sidecar container->etcd-backup-restore sidecar container: If necessary restore latest full snapshot from backup
+etcd-backup-restore sidecar container->backup: If necessary, fetch latest full snapshot and restore the database from it
+etcd-backup-restore sidecar container->backup: If necessary, fetch and apply incremental snapshots on the restored database
+etcd-backup-restore sidecar container->backup: If necessary, take a fresh full snapshot and upload
+etcd container bootstrap script<--etcd-backup-restore sidecar container: If necessary, generate appropriate etcd configuration (based on the loaded template) and return success.
+etcd container bootstrap script->etcd container etcd: start using the generated configuration
+activate etcd container etcd
