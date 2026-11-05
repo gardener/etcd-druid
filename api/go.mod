@@ -9,7 +9,7 @@ require (
 )
 
 // Test dependencies
-require github.com/onsi/gomega v1.39.0
+require github.com/onsi/gomega v1.42.1
 
 require (
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
