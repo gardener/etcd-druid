@@ -84,6 +84,30 @@ func TestFullSnapshot(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:       "should trigger full snapshot with an externally managed IPv6 member address (success)",
+			httpScheme: "http",
+			etcd: testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+				WithExternallyManagedMembers([]string{"fd00::1"}).
+				WithBackupPort(&backupPort).
+				Build(),
+			httpClient: &mockHTTPClient{
+				DoFunc: func(req *http.Request) (*http.Response, error) {
+					expectedURL := fmt.Sprintf(
+						"http://[fd00::1]:%d/snapshot/full",
+						backupPort,
+					)
+					if req.URL.String() != expectedURL {
+						return nil, fmt.Errorf("unexpected URL: %s", req.URL.String())
+					}
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       http.NoBody,
+					}, nil
+				},
+			},
+			expectError: false,
+		},
+		{
 			name:       "should trigger full snapshot with externally managed member addresses (success)",
 			httpScheme: "http",
 			etcd: testutils.EtcdBuilderWithoutDefaults(testutils.TestEtcdName, testutils.TestNamespace).
