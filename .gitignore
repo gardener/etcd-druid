@@ -73,6 +73,7 @@ go.work.sum
 test/e2e/pki-resources/*
 test/e2e/controller/pki-resources/*
 test/e2e/controller/etcdopstask/pki-resources/*
+test/e2e/controller/ext-members-resources/*
 
 # AI coding agents
 # Claude Code

@@ -6,6 +6,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -22,6 +23,7 @@ import (
 
 const (
 	PKIResourcesDir              = "pki-resources"
+	ExtMembersResourcesDir       = "ext-members-resources"
 	DefaultBackupStoreSecretName = "etcd-backup"
 	DefaultEtcdName              = "test"
 
@@ -29,6 +31,9 @@ const (
 	EnvKubeconfigPath      = "KUBECONFIG"
 	EnvRetainTestArtifacts = "RETAIN_TEST_ARTIFACTS"
 	EnvBackupProviders     = "PROVIDERS"
+	EnvKindClusterName     = "KIND_CLUSTER_NAME"
+
+	DefaultKindClusterName = "etcd-druid-e2e"
 )
 
 // RetainTestArtifactsMode controls whether test artifacts are retained after test execution.
@@ -121,4 +126,51 @@ func CleanupTestArtifacts(retainTestArtifacts RetainTestArtifactsMode, testSucce
 	logger.Info(fmt.Sprintf("deleting namespace %s", ns))
 	g.Expect(testEnv.DeleteTestNamespace(ns)).To(Succeed())
 	logger.Info("successfully deleted namespace")
+}
+
+// ShouldCleanup returns true if test artifacts should be cleaned up based on the retain mode and test result.
+func ShouldCleanup(retainTestArtifacts RetainTestArtifactsMode, testSucceeded bool) bool {
+	switch retainTestArtifacts {
+	case RetainTestArtifactsAll:
+		return false
+	case RetainTestArtifactsFailed:
+		return testSucceeded
+	default:
+		return true
+	}
+}
+
+// InitializeExternalMembersTestCase sets up the test namespace for externally managed members tests.
+func InitializeExternalMembersTestCase(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace string) {
+	CreateNamespace(g, testEnv, logger, testNamespace)
+}
+
+// InitializeExternalMembersTestCaseWithTLS sets up the test namespace and generates PKI resources
+// with IP SANs for the given member IPs, then creates the corresponding TLS secrets.
+func InitializeExternalMembersTestCaseWithTLS(g *WithT, testEnv *testenv.TestEnvironment, logger logr.Logger, testNamespace, etcdName string, memberIPs []net.IP) (etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir string) {
+	CreateNamespace(g, testEnv, logger, testNamespace)
+	etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir = GeneratePKIResourcesWithIPSANs(g, logger, testNamespace, etcdName, memberIPs)
+	CreateTLSSecrets(g, testEnv, logger, testNamespace, etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir)
+	return etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir
+}
+
+// GeneratePKIResourcesWithIPSANs generates PKI resources with IP SANs for externally managed member certs.
+func GeneratePKIResourcesWithIPSANs(g *WithT, logger logr.Logger, testNamespace, etcdName string, memberIPs []net.IP) (string, string, string) {
+	logger.Info("generating PKI resources with IP SANs", "memberIPs", memberIPs)
+	certDir := fmt.Sprintf("%s/%s", ExtMembersResourcesDir, testNamespace)
+
+	etcdCertsDir := fmt.Sprintf("%s/etcd", certDir)
+	g.Expect(os.MkdirAll(etcdCertsDir, 0755)).To(Succeed()) // #nosec G301 -- local directory creation for test purposes.
+	g.Expect(testutils.GeneratePKIResourcesWithIPSANs(logger, etcdCertsDir, etcdName, testNamespace, memberIPs)).To(Succeed())
+
+	etcdPeerCertsDir := fmt.Sprintf("%s/etcd-peer", certDir)
+	g.Expect(os.MkdirAll(etcdPeerCertsDir, 0755)).To(Succeed()) // #nosec G301 -- local directory creation for test purposes.
+	g.Expect(testutils.GeneratePKIResourcesWithIPSANs(logger, etcdPeerCertsDir, etcdName, testNamespace, memberIPs)).To(Succeed())
+
+	etcdbrCertsDir := fmt.Sprintf("%s/etcd-backup-restore", certDir)
+	g.Expect(os.MkdirAll(etcdbrCertsDir, 0755)).To(Succeed()) // #nosec G301 -- local directory creation for test purposes.
+	g.Expect(testutils.GeneratePKIResourcesWithIPSANs(logger, etcdbrCertsDir, etcdName, testNamespace, memberIPs)).To(Succeed())
+
+	logger.Info("successfully generated PKI resources with IP SANs")
+	return etcdCertsDir, etcdPeerCertsDir, etcdbrCertsDir
 }

@@ -60,21 +60,24 @@ func TestGetClientHostnameWithDruidManagedMembers(t *testing.T) {
 }
 
 func TestGetClientHostnameWithExternallyManagedMembers(t *testing.T) {
-	g := NewWithT(t)
-	etcdObjMeta := createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false)
-	etcd := &Etcd{
-		ObjectMeta: etcdObjMeta,
-		Spec: EtcdSpec{
-			Replicas: 3,
-			ExternallyManagedMemberAddresses: []string{
-				"1.1.1.1",
-				"1.1.1.2",
-				"1.1.1.3",
-			},
-		},
+	addresses := []string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}
+	for _, deprecated := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deprecated=%t", deprecated), func(t *testing.T) {
+			g := NewWithT(t)
+			etcd := &Etcd{
+				ObjectMeta: createEtcdObjectMetadata(uuid.NewUUID(), nil, nil, false),
+				Spec:       EtcdSpec{Replicas: 3},
+			}
+			if deprecated {
+				etcd.Spec.ExternallyManagedMemberAddresses = addresses
+			} else {
+				etcd.Spec.Etcd.ExternallyManagedMembers = &ExternallyManagedMembersConfig{Addresses: addresses}
+			}
+			g.Expect(GetClientHostname(etcd)).To(BeElementOf(addresses))
+			g.Expect(ArePodsManagedByEtcdDruid(etcd)).To(BeFalse())
+			g.Expect(GetMemberNames(etcd)).To(Equal([]string{etcd.Name + "-1.1.1.1", etcd.Name + "-1.1.1.2", etcd.Name + "-1.1.1.3"}))
+		})
 	}
-	clientHostname := GetClientHostname(etcd)
-	g.Expect(clientHostname).Should(BeElementOf([]string{"1.1.1.1", "1.1.1.2", "1.1.1.3"}))
 }
 
 func TestGetServiceAccountName(t *testing.T) {
