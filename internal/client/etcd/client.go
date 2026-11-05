@@ -11,6 +11,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -80,23 +82,18 @@ func NewFactory() Factory {
 }
 
 // NewClient builds a clientv3-backed Client connecting to the Etcd resource's
-// client Service. When TLS is enabled, mTLS credentials are resolved from the
-// Etcd CR's TLS secret references; it fails closed if they cannot be resolved.
+// client Service or all externally managed member addresses. When TLS is enabled,
+// mTLS credentials are resolved from the Etcd CR's TLS secret references; it fails
+// closed if they cannot be resolved.
 func (f *clientFactory) NewClient(ctx context.Context, k8sClient client.Client, etcd *druidv1alpha1.Etcd) (Client, error) {
 	scheme, tlsConfig, err := kutil.GetEtcdClientSchemeAndTLSConfig(ctx, k8sClient, etcd)
 	if err != nil {
 		return nil, err
 	}
 
-	endpoint := fmt.Sprintf("%s://%s:%d",
-		scheme,
-		druidv1alpha1.GetClientHostname(etcd),
-		druidv1alpha1.GetClientPort(etcd),
-	)
-
 	cli, err := clientv3.New(clientv3.Config{
 		Context:     ctx,
-		Endpoints:   []string{endpoint},
+		Endpoints:   getClientEndpoints(etcd, scheme),
 		DialTimeout: defaultDialTimeout,
 		TLS:         tlsConfig,
 	})
@@ -118,6 +115,19 @@ func (f *clientFactory) NewClient(ctx context.Context, k8sClient client.Client, 
 	c := newClient(cli, cli.Close)
 	c.(*etcdClient).dialFn = dialFn
 	return c, nil
+}
+
+func getClientEndpoints(etcd *druidv1alpha1.Etcd, scheme string) []string {
+	hostnames := etcd.Spec.ExternallyManagedMemberAddresses
+	if druidv1alpha1.ArePodsManagedByEtcdDruid(etcd) {
+		hostnames = []string{druidv1alpha1.GetClientHostname(etcd)}
+	}
+	port := strconv.Itoa(int(druidv1alpha1.GetClientPort(etcd)))
+	endpoints := make([]string, len(hostnames))
+	for i, hostname := range hostnames {
+		endpoints[i] = fmt.Sprintf("%s://%s", scheme, net.JoinHostPort(hostname, port))
+	}
+	return endpoints
 }
 
 // probeClient is the narrow interface returned by dialFn for calls that must

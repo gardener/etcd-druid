@@ -22,6 +22,7 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/gomega"
@@ -373,6 +374,58 @@ func TestListMembersNoClientURLs(t *testing.T) {
 	g.Expect(byName["etcd-main-0"].Role).To(Equal(etcdmember.MemberRoleLeader))
 	g.Expect(byName["etcd-main-0"].Health).To(Equal(etcdmember.MemberHealthHealthy))
 	g.Expect(byName["etcd-main-1"].Health).To(Equal(etcdmember.MemberHealthUnknown))
+}
+
+func TestGetClientEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		addresses []string
+		port      *int32
+		scheme    string
+		want      []string
+	}{
+		{
+			name:   "managed members use the client Service",
+			scheme: "http",
+			want:   []string{"http://etcd-main-client.test-ns.svc:2379"},
+		},
+		{
+			name:      "all external members are registered",
+			addresses: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"},
+			scheme:    "http",
+			want:      []string{"http://10.0.0.1:2379", "http://10.0.0.2:2379", "http://10.0.0.3:2379"},
+		},
+		{
+			name:      "external IPv4 IPv6 and hostname with custom client port",
+			addresses: []string{"10.0.0.1", "2001:db8::1", "etcd-member.example.com"},
+			port:      ptr.To[int32](12379),
+			scheme:    "http",
+			want:      []string{"http://10.0.0.1:12379", "http://[2001:db8::1]:12379", "http://etcd-member.example.com:12379"},
+		},
+		{
+			name:      "all external members use the configured scheme",
+			addresses: []string{"10.0.0.1", "2001:db8::1"},
+			scheme:    "https",
+			want:      []string{"https://10.0.0.1:2379", "https://[2001:db8::1]:2379"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			etcd := &druidv1alpha1.Etcd{
+				ObjectMeta: metav1.ObjectMeta{Name: memberClientEtcdName, Namespace: memberClientNamespace},
+				Spec: druidv1alpha1.EtcdSpec{
+					ExternallyManagedMemberAddresses: tc.addresses,
+					Etcd:                             druidv1alpha1.EtcdConfig{ClientPort: tc.port},
+				},
+			}
+			g.Expect(getClientEndpoints(etcd, tc.scheme)).To(Equal(tc.want))
+		})
+	}
 }
 
 // TestNewClientFailsClosedWhenTLSExpectedButUnresolved verifies that
