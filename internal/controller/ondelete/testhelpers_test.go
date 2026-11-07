@@ -5,13 +5,13 @@
 package ondelete
 
 import (
-	"github.com/gardener/etcd-druid/internal/common"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+
+	"github.com/gardener/etcd-druid/internal/common"
 )
 
 // Shared test-fixture helpers for the ondelete package. Kept minimal so each
@@ -44,14 +44,20 @@ func withStsOwner(pod *corev1.Pod, sts *appsv1.StatefulSet) *corev1.Pod {
 	return pod
 }
 
-// makeStsPod builds a pod that carries the labels of a StatefulSet with the
-// given base name plus the controller-revision-hash label at revision.
-// participating controls the etcd container's Ready flag.
+// makeStsPod creates a pod with the given StatefulSet labels and revision.
+// participating sets whether its etcd container is ready. The pod is owned by
+// the matching StatefulSet so it is included by ListStatefulSetPods.
 func makeStsPod(name, namespace, revision string, participating bool) *corev1.Pod {
-	labels := getStsLabels(baseNameFromPod(name))
+	baseName := baseNameFromPod(name)
+	labels := getStsLabels(baseName)
 	labels[appsv1.StatefulSetRevisionLabel] = revision
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			Namespace:       namespace,
+			Labels:          labels,
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(stsFixture(baseName, namespace, revision, 0), appsv1.SchemeGroupVersion.WithKind("StatefulSet"))},
+		},
 		Status: corev1.PodStatus{
 			ContainerStatuses: []corev1.ContainerStatus{
 				{

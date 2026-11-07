@@ -143,18 +143,13 @@ func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error 
 	}
 	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.ArePodsManagedByEtcdDruid(b.etcd), b.replicas, 0))
 
-	// The Etcd reconciler is the only actor to modify updateStrategy.type. The OnDelete
-	// controller only acts on deleting the pods and never mutates StatefulSet spec. The field
-	// is rewritten on every Sync, so a gate flip converges on the next reconcile.
-	// See DEP-07 Transitioning Between Strategies for the transition semantics
-	stsUpdateStrategy := utils.IfConditionOr(
+	b.sts.Spec.UpdateStrategy = utils.IfConditionOr(
 		druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdates),
 		appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType},
 		appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType},
 	)
-	b.sts.Spec.UpdateStrategy = stsUpdateStrategy
 
-	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace, "updateStrategy", stsUpdateStrategy.Type)
+	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace, "updateStrategy", b.sts.Spec.UpdateStrategy.Type)
 
 	if !b.skipSetOrUpdateForbiddenFields {
 		b.sts.Spec.Selector = &metav1.LabelSelector{

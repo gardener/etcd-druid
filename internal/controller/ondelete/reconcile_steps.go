@@ -10,11 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
-	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
-
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +18,12 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
+	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
+	"github.com/gardener/etcd-druid/internal/utils/kubernetes"
 )
 
 const (
@@ -52,7 +53,11 @@ type podRolloutState struct {
 type rolloutStepFn func(ctx context.Context, logger logr.Logger, s *podRolloutState) ctrlutils.ReconcileStepResult
 
 // reconcilePodRollout runs the pod update procedure
-func (r *Reconciler) reconcilePodRollout(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet, pods []corev1.Pod) (ctrl.Result, error) {
+func (r *Reconciler) reconcilePodRollout(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd, sts *appsv1.StatefulSet) (ctrl.Result, error) {
+	pods, err := kubernetes.ListStatefulSetPods(ctx, r.client, sts)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	s := &podRolloutState{sts: sts, etcd: etcd, pods: pods}
 
 	if result := r.runCommonPodRolloutChecks(ctx, logger, s); ctrlutils.ShortCircuitReconcileFlow(result) {
@@ -141,8 +146,7 @@ func (r *Reconciler) requeueIfPodsTerminatingOrMissing(_ context.Context, logger
 	return ctrlutils.ContinueReconcile()
 }
 
-// listLiveMembers dials the etcd cluster once and records its live membership
-// and the conclusive quorum state of the cluster.
+// listLiveMembers dials the etcd cluster and records its live membership and the conclusive quorum state of the cluster.
 func (r *Reconciler) listLiveMembers(ctx context.Context, logger logr.Logger, s *podRolloutState) ctrlutils.ReconcileStepResult {
 	etcdClient, err := r.clientFactory.NewClient(ctx, r.client, s.etcd)
 	if err != nil {
@@ -158,12 +162,18 @@ func (r *Reconciler) listLiveMembers(ctx context.Context, logger logr.Logger, s 
 	// A conclusive quorum observation via a linearizable operation. A transient
 	// failure (timeout, dial error) is returned as an error and makes us hold,
 	// so we never treat an inconclusive signal as quorum loss.
-	quorumState, err := etcdClient.ObserveQuorum(ctx)
+	quorumState, err := etcdclient.ObserveQuorum(ctx, etcdClient)
 	if err != nil {
 		logger.Info("holding: could not conclusively observe quorum, requeuing", "err", err.Error())
 		return ctrlutils.ReconcileAfter(requeueAfterInFlight, "could not conclusively observe quorum")
 	}
 	s.quorumState = quorumState
+
+	// Quorum is lost: skip the member list (it would fail without a leader) and
+	// let recoverIfQuorumLost drive the batch recovery.
+	if quorumState == etcdmember.QuorumStateLost {
+		return ctrlutils.ContinueReconcile()
+	}
 
 	members, err := etcdClient.MemberList(ctx)
 	if err != nil {

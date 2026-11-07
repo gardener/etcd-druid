@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"sync"
 
+	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	clientetcd "github.com/gardener/etcd-druid/internal/client/etcd"
 	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
-
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Client is a concurrency-safe test double that implements clientetcd.Client.
@@ -32,13 +33,8 @@ type Client struct {
 	MoveLeaderErr   error
 	CloseCalls      int
 	// QuorumState is the state ObserveQuorum returns when ObserveQuorumErr is nil.
-	// Defaults to QuorumStatePresent so tests that do not exercise quorum loss
-	// see a healthy cluster.
 	QuorumState etcdmember.QuorumState
-	// ObserveQuorumErr, when set, is returned by ObserveQuorum to simulate a
-	// transient/inconclusive failure.
-	ObserveQuorumErr error
-	removed          map[uint64]struct{}
+	removed     map[uint64]struct{}
 }
 
 // NewClient returns a Client with total voting members named
@@ -64,12 +60,17 @@ func NewClient(etcdName string, total int) *Client {
 	}
 }
 
-// MemberList implements clientetcd.Cluster.
+// MemberList implements clientetcd.Cluster. When QuorumState is QuorumStateLost
+// it returns rpctypes.ErrNoLeader, mirroring a real etcd cluster that cannot serve
+// a linearizable read, so that clientetcd.ObserveQuorum can conclude a quorum loss.
 func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.ListErr != nil {
 		return nil, f.ListErr
+	}
+	if f.QuorumState == etcdmember.QuorumStateLost {
+		return nil, rpctypes.ErrNoLeader
 	}
 	live := make([]etcdmember.Member, 0, len(f.Members))
 	for _, m := range f.Members {
@@ -78,16 +79,6 @@ func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 		}
 	}
 	return live, nil
-}
-
-// ObserveQuorum returns ObserveQuorumErr when set, otherwise the configured QuorumState.
-func (f *Client) ObserveQuorum(_ context.Context) (etcdmember.QuorumState, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.ObserveQuorumErr != nil {
-		return "", f.ObserveQuorumErr
-	}
-	return f.QuorumState, nil
 }
 
 // SetMembers replaces the member list under the lock, so a test can change the

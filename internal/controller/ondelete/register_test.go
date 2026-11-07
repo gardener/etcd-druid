@@ -7,13 +7,16 @@ package ondelete
 import (
 	"testing"
 
+	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	. "github.com/onsi/gomega"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 
 func TestOnDeleteStrategyPredicate(t *testing.T) {
@@ -60,6 +63,17 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 			expectUpdate: false,
 			expectDelete: false,
 		},
+		{
+			name: "OnDelete StatefulSet not owned by an Etcd is filtered out",
+			object: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "orphan", Namespace: testStsNamespace},
+				Spec:       appsv1.StatefulSetSpec{UpdateStrategy: appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}},
+				Status:     appsv1.StatefulSetStatus{UpdateRevision: "rev-1"},
+			},
+			expectCreate: false,
+			expectUpdate: false,
+			expectDelete: false,
+		},
 	}
 
 	t.Parallel()
@@ -82,6 +96,24 @@ func TestOnDeleteStrategyPredicate(t *testing.T) {
 			g.Expect(p.Generic(event.GenericEvent{Object: newObj})).To(BeFalse())
 		})
 	}
+}
+
+func TestManagedByEtcdDruidPredicate(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	p := managedByEtcdDruid()
+
+	managed := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:   "etcd-test-0",
+		Labels: map[string]string{druidv1alpha1.LabelManagedByKey: druidv1alpha1.LabelManagedByValue},
+	}}
+	unmanaged := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "random-pod"}}
+
+	// A druid-managed etcd pod passes every event type, unrelated pods are dropped.
+	g.Expect(p.Create(event.CreateEvent{Object: managed})).To(BeTrue())
+	g.Expect(p.Update(event.UpdateEvent{ObjectOld: managed, ObjectNew: managed})).To(BeTrue())
+	g.Expect(p.Create(event.CreateEvent{Object: unmanaged})).To(BeFalse())
+	g.Expect(p.Update(event.UpdateEvent{ObjectOld: unmanaged, ObjectNew: unmanaged})).To(BeFalse())
 }
 
 func TestUpdateRevisionChangedPredicate(t *testing.T) {
@@ -163,8 +195,18 @@ func TestUpdateRevisionChangedPredicate(t *testing.T) {
 // stsWithStrategy builds a minimal StatefulSet for predicate testing.
 func stsWithStrategy(name string, strategy appsv1.StatefulSetUpdateStrategyType, revision string) *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testStsNamespace},
-		Spec:       appsv1.StatefulSetSpec{UpdateStrategy: appsv1.StatefulSetUpdateStrategy{Type: strategy}},
-		Status:     appsv1.StatefulSetStatus{UpdateRevision: revision},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testStsNamespace,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: druidv1alpha1.SchemeGroupVersion.String(),
+				Kind:       "Etcd",
+				Name:       name,
+				UID:        types.UID(name + "-uid"),
+				Controller: ptr.To(true),
+			}},
+		},
+		Spec:   appsv1.StatefulSetSpec{UpdateStrategy: appsv1.StatefulSetUpdateStrategy{Type: strategy}},
+		Status: appsv1.StatefulSetStatus{UpdateRevision: revision},
 	}
 }

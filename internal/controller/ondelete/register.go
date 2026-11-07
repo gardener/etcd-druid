@@ -7,11 +7,15 @@ package ondelete
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 
 const controllerName = "ondelete-controller"
@@ -25,16 +29,24 @@ func (r *Reconciler) RegisterWithManager(mgr ctrl.Manager) error {
 			MaxConcurrentReconciles: *r.config.ConcurrentSyncs,
 		}).
 		For(&appsv1.StatefulSet{}, builder.WithPredicates(onDeleteRolloutTrigger())).
-		Owns(&corev1.Pod{}).
+		Owns(&corev1.Pod{}, builder.WithPredicates(managedByEtcdDruid())).
 		Complete(r)
 }
 
-// onDeleteRolloutTrigger is the predicate for the OnDelete controller.
+// isEtcdOwnedStatefulSet reports whether the StatefulSet's controller owner is an Etcd resource.
+func isEtcdOwnedStatefulSet(sts *appsv1.StatefulSet) bool {
+	ownerRef := metav1.GetControllerOf(sts)
+	return ownerRef != nil &&
+		ownerRef.Kind == "Etcd" &&
+		ownerRef.APIVersion == druidv1alpha1.SchemeGroupVersion.String()
+}
+
+// onDeleteRolloutTrigger is the predicate for the OnDelete controller
 func onDeleteRolloutTrigger() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			sts, ok := e.Object.(*appsv1.StatefulSet)
-			return ok && sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType
+			return ok && isEtcdOwnedStatefulSet(sts) && sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType
 		},
 		DeleteFunc:  func(_ event.DeleteEvent) bool { return false },
 		GenericFunc: func(_ event.GenericEvent) bool { return false },
@@ -47,11 +59,18 @@ func onDeleteRolloutTrigger() predicate.Predicate {
 			if !ok {
 				return false
 			}
-			if newSts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+			if !isEtcdOwnedStatefulSet(newSts) || newSts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
 				return false
 			}
 			return oldSts.Status.UpdateRevision != newSts.Status.UpdateRevision ||
 				oldSts.Spec.UpdateStrategy.Type != newSts.Spec.UpdateStrategy.Type
 		},
 	}
+}
+
+// managedByEtcdDruid passes only Pod events for pods labelled as managed by etcd-druid.
+func managedByEtcdDruid() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		return obj.GetLabels()[druidv1alpha1.LabelManagedByKey] == druidv1alpha1.LabelManagedByValue
+	})
 }

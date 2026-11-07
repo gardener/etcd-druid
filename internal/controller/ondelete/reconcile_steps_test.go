@@ -9,15 +9,8 @@ import (
 	"fmt"
 	"testing"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
-	"github.com/gardener/etcd-druid/internal/client/kubernetes"
-	"github.com/gardener/etcd-druid/internal/common"
-	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
-	testutils "github.com/gardener/etcd-druid/test/utils"
-
 	"github.com/go-logr/logr"
+	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +20,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	. "github.com/onsi/gomega"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
+	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/common"
+	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
+	testutils "github.com/gardener/etcd-druid/test/utils"
 )
 
 const (
@@ -249,7 +248,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeFalse())
 		// Verify no pods were deleted.
@@ -267,7 +266,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// Dead outdated pod should be gone.
@@ -284,7 +283,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// No pod deleted.
@@ -305,7 +304,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// Leader must still be present.
@@ -328,7 +327,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(1)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), singleEtcd, singleSts, []corev1.Pod{*p})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), singleEtcd, singleSts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{}))).To(BeTrue())
@@ -344,7 +343,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// No pod deleted this cycle.
@@ -371,7 +370,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0Terminating, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
@@ -390,7 +389,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// Dead outdated pod IS deleted despite the unready current-revision pod.
@@ -411,7 +410,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		_, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		_, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 
 		deleted := 0
@@ -437,7 +436,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), threeEtcd, threeSts, []corev1.Pod{*p0})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), threeEtcd, threeSts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// p0 must NOT be deleted while p1/p2 have not yet been created.
@@ -466,7 +465,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(5)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), fiveEtcd, fiveSts, pods)
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), fiveEtcd, fiveSts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 
@@ -501,7 +500,7 @@ func TestReconcilePodRollout(t *testing.T) {
 			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
 		)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// No pod deleted: the veto hold worked
@@ -522,7 +521,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		fakeClient.QuorumState = etcdmember.QuorumStateLost
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: &etcdclientfake.Factory{Client: fakeClient}}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// All outdated pods deleted.
@@ -549,7 +548,7 @@ func TestReconcilePodRollout(t *testing.T) {
 			etcdmember.Member{ID: 3, Name: druidv1alpha1.GetMemberName(prefixedEtcd.Spec.MemberNamePrefix, p2.Name), Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
 		)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), prefixedEtcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), prefixedEtcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		// p0 maps to its prefixed member, the removal is quorum-safe, so it is deleted.
@@ -569,7 +568,7 @@ func TestReconcilePodRollout(t *testing.T) {
 			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
 		)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed()) // not deleted
@@ -584,7 +583,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		listErrFactory := &etcdclientfake.Factory{Client: &etcdclientfake.Client{ListErr: fmt.Errorf("boom")}}
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: listErrFactory}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed()) // not deleted
@@ -599,7 +598,7 @@ func TestReconcilePodRollout(t *testing.T) {
 		dialErrFactory := &etcdclientfake.Factory{CreateErr: fmt.Errorf("cannot dial")}
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: dialErrFactory}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts, []corev1.Pod{*p0, *p1, *p2})
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed()) // not deleted
