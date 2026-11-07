@@ -6,54 +6,6 @@ package etcd
 
 import "sort"
 
-// QuorumSafeToRemove reports whether removing the member identified by
-// candidateID is safe with respect to quorum, using the health embedded in each
-// Member (populated from a live etcd Status probe). It takes no external health
-// maps: all health data comes from members[i].Health.
-//
-// The rules are:
-//   - A learner candidate is always safe to remove: learners do not participate
-//     in quorum.
-//   - A voter candidate is safe only when the healthy surviving voters (all
-//     voters except the candidate) still form a quorum of the remaining voters,
-//     i.e. at least ⌊(remaining voters)/2⌋ + 1. Unknown and Unhealthy members
-//     are fail-closed and do not count as healthy.
-func QuorumSafeToRemove(members Members, candidateID uint64) bool {
-	var candidate *Member
-	for i := range members {
-		if members[i].ID == candidateID {
-			candidate = &members[i]
-			break
-		}
-	}
-	if candidate == nil {
-		return false
-	}
-	if candidate.IsLearner() {
-		return true
-	}
-
-	votersAfter := 0
-	healthyVotersAfter := 0
-	for _, m := range members {
-		if m.ID == candidateID || !m.IsVoter() {
-			continue
-		}
-		votersAfter++
-		if m.IsHealthy() {
-			healthyVotersAfter++
-		}
-	}
-
-	// Removing the last voter would leave no cluster; treat as unsafe.
-	if votersAfter == 0 {
-		return false
-	}
-
-	quorumAfter := votersAfter/2 + 1
-	return healthyVotersAfter >= quorumAfter
-}
-
 // SelectNextRemovalCandidate returns the surplus member to remove next, or nil
 // when surplus is empty. Ordering follows OrderRemovalCandidates (learners
 // first, leader last).

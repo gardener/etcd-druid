@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -54,7 +55,6 @@ var (
 			corev1.ResourceMemory: apiresource.MustParse("128Mi"),
 		},
 	}
-	defaultUpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
 )
 
 type stsBuilder struct {
@@ -138,13 +138,19 @@ func (b *stsBuilder) getStatefulSetLabels() map[string]string {
 }
 
 func (b *stsBuilder) createStatefulSetSpec(ctx component.OperatorContext) error {
-	err := b.createPodTemplateSpec(ctx)
-	if err != nil {
+	if err := b.createPodTemplateSpec(ctx); err != nil {
 		return err
 	}
 	b.sts.Spec.Replicas = ptr.To(utils.IfConditionOr(druidv1alpha1.ArePodsManagedByEtcdDruid(b.etcd), b.replicas, 0))
-	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace)
-	b.sts.Spec.UpdateStrategy = defaultUpdateStrategy
+
+	b.sts.Spec.UpdateStrategy = utils.IfConditionOr(
+		druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.QuorumAwareUpdates),
+		appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType},
+		appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType},
+	)
+
+	b.logger.Info("Creating StatefulSet spec", "replicas", b.sts.Spec.Replicas, "name", b.sts.Name, "namespace", b.sts.Namespace, "updateStrategy", b.sts.Spec.UpdateStrategy.Type)
+
 	if !b.skipSetOrUpdateForbiddenFields {
 		b.sts.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: druidv1alpha1.GetDefaultLabels(b.etcd.ObjectMeta),

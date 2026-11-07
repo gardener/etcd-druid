@@ -16,14 +16,14 @@ import (
 	"sync"
 	"time"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
-	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
-
 	etcdserverpb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 )
 
 const (
@@ -217,6 +217,27 @@ func (c *etcdClient) MemberRemove(ctx context.Context, id uint64) error {
 // Status returns the status of the given etcd endpoint.
 func (c *etcdClient) Status(ctx context.Context, endpoint string) (*clientv3.StatusResponse, error) {
 	return c.api.Status(ctx, endpoint)
+}
+
+// ObserveQuorum derives the cluster-level quorum state from a single linearizable MemberList
+// The outcome is mapped as follows :
+//   - success         => QuorumStatePresent (quorum existed at that instant)
+//   - ErrNoLeader     => QuorumStateLost    (etcd itself reports it cannot serve)
+//   - any other error => inconclusive, returned as an error so the caller holds
+//     rather than acting on a transient failures such as timeout, dial failure, etc.
+func ObserveQuorum(ctx context.Context, cluster Cluster) (etcdmember.QuorumState, error) {
+	callCtx, cancel := context.WithTimeout(ctx, defaultCommandTimeout)
+	defer cancel()
+
+	_, err := cluster.MemberList(callCtx)
+	switch {
+	case err == nil:
+		return etcdmember.QuorumStatePresent, nil
+	case errors.Is(err, rpctypes.ErrNoLeader):
+		return etcdmember.QuorumStateLost, nil
+	default:
+		return "", fmt.Errorf("could not conclusively observe quorum: %w", err)
+	}
 }
 
 // MoveLeader asks the current leader to transfer leadership to the member with

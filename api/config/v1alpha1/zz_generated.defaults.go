@@ -26,6 +26,7 @@ func SetObjectDefaults_OperatorConfiguration(in *OperatorConfiguration) {
 	SetDefaults_ServerConfiguration(&in.Server)
 	SetDefaults_EtcdControllerConfiguration(&in.Controllers.Etcd)
 	SetDefaults_CompactionControllerConfiguration(&in.Controllers.Compaction)
+	SetDefaults_OnDeleteControllerConfiguration(&in.Controllers.OnDelete)
 	SetDefaults_EtcdCopyBackupsTaskControllerConfiguration(&in.Controllers.EtcdCopyBackupsTask)
 	SetDefaults_SecretControllerConfiguration(&in.Controllers.Secret)
 	SetDefaults_EtcdOpsTaskControllerConfiguration(&in.Controllers.EtcdOpsTask)
