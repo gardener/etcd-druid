@@ -77,6 +77,18 @@ var _ = Describe("AllMembersUpdatedCheck", func() {
 			})
 		})
 
+		Context("when statefulset is not controlled by etcd", func() {
+			It("should report an ownership mismatch rather than a missing StatefulSet", func() {
+				unowned := sts.DeepCopy()
+				unowned.OwnerReferences = nil
+				cl := testutils.CreateTestFakeClientForObjects(nil, nil, nil, nil, []client.Object{unowned}, client.ObjectKeyFromObject(unowned))
+				result := condition.AllMembersUpdatedCheck(cl).Check(context.Background(), etcd)
+
+				Expect(result.Status()).To(Equal(druidv1alpha1.ConditionUnknown))
+				Expect(result.Reason()).To(Equal("StatefulSetNotControlledByEtcd"))
+			})
+		})
+
 		Context("when statefulset is found", func() {
 			Context("when sts observed generation does not match sts generation", func() {
 				It("should return that the condition is false", func() {

@@ -57,7 +57,7 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedFlags(fs *flag.FlagSet) {
 	d.addDeprecatedEtcdOpsTaskControllerFlags(fs)
 	d.addDeprecatedSecretControllerFlags(fs)
 	d.addDeprecatedEtcdComponentProtectionWebhookFlags(fs)
-	fs.StringVar(&d.featureGates, "feature-gates", "", "A set of key-value pairs that describe feature gates for alpha/beta features. Options are: UpgradeEtcdVersion=true|false")
+	fs.StringVar(&d.featureGates, "feature-gates", "", "A set of key-value pairs that describe feature gates for alpha/beta features. Options are: UpgradeEtcdVersion=true|false, QuorumAwareUpdates=true|false")
 }
 
 func (d *deprecatedOperatorConfiguration) addDeprecatedControllerManagerFlags(fs *flag.FlagSet) {
@@ -110,6 +110,9 @@ func (d *deprecatedOperatorConfiguration) addDeprecatedEtcdComponentProtectionWe
 	fs.StringSliceVar(&d.etcdComponentProtectionExemptServiceAccounts, "etcd-components-webhook-exempt-service-accounts", []string{}, "The comma-separated list of fully qualified names of service accounts that are exempt from Etcd-Components-Webhook checks.")
 }
 
+// ToOperatorConfiguration converts the legacy flags to operator configuration.
+// controllers such as OnDelete which have no deprecated flags receive their
+// API defaults during option completion instead.
 func (d *deprecatedOperatorConfiguration) ToOperatorConfiguration() *druidconfigv1alpha1.OperatorConfiguration {
 	config := &druidconfigv1alpha1.OperatorConfiguration{
 		TypeMeta: metav1.TypeMeta{
