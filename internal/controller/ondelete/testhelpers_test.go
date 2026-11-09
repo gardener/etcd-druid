@@ -5,13 +5,13 @@
 package ondelete
 
 import (
+	"github.com/gardener/etcd-druid/internal/common"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-
-	"github.com/gardener/etcd-druid/internal/common"
 )
 
 // Shared test-fixture helpers for the ondelete package. Kept minimal so each

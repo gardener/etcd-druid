@@ -14,14 +14,14 @@ import (
 	"sync"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
+	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
+
 	etcdserverpb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
-	kutil "github.com/gardener/etcd-druid/internal/utils/kubernetes"
 )
 
 const (

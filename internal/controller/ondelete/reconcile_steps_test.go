@@ -9,8 +9,15 @@ import (
 	"fmt"
 	"testing"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
+	"github.com/gardener/etcd-druid/internal/client/kubernetes"
+	"github.com/gardener/etcd-druid/internal/common"
+	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
+	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
+	testutils "github.com/gardener/etcd-druid/test/utils"
+
 	"github.com/go-logr/logr"
-	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,13 +27,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
-	"github.com/gardener/etcd-druid/internal/client/kubernetes"
-	"github.com/gardener/etcd-druid/internal/common"
-	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
-	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
-	testutils "github.com/gardener/etcd-druid/test/utils"
+	. "github.com/onsi/gomega"
 )
 
 const (

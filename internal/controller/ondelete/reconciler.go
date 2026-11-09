@@ -10,6 +10,10 @@ import (
 	"context"
 	"fmt"
 
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
+
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,10 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-
-	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
-	etcdclient "github.com/gardener/etcd-druid/internal/client/etcd"
 )
 
 // Reconciler performs the OnDelete pod-update procedure on watched StatefulSets.

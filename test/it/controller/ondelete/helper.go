@@ -266,10 +266,15 @@ func followerFor(_ int) druidv1alpha1.EtcdRole { return druidv1alpha1.EtcdRoleMe
 // the health of each member taken from healthFor. It is used to drive the fake
 // etcd client so the reconciler's quorum gate sees a specific cluster state.
 func liveMembers(replicas int, healthFor func(int) etcdmember.MemberHealth) []etcdmember.Member {
+	return liveMembersWithLeader(replicas, 0, healthFor)
+}
+
+// liveMembersWithLeader places the leader at leaderIndex ordinal.
+func liveMembersWithLeader(replicas, leaderIndex int, healthFor func(int) etcdmember.MemberHealth) []etcdmember.Member {
 	members := make([]etcdmember.Member, 0, replicas)
 	for i := 0; i < replicas; i++ {
 		role := etcdmember.MemberRoleMember
-		if i == 0 {
+		if i == leaderIndex {
 			role = etcdmember.MemberRoleLeader
 		}
 		members = append(members, etcdmember.Member{

@@ -33,6 +33,7 @@ func TestOnDeleteRollout(t *testing.T) {
 		{"3-replica-zero-downtime", testOnDelete3ReplicaZeroDowntime},
 		{"scale-up-with-template-change", testOnDeleteScaleUpPlusTemplateChange},
 		{"resume-after-operator-restart", testOnDeleteResumesAfterOperatorRestart},
+		{"single-replica-rollout", testOnDeleteSingleReplicaRollout},
 	}
 
 	for _, tc := range testCases {
@@ -181,9 +182,44 @@ func testOnDeleteResumesAfterOperatorRestart(t *testing.T, tcName string, log lo
 	testSucceeded = true
 }
 
-// testOnDeleteGateOffUsesRollingUpdate verifies that when the QuorumAwareUpdates
-// feature gate is disabled, the Etcd reconciler keeps the StatefulSet
-// on the RollingUpdate strategy and an ordinary update completes normally.
+// testOnDeleteSingleReplicaRollout verifies that a single-replica (replicas=1) OnDelete
+// cluster rolls out a spec change to completion and returns to a ready state.
+func testOnDeleteSingleReplicaRollout(t *testing.T, tcName string, log logr.Logger) {
+	g := NewWithT(t)
+	var testSucceeded bool
+
+	testNamespace := testutils.GenerateTestNamespaceNameWithTestCaseName(t, testNamespacePrefix, tcName, 4)
+	logger := log.WithName(tcName).WithValues("etcdName", defaultEtcdName, "namespace", testNamespace)
+	defer func() {
+		e2eutils.CleanupTestArtifacts(retainTestArtifacts, testSucceeded, testEnv, logger, g, testNamespace)
+	}()
+	e2eutils.InitializeTestCase(g, testEnv, logger, testNamespace, defaultEtcdName, druidv1alpha1.StorageProvider("none"))
+
+	etcd := testutils.EtcdBuilderWithoutDefaults(defaultEtcdName, testNamespace).
+		WithReplicas(1).
+		WithEtcdClientPort(ptr.To[int32](2379)).
+		WithClientTLS().
+		WithPeerTLS().
+		WithGRPCGatewayEnabled().
+		WithBackupRestoreTLS().
+		Build()
+
+	logger.Info("creating Etcd (1 replica)")
+	testEnv.CreateAndCheckEtcd(g, etcd, timeoutEtcdCreation)
+	waitForStsUpdateStrategy(g, testEnv, logger, etcd, appsv1.OnDeleteStatefulSetStrategyType, timeoutOnDeleteRolloutStart)
+
+	fetched, err := testEnv.GetEtcd(etcd.Name, etcd.Namespace)
+	g.Expect(err).ToNot(HaveOccurred())
+	logger.Info("updating Etcd spec")
+	fetched.Spec.Etcd.Metrics = ptr.To(druidv1alpha1.Extensive)
+	testEnv.UpdateAndCheckEtcd(g, fetched, timeoutEtcdUpdation)
+
+	waitForOnDeleteRolloutComplete(g, testEnv, logger, fetched, timeoutOnDeleteRolloutComplete)
+	testEnv.CheckEtcdReady(g, etcd, timeoutEtcdUpdation)
+	assertRolloutConditions(g, testEnv, logger, fetched, timeoutEtcdUpdation)
+	testSucceeded = true
+}
+
 // Skipped when the gate is enabled since the gate-on tests already cover that path.
 func testOnDeleteGateOffUsesRollingUpdate(t *testing.T, tcName string, log logr.Logger) {
 	skipIfOnDeleteGateEnabled(t, testEnv)

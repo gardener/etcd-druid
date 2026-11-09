@@ -5,6 +5,8 @@
 package ondelete
 
 import (
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,8 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 )
 
 const controllerName = "ondelete-controller"

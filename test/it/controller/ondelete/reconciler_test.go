@@ -71,6 +71,8 @@ func TestOnDeleteReconciler(t *testing.T) {
 		{"scale-up-holds-top-gate-until-pod-count-matches-desired", testScaleUpHoldsTopGate},
 		{"quorum-veto-holds-when-a-delete-would-break-quorum", testQuorumVetoHolds},
 		{"quorum-lost-deletes-all-outdated-pods-together", testQuorumLostBatchDeletes},
+		{"leader-is-deleted-after-followers", testLeaderDeletedLast},
+		{"scale-up-with-template-change-does-not-delete-existing-pod", testScaleUpWithTemplateChangeHoldsExisting},
 	}
 
 	g := NewWithT(t)
@@ -349,4 +351,61 @@ func testStatusOnlyUpdateDoesNotTrigger(t *testing.T, ns string, env reconcilerT
 		}
 		return deleted
 	}, 3*time.Second, 500*time.Millisecond).Should(Equal(0))
+}
+
+// testLeaderDeletedLast verifies that when all outdated pods are participating, the controller deletes a follower before the leader.
+func testLeaderDeletedLast(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	// Live cluster with 3 healthy voters and the leader at ordinal 1.
+	env.etcdClient.SetMembers(liveMembersWithLeader(3, 1, healthyExcept()))
+	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
+	// All three pods outdated and participating. The pod update procedure must pick a follower
+	// (ordinal 0 or 2), should not delete the leader (ordinal 1).
+	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
+
+	leaderKey := types.NamespacedName{Name: fmt.Sprintf("%s-1", sts.Name), Namespace: ns}
+	g := NewWithT(t)
+	// Eventually exactly one follower is deleted.
+	g.Eventually(func() int {
+		var deleted int
+		for _, ordinal := range []int{0, 2} {
+			pod := &corev1.Pod{}
+			err := cl.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, ordinal), Namespace: ns}, pod)
+			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
+				deleted++
+			}
+		}
+		return deleted
+	}, 30*time.Second, 500*time.Millisecond).Should(Equal(1))
+
+	// The leader must never be the one deleted.
+	consistentlyPodNotDeleted(ctx, t, cl, leaderKey, 5*time.Second, 500*time.Millisecond)
+}
+
+// testScaleUpWithTemplateChangeHoldsExisting covers scaling from 1 -> 3 replicas with a template change in the same update.
+// The existing participating member (p0, on the old revision) must NOT be deleted until the scale-up pods (p1, p2) exist and are ready.
+// This tests guards against the controller prematurely deleting the only live member and causing avoidable downtime.
+// The top gate holds on "pod count below desired" while p1/p2 are missing.
+func testScaleUpWithTemplateChangeHoldsExisting(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	// Start as a healthy single-member cluster that is being scaled to 3.
+	env.etcdClient.SetMembers(liveMembers(1, healthyExcept()))
+	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
+	// Only p0 exists (old revision, participating). p1/p2 not yet created by the
+	// StatefulSet controller the scale-up is in flight.
+	createStsPods(ctx, t, cl, sts, 1, "rev-old", true)
+
+	// p0 must be retained: with pod count (1) below desired (3), the top gate holds
+	// and the sole existing member is never deleted mid scale-up.
+	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-0", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
 }
