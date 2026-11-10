@@ -164,8 +164,12 @@ func prepareInitialCluster(etcd *druidv1alpha1.Etcd, peerScheme string) string {
 				fmt.Fprintf(&builder, "%s=%s,", memberName, url)
 			}
 		}
+	} else if druidv1alpha1.IsEndpointsDiscoveryEnabled(etcd) {
+		// Use a localhost placeholder; backup-restore builds the initial cluster from the ENDPOINTS file.
+		memberName := fmt.Sprintf("%s-local", etcd.Name)
+		fmt.Fprintf(&builder, "%s=%s://localhost:%s", memberName, peerScheme, serverPort)
 	} else {
-		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+		for _, memberAddress := range druidv1alpha1.GetExternallyManagedMemberAddresses(etcd) {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
 			fmt.Fprintf(&builder, "%s=%s://%s:%s,", memberName, peerScheme, memberAddress, serverPort)
 		}
@@ -215,12 +219,16 @@ func getAdvertiseURLs(etcd *druidv1alpha1.Etcd, advertiseURLType, scheme, peerSv
 			urls = append(urls, additionalURLs...)
 			advUrlsMap[memberName] = urls
 		}
+	} else if druidv1alpha1.IsEndpointsDiscoveryEnabled(etcd) {
+		// Use localhost placeholders; backup-restore populates member URLs from the ENDPOINTS file.
+		memberName := fmt.Sprintf("%s-local", etcd.Name)
+		advUrlsMap[memberName] = []string{fmt.Sprintf("%s://localhost:%d", scheme, port)}
 	} else {
 		// For externally managed members, addresses are provided explicitly via
-		// spec.externallyManagedMemberAddresses. additionalAdvertisedURLs is
+		// spec.etcd.externallyManagedMembers.addresses. additionalAdvertisedURLs is
 		// not applied here because external members are already reachable at their
 		// configured addresses and do not use the internal headless service DNS.
-		for _, memberAddress := range etcd.Spec.ExternallyManagedMemberAddresses {
+		for _, memberAddress := range druidv1alpha1.GetExternallyManagedMemberAddresses(etcd) {
 			memberName := druidv1alpha1.GetMemberNameFromAddress(etcd, memberAddress)
 			advUrlsMap[memberName] = []string{fmt.Sprintf("%s://%s:%d", scheme, memberAddress, port)}
 		}
