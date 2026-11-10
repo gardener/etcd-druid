@@ -167,7 +167,7 @@ func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
 	clientPort := ptr.Deref(etcd.Spec.Etcd.ClientPort, druidapicommon.DefaultPortEtcdClient)
 	peerPort := ptr.Deref(etcd.Spec.Etcd.ServerPort, common.DefaultPortEtcdPeer)
 
-	return []corev1.ServicePort{
+	ports := []corev1.ServicePort{
 		{
 			Name:       "client",
 			Protocol:   corev1.ProtocolTCP,
@@ -188,4 +188,17 @@ func getPorts(etcd *druidv1alpha1.Etcd) []corev1.ServicePort {
 			TargetPort: intstr.FromInt(int(backupPort)),
 		},
 	}
+
+	// Only exposed on the Service when configured: a ServiceMonitor targeting this Service,
+	// rather than a pod-selector-based PodMonitor, needs the port listed here to reach it.
+	if metricsPort := utils.ExtractMetricsPort(etcd.Spec.Etcd.ListenMetricsURLs); metricsPort != 0 {
+		ports = append(ports, corev1.ServicePort{
+			Name:       "metrics",
+			Protocol:   corev1.ProtocolTCP,
+			Port:       metricsPort,
+			TargetPort: intstr.FromInt(int(metricsPort)),
+		})
+	}
+
+	return ports
 }
