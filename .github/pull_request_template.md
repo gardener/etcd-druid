@@ -31,6 +31,7 @@ Fixes #
     - [ ] Unit tests
     - [ ] Integration tests
     - [ ] E2E tests
+- [ ] If the changes are required to be backported, please check this [doc](https://github.com/gardener/etcd-druid/blob/master/docs/development/raising-a-pr.md#06-merging-a-pull-request) (this is only applicable for bug fixes).
 
 **Special notes for your reviewer**:
 
