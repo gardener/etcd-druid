@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	druidapicommon "github.com/gardener/etcd-druid/api/common"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
 	"github.com/gardener/etcd-druid/internal/common"
@@ -140,7 +141,7 @@ func buildConfigMapWithEtcdConfig(etcd *druidv1alpha1.Etcd) (*corev1.ConfigMap, 
 	if etcd.Spec.Etcd.ServerPort != nil {
 		peerPort = *etcd.Spec.Etcd.ServerPort
 	}
-	clientPort := common.DefaultPortEtcdClient
+	clientPort := druidapicommon.DefaultPortEtcdClient
 	if etcd.Spec.Etcd.ClientPort != nil {
 		clientPort = *etcd.Spec.Etcd.ClientPort
 	}
@@ -1540,7 +1541,7 @@ func TestUpdateConfigMapForSingleMember(t *testing.T) {
 			expectedPeerURL := fmt.Sprintf("%s://%s.%s.%s.svc:%d",
 				peerScheme, member0, peerSvcName, namespace, common.DefaultPortEtcdPeer)
 			expectedClientURL := fmt.Sprintf("%s://%s.%s.%s.svc:%d",
-				clientScheme, member0, peerSvcName, namespace, common.DefaultPortEtcdClient)
+				clientScheme, member0, peerSvcName, namespace, druidapicommon.DefaultPortEtcdClient)
 
 			g.Expect(etcdConfig["initial-cluster"]).To(Equal(fmt.Sprintf("%s=%s", member0, expectedPeerURL)))
 			g.Expect(etcdConfig["initial-cluster-state"]).To(Equal("new"))
@@ -1750,7 +1751,7 @@ func TestServerAndClientPortDefaults(t *testing.T) {
 		{
 			name:           "Should return default peer port when ServerPort is nil",
 			expectedServer: common.DefaultPortEtcdPeer,
-			expectedClient: common.DefaultPortEtcdClient,
+			expectedClient: druidapicommon.DefaultPortEtcdClient,
 		},
 		{
 			name:           "Should return configured ports when both are set",
