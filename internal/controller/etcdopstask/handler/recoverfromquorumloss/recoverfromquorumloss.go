@@ -880,5 +880,5 @@ func clientPortOrDefault(etcd *druidv1alpha1.Etcd) int32 {
 	if etcd.Spec.Etcd.ClientPort != nil {
 		return *etcd.Spec.Etcd.ClientPort
 	}
-	return common.DefaultPortEtcdClient
+	return druidapicommon.DefaultPortEtcdClient
 }
