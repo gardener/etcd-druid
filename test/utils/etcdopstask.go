@@ -56,6 +56,15 @@ func (eb *EtcdOpsTaskBuilder) WithOnDemandSnapshotConfig(config *druidv1alpha1.O
 	return eb
 }
 
+// WithRecoverFromQuorumLossConfig sets the RecoverFromQuorumLoss config on the EtcdOpsTask resource.
+func (eb *EtcdOpsTaskBuilder) WithRecoverFromQuorumLossConfig(config *druidv1alpha1.RecoverFromQuorumLossConfig) *EtcdOpsTaskBuilder {
+	if eb == nil || eb.task == nil {
+		return nil
+	}
+	eb.task.Spec.Config.RecoverFromQuorumLoss = config
+	return eb
+}
+
 func (eb *EtcdOpsTaskBuilder) WithState(state druidv1alpha1.TaskState) *EtcdOpsTaskBuilder {
 	if eb == nil || eb.task == nil {
 		return nil

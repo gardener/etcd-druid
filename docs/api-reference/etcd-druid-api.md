@@ -44,7 +44,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `enabled` _boolean_ | Enabled specifies whether backup compaction should be enabled. |  |  |
-| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  | Optional: \{\} <br /> |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 | `eventsThreshold` _integer_ | EventsThreshold denotes total number of etcd events to be reached upon which a backup compaction job is triggered. |  |  |
 | `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold denotes the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot. |  |  |
 | `activeDeadlineDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ActiveDeadlineDuration is the duration after which a running compaction job will be killed. |  |  |
@@ -64,7 +64,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `disableLeaseCache` _boolean_ | DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.<br />Deprecated: This field will be eventually removed. It is recommended to not use this.<br />It has only been introduced to allow for backward compatibility with the old CLI flags. |  | Optional: \{\} <br /> |
+| `disableLeaseCache` _boolean_ | DisableLeaseCache disables the cache for lease.coordination.k8s.io resources.<br />Deprecated: This field will be eventually removed. It is recommended to not use this.<br />It has only been introduced to allow for backward compatibility with the old CLI flags. |  |  |
 | `etcd` _[EtcdControllerConfiguration](#etcdcontrollerconfiguration)_ | Etcd is the configuration for the Etcd controller. |  |  |
 | `compaction` _[CompactionControllerConfiguration](#compactioncontrollerconfiguration)_ | Compaction is the configuration for the compaction controller. |  |  |
 | `etcdCopyBackupsTask` _[EtcdCopyBackupsTaskControllerConfiguration](#etcdcopybackupstaskcontrollerconfiguration)_ | EtcdCopyBackupsTask is the configuration for the EtcdCopyBackupsTask controller. |  |  |
@@ -105,7 +105,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  | Optional: \{\} <br /> |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 | `enableEtcdSpecAutoReconcile` _boolean_ | EnableEtcdSpecAutoReconcile controls how the Etcd Spec is reconciled. If set to true, then any change in Etcd spec<br />will automatically trigger a reconciliation of the Etcd resource. If set to false, then an operator needs to<br />explicitly set gardener.cloud/operation=reconcile annotation on the Etcd resource to trigger reconciliation<br />of the Etcd spec.<br />NOTE: Decision to enable it should be carefully taken as spec updates could potentially result in rolling update<br />of the StatefulSet which will cause a minor downtime for a single node etcd cluster and can potentially cause a<br />downtime for a multi-node etcd cluster. |  |  |
 | `disableEtcdServiceAccountAutomount` _boolean_ | DisableEtcdServiceAccountAutomount controls the auto-mounting of service account token for etcd StatefulSets. |  |  |
 | `etcdStatusSyncPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdStatusSyncPeriod is the duration after which an event will be re-queued ensuring etcd status synchronization. |  |  |
@@ -159,8 +159,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  | Optional: \{\} <br /> |
-| `requeueInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask. |  | Optional: \{\} <br /> |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
+| `requeueInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RequeueInterval is the duration to wait before re-queuing a reconcile request for EtcdOpsTask. |  |  |
 
 
 #### LeaderElectionConfiguration
@@ -253,7 +253,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  | Optional: \{\} <br /> |
+| `concurrentSyncs` _integer_ | ConcurrentSyncs is the max number of concurrent workers that can be run, each worker servicing a reconcile request. |  |  |
 
 
 #### Server
@@ -287,8 +287,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `webhooks` _[TLSServer](#tlsserver)_ | Webhooks is the configuration for the TLS webhook server. |  | Optional: \{\} <br /> |
-| `metrics` _[Server](#server)_ | Metrics is the configuration for serving the metrics endpoint. |  | Optional: \{\} <br /> |
+| `webhooks` _[TLSServer](#tlsserver)_ | Webhooks is the configuration for the TLS webhook server. |  |  |
+| `metrics` _[Server](#server)_ | Metrics is the configuration for serving the metrics endpoint. |  |  |
 
 
 #### ServiceAccountInfo
@@ -454,8 +454,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `clientURLs` _[AdditionalURLsSpec](#additionalurlsspec)_ | ClientURLs contains extra per-member client URLs. See AdditionalURLsSpec. |  | Optional: \{\} <br /> |
-| `peerURLs` _[AdditionalURLsSpec](#additionalurlsspec)_ | PeerURLs contains extra per-member peer URLs. See AdditionalURLsSpec. |  | Optional: \{\} <br /> |
+| `clientURLs` _[AdditionalURLsSpec](#additionalurlsspec)_ | ClientURLs contains extra per-member client URLs. See AdditionalURLsSpec. |  |  |
+| `peerURLs` _[AdditionalURLsSpec](#additionalurlsspec)_ | PeerURLs contains extra per-member peer URLs. See AdditionalURLsSpec. |  |  |
 
 
 #### AdditionalURLsSpec
@@ -471,8 +471,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only its<br />listed URLs, dropping the default internal service/pod DNS URL. When false<br />(default), the listed URLs are appended to the default. Members with no entry<br />in Members always use the default URL. | false | Optional: \{\} <br /> |
-| `members` _[MemberURLs](#memberurls) array_ | Members lists additional URLs per member. See MemberURLs for the name format. |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
+| `overrideDefaultURL` _boolean_ | OverrideDefaultURL, when true, makes each configured member advertise only its<br />listed URLs, dropping the default internal service/pod DNS URL. When false<br />(default), the listed URLs are appended to the default. Members with no entry<br />in Members always use the default URL. | false |  |
+| `members` _[MemberURLs](#memberurls) array_ | Members lists additional URLs per member. See MemberURLs for the name format. |  | MaxItems: 10 <br />MinItems: 1 <br /> |
 
 
 #### BackupSpec
@@ -488,25 +488,25 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `port` _integer_ | Port define the port on which etcd-backup-restore server will be exposed. |  | Optional: \{\} <br /> |
-| `tls` _[TLSConfig](#tlsconfig)_ |  |  | Optional: \{\} <br /> |
-| `image` _string_ | Image defines the etcd container image and tag |  | Optional: \{\} <br /> |
-| `store` _[StoreSpec](#storespec)_ | Store defines the specification of object store provider for storing backups. |  | Optional: \{\} <br /> |
-| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines compute Resources required by backup-restore container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  | Optional: \{\} <br /> |
-| `snapshotCompaction` _[SnapshotCompactionSpec](#snapshotcompactionspec)_ | SnapshotCompaction defines the specification for compaction of backups. |  | Optional: \{\} <br /> |
-| `fullSnapshotSchedule` _string_ | FullSnapshotSchedule defines the cron standard schedule for full snapshots. |  | Pattern: `^(\*\|[1-5]?[0-9]\|[1-5]?[0-9]-[1-5]?[0-9]\|(?:[1-9]\|[1-4][0-9]\|5[0-9])\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60)\|\*\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60))\s+(\*\|[0-9]\|1[0-9]\|2[0-3]\|[0-9]-(?:[0-9]\|1[0-9]\|2[0-3])\|1[0-9]-(?:1[0-9]\|2[0-3])\|2[0-3]-2[0-3]\|(?:[1-9]\|1[0-9]\|2[0-3])\/(?:[1-9]\|1[0-9]\|2[0-4])\|\*\/(?:[1-9]\|1[0-9]\|2[0-4]))\s+(\*\|[1-9]\|[12][0-9]\|3[01]\|[1-9]-(?:[1-9]\|[12][0-9]\|3[01])\|[12][0-9]-(?:[12][0-9]\|3[01])\|3[01]-3[01]\|(?:[1-9]\|[12][0-9]\|30)\/(?:[1-9]\|[12][0-9]\|3[01])\|\*\/(?:[1-9]\|[12][0-9]\|3[01]))\s+(\*\|[1-9]\|1[0-2]\|[1-9]-(?:[1-9]\|1[0-2])\|1[0-2]-1[0-2]\|(?:[1-9]\|1[0-2])\/(?:[1-9]\|1[0-2])\|\*\/(?:[1-9]\|1[0-2]))\s+(\*\|[1-7]\|[1-6]-[1-7]\|[1-6]\/[1-7]\|\*\/[1-7])$` <br />Optional: \{\} <br /> |
-| `garbageCollectionPolicy` _[GarbageCollectionPolicy](#garbagecollectionpolicy)_ | GarbageCollectionPolicy defines the policy for garbage collecting old backups |  | Enum: [Exponential LimitBased] <br />Optional: \{\} <br /> |
-| `maxBackupsLimitBasedGC` _integer_ | MaxBackupsLimitBasedGC defines the maximum number of Full snapshots to retain in Limit Based GarbageCollectionPolicy<br />All full snapshots beyond this limit will be garbage collected. |  | Optional: \{\} <br /> |
-| `garbageCollectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | GarbageCollectionPeriod defines the period for garbage collecting old backups |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `deltaSnapshotPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotPeriod defines the period after which delta snapshots will be taken |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `deltaSnapshotMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken |  | Optional: \{\} <br /> |
-| `deltaSnapshotRetentionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.<br />The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d') |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `compression` _[CompressionSpec](#compressionspec)_ | SnapshotCompression defines the specification for compression of Snapshots. |  | Optional: \{\} <br /> |
-| `enableProfiling` _boolean_ | EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar |  | Optional: \{\} <br /> |
-| `etcdSnapshotTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  | Optional: \{\} <br /> |
-| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the backup-restore container.<br />These are appended after controller-managed env vars; duplicate names are not allowed.<br />Example (used together with spec.volumes and spec.backup.volumeMounts):<br />  - name: ENDPOINTS<br />    value: /var/host/endpoints |  | MaxItems: 5 <br />Optional: \{\} <br /> |
-| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the backup-restore container.<br />Each mountPath must be unique and the referenced volume name must appear in spec.volumes.<br />Example (used together with spec.volumes and spec.backup.env):<br />  - name: host-volume<br />    mountPath: /var/host<br />    readOnly: true |  | MaxItems: 5 <br />Optional: \{\} <br /> |
+| `port` _integer_ | Port define the port on which etcd-backup-restore server will be exposed. |  |  |
+| `tls` _[TLSConfig](#tlsconfig)_ |  |  |  |
+| `image` _string_ | Image defines the etcd container image and tag |  |  |
+| `store` _[StoreSpec](#storespec)_ | Store defines the specification of object store provider for storing backups. |  |  |
+| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines compute Resources required by backup-restore container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
+| `snapshotCompaction` _[SnapshotCompactionSpec](#snapshotcompactionspec)_ | SnapshotCompaction defines the specification for compaction of backups. |  |  |
+| `fullSnapshotSchedule` _string_ | FullSnapshotSchedule defines the cron standard schedule for full snapshots. |  | Pattern: `^(\*\|[1-5]?[0-9]\|[1-5]?[0-9]-[1-5]?[0-9]\|(?:[1-9]\|[1-4][0-9]\|5[0-9])\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60)\|\*\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60))\s+(\*\|[0-9]\|1[0-9]\|2[0-3]\|[0-9]-(?:[0-9]\|1[0-9]\|2[0-3])\|1[0-9]-(?:1[0-9]\|2[0-3])\|2[0-3]-2[0-3]\|(?:[1-9]\|1[0-9]\|2[0-3])\/(?:[1-9]\|1[0-9]\|2[0-4])\|\*\/(?:[1-9]\|1[0-9]\|2[0-4]))\s+(\*\|[1-9]\|[12][0-9]\|3[01]\|[1-9]-(?:[1-9]\|[12][0-9]\|3[01])\|[12][0-9]-(?:[12][0-9]\|3[01])\|3[01]-3[01]\|(?:[1-9]\|[12][0-9]\|30)\/(?:[1-9]\|[12][0-9]\|3[01])\|\*\/(?:[1-9]\|[12][0-9]\|3[01]))\s+(\*\|[1-9]\|1[0-2]\|[1-9]-(?:[1-9]\|1[0-2])\|1[0-2]-1[0-2]\|(?:[1-9]\|1[0-2])\/(?:[1-9]\|1[0-2])\|\*\/(?:[1-9]\|1[0-2]))\s+(\*\|[1-7]\|[1-6]-[1-7]\|[1-6]\/[1-7]\|\*\/[1-7])$` <br /> |
+| `garbageCollectionPolicy` _[GarbageCollectionPolicy](#garbagecollectionpolicy)_ | GarbageCollectionPolicy defines the policy for garbage collecting old backups |  | Enum: [Exponential LimitBased] <br /> |
+| `maxBackupsLimitBasedGC` _integer_ | MaxBackupsLimitBasedGC defines the maximum number of Full snapshots to retain in Limit Based GarbageCollectionPolicy<br />All full snapshots beyond this limit will be garbage collected. |  |  |
+| `garbageCollectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | GarbageCollectionPeriod defines the period for garbage collecting old backups |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `deltaSnapshotPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotPeriod defines the period after which delta snapshots will be taken |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `deltaSnapshotMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken |  |  |
+| `deltaSnapshotRetentionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | DeltaSnapshotRetentionPeriod defines the duration for which delta snapshots will be retained, excluding the latest snapshot set.<br />The value should be a string formatted as a duration (e.g., '1s', '2m', '3h', '4d') |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `compression` _[CompressionSpec](#compressionspec)_ | SnapshotCompression defines the specification for compression of Snapshots. |  |  |
+| `enableProfiling` _boolean_ | EnableProfiling defines if profiling should be enabled for the etcd-backup-restore-sidecar |  |  |
+| `etcdSnapshotTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdSnapshotTimeout defines the timeout duration for etcd FullSnapshot operation |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `leaderElection` _[LeaderElectionSpec](#leaderelectionspec)_ | LeaderElection defines parameters related to the LeaderElection configuration. |  |  |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the backup-restore container.<br />These are appended after controller-managed env vars; duplicate names are not allowed.<br />Example (used together with spec.volumes and spec.backup.volumeMounts):<br />  - name: ENDPOINTS<br />    value: /var/host/endpoints |  | MaxItems: 5 <br /> |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the backup-restore container.<br />Each mountPath must be unique and the referenced volume name must appear in spec.volumes.<br />Example (used together with spec.volumes and spec.backup.env):<br />  - name: host-volume<br />    mountPath: /var/host<br />    readOnly: true |  | MaxItems: 5 <br /> |
 
 
 #### BboltFreelistType
@@ -559,8 +559,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name is the source-cluster member's name. |  | Required: \{\} <br /> |
-| `peerUrls` _string array_ | PeerURLs are the source member's peer URLs, copied from<br />spec.etcd.bootstrapWithExistingCluster.members at the time the<br />snapshot was recorded. |  | Required: \{\} <br /> |
+| `name` _string_ | Name is the source-cluster member's name. |  |  |
+| `peerUrls` _string array_ | PeerURLs are the source member's peer URLs, copied from<br />spec.etcd.bootstrapWithExistingCluster.members at the time the<br />snapshot was recorded. |  |  |
 
 
 #### BootstrapWithExistingCluster
@@ -587,8 +587,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `members` _[BootstrapExistingMember](#bootstrapexistingmember) array_ | Members are the existing etcd members of the source cluster.<br />A maximum of 10 members can be specified (constrained by CEL validation cost budget). |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br />Required: \{\} <br /> |
-| `clientEndpoints` _string array_ | ClientEndpoints are the client endpoints of the source cluster for member management.<br />Must be valid HTTP or HTTPS URLs with scheme and host; port is optional<br />(e.g., https://etcd-source-client.source-ns.svc:2379).<br />A maximum of 10 client endpoints can be specified (constrained by CEL validation cost budget). |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://etcd-source-client.source-ns.svc:2379)\} <br />Required: \{\} <br /> |
+| `members` _[BootstrapExistingMember](#bootstrapexistingmember) array_ | Members are the existing etcd members of the source cluster.<br />A maximum of 10 members can be specified (constrained by CEL validation cost budget). |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br /> |
+| `clientEndpoints` _string array_ | ClientEndpoints are the client endpoints of the source cluster for member management.<br />Must be valid HTTP or HTTPS URLs with scheme and host; port is optional<br />(e.g., https://etcd-source-client.source-ns.svc:2379).<br />A maximum of 10 client endpoints can be specified (constrained by CEL validation cost budget). |  | MaxItems: 10 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://etcd-source-client.source-ns.svc:2379)\} <br /> |
 
 
 #### BootstrapWithExistingClusterStatus
@@ -607,8 +607,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `joinedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | JoinedAt is the time at which the snapshot was recorded. |  | Required: \{\} <br /> |
-| `members` _[BootstrapJoinedMember](#bootstrapjoinedmember) array_ | Members are the source-cluster members observed at the time the<br />snapshot was recorded. |  | Required: \{\} <br /> |
+| `joinedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | JoinedAt is the time at which the snapshot was recorded. |  |  |
+| `members` _[BootstrapJoinedMember](#bootstrapjoinedmember) array_ | Members are the source-cluster members observed at the time the<br />snapshot was recorded. |  |  |
 
 
 #### ClientService
@@ -624,9 +624,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `annotations` _object (keys:string, values:string)_ | Annotations specify the annotations that should be added to the client service |  | Optional: \{\} <br /> |
-| `labels` _object (keys:string, values:string)_ | Labels specify the labels that should be added to the client service |  | Optional: \{\} <br /> |
-| `trafficDistribution` _string_ | TrafficDistribution defines the traffic distribution preference that should be added to the client service.<br />More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution |  | Enum: [PreferSameZone PreferSameNode PreferClose] <br />Optional: \{\} <br /> |
+| `annotations` _object (keys:string, values:string)_ | Annotations specify the annotations that should be added to the client service |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels specify the labels that should be added to the client service |  |  |
+| `trafficDistribution` _string_ | TrafficDistribution defines the traffic distribution preference that should be added to the client service.<br />More info: https://kubernetes.io/docs/reference/networking/virtual-ips/#traffic-distribution |  | Enum: [PreferSameZone PreferSameNode PreferClose] <br /> |
 
 
 #### CompactionMode
@@ -680,8 +680,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `enabled` _boolean_ |  |  | Optional: \{\} <br /> |
-| `policy` _[CompressionPolicy](#compressionpolicy)_ |  |  | Enum: [gzip lzw zlib] <br />Optional: \{\} <br /> |
+| `enabled` _boolean_ |  |  |  |
+| `policy` _[CompressionPolicy](#compressionpolicy)_ |  |  | Enum: [gzip lzw zlib] <br /> |
 
 
 #### Condition
@@ -765,9 +765,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kind` _string_ | Kind of the referent |  | Required: \{\} <br /> |
-| `name` _string_ | Name of the referent |  | Required: \{\} <br /> |
-| `apiVersion` _string_ | API version of the referent |  | Optional: \{\} <br /> |
+| `kind` _string_ | Kind of the referent |  |  |
+| `name` _string_ | Name of the referent |  |  |
+| `apiVersion` _string_ | API version of the referent |  |  |
 
 
 #### Etcd
@@ -802,27 +802,27 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `quota` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | Quota defines the etcd DB quota. |  | Optional: \{\} <br /> |
-| `snapshotCount` _integer_ | SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.<br />More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention |  | Optional: \{\} <br /> |
-| `enableGRPCGateway` _boolean_ | EnableGRPCGateway enables the gRPC-Gateway proxy for etcd. |  | Optional: \{\} <br /> |
-| `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `^(\*\|[1-5]?[0-9]\|[1-5]?[0-9]-[1-5]?[0-9]\|(?:[1-9]\|[1-4][0-9]\|5[0-9])\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60)\|\*\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60))\s+(\*\|[0-9]\|1[0-9]\|2[0-3]\|[0-9]-(?:[0-9]\|1[0-9]\|2[0-3])\|1[0-9]-(?:1[0-9]\|2[0-3])\|2[0-3]-2[0-3]\|(?:[1-9]\|1[0-9]\|2[0-3])\/(?:[1-9]\|1[0-9]\|2[0-4])\|\*\/(?:[1-9]\|1[0-9]\|2[0-4]))\s+(\*\|[1-9]\|[12][0-9]\|3[01]\|[1-9]-(?:[1-9]\|[12][0-9]\|3[01])\|[12][0-9]-(?:[12][0-9]\|3[01])\|3[01]-3[01]\|(?:[1-9]\|[12][0-9]\|30)\/(?:[1-9]\|[12][0-9]\|3[01])\|\*\/(?:[1-9]\|[12][0-9]\|3[01]))\s+(\*\|[1-9]\|1[0-2]\|[1-9]-(?:[1-9]\|1[0-2])\|1[0-2]-1[0-2]\|(?:[1-9]\|1[0-2])\/(?:[1-9]\|1[0-2])\|\*\/(?:[1-9]\|1[0-2]))\s+(\*\|[1-7]\|[1-6]-[1-7]\|[1-6]\/[1-7]\|\*\/[1-7])$` <br />Optional: \{\} <br /> |
-| `serverPort` _integer_ |  |  | Optional: \{\} <br /> |
-| `clientPort` _integer_ |  |  | Optional: \{\} <br /> |
-| `wrapperPort` _integer_ |  |  | Optional: \{\} <br /> |
-| `image` _string_ | Image defines the etcd container image and tag |  | Optional: \{\} <br /> |
-| `authSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Optional: \{\} <br /> |
-| `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br />Optional: \{\} <br /> |
-| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  | Optional: \{\} <br /> |
-| `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  | Optional: \{\} <br /> |
-| `additionalAdvertisedURLs` _[AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)_ | AdditionalAdvertisedURLs contains extra per-member URLs for client and peer<br />advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.<br />Has no effect on externally managed members<br />(spec.externallyManagedMemberAddresses). |  | Optional: \{\} <br /> |
-| `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerification knob (see PeerTLSConfig). |  | Optional: \{\} <br /> |
-| `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  | Optional: \{\} <br /> |
-| `backendBboltFreelistType` _[BboltFreelistType](#bboltfreelisttype)_ | BackendBboltFreelistType specifies the freelist-type used by the bbolt backend storage engine of etcd.<br />Supported values are 'array' (default) and 'map'.<br />It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x<br />Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"<br />because for "map", it has been observed to cause significant increase in total database size.<br />The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.<br />Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373 |  | Enum: [array map] <br />Optional: \{\} <br /> |
-| `bootstrapWithExistingCluster` _[BootstrapWithExistingCluster](#bootstrapwithexistingcluster)_ | BootstrapWithExistingCluster configures this etcd to join an existing cluster. |  | Optional: \{\} <br /> |
-| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the etcd-wrapper container.<br />These are appended after controller-managed env vars; duplicate names are not allowed.<br />Example:<br />  - name: EXAMPLE_VAR<br />    value: example-value |  | MaxItems: 5 <br />Optional: \{\} <br /> |
-| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the etcd-wrapper container.<br />Each mountPath must be unique and the referenced volume name must appear in spec.volumes.<br />Example:<br />  - name: example-volume<br />    mountPath: /var/example<br />    readOnly: true |  | MaxItems: 5 <br />Optional: \{\} <br /> |
+| `quota` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | Quota defines the etcd DB quota. |  |  |
+| `snapshotCount` _integer_ | SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.<br />More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention |  |  |
+| `enableGRPCGateway` _boolean_ | EnableGRPCGateway enables the gRPC-Gateway proxy for etcd. |  |  |
+| `defragmentationSchedule` _string_ | DefragmentationSchedule defines the cron standard schedule for defragmentation of etcd. |  | Pattern: `^(\*\|[1-5]?[0-9]\|[1-5]?[0-9]-[1-5]?[0-9]\|(?:[1-9]\|[1-4][0-9]\|5[0-9])\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60)\|\*\/(?:[1-9]\|[1-4][0-9]\|5[0-9]\|60))\s+(\*\|[0-9]\|1[0-9]\|2[0-3]\|[0-9]-(?:[0-9]\|1[0-9]\|2[0-3])\|1[0-9]-(?:1[0-9]\|2[0-3])\|2[0-3]-2[0-3]\|(?:[1-9]\|1[0-9]\|2[0-3])\/(?:[1-9]\|1[0-9]\|2[0-4])\|\*\/(?:[1-9]\|1[0-9]\|2[0-4]))\s+(\*\|[1-9]\|[12][0-9]\|3[01]\|[1-9]-(?:[1-9]\|[12][0-9]\|3[01])\|[12][0-9]-(?:[12][0-9]\|3[01])\|3[01]-3[01]\|(?:[1-9]\|[12][0-9]\|30)\/(?:[1-9]\|[12][0-9]\|3[01])\|\*\/(?:[1-9]\|[12][0-9]\|3[01]))\s+(\*\|[1-9]\|1[0-2]\|[1-9]-(?:[1-9]\|1[0-2])\|1[0-2]-1[0-2]\|(?:[1-9]\|1[0-2])\/(?:[1-9]\|1[0-2])\|\*\/(?:[1-9]\|1[0-2]))\s+(\*\|[1-7]\|[1-6]-[1-7]\|[1-6]\/[1-7]\|\*\/[1-7])$` <br /> |
+| `serverPort` _integer_ |  |  |  |
+| `clientPort` _integer_ |  |  |  |
+| `wrapperPort` _integer_ |  |  |  |
+| `image` _string_ | Image defines the etcd container image and tag |  |  |
+| `authSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+| `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br /> |
+| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
+| `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  |  |
+| `additionalAdvertisedURLs` _[AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)_ | AdditionalAdvertisedURLs contains extra per-member URLs for client and peer<br />advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.<br />Has no effect on externally managed members<br />(spec.externallyManagedMemberAddresses). |  |  |
+| `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerification knob (see PeerTLSConfig). |  |  |
+| `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `clientService` _[ClientService](#clientservice)_ | ClientService defines the parameters of the client service that a user can specify |  |  |
+| `backendBboltFreelistType` _[BboltFreelistType](#bboltfreelisttype)_ | BackendBboltFreelistType specifies the freelist-type used by the bbolt backend storage engine of etcd.<br />Supported values are 'array' (default) and 'map'.<br />It corresponds to the etcd's flag --backend-bbolt-freelist-type which available only from etcd version 3.5.x<br />Note: Although etcd v3.5.x defaults `--backend-bbolt-freelist-type` to "map", etcd-druid default to "array"<br />because for "map", it has been observed to cause significant increase in total database size.<br />The "array" freelist type is more space-efficient for the small databases (a few GBs) clusters.<br />Please refer to this issue for more info: https://github.com/gardener/etcd-druid/issues/1373 |  | Enum: [array map] <br /> |
+| `bootstrapWithExistingCluster` _[BootstrapWithExistingCluster](#bootstrapwithexistingcluster)_ | BootstrapWithExistingCluster configures this etcd to join an existing cluster. |  |  |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#envvar-v1-core) array_ | EnvVar specifies additional environment variables for the etcd-wrapper container.<br />These are appended after controller-managed env vars; duplicate names are not allowed.<br />Example:<br />  - name: EXAMPLE_VAR<br />    value: example-value |  | MaxItems: 5 <br /> |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volumemount-v1-core) array_ | VolumeMounts specifies additional volume mounts for the etcd-wrapper container.<br />Each mountPath must be unique and the referenced volume name must appear in spec.volumes.<br />Example:<br />  - name: example-volume<br />    mountPath: /var/example<br />    readOnly: true |  | MaxItems: 5 <br /> |
 
 
 #### EtcdCopyBackupsTask
@@ -857,12 +857,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `podLabels` _object (keys:string, values:string)_ | PodLabels is a set of labels that will be added to pod(s) created by the copy backups task. |  | Optional: \{\} <br /> |
+| `podLabels` _object (keys:string, values:string)_ | PodLabels is a set of labels that will be added to pod(s) created by the copy backups task. |  |  |
 | `sourceStore` _[StoreSpec](#storespec)_ | SourceStore defines the specification of the source object store provider for storing backups. |  |  |
 | `targetStore` _[StoreSpec](#storespec)_ | TargetStore defines the specification of the target object store provider for storing backups. |  |  |
-| `maxBackupAge` _integer_ | MaxBackupAge is the maximum age in days that a backup must have in order to be copied.<br />By default, all backups will be copied. |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `maxBackups` _integer_ | MaxBackups is the maximum number of backups that will be copied starting with the most recent ones. |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `waitForFinalSnapshot` _[WaitForFinalSnapshotSpec](#waitforfinalsnapshotspec)_ | WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups. |  | Optional: \{\} <br /> |
+| `maxBackupAge` _integer_ | MaxBackupAge is the maximum age in days that a backup must have in order to be copied.<br />By default, all backups will be copied. |  | Minimum: 0 <br /> |
+| `maxBackups` _integer_ | MaxBackups is the maximum number of backups that will be copied starting with the most recent ones. |  | Minimum: 0 <br /> |
+| `waitForFinalSnapshot` _[WaitForFinalSnapshotSpec](#waitforfinalsnapshotspec)_ | WaitForFinalSnapshot defines the parameters for waiting for a final full snapshot before copying backups. |  |  |
 
 
 #### EtcdCopyBackupsTaskStatus
@@ -878,9 +878,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](#condition) array_ | Conditions represents the latest available observations of an object's current state. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration is the most recent generation observed for this resource. |  | Optional: \{\} <br /> |
-| `lastError` _string_ | LastError represents the last occurred error. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](#condition) array_ | Conditions represents the latest available observations of an object's current state. |  |  |
+| `observedGeneration` _integer_ | ObservedGeneration is the most recent generation observed for this resource. |  |  |
+| `lastError` _string_ | LastError represents the last occurred error. |  |  |
 
 
 #### EtcdMemberConditionStatus
@@ -915,8 +915,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name is the name of the etcd member. It matches the member lease name.<br />When EtcdSpec.MemberNamePrefix is set, it is `<prefix>-<pod-name>` otherwise it is the name of the backing `Pod`. |  |  |
-| `id` _string_ | ID is the ID of the etcd member. |  | Optional: \{\} <br /> |
-| `role` _[EtcdRole](#etcdrole)_ | Role is the role in the etcd cluster, either `Leader` or `Member`. |  | Optional: \{\} <br /> |
+| `id` _string_ | ID is the ID of the etcd member. |  |  |
+| `role` _[EtcdRole](#etcdrole)_ | Role is the role in the etcd cluster, either `Leader` or `Member`. |  |  |
 | `status` _[EtcdMemberConditionStatus](#etcdmemberconditionstatus)_ | Status of the condition, one of True, False, Unknown. |  |  |
 | `reason` _string_ | The reason for the condition's last transition. |  |  |
 | `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the condition's status changed. |  |  |
@@ -939,7 +939,7 @@ It defines the desired configuration in Spec and tracks the observed state in St
 | `kind` _string_ | `EtcdOpsTask` | | |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[EtcdOpsTaskSpec](#etcdopstaskspec)_ | Spec defines the desired specification of the EtcdOpsTask. |  | Required: \{\} <br /> |
-| `status` _[EtcdOpsTaskStatus](#etcdopstaskstatus)_ | Status defines the observed state of the EtcdOpsTask. |  | Optional: \{\} <br /> |
+| `status` _[EtcdOpsTaskStatus](#etcdopstaskstatus)_ | Status defines the observed state of the EtcdOpsTask. |  |  |
 
 
 #### EtcdOpsTaskConfig
@@ -958,7 +958,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `onDemandSnapshot` _[OnDemandSnapshotConfig](#ondemandsnapshotconfig)_ | OnDemandSnapshot defines the configuration for an on-demand snapshot task. |  | Optional: \{\} <br /> |
+| `onDemandSnapshot` _[OnDemandSnapshotConfig](#ondemandsnapshotconfig)_ | OnDemandSnapshot defines the configuration for an on-demand snapshot task. |  |  |
+| `recoverFromQuorumLoss` _[RecoverFromQuorumLossConfig](#recoverfromquorumlossconfig)_ | RecoverFromQuorumLoss defines the configuration for a task that recovers<br />a multi-member etcd cluster from a permanent quorum loss. |  |  |
 
 
 #### EtcdOpsTaskSpec
@@ -975,8 +976,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `config` _[EtcdOpsTaskConfig](#etcdopstaskconfig)_ | Config specifies the configuration for the operation to be performed.<br />Exactly one of the members of EtcdOpsTaskConfig must be set. |  | MaxProperties: 1 <br />MinProperties: 1 <br />Required: \{\} <br /> |
-| `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished is the duration in seconds after which a finished task (status.state == Succeeded\|Failed\|Rejected) will be garbage-collected. | 3600 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `etcdName` _string_ | EtcdName refers to the name of the Etcd resource that this task will operate on. |  | Optional: \{\} <br /> |
+| `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished is the duration in seconds after which a finished task (status.state == Succeeded\|Failed\|Rejected) will be garbage-collected. | 3600 | Minimum: 1 <br /> |
+| `etcdName` _string_ | EtcdName refers to the name of the Etcd resource that this task will operate on. |  |  |
 
 
 #### EtcdOpsTaskStatus
@@ -992,11 +993,11 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `state` _[TaskState](#taskstate)_ | State represents the current state of the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br />Optional: \{\} <br /> |
-| `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the state transitioned from one value to another. |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | StartedAt is the time at which the task transitioned from Pending to InProgress. |  | Optional: \{\} <br /> |
-| `lastErrors` _[LastError](#lasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br />Optional: \{\} <br /> |
-| `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  | Optional: \{\} <br /> |
+| `state` _[TaskState](#taskstate)_ | State represents the current state of the task. |  | Enum: [Pending InProgress Succeeded Failed Rejected] <br /> |
+| `lastTransitionTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | LastTransitionTime is the last time the state transitioned from one value to another. |  |  |
+| `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#time-v1-meta)_ | StartedAt is the time at which the task transitioned from Pending to InProgress. |  |  |
+| `lastErrors` _[LastError](#lasterror) array_ | LastErrors is a list of the most recent errors observed during the task's execution.<br />A maximum of 10 latest errors will be recorded. |  | MaxItems: 10 <br /> |
+| `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation tracks the fine-grained progress of the task's execution.<br />The controller initializes this field when processing the task. |  |  |
 
 
 #### EtcdRole
@@ -1029,22 +1030,22 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `memberNamePrefix` _string_ | MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.<br />The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names). |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Optional: \{\} <br /> |
-| `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors<br />Deprecated: this field will be removed in the future. |  | Optional: \{\} <br /> |
-| `labels` _object (keys:string, values:string)_ | Labels defines the labels to be applied to the etcd pods backing the etcd cluster. |  | Required: \{\} <br /> |
-| `annotations` _object (keys:string, values:string)_ | Annotations defines the annotations to be applied to the etcd pods backing the etcd cluster. |  | Optional: \{\} <br /> |
-| `etcd` _[EtcdConfig](#etcdconfig)_ |  |  | Required: \{\} <br /> |
-| `backup` _[BackupSpec](#backupspec)_ |  |  | Required: \{\} <br /> |
-| `sharedConfig` _[SharedConfig](#sharedconfig)_ |  |  | Optional: \{\} <br /> |
-| `schedulingConstraints` _[SchedulingConstraints](#schedulingconstraints)_ |  |  | Optional: \{\} <br /> |
-| `replicas` _integer_ | Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.<br />If set to 0, the etcd cluster will be scaled down, i.e., it will cease to run.<br />It can be scaled back up to the previously set value to continue running the etcd cluster. |  | Required: \{\} <br /> |
-| `priorityClassName` _string_ | PriorityClassName is the name of a priority class that shall be used for the etcd pods. |  | Optional: \{\} <br /> |
-| `storageClass` _string_ | StorageClass defines the name of the StorageClass required by the claim.<br />More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1 |  | Optional: \{\} <br /> |
-| `storageCapacity` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | StorageCapacity defines the size of persistent volume. |  | Optional: \{\} <br /> |
-| `volumeClaimTemplate` _string_ | VolumeClaimTemplate defines the volume claim template to be created |  | Optional: \{\} <br /> |
-| `runAsRoot` _boolean_ | RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall<br />run as root. By default, they run as non-root with user 'nobody'. |  | Optional: \{\} <br /> |
-| `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified. |  | Optional: \{\} <br /> |
-| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volume-v1-core) array_ | Volumes specifies additional volumes for the pod.<br />These are appended after controller-managed volumes; duplicate names are not allowed.<br />Example (used together with spec.backup.volumeMounts and spec.backup.env):<br />  - name: host-volume<br />    hostPath:<br />      path: /var/host |  | MaxItems: 5 <br />Optional: \{\} <br /> |
+| `memberNamePrefix` _string_ | MemberNamePrefix defines the prefix for the name of each etcd cluster member. When set, the member name would be `<prefix>-<pod-name>`, otherwise it defaults to the `pod-name`.<br />The combined length of the member-prefix, pod-name, and separator must not exceed 253 characters (DNS subdomain limit for lease names). |  | MaxLength: 63 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
+| `selector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors<br />Deprecated: this field will be removed in the future. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels defines the labels to be applied to the etcd pods backing the etcd cluster. |  |  |
+| `annotations` _object (keys:string, values:string)_ | Annotations defines the annotations to be applied to the etcd pods backing the etcd cluster. |  |  |
+| `etcd` _[EtcdConfig](#etcdconfig)_ |  |  |  |
+| `backup` _[BackupSpec](#backupspec)_ |  |  |  |
+| `sharedConfig` _[SharedConfig](#sharedconfig)_ |  |  |  |
+| `schedulingConstraints` _[SchedulingConstraints](#schedulingconstraints)_ |  |  |  |
+| `replicas` _integer_ | Replicas defines the number of etcd pods to be deployed, subsequently defining the etcd cluster size.<br />If set to 0, the etcd cluster will be scaled down, i.e., it will cease to run.<br />It can be scaled back up to the previously set value to continue running the etcd cluster. |  |  |
+| `priorityClassName` _string_ | PriorityClassName is the name of a priority class that shall be used for the etcd pods. |  |  |
+| `storageClass` _string_ | StorageClass defines the name of the StorageClass required by the claim.<br />More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1 |  |  |
+| `storageCapacity` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | StorageCapacity defines the size of persistent volume. |  |  |
+| `volumeClaimTemplate` _string_ | VolumeClaimTemplate defines the volume claim template to be created |  |  |
+| `runAsRoot` _boolean_ | RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall<br />run as root. By default, they run as non-root with user 'nobody'. |  |  |
+| `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified. |  |  |
+| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volume-v1-core) array_ | Volumes specifies additional volumes for the pod.<br />These are appended after controller-managed volumes; duplicate names are not allowed.<br />Example (used together with spec.backup.volumeMounts and spec.backup.env):<br />  - name: host-volume<br />    hostPath:<br />      path: /var/host |  | MaxItems: 5 <br /> |
 
 
 #### EtcdStatus
@@ -1060,20 +1061,20 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `observedGeneration` _integer_ | ObservedGeneration is the most recent generation observed for this resource. |  | Optional: \{\} <br /> |
-| `etcd` _[CrossVersionObjectReference](#crossversionobjectreference)_ |  |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](#condition) array_ | Conditions represents the latest available observations of an etcd's current state. |  | Optional: \{\} <br /> |
-| `lastErrors` _[LastError](#lasterror) array_ | LastErrors captures errors that occurred during the last operation. |  | Optional: \{\} <br /> |
-| `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation indicates the last operation performed on this resource. |  | Optional: \{\} <br /> |
-| `currentReplicas` _integer_ | CurrentReplicas is the current replica count for the etcd cluster. |  | Optional: \{\} <br /> |
-| `replicas` _integer_ | Replicas is the replica count of the etcd cluster. |  | Optional: \{\} <br /> |
-| `readyReplicas` _integer_ | ReadyReplicas is the count of replicas being ready in the etcd cluster. |  | Optional: \{\} <br /> |
-| `ready` _boolean_ | Ready is `true` if all etcd replicas are ready. |  | Optional: \{\} <br /> |
-| `labelSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | LabelSelector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />Deprecated: this field will be removed in the future. |  | Optional: \{\} <br /> |
-| `members` _[EtcdMemberStatus](#etcdmemberstatus) array_ | Members represents the members of the etcd cluster |  | Optional: \{\} <br /> |
-| `peerUrlTLSEnabled` _boolean_ | PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s) |  | Optional: \{\} <br /> |
-| `selector` _string_ | Selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels. |  | Optional: \{\} <br /> |
-| `bootstrapWithExistingCluster` _[BootstrapWithExistingClusterStatus](#bootstrapwithexistingclusterstatus)_ | BootstrapWithExistingCluster is the snapshot of the source cluster the<br />target joined. It is set once when the BootstrappedWithExistingCluster<br />condition first transitions to True, and is not updated thereafter. |  | Optional: \{\} <br /> |
+| `observedGeneration` _integer_ | ObservedGeneration is the most recent generation observed for this resource. |  |  |
+| `etcd` _[CrossVersionObjectReference](#crossversionobjectreference)_ |  |  |  |
+| `conditions` _[Condition](#condition) array_ | Conditions represents the latest available observations of an etcd's current state. |  |  |
+| `lastErrors` _[LastError](#lasterror) array_ | LastErrors captures errors that occurred during the last operation. |  |  |
+| `lastOperation` _[LastOperation](#lastoperation)_ | LastOperation indicates the last operation performed on this resource. |  |  |
+| `currentReplicas` _integer_ | CurrentReplicas is the current replica count for the etcd cluster. |  |  |
+| `replicas` _integer_ | Replicas is the replica count of the etcd cluster. |  |  |
+| `readyReplicas` _integer_ | ReadyReplicas is the count of replicas being ready in the etcd cluster. |  |  |
+| `ready` _boolean_ | Ready is `true` if all etcd replicas are ready. |  |  |
+| `labelSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#labelselector-v1-meta)_ | LabelSelector is a label query over pods that should match the replica count.<br />It must match the pod template's labels.<br />Deprecated: this field will be removed in the future. |  |  |
+| `members` _[EtcdMemberStatus](#etcdmemberstatus) array_ | Members represents the members of the etcd cluster |  |  |
+| `peerUrlTLSEnabled` _boolean_ | PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s) |  |  |
+| `selector` _string_ | Selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels. |  |  |
+| `bootstrapWithExistingCluster` _[BootstrapWithExistingClusterStatus](#bootstrapwithexistingclusterstatus)_ | BootstrapWithExistingCluster is the snapshot of the source cluster the<br />target joined. It is set once when the BootstrappedWithExistingCluster<br />condition first transitions to True, and is not updated thereafter. |  |  |
 
 
 #### GarbageCollectionPolicy
@@ -1103,8 +1104,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `reelectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
-| `etcdConnectionTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+| `reelectionPeriod` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ReelectionPeriod defines the Period after which leadership status of corresponding etcd is checked. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `etcdConnectionTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdConnectionTimeout defines the timeout duration for etcd client connection during leader election. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
 
 
 #### MemberURLs
@@ -1120,8 +1121,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name is the etcd member name, for example etcd-main-0.<br />Must match \{etcd-name\}-\{index\} where index is 0 to (replicas-1).<br />When spec.memberNamePrefix is set, the name must be<br />\{memberNamePrefix\}-\{etcd-name\}-\{index\}. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br />Required: \{\} <br /> |
-| `urls` _string array_ | URLs is the list of additional URLs for this member. Each entry must be a valid<br />http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379). |  | MaxItems: 5 <br />MinItems: 1 <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)\} <br />Required: \{\} <br /> |
+| `name` _string_ | Name is the etcd member name, for example etcd-main-0.<br />Must match \{etcd-name\}-\{index\} where index is 0 to (replicas-1).<br />When spec.memberNamePrefix is set, the name must be<br />\{memberNamePrefix\}-\{etcd-name\}-\{index\}. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[0-9]+$` <br /> |
+| `urls` _string array_ | URLs is the list of additional URLs for this member. Each entry must be a valid<br />http:// or https:// URL including a host; port is optional (e.g. https://10.0.0.1:2379). |  | MaxItems: 5 <br />MinItems: 1 <br />items:MaxLength: 2048 <br />items:XValidation: \{(self.startsWith('http://') \|\| self.startsWith('https://')) && isURL(self) must be a valid http:// or https:// URL (e.g., https://10.0.0.1:2379)\} <br /> |
 
 
 #### MetricsLevel
@@ -1156,9 +1157,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `type` _[OnDemandSnapshotType](#ondemandsnapshottype)_ | Type specifies whether the snapshot is a 'full' or 'delta' snapshot.<br />Use 'full' for a complete backup of the etcd database, or 'delta' for incremental changes since the last snapshot. |  | Enum: [full delta] <br />Required: \{\} <br /> |
-| `isFinal` _boolean_ | IsFinal indicates whether the snapshot of type: full is marked as final. This is subject to change. |  | Optional: \{\} <br /> |
-| `timeoutSecondsDelta` _integer_ | TimeoutSeconds is the timeout for the delta snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 10 <br />Optional: \{\} <br /> |
-| `timeoutSecondsFull` _integer_ | TimeoutSecondsFull is the timeout for full snapshot operations.<br />Defaults to 900 seconds (15 minutes). | 900 | Minimum: 120 <br />Optional: \{\} <br /> |
+| `isFinal` _boolean_ | IsFinal indicates whether the snapshot of type: full is marked as final. This is subject to change. |  |  |
+| `timeoutSecondsDelta` _integer_ | TimeoutSeconds is the timeout for the delta snapshot operation.<br />Defaults to 60 seconds. | 60 | Minimum: 10 <br /> |
+| `timeoutSecondsFull` _integer_ | TimeoutSecondsFull is the timeout for full snapshot operations.<br />Defaults to 900 seconds (15 minutes). | 900 | Minimum: 120 <br /> |
 
 
 #### OnDemandSnapshotType
@@ -1197,10 +1198,30 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  | Required: \{\} <br /> |
-| `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Required: \{\} <br /> |
-| `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Optional: \{\} <br /> |
-| `skipClientSANVerification` _boolean_ | SkipClientSANVerification, when true, skips verification of Subject<br />Alternative Names on the client certificate during peer mTLS<br />handshakes. The CA-based identity check still applies — any<br />certificate signed by the configured peer CA is accepted regardless<br />of its SAN. Only effective when peerUrlTls is configured (which is<br />structurally required: this field cannot be set without setting<br />peerUrlTls itself).<br />Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;<br />rendered under peer-transport-security in the etcd config ConfigMap.<br />Behavior across etcd versions:<br />  - etcd v3.6+: the YAML key skip-client-san-verification under<br />    peer-transport-security is honored natively — see<br />    https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485<br />    and https://github.com/etcd-io/etcd/blob/release-3.6/server/etcdmain/config.go#L122<br />    (the experimental CLI flag is deprecated in v3.6).<br />  - etcd v3.4 / v3.5: the YAML key is not honored natively; etcd-wrapper<br />    translates this field into the<br />    --experimental-peer-skip-client-san-verification CLI flag — see<br />    https://github.com/etcd-io/etcd/blob/release-3.5/server/etcdmain/config.go#L302<br />    and the bridge in https://github.com/gardener/etcd-wrapper/pull/92. |  | Optional: \{\} <br /> |
+| `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  |  |
+| `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+| `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+| `skipClientSANVerification` _boolean_ | SkipClientSANVerification, when true, skips verification of Subject<br />Alternative Names on the client certificate during peer mTLS<br />handshakes. The CA-based identity check still applies — any<br />certificate signed by the configured peer CA is accepted regardless<br />of its SAN. Only effective when peerUrlTls is configured (which is<br />structurally required: this field cannot be set without setting<br />peerUrlTls itself).<br />Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;<br />rendered under peer-transport-security in the etcd config ConfigMap.<br />Behavior across etcd versions:<br />  - etcd v3.6+: the YAML key skip-client-san-verification under<br />    peer-transport-security is honored natively — see<br />    https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485<br />    and https://github.com/etcd-io/etcd/blob/release-3.6/server/etcdmain/config.go#L122<br />    (the experimental CLI flag is deprecated in v3.6).<br />  - etcd v3.4 / v3.5: the YAML key is not honored natively; etcd-wrapper<br />    translates this field into the<br />    --experimental-peer-skip-client-san-verification CLI flag — see<br />    https://github.com/etcd-io/etcd/blob/release-3.5/server/etcdmain/config.go#L302<br />    and the bridge in https://github.com/gardener/etcd-wrapper/pull/92. |  |  |
+
+
+#### RecoverFromQuorumLossConfig
+
+
+
+RecoverFromQuorumLossConfig defines the configuration for the RecoverFromQuorumLoss task.
+This task automates the recovery of a multi-member etcd cluster from a permanent quorum loss.
+
+
+
+_Appears in:_
+- [EtcdOpsTaskConfig](#etcdopstaskconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `scaleDownTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ScaleDownTimeout is the timeout to wait for the StatefulSet to fully scale down to 0 replicas<br />during quorum loss recovery. Defaults to 60 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `podReadyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become<br />ready after the StatefulSet is scaled up to 1 during quorum loss recovery.<br />Defaults to 180 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `etcdReadyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdReadyTimeout is the timeout to wait for all etcd cluster members to become ready<br />(the AllMembersReady condition reports True) after etcd-druid reconciliation has been<br />re-enabled at the end of the recovery flow. Defaults to 300 seconds (5 minutes). |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br /> |
+| `allowDataLoss` _boolean_ | AllowDataLoss permits the recovery to proceed even when no backup store is configured for the<br />referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,<br />so the rebuilt single-member cluster will start with an empty data set; setting this to true<br />is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),<br />the admit check rejects the task if no backup store is configured. |  |  |
 
 
 #### SchedulingConstraints
@@ -1218,9 +1239,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#affinity-v1-core)_ | Affinity defines the various affinity and anti-affinity rules for a pod<br />that are honoured by the kube-scheduler. |  | Optional: \{\} <br /> |
-| `topologySpreadConstraints` _[TopologySpreadConstraint](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#topologyspreadconstraint-v1-core) array_ | TopologySpreadConstraints describes how a group of pods ought to spread across topology domains,<br />that are honoured by the kube-scheduler. |  | Optional: \{\} <br /> |
-| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#toleration-v1-core) array_ | Tolerations defines the pod tolerations that allow etcd pods to be scheduled<br />onto nodes with matching taints, that are honoured by the kube-scheduler. |  | Optional: \{\} <br /> |
+| `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#affinity-v1-core)_ | Affinity defines the various affinity and anti-affinity rules for a pod<br />that are honoured by the kube-scheduler. |  |  |
+| `topologySpreadConstraints` _[TopologySpreadConstraint](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#topologyspreadconstraint-v1-core) array_ | TopologySpreadConstraints describes how a group of pods ought to spread across topology domains,<br />that are honoured by the kube-scheduler. |  |  |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#toleration-v1-core) array_ | Tolerations defines the pod tolerations that allow etcd pods to be scheduled<br />onto nodes with matching taints, that are honoured by the kube-scheduler. |  |  |
 
 
 #### SecretReference
@@ -1237,9 +1258,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | name is unique within a namespace to reference a secret resource. |  | Optional: \{\} <br /> |
-| `namespace` _string_ | namespace defines the space within which the secret name must be unique. |  | Optional: \{\} <br /> |
-| `dataKey` _string_ | DataKey is the name of the key in the data map containing the credentials. |  | Optional: \{\} <br /> |
+| `name` _string_ | name is unique within a namespace to reference a secret resource. |  |  |
+| `namespace` _string_ | namespace defines the space within which the secret name must be unique. |  |  |
+| `dataKey` _string_ | DataKey is the name of the key in the data map containing the credentials. |  |  |
 
 
 #### SharedConfig
@@ -1255,8 +1276,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `autoCompactionMode` _[CompactionMode](#compactionmode)_ | AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-etcd of backup-restore sidecar. |  | Enum: [periodic revision] <br />Optional: \{\} <br /> |
-| `autoCompactionRetention` _string_ | AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-etcd of backup-restore sidecar. |  | Optional: \{\} <br /> |
+| `autoCompactionMode` _[CompactionMode](#compactionmode)_ | AutoCompactionMode defines the auto-compaction-mode:'periodic' mode or 'revision' mode for etcd and embedded-etcd of backup-restore sidecar. |  | Enum: [periodic revision] <br /> |
+| `autoCompactionRetention` _string_ | AutoCompactionRetention defines the auto-compaction-retention length for etcd as well as for embedded-etcd of backup-restore sidecar. |  |  |
 
 
 #### SnapshotCompactionSpec
@@ -1272,9 +1293,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines compute Resources required by compaction job.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  | Optional: \{\} <br /> |
-| `eventsThreshold` _integer_ | EventsThreshold defines the threshold for the number of etcd events before triggering a compaction job |  | Optional: \{\} <br /> |
-| `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot. |  | Optional: \{\} <br /> |
+| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines compute Resources required by compaction job.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  |  |
+| `eventsThreshold` _integer_ | EventsThreshold defines the threshold for the number of etcd events before triggering a compaction job |  |  |
+| `triggerFullSnapshotThreshold` _integer_ | TriggerFullSnapshotThreshold defines the upper threshold for the number of etcd events before giving up on compaction job and triggering a full snapshot. |  |  |
 
 
 #### StorageProvider
@@ -1304,11 +1325,11 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `container` _string_ | Container is the name of the container the backup is stored at. |  | MaxLength: 63 <br />Pattern: `^[a-zA-Z0-9][a-zA-Z0-9._-]\{1,61\}[a-zA-Z0-9]$` <br />Optional: \{\} <br /> |
-| `endpointOverride` _string_ | EndpointOverride denotes the storage endpoint that will be used to override the storage provider's default endpoint. |  | Optional: \{\} <br /> |
-| `prefix` _string_ | Prefix is the prefix used for the store. |  | Required: \{\} <br /> |
-| `provider` _[StorageProvider](#storageprovider)_ | Provider is the name of the backup provider. |  | Optional: \{\} <br /> |
-| `secretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ | SecretRef is the reference to the secret which is used to connect to the backup store.<br />It is optional: when omitted, backup-restore falls back to the pod's cloud identity<br />(the provider SDK's default credential chain). On clusters where no such identity is<br />configured, omitting SecretRef will cause backup-restore to fail to create the snapstore. |  | Optional: \{\} <br /> |
+| `container` _string_ | Container is the name of the container the backup is stored at. |  | MaxLength: 63 <br />Pattern: `^[a-zA-Z0-9][a-zA-Z0-9._-]\{1,61\}[a-zA-Z0-9]$` <br /> |
+| `endpointOverride` _string_ | EndpointOverride denotes the storage endpoint that will be used to override the storage provider's default endpoint. |  |  |
+| `prefix` _string_ | Prefix is the prefix used for the store. |  |  |
+| `provider` _[StorageProvider](#storageprovider)_ | Provider is the name of the backup provider. |  |  |
+| `secretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ | SecretRef is the reference to the secret which is used to connect to the backup store.<br />It is optional: when omitted, backup-restore falls back to the pod's cloud identity<br />(the provider SDK's default credential chain). On clusters where no such identity is<br />configured, omitting SecretRef will cause backup-restore to fail to create the snapstore. |  |  |
 
 
 #### TLSConfig
@@ -1326,9 +1347,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  | Required: \{\} <br /> |
-| `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Required: \{\} <br /> |
-| `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Optional: \{\} <br /> |
+| `tlsCASecretRef` _[SecretReference](#secretreference)_ |  |  |  |
+| `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
+| `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  |  |
 
 
 #### TaskState
@@ -1372,6 +1393,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `enabled` _boolean_ | Enabled specifies whether to wait for a final full snapshot before copying backups. |  |  |
-| `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups<br />will be performed anyway. No timeout or 0 means wait forever. |  | Pattern: `^(0\|([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+)$` <br />Type: string <br />Optional: \{\} <br /> |
+| `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | Timeout is the timeout for waiting for a final full snapshot. When this timeout expires, the copying of backups<br />will be performed anyway. No timeout or 0 means wait forever. |  | Pattern: `^(0\|([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+)$` <br />Type: string <br /> |
 
 

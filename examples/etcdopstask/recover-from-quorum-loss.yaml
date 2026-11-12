@@ -1,0 +1,28 @@
+apiVersion: druid.gardener.cloud/v1alpha1
+kind: EtcdOpsTask
+metadata:
+  name: recover-from-quorum-loss
+  namespace: default
+  # annotations:
+  #   # Required: explicit confirmation before the destructive recovery proceeds.
+  #   # The task pauses at the first execution step until this annotation is observed with the
+  #   # literal value "true". Any other value (or absence) keeps the gate closed.
+  #   # Uncomment when you are ready to run the recovery.
+  #   druid.gardener.cloud/confirm-recovery: "true"
+spec:
+  etcdName: etcd-main
+  ttlSecondsAfterFinished: 3600
+  config:
+    recoverFromQuorumLoss:
+      # scaleDownTimeout: how long to wait for the StatefulSet to scale down to 0.
+      # Defaults to 60s. Accepts Go duration strings (e.g. 30s, 2m).
+      scaleDownTimeout: 60s
+      # podReadyTimeout: how long to wait for the single-member etcd pod (ordinal 0) to become ready after scale-up.
+      # Defaults to 180s. Accepts Go duration strings (e.g. 2m, 5m).
+      podReadyTimeout: 3m
+      # etcdReadyTimeout: how long to wait for all etcd cluster members (AllMembersReady=True) after reconciliation is re-enabled.
+      # Defaults to 300s. Accepts Go duration strings (e.g. 3m, 10m).
+      etcdReadyTimeout: 5m
+      # allowDataLoss: set to true to permit recovery without a configured backup store.
+      # The recovery brings the cluster up empty (no restore). Defaults to false.
+      # allowDataLoss: false
