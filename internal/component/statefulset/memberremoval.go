@@ -205,11 +205,12 @@ func moveLeadershipAway(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd,
 // ERR_QUORUM_UNSAFE_MEMBER_REMOVAL in status.lastErrors (see
 // preSyncEtcdResources); it clears once removal becomes safe.
 func checkQuorumSafeMemberRemoval(ctx component.OperatorContext, etcd *druidv1alpha1.Etcd, candidate etcdmember.Member, members etcdmember.Members) error {
-	if etcdmember.QuorumSafeToRemove(members, candidate.ID) {
+	canRemove, err := etcdmember.CanRemoveMemberWithoutLosingQuorum(members, candidate.ID)
+	if err == nil && canRemove {
 		return nil
 	}
-	ctx.Logger.Info("holding member removal: removing the selected member would break quorum",
-		"member", candidate.Name, "memberID", fmt.Sprintf("%x", candidate.ID))
+	ctx.Logger.Info("holding member removal: removing the selected member would break quorum or the member is no longer in the membership",
+		"member", candidate.Name, "memberID", fmt.Sprintf("%x", candidate.ID), "err", err)
 	return druiderr.New(ErrQuorumUnsafeMemberRemoval, component.OperationPreSync,
 		fmt.Sprintf("member %s not removed: removal would break quorum for etcd %v; waiting for the cluster to become healthy",
 			candidate.Name, client.ObjectKeyFromObject(etcd)))

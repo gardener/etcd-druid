@@ -219,6 +219,27 @@ func (c *etcdClient) Status(ctx context.Context, endpoint string) (*clientv3.Sta
 	return c.api.Status(ctx, endpoint)
 }
 
+// ObserveQuorum derives the cluster-level quorum state from a single linearizable MemberList
+// The outcome is mapped as follows :
+//   - success         => QuorumStatePresent (quorum existed at that instant)
+//   - ErrNoLeader     => QuorumStateLost    (etcd itself reports it cannot serve)
+//   - any other error => inconclusive, returned as an error so the caller holds
+//     rather than acting on a transient failures such as timeout, dial failure, etc.
+func ObserveQuorum(ctx context.Context, cluster Cluster) (etcdmember.QuorumState, error) {
+	callCtx, cancel := context.WithTimeout(ctx, defaultCommandTimeout)
+	defer cancel()
+
+	_, err := cluster.MemberList(callCtx)
+	switch {
+	case err == nil:
+		return etcdmember.QuorumStatePresent, nil
+	case errors.Is(err, rpctypes.ErrNoLeader):
+		return etcdmember.QuorumStateLost, nil
+	default:
+		return "", fmt.Errorf("could not conclusively observe quorum: %w", err)
+	}
+}
+
 // MoveLeader asks the current leader to transfer leadership to the member with
 // the given ID. etcd rejects the request unless it is served by the leader, so
 // the call is sent on a client dialed to leaderURLs only.

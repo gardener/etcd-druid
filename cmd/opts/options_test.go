@@ -58,6 +58,7 @@ func TestCompleteWithDeprecatedFlags(t *testing.T) {
 	g.Expect(cfg.Controllers.Etcd.ConcurrentSyncs).To(PointTo(Equal(5)))
 	g.Expect(cfg.Controllers.Compaction.ConcurrentSyncs).To(PointTo(Equal(3)))
 	g.Expect(cfg.Controllers.Secret.ConcurrentSyncs).To(PointTo(Equal(15)))
+	g.Expect(cfg.Controllers.OnDelete.ConcurrentSyncs).To(PointTo(Equal(druidconfigv1alpha1.DefaultOnDeleteControllerConcurrentSyncs)))
 }
 
 func TestCompleteWithConfigFlag(t *testing.T) {
