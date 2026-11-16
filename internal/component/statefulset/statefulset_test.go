@@ -12,6 +12,7 @@ import (
 	"time"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	etcdfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	clientkubernetes "github.com/gardener/etcd-druid/internal/client/kubernetes"
@@ -411,13 +412,14 @@ func TestPreSync(t *testing.T) {
 
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoSTSExists(t *testing.T) {
-	t.Parallel()
+	// Feature gates are global, so these cases run sequentially.
 	testCases := []struct {
 		name                        string
 		replicas                    int32
 		tolerations                 []corev1.Toleration
 		hasExternallyManagedMembers bool
 		hasEndpointsDiscovery       bool
+		upgradeEtcdVersionEnabled   bool
 		createErr                   *apierrors.StatusError
 		expectedErr                 *druiderr.DruidError
 		expectedReplicas            *int32
@@ -471,10 +473,19 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 			expectNoService:             true,
 		},
 		{
-			name:                        "creates sts with dynamic endpoints volume, mount and env var when EndpointsDiscovery is configured",
+			name:                        "creates sts with endpoints discovery without refresh flags when UpgradeEtcdVersion is disabled",
 			replicas:                    3,
 			hasExternallyManagedMembers: true,
 			hasEndpointsDiscovery:       true,
+			expectedReplicas:            ptr.To[int32](0),
+			expectNoService:             true,
+		},
+		{
+			name:                        "creates sts with endpoints discovery and refresh flags when UpgradeEtcdVersion is enabled",
+			replicas:                    3,
+			hasExternallyManagedMembers: true,
+			hasEndpointsDiscovery:       true,
+			upgradeEtcdVersionEnabled:   true,
 			expectedReplicas:            ptr.To[int32](0),
 			expectNoService:             true,
 		},
@@ -501,11 +512,20 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 		},
 	}
 
-	g := NewWithT(t)
 	iv := testutils.CreateImageVector(true, true)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			g := NewWithT(t)
+			err := druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+				map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: tc.upgradeEtcdVersionEnabled},
+			)
+			g.Expect(err).ToNot(HaveOccurred())
+			t.Cleanup(func() {
+				_ = druidconfigv1alpha1.DefaultFeatureGates.SetEnabledFeaturesFromMap(
+					map[string]bool{druidconfigv1alpha1.UpgradeEtcdVersion: false},
+				)
+			})
+
 			// *************** Build test environment ***************
 			etcdBuilder := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
 				WithReplicas(tc.replicas).
@@ -557,7 +577,13 @@ func TestSyncWhenNoSTSExists(t *testing.T) {
 				g.Expect(latestSTS).ToNot(BeNil())
 				g.Expect(*latestSTS).Should(stsMatcher.MatchStatefulSet())
 				if tc.hasEndpointsDiscovery {
-					g.Expect(latestSTS.Spec.Template.Spec.Containers[1].Args).To(ContainElements("--enable-endpoints-refresh=true", "--endpoints-refresh-interval=10s"))
+					args := latestSTS.Spec.Template.Spec.Containers[1].Args
+					if tc.upgradeEtcdVersionEnabled {
+						g.Expect(args).To(ContainElements("--enable-endpoints-refresh=true", "--endpoints-refresh-interval=10s"))
+					} else {
+						g.Expect(args).ToNot(ContainElement("--enable-endpoints-refresh=true"))
+						g.Expect(args).ToNot(ContainElement(HavePrefix("--endpoints-refresh-interval=")))
+					}
 				}
 			}
 		})

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	druidapicommon "github.com/gardener/etcd-druid/api/common"
+	druidconfigv1alpha1 "github.com/gardener/etcd-druid/api/config/v1alpha1"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	"github.com/gardener/etcd-druid/internal/common"
 	"github.com/gardener/etcd-druid/internal/component"
@@ -504,10 +505,12 @@ func (b *stsBuilder) getBackupRestoreContainerCommandArgs() []string {
 	commandArgs = append(commandArgs, "--use-etcd-wrapper=true")
 	commandArgs = append(commandArgs, "--enable-member-lease-renewal=true")
 
-	if druidv1alpha1.IsEndpointsDiscoveryEnabled(b.etcd) && b.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.RefreshEnabled {
-		commandArgs = append(commandArgs, "--enable-endpoints-refresh=true")
-		if b.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.RefreshInterval != nil {
-			commandArgs = append(commandArgs, fmt.Sprintf("--endpoints-refresh-interval=%s", b.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.RefreshInterval.Duration.String()))
+	if druidconfigv1alpha1.DefaultFeatureGates.IsEnabled(druidconfigv1alpha1.UpgradeEtcdVersion) {
+		if druidv1alpha1.IsEndpointsDiscoveryEnabled(b.etcd) && b.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.RefreshEnabled {
+			commandArgs = append(commandArgs, "--enable-endpoints-refresh=true")
+			if b.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.RefreshInterval != nil {
+				commandArgs = append(commandArgs, fmt.Sprintf("--endpoints-refresh-interval=%s", b.etcd.Spec.Etcd.ExternallyManagedMembers.EndpointsDiscovery.RefreshInterval.Duration.String()))
+			}
 		}
 	}
 	heartbeatDuration := defaultHeartbeatDuration

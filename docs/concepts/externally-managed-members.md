@@ -61,7 +61,7 @@ spec:
         - 192.168.0.3
       endpointsDiscovery:
         endpointsFilePath: /var/lib/etcd/endpoints/ENDPOINTS
-        refreshEnabled: true
+        refreshEnabled: true # default value is false
         refreshInterval: 30s
 ```
 
