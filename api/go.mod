@@ -9,7 +9,7 @@ require (
 )
 
 // Test dependencies
-require github.com/onsi/gomega v1.39.0
+require github.com/onsi/gomega v1.44.0
 
 require (
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
@@ -36,7 +36,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
