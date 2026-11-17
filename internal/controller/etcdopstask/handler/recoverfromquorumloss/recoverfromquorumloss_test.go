@@ -530,7 +530,7 @@ func TestRecoverFromQuorumLossAdmit(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "Should still reject when Ready=True even with AllowDataLoss=true",
+			name:       "Should still reject when Ready=True even with AllowDataLoss=true",
 			etcdObject: createEtcdWithBackup("test-etcd", "test-ns", 3, true),
 			taskConfig: &druidv1alpha1.RecoverFromQuorumLossConfig{
 				AllowDataLoss: ptr.To(true),
