@@ -154,7 +154,10 @@ become ready → re-enable component protection.
   config flag — see below — at which point the cluster comes back up empty (no backup configured)
   or restores from whatever the latest available snapshot happens to be (backup configured but not
   Ready).
-- The cluster must currently **not** be in a ready state (quorum loss has occurred).
+- The cluster must have `Ready=False` with `reason=QuorumLost`. Other forms of unreadiness
+  (e.g. rolling update, transient partition) produce a `Ready=False` with a different reason and
+  are rejected — those situations do not require quorum-loss recovery and the cluster will recover
+  on its own or need a different remediation.
 - No other `EtcdOpsTask` should be in progress for the same etcd cluster.
 - **Confirmation:** because this task is destructive, it requires explicit user confirmation
   before any state-mutating step runs. The first execution step blocks until the annotation
@@ -190,7 +193,7 @@ spec:
   config:
     recoverFromQuorumLoss:
       scaleDownTimeout: 60s
-      podReadyTimeout: 5m
+      podReadyTimeout: 3m
       etcdReadyTimeout: 5m
 ```
 
@@ -208,8 +211,7 @@ spec:
 If the task fails mid-execution, the `Cleanup` phase removes the suspend and disable-protection
 annotations so the operator is not permanently locked out.
 
-
-
+### Best Practices
 
 1. **Unique Names**: Use descriptive, unique names for tasks to avoid conflicts
 2. **Monitor Status**: Check task status before creating duplicate operations. This will help avoid duplicate tasks.
