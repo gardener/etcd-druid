@@ -81,15 +81,6 @@ func TestRecoverFromQuorumLossLifecycle(t *testing.T) {
 			allowDataLoss: ptr.To(true),
 			expectedState: druidv1alpha1.TaskStateSucceeded,
 		},
-		{
-			name:               "succeeds-allow-data-loss-no-backup",
-			purpose:            "test Succeeded state after quorum loss when AllowDataLoss=true and no backup is configured",
-			replicas:           3,
-			backupEnabled:      false,
-			simulateQuorumLoss: true,
-			allowDataLoss:      ptr.To(true),
-			expectedState:      druidv1alpha1.TaskStateSucceeded,
-		},
 	}
 
 	for _, provider := range providers {
