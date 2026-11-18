@@ -37,7 +37,7 @@ After peer URL TLS enablement for single node etcd cluster, now etcd-druid adds 
 As backup-restore detects that it's a scale-up scenario, backup-restore sets `initial-cluster-state` to `existing` as this member will join an existing cluster and it calculates the rest of the config from the updated config-map provided by etcd-druid.
 
 
-![Sequence diagram](assets/03-scale-up-sequenceDiagram.png)
+![Sequence diagram](assets/03-scale-up-sequence-diagram.png)
 
 ## Future improvements:
 The need of restarting etcd pods twice will change in the future. please refer: https://github.com/gardener/etcd-backup-restore/issues/538
