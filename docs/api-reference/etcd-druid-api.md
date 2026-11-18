@@ -959,6 +959,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `onDemandSnapshot` _[OnDemandSnapshotConfig](#ondemandsnapshotconfig)_ | OnDemandSnapshot defines the configuration for an on-demand snapshot task. |  | Optional: \{\} <br /> |
+| `recoverFromQuorumLoss` _[RecoverFromQuorumLossConfig](#recoverfromquorumlossconfig)_ | RecoverFromQuorumLoss defines the configuration for a task that recovers<br />a multi-member etcd cluster from a permanent quorum loss. |  | Optional: \{\} <br /> |
 
 
 #### EtcdOpsTaskSpec
@@ -1201,6 +1202,26 @@ _Appears in:_
 | `serverTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Required: \{\} <br /> |
 | `clientTLSSecretRef` _[SecretReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#secretreference-v1-core)_ |  |  | Optional: \{\} <br /> |
 | `skipClientSANVerification` _boolean_ | SkipClientSANVerification, when true, skips verification of Subject<br />Alternative Names on the client certificate during peer mTLS<br />handshakes. The CA-based identity check still applies — any<br />certificate signed by the configured peer CA is accepted regardless<br />of its SAN. Only effective when peerUrlTls is configured (which is<br />structurally required: this field cannot be set without setting<br />peerUrlTls itself).<br />Mirrors etcd's config.PeerTLSInfo.SkipClientSANVerification;<br />rendered under peer-transport-security in the etcd config ConfigMap.<br />Behavior across etcd versions:<br />  - etcd v3.6+: the YAML key skip-client-san-verification under<br />    peer-transport-security is honored natively — see<br />    https://github.com/etcd-io/etcd/blob/release-3.6/server/embed/config.go#L485<br />    and https://github.com/etcd-io/etcd/blob/release-3.6/server/etcdmain/config.go#L122<br />    (the experimental CLI flag is deprecated in v3.6).<br />  - etcd v3.4 / v3.5: the YAML key is not honored natively; etcd-wrapper<br />    translates this field into the<br />    --experimental-peer-skip-client-san-verification CLI flag — see<br />    https://github.com/etcd-io/etcd/blob/release-3.5/server/etcdmain/config.go#L302<br />    and the bridge in https://github.com/gardener/etcd-wrapper/pull/92. |  | Optional: \{\} <br /> |
+
+
+#### RecoverFromQuorumLossConfig
+
+
+
+RecoverFromQuorumLossConfig defines the configuration for the RecoverFromQuorumLoss task.
+This task automates the recovery of a multi-member etcd cluster from a permanent quorum loss.
+
+
+
+_Appears in:_
+- [EtcdOpsTaskConfig](#etcdopstaskconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `scaleDownTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | ScaleDownTimeout is the timeout to wait for the StatefulSet to fully scale down to 0 replicas<br />during quorum loss recovery. Defaults to 60 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+| `podReadyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | PodReadyTimeout is the timeout to wait for the single-member etcd pod (ordinal 0) to become<br />ready after the StatefulSet is scaled up to 1 during quorum loss recovery.<br />Defaults to 180 seconds. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+| `etcdReadyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdReadyTimeout is the timeout to wait for all etcd cluster members to become ready<br />(the AllMembersReady condition reports True) after etcd-druid reconciliation has been<br />re-enabled at the end of the recovery flow. Defaults to 300 seconds (5 minutes). |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+| `allowDataLoss` _boolean_ | AllowDataLoss permits the recovery to proceed even when no backup store is configured for the<br />referenced Etcd. The recovery flow brings the cluster up with `initial-cluster-state: new`,<br />so the rebuilt single-member cluster will start with an empty data set; setting this to true<br />is an explicit acknowledgement that all existing etcd data will be lost. When unset (or false),<br />the admit check rejects the task if no backup store is configured. |  | Optional: \{\} <br /> |
 
 
 #### SchedulingConstraints

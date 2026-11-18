@@ -993,6 +993,54 @@ func (t *TestEnvironment) CheckEtcdOpsTaskState(g *WithT, task *druidv1alpha1.Et
 	}, timeout, defaultPollingInterval).Should(Succeed())
 }
 
+// AddAnnotationToEtcdOpsTask patches a single annotation key/value onto the given EtcdOpsTask,
+// retrying on conflict.
+func (t *TestEnvironment) AddAnnotationToEtcdOpsTask(g *WithT, task *druidv1alpha1.EtcdOpsTask, key, value string) {
+	g.Eventually(func() error {
+		current := &druidv1alpha1.EtcdOpsTask{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(task), current); err != nil {
+			return err
+		}
+		patch := client.MergeFrom(current.DeepCopy())
+		if current.Annotations == nil {
+			current.Annotations = make(map[string]string)
+		}
+		current.Annotations[key] = value
+		return t.cl.Patch(t.ctx, current, patch)
+	}, 30*time.Second, 2*time.Second).Should(Succeed())
+}
+
+// CheckEtcdCondition polls until the Etcd resource has a condition with the specified type and
+// status. When reason is non-empty, the condition's reason must also match.
+func (t *TestEnvironment) CheckEtcdCondition(
+	g *WithT,
+	etcd *druidv1alpha1.Etcd,
+	condType druidv1alpha1.ConditionType,
+	condStatus druidv1alpha1.ConditionStatus,
+	reason string,
+	timeout time.Duration,
+) {
+	g.Eventually(func() error {
+		current := &druidv1alpha1.Etcd{}
+		if err := t.cl.Get(t.ctx, client.ObjectKeyFromObject(etcd), current); err != nil {
+			return fmt.Errorf("failed to get Etcd %s: %w", etcd.Name, err)
+		}
+		for _, c := range current.Status.Conditions {
+			if c.Type != condType {
+				continue
+			}
+			if c.Status != condStatus {
+				return fmt.Errorf("condition %s: status=%s, want %s", condType, c.Status, condStatus)
+			}
+			if reason != "" && c.Reason != reason {
+				return fmt.Errorf("condition %s: reason=%s, want %s", condType, c.Reason, reason)
+			}
+			return nil
+		}
+		return fmt.Errorf("condition %s not found on Etcd %s", condType, etcd.Name)
+	}, timeout, defaultPollingInterval).Should(Succeed())
+}
+
 // CheckEtcdOpsTaskDeleted polls until the EtcdOpsTask resource no longer exists.
 func (t *TestEnvironment) CheckEtcdOpsTaskDeleted(g *WithT, task *druidv1alpha1.EtcdOpsTask, timeout time.Duration) {
 	g.Eventually(func() error {

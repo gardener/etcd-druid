@@ -12,6 +12,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	// ReadyConditionReasonQuorumLost is the reason set on the Ready condition when fewer than a
+	// quorum of etcd members report ready. This is the canonical signal for permanent quorum loss.
+	ReadyConditionReasonQuorumLost = "QuorumLost"
+	// ReadyConditionReasonQuorate is the reason set on the Ready condition when a quorum of etcd
+	// members report ready.
+	ReadyConditionReasonQuorate = "Quorate"
+	// ReadyConditionReasonNoMembersInStatus is the reason set on the Ready condition when the
+	// etcd status has no members yet (e.g. fresh cluster whose members have not registered).
+	ReadyConditionReasonNoMembersInStatus = "NoMembersInStatus"
+)
+
 type readyCheck struct{}
 
 func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
@@ -21,7 +33,7 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
 			status:  druidv1alpha1.ConditionUnknown,
-			reason:  "NoMembersInStatus",
+			reason:  ReadyConditionReasonNoMembersInStatus,
 			message: "Cannot determine readiness since status has no members",
 		}
 	}
@@ -43,7 +55,7 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 		return &result{
 			conType: druidv1alpha1.ConditionTypeReady,
 			status:  druidv1alpha1.ConditionFalse,
-			reason:  "QuorumLost",
+			reason:  ReadyConditionReasonQuorumLost,
 			message: "The majority of ETCD members is not ready",
 		}
 	}
@@ -51,7 +63,7 @@ func (r *readyCheck) Check(_ context.Context, etcd druidv1alpha1.Etcd) Result {
 	return &result{
 		conType: druidv1alpha1.ConditionTypeReady,
 		status:  druidv1alpha1.ConditionTrue,
-		reason:  "Quorate",
+		reason:  ReadyConditionReasonQuorate,
 		message: "The majority of ETCD members is ready",
 	}
 }
