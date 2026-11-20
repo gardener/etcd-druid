@@ -413,6 +413,7 @@ func TestPreSync(t *testing.T) {
 // ----------------------------------- Sync -----------------------------------
 func TestSyncWhenNoSTSExists(t *testing.T) {
 	// Feature gates are global, so these cases run sequentially.
+	// TODO(@CaptainIRS): remove etcd version upgrade parameter and associated tests once the feature is GA.
 	testCases := []struct {
 		name                        string
 		replicas                    int32
