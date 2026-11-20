@@ -608,7 +608,7 @@ spec:
                         AdditionalAdvertisedURLs contains extra per-member URLs for client and peer
                         advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.
                         Has no effect on externally managed members
-                        (spec.externallyManagedMemberAddresses).
+                        (spec.etcd.externallyManagedMembers.addresses).
                       properties:
                         clientURLs:
                           description: ClientURLs contains extra per-member client URLs. See AdditionalURLsSpec.
@@ -1025,6 +1025,39 @@ spec:
                       description: EtcdDefragTimeout defines the timeout duration for etcd defrag call
                       pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                       type: string
+                    externallyManagedMembers:
+                      description: ExternallyManagedMembers configures externally managed etcd members.
+                      properties:
+                        addresses:
+                          description: |-
+                            Addresses defines the addresses of externally managed etcd members.
+                            Specifying addresses disables management of member Pods, Services and PDBs.
+                            Allowed values include IPv4/IPv6 addresses and hostnames, without a protocol or port.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: set
+                        endpointsDiscovery:
+                          description: EndpointsDiscovery configures endpoint discovery for etcd-backup-restore via an ENDPOINTS file.
+                          properties:
+                            endpointsFilePath:
+                              description: |-
+                                EndpointsFilePath is the path to the ENDPOINTS file on the host node.
+                                Its parent directory is mounted into the backup-restore container.
+                              minLength: 1
+                              type: string
+                            refreshEnabled:
+                              description: RefreshEnabled enables the periodic refresh of the ENDPOINTS file from the live etcd member list.
+                              type: boolean
+                            refreshInterval:
+                              description: |-
+                                RefreshInterval is the interval at which the ENDPOINTS file is refreshed.
+                                If omitted, etcd-backup-restore uses its default of 30s.
+                                When specified, must be > 0 when RefreshEnabled is true.
+                              pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                              type: string
+                          type: object
+                      type: object
                     heartbeatDuration:
                       description: HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s.
                       pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
@@ -1273,6 +1306,7 @@ spec:
                     ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this
                     will disable components that are involved in management of etcd members like Pods, Services and PDBs.
                     Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.
+                    Deprecated: use spec.etcd.externallyManagedMembers.addresses instead.
                   items:
                     type: string
                   type: array
