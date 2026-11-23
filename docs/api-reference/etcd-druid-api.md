@@ -770,6 +770,25 @@ _Appears in:_
 | `apiVersion` _string_ | API version of the referent |  | Optional: \{\} <br /> |
 
 
+#### EndpointsDiscoveryConfig
+
+
+
+EndpointsDiscoveryConfig configures etcd endpoint discovery via an ENDPOINTS file.
+When configured, etcd-backup-restore reads client endpoints from the file instead of static ConfigMap entries.
+
+
+
+_Appears in:_
+- [ExternallyManagedMembersConfig](#externallymanagedmembersconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `endpointsFilePath` _string_ | EndpointsFilePath is the path to the ENDPOINTS file on the host node.<br />Its parent directory is mounted into the backup-restore container. |  | MinLength: 1 <br />Optional: \{\} <br /> |
+| `refreshEnabled` _boolean_ | RefreshEnabled enables the periodic refresh of the ENDPOINTS file from the live etcd member list. |  | Optional: \{\} <br /> |
+| `refreshInterval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | RefreshInterval is the interval at which the ENDPOINTS file is refreshed.<br />If omitted, etcd-backup-restore uses its default of 30s.<br />When specified, must be > 0 when RefreshEnabled is true. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+
+
 #### Etcd
 
 
@@ -802,6 +821,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `externallyManagedMembers` _[ExternallyManagedMembersConfig](#externallymanagedmembersconfig)_ | ExternallyManagedMembers configures externally managed etcd members. |  | Optional: \{\} <br /> |
 | `quota` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | Quota defines the etcd DB quota. |  | Optional: \{\} <br /> |
 | `snapshotCount` _integer_ | SnapshotCount defines the number of applied Raft entries to hold in-memory before compaction.<br />More info: https://etcd.io/docs/v3.5/op-guide/maintenance/#raft-log-retention |  | Optional: \{\} <br /> |
 | `enableGRPCGateway` _boolean_ | EnableGRPCGateway enables the gRPC-Gateway proxy for etcd. |  | Optional: \{\} <br /> |
@@ -814,7 +834,7 @@ _Appears in:_
 | `metrics` _[MetricsLevel](#metricslevel)_ | Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics. |  | Enum: [basic extensive] <br />Optional: \{\} <br /> |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#resourcerequirements-v1-core)_ | Resources defines the compute Resources required by etcd container.<br />More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/ |  | Optional: \{\} <br /> |
 | `clientUrlTls` _[TLSConfig](#tlsconfig)_ | ClientUrlTLS contains the ca, server TLS and client TLS secrets for client communication to ETCD cluster |  | Optional: \{\} <br /> |
-| `additionalAdvertisedURLs` _[AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)_ | AdditionalAdvertisedURLs contains extra per-member URLs for client and peer<br />advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.<br />Has no effect on externally managed members<br />(spec.externallyManagedMemberAddresses). |  | Optional: \{\} <br /> |
+| `additionalAdvertisedURLs` _[AdditionalAdvertiseURLsSpec](#additionaladvertiseurlsspec)_ | AdditionalAdvertisedURLs contains extra per-member URLs for client and peer<br />advertisement. ClientURLs and PeerURLs are configured independently via AdditionalURLsSpec.<br />Has no effect on externally managed members<br />(spec.etcd.externallyManagedMembers.addresses). |  | Optional: \{\} <br /> |
 | `peerUrlTls` _[PeerTLSConfig](#peertlsconfig)_ | PeerUrlTLS contains the ca and server TLS secrets for peer communication within ETCD cluster.<br />Currently, PeerUrlTLS does not require client TLS secrets for gardener implementation of ETCD cluster.<br />In addition to the base TLSConfig fields it also exposes the peer-only<br />SkipClientSANVerification knob (see PeerTLSConfig). |  | Optional: \{\} <br /> |
 | `etcdDefragTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | EtcdDefragTimeout defines the timeout duration for etcd defrag call |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `heartbeatDuration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#duration-v1-meta)_ | HeartbeatDuration defines the duration for members to send heartbeats. The default value is 10s. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
@@ -1043,7 +1063,7 @@ _Appears in:_
 | `storageCapacity` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#quantity-resource-api)_ | StorageCapacity defines the size of persistent volume. |  | Optional: \{\} <br /> |
 | `volumeClaimTemplate` _string_ | VolumeClaimTemplate defines the volume claim template to be created |  | Optional: \{\} <br /> |
 | `runAsRoot` _boolean_ | RunAsRoot defines whether the securityContext of the pod specification should indicate that the containers shall<br />run as root. By default, they run as non-root with user 'nobody'. |  | Optional: \{\} <br /> |
-| `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified. |  | Optional: \{\} <br /> |
+| `externallyManagedMemberAddresses` _string array_ | ExternallyManagedMemberAddresses defines the list of addresses of externally managed etcd members. Specifying this<br />will disable components that are involved in management of etcd members like Pods, Services and PDBs.<br />Allowed values include: IPv4/IPv6 addresses and hostnames. Protocol or port shall not be specified.<br />Deprecated: use spec.etcd.externallyManagedMembers.addresses instead. |  | Optional: \{\} <br /> |
 | `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#volume-v1-core) array_ | Volumes specifies additional volumes for the pod.<br />These are appended after controller-managed volumes; duplicate names are not allowed.<br />Example (used together with spec.backup.volumeMounts and spec.backup.env):<br />  - name: host-volume<br />    hostPath:<br />      path: /var/host |  | MaxItems: 5 <br />Optional: \{\} <br /> |
 
 
@@ -1074,6 +1094,23 @@ _Appears in:_
 | `peerUrlTLSEnabled` _boolean_ | PeerUrlTLSEnabled captures the state of peer url TLS being enabled for the etcd member(s) |  | Optional: \{\} <br /> |
 | `selector` _string_ | Selector is a label query over pods that should match the replica count.<br />It must match the pod template's labels. |  | Optional: \{\} <br /> |
 | `bootstrapWithExistingCluster` _[BootstrapWithExistingClusterStatus](#bootstrapwithexistingclusterstatus)_ | BootstrapWithExistingCluster is the snapshot of the source cluster the<br />target joined. It is set once when the BootstrappedWithExistingCluster<br />condition first transitions to True, and is not updated thereafter. |  | Optional: \{\} <br /> |
+
+
+#### ExternallyManagedMembersConfig
+
+
+
+ExternallyManagedMembersConfig configures externally managed etcd members and their endpoint discovery.
+
+
+
+_Appears in:_
+- [EtcdConfig](#etcdconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `addresses` _string array_ | Addresses defines the addresses of externally managed etcd members.<br />Specifying addresses disables management of member Pods, Services and PDBs.<br />Allowed values include IPv4/IPv6 addresses and hostnames, without a protocol or port. |  | Optional: \{\} <br /> |
+| `endpointsDiscovery` _[EndpointsDiscoveryConfig](#endpointsdiscoveryconfig)_ | EndpointsDiscovery configures endpoint discovery for etcd-backup-restore via an ENDPOINTS file. |  | Optional: \{\} <br /> |
 
 
 #### GarbageCollectionPolicy

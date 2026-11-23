@@ -22,6 +22,15 @@ spec:
     # networking.gardener.cloud/to-public-networks: allowed
     role: test
   etcd:
+    # externallyManagedMembers:
+    #   addresses:
+    #     - 192.168.0.1
+    #     - 192.168.0.2
+    #     - 192.168.0.3
+    #   endpointsDiscovery:
+    #     endpointsFilePath: /var/lib/etcd/endpoints
+    #     refreshEnabled: true
+    #     refreshInterval: 30s
     metrics: basic
     defragmentationSchedule: "0 */24 * * *"
     resources:
@@ -87,10 +96,6 @@ spec:
     #   effect: NoSchedule
 
   replicas: 3
-  # externallyManagedMemberAddresses:
-  #   - 192.168.0.1
-  #   - 192.168.0.2
-  #   - 192.168.0.3
   # priorityClassName: priority-class-name
   # storageClass: default
   # storageCapacity: 10Gi
