@@ -19,28 +19,100 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// IsStatefulSetReady checks whether the given StatefulSet is ready and up-to-date.
-// A StatefulSet is considered healthy if its controller observed its current revision,
-// it is not in an update (i.e. UpdateRevision is empty) and if its current replicas are equal to
-// desired replicas specified in ETCD specs.
-// It returns ready status (bool) and in case it is not ready then the second return value holds the reason.
-func IsStatefulSetReady(etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string) {
+// IsStatefulSetReady reports whether the StatefulSet is ready and all desired
+// replicas are at the updateRevision. The final returned error is non-nil only
+// when readiness could not be determined (e.g. a pod listing fails)
+func IsStatefulSetReady(ctx context.Context, cl client.Client, etcdReplicas int32, statefulSet *appsv1.StatefulSet) (bool, string, error) {
 	if statefulSet.Status.ObservedGeneration < statefulSet.Generation {
-		return false, fmt.Sprintf("observed generation %d is outdated in comparison to generation %d", statefulSet.Status.ObservedGeneration, statefulSet.Generation)
+		return false, fmt.Sprintf("observed generation %d is outdated in comparison to generation %d", statefulSet.Status.ObservedGeneration, statefulSet.Generation), nil
 	}
 	if statefulSet.Status.ReadyReplicas < etcdReplicas {
-		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas)
+		return false, fmt.Sprintf("not enough ready replicas (%d/%d)", statefulSet.Status.ReadyReplicas, etcdReplicas), nil
 	}
-	if statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision {
-		return false, fmt.Sprintf("Current StatefulSet revision %s is older than the updated StatefulSet revision %s)", statefulSet.Status.CurrentRevision, statefulSet.Status.UpdateRevision)
+	if statefulSet.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+		if statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision {
+			return false, fmt.Sprintf("Current StatefulSet revision %s is older than the updated StatefulSet revision %s", statefulSet.Status.CurrentRevision, statefulSet.Status.UpdateRevision), nil
+		}
+		if statefulSet.Status.CurrentReplicas != statefulSet.Status.UpdatedReplicas {
+			return false, fmt.Sprintf("StatefulSet status.CurrentReplicas (%d) != status.UpdatedReplicas (%d)", statefulSet.Status.CurrentReplicas, statefulSet.Status.UpdatedReplicas), nil
+		}
+		return true, "", nil
 	}
-	if statefulSet.Status.CurrentReplicas != statefulSet.Status.UpdatedReplicas {
-		return false, fmt.Sprintf("StatefulSet status.CurrentReplicas (%d) != status.UpdatedReplicas (%d)", statefulSet.Status.CurrentReplicas, statefulSet.Status.UpdatedReplicas)
+	// CurrentRevision is not reliably updated for OnDelete, so check the pods directly for it.
+	allUpdated, err := AreStatefulSetReplicasUpdated(ctx, cl, statefulSet)
+	if err != nil {
+		return false, "", fmt.Errorf("unable to determine whether all StatefulSet replicas are updated: %w", err)
 	}
-	return true, ""
+	if !allUpdated {
+		return false, fmt.Sprintf("not all replicas are at the target StatefulSet revision %s", statefulSet.Status.UpdateRevision), nil
+	}
+	return true, "", nil
+}
+
+// ListStatefulSetPods lists the pods selected by sts.Spec.Selector in the
+// StatefulSet's namespace and owned (via controller OwnerReference) by sts.
+func ListStatefulSetPods(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) ([]corev1.Pod, error) {
+	if sts.Spec.Selector == nil {
+		return nil, fmt.Errorf("statefulSet %s/%s has nil spec.selector", sts.Namespace, sts.Name)
+	}
+	selector, err := metav1.LabelSelectorAsSelector(sts.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse statefulSet %s/%s spec.selector: %w", sts.Namespace, sts.Name, err)
+	}
+	if selector.Empty() {
+		return nil, fmt.Errorf("statefulSet %s/%s spec.selector matched everything; refusing to list", sts.Namespace, sts.Name)
+	}
+	list := &corev1.PodList{}
+	if err := cl.List(ctx, list, &client.ListOptions{Namespace: sts.Namespace, LabelSelector: selector}); err != nil {
+		return nil, fmt.Errorf("failed to list pods for statefulSet %s/%s: %w", sts.Namespace, sts.Name, err)
+	}
+	owned := make([]corev1.Pod, 0, len(list.Items))
+	for i := range list.Items {
+		if metav1.IsControlledBy(&list.Items[i], sts) {
+			owned = append(owned, list.Items[i])
+		}
+	}
+	return owned, nil
+}
+
+// IsStatefulSetPodOutdated reports whether the pod's controller-revision-hash differs from sts.Status.UpdateRevision
+func IsStatefulSetPodOutdated(pod *corev1.Pod, sts *appsv1.StatefulSet) bool {
+	return pod.Labels[appsv1.StatefulSetRevisionLabel] != sts.Status.UpdateRevision
+}
+
+// AreStatefulSetReplicasUpdated reports whether all pods requested by the
+// StatefulSet exist and are at the StatefulSet's updateRevision.
+// The desired replica count is taken from sts.Spec.Replicas.
+func AreStatefulSetReplicasUpdated(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) (bool, error) {
+	if sts.Status.UpdateRevision == "" {
+		return false, nil
+	}
+	desired := ptr.Deref(sts.Spec.Replicas, 0)
+	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+		return sts.Status.UpdatedReplicas == desired &&
+			sts.Status.UpdateRevision == sts.Status.CurrentRevision, nil
+	}
+	pods, err := ListStatefulSetPods(ctx, cl, sts)
+	if err != nil {
+		return false, err
+	}
+	updated := int32(0)
+	for i := range pods {
+		if pods[i].DeletionTimestamp != nil {
+			continue
+		}
+		if IsStatefulSetPodOutdated(&pods[i], sts) {
+			return false, nil
+		}
+		updated++
+	}
+	// Every desired replica must exist and be at the update revision.
+	// A missing replica means the rollout is not complete.
+	return updated == desired, nil
 }
 
 // GetStatefulSet fetches StatefulSet created for the etcd. Nil will be returned if one of these conditions are met:
