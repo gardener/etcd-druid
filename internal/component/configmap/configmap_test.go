@@ -203,6 +203,14 @@ func TestPrepareInitialCluster(t *testing.T) {
 			expectedInitialCluster:           "etcd-test-1.1.1.1=https://1.1.1.1:2333,etcd-test-1.1.1.2=https://1.1.1.2:2333,etcd-test-1.1.1.3=https://1.1.1.3:2333",
 		},
 		{
+			name:                             "should create initial cluster with bracketed IPv6 hosts when externally managed members use IPv6 addresses",
+			etcdReplicas:                     3,
+			peerTLSEnabled:                   true,
+			externallyManagedMemberAddresses: []string{"fd00::1", "1.1.1.2", "etcd-2.example.com"},
+			etcdSpecServerPort:               ptr.To[int32](2333),
+			expectedInitialCluster:           "etcd-test-fd00::1=https://[fd00::1]:2333,etcd-test-1.1.1.2=https://1.1.1.2:2333,etcd-test-etcd-2.example.com=https://etcd-2.example.com:2333",
+		},
+		{
 			name:           "should append additional peer URLs for matching member",
 			etcdReplicas:   2,
 			peerTLSEnabled: false,
@@ -334,8 +342,33 @@ func TestGetAdvertiseURLs(t *testing.T) {
 		additionalAdvertisePeerURLs   []druidv1alpha1.MemberURLs
 		overrideDefaultPeerURL        *bool
 		additionalAdvertiseClientURLs *druidv1alpha1.AdditionalURLsSpec
+		externallyManagedAddresses    []string
 		expectedURLs                  map[string][]string
 	}{
+		{
+			name:                       "should return bracketed IPv6 peer advertise URLs for externally managed members",
+			etcdReplicas:               2,
+			advertiseURLType:           advertiseURLTypePeer,
+			scheme:                     "https",
+			serverPort:                 ptr.To[int32](2380),
+			externallyManagedAddresses: []string{"fd00::1", "1.1.1.2"},
+			expectedURLs: map[string][]string{
+				"etcd-test-fd00::1": {"https://[fd00::1]:2380"},
+				"etcd-test-1.1.1.2": {"https://1.1.1.2:2380"},
+			},
+		},
+		{
+			name:                       "should return bracketed IPv6 client advertise URLs for externally managed members",
+			etcdReplicas:               2,
+			advertiseURLType:           advertiseURLTypeClient,
+			scheme:                     "https",
+			clientPort:                 ptr.To[int32](2379),
+			externallyManagedAddresses: []string{"fd00::1", "1.1.1.2"},
+			expectedURLs: map[string][]string{
+				"etcd-test-fd00::1": {"https://[fd00::1]:2379"},
+				"etcd-test-1.1.1.2": {"https://1.1.1.2:2379"},
+			},
+		},
 		{
 			name:             "should return peer advertise URLs without prefix",
 			etcdReplicas:     3,
@@ -612,7 +645,7 @@ func TestGetAdvertiseURLs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled, nil)
+			etcd := buildEtcd(tc.etcdReplicas, true, tc.peerTLSEnabled, tc.externallyManagedAddresses)
 			etcd.Spec.Etcd.ServerPort = tc.serverPort
 			etcd.Spec.Etcd.ClientPort = tc.clientPort
 			etcd.Spec.MemberNamePrefix = tc.memberNamePrefix
