@@ -171,7 +171,7 @@ Delete the selected pod and requeue.
 The following diagram summarizes the OnDelete update procedure:
 
 <div align="center">
-<img src="assets/07-OnDelete-StateDiagram.png" alt="OnDelete state diagram showing the simplified pod update procedure" width="700">
+<img src="assets/07-ondelete-state-diagram.png" alt="OnDelete state diagram showing the simplified pod update procedure" width="700">
 </div>
 
 ### Pod Deletion Method
