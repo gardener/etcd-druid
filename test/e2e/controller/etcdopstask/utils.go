@@ -24,6 +24,20 @@ const (
 	timeoutLargeDeployJob        = 15 * time.Minute
 	timeoutFullSnapshot          = 30 * time.Second
 
+	// timeoutEtcdCreation3Member is the upper bound for CreateAndCheckEtcd on a 3-replica
+	// cluster in the etcdopstask tests. 3-replica clusters start more slowly under KIND load
+	// than the single-replica clusters, so a longer timeout is needed.
+	timeoutEtcdCreation3Member = 10 * time.Minute
+	// to transition to False/QuorumLost after member pods have been deleted.
+	timeoutQuorumLostCondition = 3 * time.Minute
+	// timeoutRecoveryTaskCompletion is the upper bound for the RecoverFromQuorumLoss task to
+	// reach a terminal state (Succeeded or Failed). Recovery involves scale-down, PVC deletion,
+	// scale-up, and multi-member readiness, so it takes longer than a snapshot task.
+	timeoutRecoveryTaskCompletion = 10 * time.Minute
+	// timeoutEtcdRecoveryReady is the upper bound for the etcd cluster to become fully ready
+	// (all members) after the recovery task has completed.
+	timeoutEtcdRecoveryReady = 5 * time.Minute
+
 	defaultOpsTaskTTLSeconds = int32(30)
 )
 
@@ -44,5 +58,15 @@ func newOnDemandSnapshotTask(name, namespace, etcdName string, snapshotType drui
 		WithOnDemandSnapshotConfig(&druidv1alpha1.OnDemandSnapshotConfig{
 			Type: snapshotType,
 		}).
+		Build()
+}
+
+// newRecoverFromQuorumLossTask returns an EtcdOpsTask for quorum-loss recovery with the
+// package's default TTL and the given config.
+func newRecoverFromQuorumLossTask(name, namespace, etcdName string, cfg *druidv1alpha1.RecoverFromQuorumLossConfig) *druidv1alpha1.EtcdOpsTask {
+	return testutils.EtcdOpsTaskBuilderWithoutDefaults(name, namespace).
+		WithEtcdName(etcdName).
+		WithTTLSecondsAfterFinished(defaultOpsTaskTTLSeconds).
+		WithRecoverFromQuorumLossConfig(cfg).
 		Build()
 }
