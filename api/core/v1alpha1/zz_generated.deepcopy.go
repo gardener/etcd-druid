@@ -454,6 +454,11 @@ func (in *EtcdConfig) DeepCopyInto(out *EtcdConfig) {
 		*out = new(MetricsLevel)
 		**out = **in
 	}
+	if in.ListenMetricsURLs != nil {
+		in, out := &in.ListenMetricsURLs, &out.ListenMetricsURLs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
 		*out = new(v1.ResourceRequirements)

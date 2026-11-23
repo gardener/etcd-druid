@@ -49,6 +49,7 @@ type StatefulSetMatcher struct {
 	serverPort         int32
 	backupPort         int32
 	wrapperPort        int32
+	metricsPort        int32
 	expectedReplicas   int32
 	expectNoService    bool
 }
@@ -73,6 +74,7 @@ func NewStatefulSetMatcher(g *WithT,
 		serverPort:         ptr.Deref(etcd.Spec.Etcd.ServerPort, 2380),
 		backupPort:         ptr.Deref(etcd.Spec.Backup.Port, 8080),
 		wrapperPort:        ptr.Deref(etcd.Spec.Etcd.WrapperPort, 9095),
+		metricsPort:        utils.ExtractMetricsPort(etcd.Spec.Etcd.ListenMetricsURLs),
 		expectedReplicas:   replicas,
 		expectNoService:    expectNoService,
 	}
@@ -205,22 +207,34 @@ func (s StatefulSetMatcher) matchEtcdContainer() gomegatypes.GomegaMatcher {
 			"PeriodSeconds":       Equal(int32(5)),
 			"FailureThreshold":    Equal(int32(5)),
 		})),
-		"Ports": ConsistOf(
-			MatchFields(IgnoreExtras, Fields{
-				"Name":          Equal(serverPortName),
-				"Protocol":      Equal(corev1.ProtocolTCP),
-				"ContainerPort": Equal(s.serverPort),
-			}),
-			MatchFields(IgnoreExtras, Fields{
-				"Name":          Equal(clientPortName),
-				"Protocol":      Equal(corev1.ProtocolTCP),
-				"ContainerPort": Equal(s.clientPort),
-			}),
-		),
+		"Ports":        s.matchEtcdContainerPorts(),
 		"Resources":    Equal(etcdContainerResources),
 		"Env":          s.matchEtcdContainerEnvVars(),
 		"VolumeMounts": s.matchEtcdContainerVolMounts(),
 	})
+}
+
+func (s StatefulSetMatcher) matchEtcdContainerPorts() gomegatypes.GomegaMatcher {
+	portMatchers := []gomegatypes.GomegaMatcher{
+		MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal(serverPortName),
+			"Protocol":      Equal(corev1.ProtocolTCP),
+			"ContainerPort": Equal(s.serverPort),
+		}),
+		MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal(clientPortName),
+			"Protocol":      Equal(corev1.ProtocolTCP),
+			"ContainerPort": Equal(s.clientPort),
+		}),
+	}
+	if s.metricsPort != 0 {
+		portMatchers = append(portMatchers, MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal(metricsPortName),
+			"Protocol":      Equal(corev1.ProtocolTCP),
+			"ContainerPort": Equal(s.metricsPort),
+		}))
+	}
+	return ConsistOf(portMatchers)
 }
 
 func (s StatefulSetMatcher) matchEtcdContainerVolMounts() gomegatypes.GomegaMatcher {

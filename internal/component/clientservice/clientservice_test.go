@@ -205,6 +205,32 @@ func TestSyncWhenServiceExists(t *testing.T) {
 	}
 }
 
+// --------------------------- ListenMetricsURLs ------------------------------
+func TestGetPortsWithListenMetricsURLs(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("omits the metrics port when not set", func(_ *testing.T) {
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).Build()
+		ports := getPorts(etcd)
+		for _, p := range ports {
+			g.Expect(p.Name).ToNot(Equal("metrics"))
+		}
+	})
+
+	t.Run("exposes the metrics port when set", func(_ *testing.T) {
+		etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, testutils.TestNamespace).
+			WithListenMetricsURLs([]string{"http://0.0.0.0:2381"}).
+			Build()
+		ports := getPorts(etcd)
+		g.Expect(ports).To(ContainElement(corev1.ServicePort{
+			Name:       "metrics",
+			Protocol:   corev1.ProtocolTCP,
+			Port:       2381,
+			TargetPort: intstr.FromInt(2381),
+		}))
+	})
+}
+
 // ----------------------------- TriggerDelete -------------------------------
 func TestTriggerDelete(t *testing.T) {
 	testCases := []struct {
