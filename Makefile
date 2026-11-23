@@ -181,7 +181,7 @@ ci-e2e-kind-ondelete: $(GINKGO) $(YQ) $(KIND)
 clean-e2e-test-resources: $(KUBECTL)
 	@rm -rf $(REPO_ROOT)/test/e2e/controller/pki-resources/*
 	@rm -rf $(REPO_ROOT)/test/e2e/controller/etcdopstask/pki-resources/*
-	@kubectl get ns -o custom-columns=":metadata.name" --no-headers | grep -E '^(etcd-e2e|eot-e2e)-' |  xargs --no-run-if-empty kubectl delete ns
+	@kubectl get ns -o custom-columns=":metadata.name" --no-headers | grep -E '^(etcd-e2e|eot-e2e|ondel-e2e)-' |  xargs --no-run-if-empty kubectl delete ns
 # Rules related to binary build, Docker image build and release
 # -------------------------------------------------------------------------
 # Build manager binary

@@ -16,7 +16,6 @@ import (
 	clientetcd "github.com/gardener/etcd-druid/internal/client/etcd"
 	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 
-	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -32,9 +31,7 @@ type Client struct {
 	RemoveErr       error
 	MoveLeaderErr   error
 	CloseCalls      int
-	// QuorumState is the state ObserveQuorum returns when ObserveQuorumErr is nil.
-	QuorumState etcdmember.QuorumState
-	removed     map[uint64]struct{}
+	removed         map[uint64]struct{}
 }
 
 // NewClient returns a Client with total voting members named
@@ -54,23 +51,17 @@ func NewClient(etcdName string, total int) *Client {
 		})
 	}
 	return &Client{
-		Members:     members,
-		QuorumState: etcdmember.QuorumStatePresent,
-		removed:     make(map[uint64]struct{}),
+		Members: members,
+		removed: make(map[uint64]struct{}),
 	}
 }
 
-// MemberList implements clientetcd.Cluster. When QuorumState is QuorumStateLost
-// it returns rpctypes.ErrNoLeader, mirroring a real etcd cluster that cannot serve
-// a linearizable read, so that clientetcd.ObserveQuorum can conclude a quorum loss.
+// MemberList implements clientetcd.Cluster.
 func (f *Client) MemberList(_ context.Context) ([]etcdmember.Member, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.ListErr != nil {
 		return nil, f.ListErr
-	}
-	if f.QuorumState == etcdmember.QuorumStateLost {
-		return nil, rpctypes.ErrNoLeader
 	}
 	live := make([]etcdmember.Member, 0, len(f.Members))
 	for _, m := range f.Members {

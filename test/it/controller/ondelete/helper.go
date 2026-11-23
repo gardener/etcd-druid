@@ -22,7 +22,6 @@ import (
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	appsv1 "k8s.io/api/apps/v1"
-	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,7 +44,7 @@ func initializeOnDeleteReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTest
 	// The reconciler is given a fake factory. It defaults to a healthy 3-member cluster (member names match the
 	// pods the tests create) so the quorum gate is transparent and the end-to-end
 	// wiring (watches, predicates, deletes) is what gets exercised. Tests that need
-	// an unhealthy cluster overwrite etcdClient.Members before triggering a reconcile.
+	// another cluster state call etcdClient.SetMembers before triggering a reconcile.
 	etcdClient := etcdclientfake.NewClient(testutils.TestEtcdName, 3)
 	g.Expect(itTestEnv.CreateManager(testutils.NewTestClientBuilder())).To(Succeed())
 	itTestEnv.RegisterReconciler(func(mgr manager.Manager) {
@@ -60,10 +59,6 @@ func initializeOnDeleteReconcilerTestEnv(t *testing.T, itTestEnv setup.DruidTest
 }
 
 // createEtcdAndStatefulSet creates a minimal Etcd + StatefulSet pair for a test.
-// The StatefulSet is created with the OnDelete update strategy and a fabricated
-// updateRevision on its status; pods are created separately via createStsPods.
-// Envtest does not run KCM, so the StatefulSet controller does not create pods
-// or maintain sts.Status; the test must set both explicitly.
 func createEtcdAndStatefulSet(ctx context.Context, t *testing.T, cl client.Client, namespace string, replicas int32) (*druidv1alpha1.Etcd, *appsv1.StatefulSet) {
 	g := NewWithT(t)
 	etcd := testutils.EtcdBuilderWithDefaults(testutils.TestEtcdName, namespace).WithReplicas(replicas).Build()
@@ -106,7 +101,6 @@ func createEtcdAndStatefulSet(ctx context.Context, t *testing.T, cl client.Clien
 }
 
 // setStsUpdateRevision patches sts.Status.UpdateRevision to the given value.
-// The status subresource is not populated by envtest.
 func setStsUpdateRevision(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, updateRevision string) {
 	g := NewWithT(t)
 	g.Eventually(func() error {
@@ -150,62 +144,47 @@ func patchStsReadyReplicas(ctx context.Context, t *testing.T, cl client.Client, 
 	}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 }
 
-// createStsPods creates `count` pods labelled to match the StatefulSet's selector and carrying the given controller-revision-hash.
-// Each pod is set to Ready via a status patch, so isParticipating(pod) returns true.
-func createStsPods(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, count int32, revision string, ready bool) []*corev1.Pod {
-	g := NewWithT(t)
+// createStsPods creates pods 0..count-1 of sts, all at the given revision and readiness.
+func createStsPods(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, count int, revision string, ready bool) []*corev1.Pod {
 	pods := make([]*corev1.Pod, 0, count)
-	for i := range count {
-		podName := fmt.Sprintf("%s-%d", sts.Name, i)
-		labels := map[string]string{}
-		maps.Copy(labels, sts.Spec.Selector.MatchLabels)
-		labels[appsv1.StatefulSetPodNameLabel] = podName
-		labels[appsv1.PodIndexLabel] = strconv.Itoa(int(i))
-		labels[appsv1.StatefulSetRevisionLabel] = revision
-		pod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            podName,
-				Namespace:       sts.Namespace,
-				Labels:          labels,
-				OwnerReferences: []metav1.OwnerReference{stsOwnerReference(sts)},
-			},
-			Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: common.ContainerNameEtcd, Image: "etcd-wrapper:latest"}}},
-		}
-		g.Expect(cl.Create(ctx, pod)).To(Succeed())
-		setPodReady(ctx, t, cl, pod, ready)
-		pods = append(pods, pod)
+	for ordinal := range count {
+		pods = append(pods, createStsPod(ctx, t, cl, sts, ordinal, revision, ready))
 	}
 	return pods
 }
 
-// createStsPodsWithRevisionAndReady creates one pod per entry in podSpecs,
-// named by ordinal, each with its own revision and Ready state. Used by tests
-// that need different pod states (e.g. p0 at new revision but not ready,
-// p1/p2 at old revision and ready).
-func createStsPodsWithRevisionAndReady(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, baseLabels map[string]string, podSpecs map[int]podSpec) []*corev1.Pod {
-	g := NewWithT(t)
+// createStsPodsWithRevisionAndReady creates one pod per entry in podSpecs, using
+// the entry's index as the pod ordinal.
+func createStsPodsWithRevisionAndReady(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, podSpecs []podSpec) []*corev1.Pod {
 	pods := make([]*corev1.Pod, 0, len(podSpecs))
 	for ordinal, spec := range podSpecs {
-		podName := fmt.Sprintf("%s-%d", sts.Name, ordinal)
-		labels := map[string]string{}
-		maps.Copy(labels, baseLabels)
-		labels[appsv1.StatefulSetPodNameLabel] = podName
-		labels[appsv1.PodIndexLabel] = strconv.Itoa(ordinal)
-		labels[appsv1.StatefulSetRevisionLabel] = spec.revision
-		pod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            podName,
-				Namespace:       sts.Namespace,
-				Labels:          labels,
-				OwnerReferences: []metav1.OwnerReference{stsOwnerReference(sts)},
-			},
-			Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: common.ContainerNameEtcd, Image: "etcd-wrapper:latest"}}},
-		}
-		g.Expect(cl.Create(ctx, pod)).To(Succeed())
-		setPodReady(ctx, t, cl, pod, spec.ready)
-		pods = append(pods, pod)
+		pods = append(pods, createStsPod(ctx, t, cl, sts, ordinal, spec.revision, spec.ready))
 	}
 	return pods
+}
+
+// createStsPod creates the pod with the given ordinal, owned by sts, at the given revision and readiness.
+// Tests create pods before setStsUpdateRevision: until its status is patched a pod's readiness is
+// unknown, which the controller may select for deletion.
+func createStsPod(ctx context.Context, t *testing.T, cl client.Client, sts *appsv1.StatefulSet, ordinal int, revision string, ready bool) *corev1.Pod {
+	g := NewWithT(t)
+	podName := fmt.Sprintf("%s-%d", sts.Name, ordinal)
+	labels := maps.Clone(sts.Spec.Selector.MatchLabels)
+	labels[appsv1.StatefulSetPodNameLabel] = podName
+	labels[appsv1.PodIndexLabel] = strconv.Itoa(ordinal)
+	labels[appsv1.StatefulSetRevisionLabel] = revision
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            podName,
+			Namespace:       sts.Namespace,
+			Labels:          labels,
+			OwnerReferences: []metav1.OwnerReference{stsOwnerReference(sts)},
+		},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: common.ContainerNameEtcd, Image: "etcd-wrapper:latest"}}},
+	}
+	g.Expect(cl.Create(ctx, pod)).To(Succeed())
+	setPodReady(ctx, t, cl, pod, ready)
+	return pod
 }
 
 // stsOwnerReference builds a controller-owner reference to the given
@@ -222,8 +201,8 @@ func stsOwnerReference(sts *appsv1.StatefulSet) metav1.OwnerReference {
 	}
 }
 
-// setPodReady patches the pod status to reflect the ready state of its etcd
-// container. The reconciler's isParticipating() reads containerStatuses[etcd].Ready.
+// setPodReady patches the readiness of the pod's etcd container, which is the
+// readiness signal the controller reads.
 func setPodReady(ctx context.Context, t *testing.T, cl client.Client, pod *corev1.Pod, ready bool) {
 	g := NewWithT(t)
 	g.Eventually(func() error {
@@ -240,26 +219,6 @@ func setPodReady(ctx context.Context, t *testing.T, cl client.Client, pod *corev
 		return cl.Status().Patch(ctx, patch, client.MergeFrom(current))
 	}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
 }
-
-// createMemberLeases creates one lease per replica with the given roles.
-// roleFor(i) is the role assigned to pod-i's lease.
-func createMemberLeases(ctx context.Context, t *testing.T, cl client.Client, namespace string, sts *appsv1.StatefulSet, roleFor func(int) druidv1alpha1.EtcdRole) {
-	g := NewWithT(t)
-	replicas := int(*sts.Spec.Replicas)
-	for i := 0; i < replicas; i++ {
-		leaseName := fmt.Sprintf("%s-%d", sts.Name, i)
-		lease := &coordinationv1.Lease{
-			ObjectMeta: metav1.ObjectMeta{Name: leaseName, Namespace: namespace},
-			Spec: coordinationv1.LeaseSpec{
-				HolderIdentity: ptr.To(fmt.Sprintf("id-%d:cid:%s", i, roleFor(i))),
-			},
-		}
-		g.Expect(cl.Create(ctx, lease)).To(Succeed())
-	}
-}
-
-// followerFor returns EtcdRoleMember for every replica index
-func followerFor(_ int) druidv1alpha1.EtcdRole { return druidv1alpha1.EtcdRoleMember }
 
 // liveMembers builds a member list of `replicas` voters named to match the test
 // StatefulSet's pods (<TestEtcdName>-<ordinal>), with ordinal 0 as the leader and
@@ -314,6 +273,46 @@ func consistentlyPodNotDeleted(ctx context.Context, t *testing.T, cl client.Clie
 		}
 		return pod.DeletionTimestamp == nil
 	}, window, poll).Should(BeTrue())
+}
+
+// deletedPodOrdinals returns the ordinals of the pods of sts that are gone or terminating.
+func deletedPodOrdinals(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) []int {
+	var ordinals []int
+	for ordinal := range int(*sts.Spec.Replicas) {
+		pod := &corev1.Pod{}
+		err := cl.Get(ctx, stsPodKey(sts, ordinal), pod)
+		if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
+			ordinals = append(ordinals, ordinal)
+		}
+	}
+	return ordinals
+}
+
+// unavailablePodNames returns the names of the pods of sts that are gone,
+// terminating, or whose etcd container is not Ready.
+func unavailablePodNames(ctx context.Context, cl client.Client, sts *appsv1.StatefulSet) []string {
+	var names []string
+	for ordinal := range int(*sts.Spec.Replicas) {
+		key := stsPodKey(sts, ordinal)
+		pod := &corev1.Pod{}
+		if err := cl.Get(ctx, key, pod); err != nil || pod.DeletionTimestamp != nil || !isEtcdContainerReady(pod) {
+			names = append(names, key.Name)
+		}
+	}
+	return names
+}
+
+func isEtcdContainerReady(pod *corev1.Pod) bool {
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Name == common.ContainerNameEtcd {
+			return status.Ready
+		}
+	}
+	return false
+}
+
+func stsPodKey(sts *appsv1.StatefulSet, ordinal int) types.NamespacedName {
+	return types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, ordinal), Namespace: sts.Namespace}
 }
 
 func apierrorsNotFound(err error) bool {

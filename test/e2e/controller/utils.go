@@ -32,8 +32,9 @@ const (
 	timeoutDeployJob              = 2 * time.Minute
 	timeoutDruidDeploymentRestart = 5 * time.Minute
 
-	testNamespacePrefix = "etcd-e2e"
-	defaultEtcdName     = "test"
+	testNamespacePrefix         = "etcd-e2e"
+	onDeleteTestNamespacePrefix = "ondel-e2e"
+	defaultEtcdName             = "test"
 )
 
 var (

@@ -12,14 +12,12 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/core/v1alpha1"
 	etcdclientfake "github.com/gardener/etcd-druid/internal/client/etcd/fake"
 	"github.com/gardener/etcd-druid/internal/client/kubernetes"
-	"github.com/gardener/etcd-druid/internal/common"
 	ctrlutils "github.com/gardener/etcd-druid/internal/controller/utils"
 	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -152,7 +150,7 @@ func TestRequeueIfPodsTerminatingOrMissing(t *testing.T) {
 	}
 }
 
-func TestUnreadyUpdatedPodNames(t *testing.T) {
+func TestUpdatedNonParticipatingPodNames(t *testing.T) {
 	g := NewWithT(t)
 	t.Parallel()
 
@@ -241,7 +239,7 @@ func TestReconcilePodRollout(t *testing.T) {
 	}
 	sts := stsFixture(testStsName, testStsNamespace, testRevNew, 3)
 
-	t.Run("Step 1: all up to date -> no delete, no requeue", func(t *testing.T) {
+	t.Run("does not delete or requeue when all pods are up to date", func(t *testing.T) {
 		g := NewWithT(t)
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
@@ -252,72 +250,61 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeFalse())
-		// Verify no pods were deleted.
 		for _, p := range []*corev1.Pod{p0, p1, p2} {
 			g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})).To(Succeed())
 		}
 	})
 
-	t.Run("Step 2: deletes the Dead non-participating outdated pod first", func(t *testing.T) {
+	t.Run("deletes a not-ready outdated pod before a ready one", func(t *testing.T) {
 		g := NewWithT(t)
-		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true) // current, participating
-		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true) // outdated participating
-		p2 := withContainerState(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false),
-			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}) // outdated dead
+		// The not-ready pod is at the lower ordinal, so an ordinal-only pick would choose p2.
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
+		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, false)
+		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// Dead outdated pod should be gone.
-		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{}))).To(BeTrue())
-		// Others still present.
+		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{}))).To(BeTrue())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("Step 3 gate: waits when a current-revision pod is not participating", func(t *testing.T) {
+	t.Run("does not delete a participating outdated pod while an updated pod is unready", func(t *testing.T) {
 		g := NewWithT(t)
-		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, false) // current but NOT participating
-		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)  // outdated participating
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1).Build()
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, false)
+		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
+		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// No pod deleted.
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
+		for _, p := range []*corev1.Pod{p0, p1, p2} {
+			g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})).To(Succeed())
+		}
 	})
 
-	t.Run("Step 4: deletes a follower before the leader", func(t *testing.T) {
+	t.Run("deletes a follower before the leader", func(t *testing.T) {
 		g := NewWithT(t)
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(
-			p0, p1, p2,
-			leaseFor(p0.Name, testStsNamespace, "id-0:cid:Member"),
-			leaseFor(p1.Name, testStsNamespace, "id-1:cid:Leader"),
-			leaseFor(p2.Name, testStsNamespace, "id-2:cid:Member"),
-		).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
+		// The leader is at the highest ordinal, which an ordinal-only pick would choose first.
+		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: membersFactory(healthyMembersWithLeader(3, 2)...)}
 
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// Leader must still be present.
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
-		// Exactly one follower is gone.
-		g0 := cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})
-		g2 := cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{})
-		g.Expect(apierrors.IsNotFound(g0) || apierrors.IsNotFound(g2)).To(BeTrue())
-		g.Expect(apierrors.IsNotFound(g0) && apierrors.IsNotFound(g2)).To(BeFalse())
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{})).To(Succeed())
+		g.Expect(deletedPodCount(ctx, cl, p0, p1)).To(Equal(1))
 	})
 
-	t.Run("Single-member: sole outdated pod is deleted", func(t *testing.T) {
+	t.Run("single-member cluster deletes its sole outdated pod", func(t *testing.T) {
 		g := NewWithT(t)
 		singleEtcd := &druidv1alpha1.Etcd{
 			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
@@ -334,10 +321,8 @@ func TestReconcilePodRollout(t *testing.T) {
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{}))).To(BeTrue())
 	})
 
-	t.Run("Terminating outdated pod holds the top gate, no delete this cycle", func(t *testing.T) {
+	t.Run("does not delete while a previously deleted pod is still terminating", func(t *testing.T) {
 		g := NewWithT(t)
-		// A prior cycle deleted p2; it is still terminating. The top gate must
-		// hold until the STS controller recreates it at the new revision.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
 		p2 := withDeletionTimestamp(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false))
@@ -347,28 +332,18 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// No pod deleted this cycle.
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("Fresh rollout: second reconcile is held by the top gate while first delete is in flight", func(t *testing.T) {
+	t.Run("does not delete a second pod while the first delete of a fresh rollout is terminating", func(t *testing.T) {
 		g := NewWithT(t)
-		// Regression against a bug where the reconciler would delete multiple
-		// participating pods back-to-back on a fresh rollout because Step 3's
-		// gate was vacuous (empty `current`). The top gate catches the
-		// terminating pod from the prior cycle and holds.
-		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
+		// No pod is at the target revision yet, so the rejoin gate is vacuous and
+		// only the terminating check prevents a back-to-back delete.
+		p0 := withDeletionTimestamp(makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true))
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
-		p0Terminating := withDeletionTimestamp(p0.DeepCopy())
-
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(
-			p0Terminating, p1, p2,
-			leaseFor(p0.Name, testStsNamespace, "id-0:cid:Member"),
-			leaseFor(p1.Name, testStsNamespace, "id-1:cid:Leader"),
-			leaseFor(p2.Name, testStsNamespace, "id-2:cid:Member"),
-		).Build()
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
@@ -378,119 +353,78 @@ func TestReconcilePodRollout(t *testing.T) {
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("Step 2 fires even when Step 3 would hold (Dead outdated pod is quorum-safe to delete)", func(t *testing.T) {
+	t.Run("deletes a not-ready outdated pod even while an updated pod is unready", func(t *testing.T) {
 		g := NewWithT(t)
-		// Per DEP-07: Step 2 is safe regardless of quorum state — a
-		// non-participating pod contributes nothing. Step 3's gate must NOT
-		// prevent Step 2 from firing.
-		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, false) // current, NOT participating (Step 3 would hold)
-		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)  // outdated participating
-		p2 := withContainerState(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false),
-			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}) // outdated Dead
+		// A not-ready outdated pod contributes nothing to quorum, so the rejoin gate does not apply to it.
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, false)
+		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
+		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// Dead outdated pod IS deleted despite the unready current-revision pod.
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p2), &corev1.Pod{}))).To(BeTrue())
-		// p0 and p1 are untouched.
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p1), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("At most one Delete per invocation (Step 2)", func(t *testing.T) {
+	t.Run("deletes at most one pod per reconcile", func(t *testing.T) {
 		g := NewWithT(t)
-		p0 := withContainerState(makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, false),
-			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}})
-		p1 := withContainerState(makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, false),
-			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}})
-		p2 := withContainerState(makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false),
-			corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}})
+		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, false)
+		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, false)
+		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, false)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
 		_, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
-
-		deleted := 0
-		for _, p := range []*corev1.Pod{p0, p1, p2} {
-			if apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})) {
-				deleted++
-			}
-		}
-		g.Expect(deleted).To(Equal(1))
+		g.Expect(deletedPodCount(ctx, cl, p0, p1, p2)).To(Equal(1))
 	})
 
-	t.Run("Scale-up in progress: top gate holds until pod count matches desired", func(t *testing.T) {
+	t.Run("does not delete while the pod count is below desired (scale-up in progress)", func(t *testing.T) {
 		g := NewWithT(t)
-		// STS was just scaled 1 -> 3 with a template change; only p0 exists so
-		// far and it's on the old revision. Deleting p0 now would drop
-		// participation to zero. The top gate must hold.
-		threeSts := stsFixture(testStsName, testStsNamespace, testRevNew, 3)
-		threeEtcd := &druidv1alpha1.Etcd{
-			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
-			Spec:       druidv1alpha1.EtcdSpec{Replicas: 3},
-		}
+		// Only p0 exists so far; deleting it before p1 and p2 are created would drop participation to zero.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0).Build()
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(3)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), threeEtcd, threeSts)
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// p0 must NOT be deleted while p1/p2 have not yet been created.
 		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("Five-replica cluster: still deletes exactly one follower per invocation", func(t *testing.T) {
+	t.Run("deletes exactly one follower per reconcile in a five-member cluster", func(t *testing.T) {
 		g := NewWithT(t)
 		fiveEtcd := &druidv1alpha1.Etcd{
 			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
 			Spec:       druidv1alpha1.EtcdSpec{Replicas: 5},
 		}
 		fiveSts := stsFixture(testStsName, testStsNamespace, testRevNew, 5)
-		pods := make([]corev1.Pod, 0, 5)
+		pods := make([]*corev1.Pod, 0, 5)
 		objs := make([]client.Object, 0, 5)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			p := makeStsPod(fmt.Sprintf("%s-%d", testStsName, i), testStsNamespace, testRevOld, true)
-			pods = append(pods, *p)
+			pods = append(pods, p)
 			objs = append(objs, p)
-			role := "Member"
-			if i == 2 {
-				role = "Leader"
-			}
-			objs = append(objs, leaseFor(p.Name, testStsNamespace, fmt.Sprintf("id-%d:cid:%s", i, role)))
 		}
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(objs...).Build()
-		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: healthyFactory(5)}
+		// The leader is at the highest ordinal, which an ordinal-only pick would choose first.
+		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: membersFactory(healthyMembersWithLeader(5, 4)...)}
 
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), fiveEtcd, fiveSts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-
-		leader := &pods[2]
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(leader), &corev1.Pod{})).To(Succeed()) // leader untouched
-		deleted := 0
-		for i, p := range pods {
-			if i == 2 {
-				continue
-			}
-			if apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(&p), &corev1.Pod{})) {
-				deleted++
-			}
-		}
-		g.Expect(deleted).To(Equal(1)) // exactly one follower deleted
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(pods[4]), &corev1.Pod{})).To(Succeed())
+		g.Expect(deletedPodCount(ctx, cl, pods[:4]...)).To(Equal(1))
 	})
 
-	t.Run("Quorum check hold : holds Step 4 when deleting the selected pod would break quorum", func(t *testing.T) {
+	t.Run("does not delete when restarting the selected member would break quorum", func(t *testing.T) {
 		g := NewWithT(t)
-		// member-0 is already updated but Unhealthy in the live view; member-1 and
-		// member-2 are outdated, participating by the K8s signal, and healthy. The
-		// two deletion candidates are therefore member-1 and member-2, and removing
-		// either leaves 1 healthy voter of 2 — below the floor — so the delete must
-		// be vetoed whichever one Step 4 selects.
+		// member-0 is updated but Unhealthy live. Restarting either outdated
+		// member leaves 1 of 3 voters healthy, below the quorum of 2.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevNew, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
@@ -504,34 +438,41 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// No pod deleted: the veto hold worked
 		for _, p := range []*corev1.Pod{p0, p1, p2} {
 			g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})).To(Succeed())
 		}
 	})
 
-	t.Run("Quorum lost: deletes all outdated pods in one cycle to recover", func(t *testing.T) {
+	t.Run("does not delete when an updated pod is Ready in the cache but its member is not healthy (4 members)", func(t *testing.T) {
 		g := NewWithT(t)
-		// etcd conclusively reports no leader (ObserveQuorum -> Lost). There is
-		// nothing left to protect, so every outdated pod is deleted together.
+		// Restarting etcd-test-2 leaves 2 of 4 voters healthy, below the quorum of 3.
+		// A removal-based check (3 remaining voters, quorum 2) would have allowed it.
+		fourEtcd := &druidv1alpha1.Etcd{
+			ObjectMeta: metav1.ObjectMeta{Name: testStsName, Namespace: testStsNamespace},
+			Spec:       druidv1alpha1.EtcdSpec{Replicas: 4},
+		}
+		fourSts := stsFixture(testStsName, testStsNamespace, testRevNew, 4)
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevOld, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevOld, true)
-		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
-		fakeClient := etcdclientfake.NewClient(testStsName, 3)
-		fakeClient.QuorumState = etcdmember.QuorumStateLost
-		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: &etcdclientfake.Factory{Client: fakeClient}}
+		p3 := makeStsPod(testStsName+"-3", testStsNamespace, testRevNew, true)
+		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2, p3).Build()
+		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: membersFactory(
+			etcdmember.Member{ID: 1, Name: testStsName + "-0", Role: etcdmember.MemberRoleLeader, Health: etcdmember.MemberHealthHealthy},
+			etcdmember.Member{ID: 2, Name: testStsName + "-1", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
+			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
+			etcdmember.Member{ID: 4, Name: testStsName + "-3", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthUnknown},
+		)}
 
-		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
+		result, err := r.reconcilePodRollout(ctx, logr.Discard(), fourEtcd, fourSts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// All outdated pods deleted.
-		for _, p := range []*corev1.Pod{p0, p1, p2} {
-			g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{}))).To(BeTrue())
+		for _, p := range []*corev1.Pod{p0, p1, p2, p3} {
+			g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})).To(Succeed())
 		}
 	})
 
-	t.Run("Member name prefix: pod maps to its prefixed etcd member for the quorum check", func(t *testing.T) {
+	t.Run("maps a pod to its prefixed etcd member for the quorum check", func(t *testing.T) {
 		g := NewWithT(t)
 		// The quorum check must resolve pod -> member via GetMemberName, else a prefixed cluster finds no member and stalls forever.
 		prefixedEtcd := &druidv1alpha1.Etcd{
@@ -552,18 +493,16 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), prefixedEtcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		// p0 maps to its prefixed member, the removal is quorum-safe, so it is deleted.
 		g.Expect(apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{}))).To(BeTrue())
 	})
 
-	t.Run("No live member for the selected pod: holds without deleting", func(t *testing.T) {
+	t.Run("does not delete a pod that has no live etcd member", func(t *testing.T) {
 		g := NewWithT(t)
 		// The selected pod has no matching live member (e.g. mid-join). Fail closed.
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
 		p2 := makeStsPod(testStsName+"-2", testStsNamespace, testRevNew, true)
 		cl := testutils.NewTestClientBuilder().WithScheme(kubernetes.Scheme).WithObjects(p0, p1, p2).Build()
-		// Live list is missing p0's member but still has a healthy quorum of the rest.
 		r := &Reconciler{client: cl, logger: logr.Discard(), clientFactory: membersFactory(
 			etcdmember.Member{ID: 2, Name: testStsName + "-1", Role: etcdmember.MemberRoleLeader, Health: etcdmember.MemberHealthHealthy},
 			etcdmember.Member{ID: 3, Name: testStsName + "-2", Role: etcdmember.MemberRoleMember, Health: etcdmember.MemberHealthHealthy},
@@ -572,10 +511,10 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed()) // not deleted
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("MemberList error: fails closed with a requeue, no delete", func(t *testing.T) {
+	t.Run("does not delete when the member list fails", func(t *testing.T) {
 		g := NewWithT(t)
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
@@ -587,10 +526,10 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed()) // not deleted
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 	})
 
-	t.Run("Client dial error: fails closed with a requeue, no delete", func(t *testing.T) {
+	t.Run("does not delete when the etcd client cannot be created", func(t *testing.T) {
 		g := NewWithT(t)
 		p0 := makeStsPod(testStsName+"-0", testStsNamespace, testRevOld, true)
 		p1 := makeStsPod(testStsName+"-1", testStsNamespace, testRevNew, true)
@@ -602,22 +541,25 @@ func TestReconcilePodRollout(t *testing.T) {
 		result, err := r.reconcilePodRollout(ctx, logr.Discard(), etcd, sts)
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(requeued(result)).To(BeTrue())
-		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed()) // not deleted
+		g.Expect(cl.Get(ctx, client.ObjectKeyFromObject(p0), &corev1.Pod{})).To(Succeed())
 	})
-}
-
-// leaseFor builds a member lease with the given HolderIdentity string.
-func leaseFor(name, namespace, holderIdentity string) *coordinationv1.Lease {
-	return &coordinationv1.Lease{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec:       coordinationv1.LeaseSpec{HolderIdentity: ptr.To(holderIdentity)},
-	}
 }
 
 // requeued reports whether the given result will cause controller-runtime to
 // re-run Reconcile.
 func requeued(result ctrl.Result) bool {
 	return result.RequeueAfter > 0
+}
+
+// deletedPodCount returns how many of the given pods no longer exist in cl.
+func deletedPodCount(ctx context.Context, cl client.Client, pods ...*corev1.Pod) int {
+	deleted := 0
+	for _, p := range pods {
+		if apierrors.IsNotFound(cl.Get(ctx, client.ObjectKeyFromObject(p), &corev1.Pod{})) {
+			deleted++
+		}
+	}
+	return deleted
 }
 
 // healthyFactory returns a fake etcd client factory reporting a healthy cluster
@@ -628,10 +570,26 @@ func healthyFactory(replicas int) *etcdclientfake.Factory {
 }
 
 // membersFactory returns a fake etcd client factory reporting exactly the given
-// members, for tests that drive the quorum gate (unhealthy / lost quorum).
+// members, for tests that control member health or the leader's position.
 func membersFactory(members ...etcdmember.Member) *etcdclientfake.Factory {
 	return &etcdclientfake.Factory{Client: &etcdclientfake.Client{Members: members}}
 }
 
-// silence "imported and not used" if common ever unused after refactors
-var _ = common.ContainerNameEtcd
+// healthyMembersWithLeader returns `replicas` healthy voters named to match the
+// test StatefulSet's pods, with the leader at leaderOrdinal.
+func healthyMembersWithLeader(replicas, leaderOrdinal int) []etcdmember.Member {
+	members := make([]etcdmember.Member, 0, replicas)
+	for i := range replicas {
+		role := etcdmember.MemberRoleMember
+		if i == leaderOrdinal {
+			role = etcdmember.MemberRoleLeader
+		}
+		members = append(members, etcdmember.Member{
+			ID:     uint64(i) + 1,
+			Name:   fmt.Sprintf("%s-%d", testStsName, i),
+			Role:   role,
+			Health: etcdmember.MemberHealthHealthy,
+		})
+	}
+	return members
+}

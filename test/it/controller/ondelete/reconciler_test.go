@@ -11,15 +11,12 @@ import (
 	"time"
 
 	"github.com/gardener/etcd-druid/api/core/v1alpha1/crds"
-	etcdmember "github.com/gardener/etcd-druid/internal/etcd"
 	"github.com/gardener/etcd-druid/test/it/assets"
 	"github.com/gardener/etcd-druid/test/it/setup"
 	testutils "github.com/gardener/etcd-druid/test/utils"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
@@ -67,11 +64,11 @@ func TestOnDeleteReconciler(t *testing.T) {
 		{"startup-synthetic-create-event-picks-up-existing-rollout", testStartupPicksUpMidRollout},
 		{"happy-path-rollout-deletes-outdated-pods-one-at-a-time", testHappyPathRollout},
 		{"status-only-statefulset-update-does-not-cause-a-delete", testStatusOnlyUpdateDoesNotTrigger},
-		{"step-3-holds-when-a-current-revision-pod-is-not-ready", testStep3HoldsUnreadyUpdated},
+		{"holds-participating-outdated-pods-while-an-updated-pod-is-not-ready", testHoldsWhileUpdatedPodNotReady},
+		{"deletes-ready-outdated-pod-only-after-updated-pods-are-ready", testDeletesOutdatedPodAfterUpdatedPodsReady},
 		{"scale-up-holds-top-gate-until-pod-count-matches-desired", testScaleUpHoldsTopGate},
 		{"quorum-veto-holds-when-a-delete-would-break-quorum", testQuorumVetoHolds},
-		{"quorum-lost-deletes-all-outdated-pods-together", testQuorumLostBatchDeletes},
-		{"leader-is-deleted-after-followers", testLeaderDeletedLast},
+		{"selects-a-follower-for-deletion-before-observed-leader", testSelectsFollowerBeforeObservedLeader},
 		{"scale-up-with-template-change-does-not-delete-existing-pod", testScaleUpWithTemplateChangeHoldsExisting},
 	}
 
@@ -104,113 +101,90 @@ func testStartupPicksUpMidRollout(t *testing.T, ns string, env reconcilerTestEnv
 	cl := env.itTestEnv.GetClient()
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	// All 3 pods on rev-old but Ready — a mid-rollout state discovered on
-	// startup.
+	// All 3 pods on rev-old but Ready: a mid-rollout state discovered on startup.
 	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	// Any one of the three pods must be deleted (Step 4 picks a follower — all
-	// are followers here). Bounded wait: single reconcile plus a 10s
-	// RequeueAfter ceiling gives plenty of margin.
 	g := NewWithT(t)
-	g.Eventually(func() int {
-		var deleted int
-		for i := range 3 {
-			key := types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, key, pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 30*time.Second, 500*time.Millisecond).Should(Equal(1))
+	g.Eventually(func() []int { return deletedPodOrdinals(ctx, cl, sts) }, 30*time.Second, 500*time.Millisecond).Should(HaveLen(1))
 }
 
-// testHappyPathRollout verifies that a rollout that begins after the
-// controller has started (StatefulSet Update event with a new updateRevision)
-// deletes exactly one outdated pod per reconciliation cycle.
+// testHappyPathRollout simulates a full rollout. Envtest runs no StatefulSet
+// controller, so the test recreates each deleted pod at the new revision and
+// decides when it becomes Ready.
 func testHappyPathRollout(t *testing.T, ns string, env reconcilerTestEnv) {
 	ctx := env.itTestEnv.GetContext()
 	cl := env.itTestEnv.GetClient()
+	g := NewWithT(t)
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	unavailablePods := func() []string { return unavailablePodNames(ctx, cl, sts) }
+	createStsPods(ctx, t, cl, sts, 3, "rev-a", true)
 	setStsUpdateRevision(ctx, t, cl, sts, "rev-a")
-	// All pods start at rev-a and are Ready.
-	pods := createStsPods(ctx, t, cl, sts, 3, "rev-a", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+	g.Eventually(unavailablePods, 10*time.Second, 200*time.Millisecond).Should(BeEmpty())
+	g.Consistently(unavailablePods, 3*time.Second, 500*time.Millisecond).Should(BeEmpty())
 
-	// Give the controller time to observe the initial state (nothing to do).
-	g := NewWithT(t)
-	g.Consistently(func() int {
-		var deleted int
-		for _, p := range pods {
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, client.ObjectKeyFromObject(p), pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 3*time.Second, 500*time.Millisecond).Should(Equal(0))
-
-	// Trigger a rollout by bumping updateRevision. No pods change revision —
-	// they become outdated relative to the new target.
 	setStsUpdateRevision(ctx, t, cl, sts, "rev-b")
+	var replacedOrdinals []int
+	for range 3 {
+		var deleted []int
+		g.Eventually(func() []int {
+			deleted = deletedPodOrdinals(ctx, cl, sts)
+			return deleted
+		}, 30*time.Second, 200*time.Millisecond).Should(HaveLen(1))
+		replacedOrdinals = append(replacedOrdinals, deleted[0])
 
-	// Exactly one pod should be selected and deleted (Step 4).
-	g.Eventually(func() int {
-		var deleted int
-		for _, p := range pods {
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, client.ObjectKeyFromObject(p), pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 30*time.Second, 500*time.Millisecond).Should(Equal(1))
+		recreated := createStsPod(ctx, t, cl, sts, deleted[0], "rev-b", false)
+		// While the recreated pod is not Ready, no other pod may be deleted.
+		g.Consistently(unavailablePods, 3*time.Second, 200*time.Millisecond).Should(ConsistOf(recreated.Name))
+		setPodReady(ctx, t, cl, recreated, true)
+	}
 
-	// And no more, because envtest doesn't recreate pods so the top gate holds
-	// on "pod count below desired" forever after the first delete.
-	g.Consistently(func() int {
-		var deleted int
-		for _, p := range pods {
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, client.ObjectKeyFromObject(p), pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 5*time.Second, 500*time.Millisecond).Should(Equal(1))
+	g.Expect(replacedOrdinals).To(ConsistOf(0, 1, 2))
+	g.Eventually(unavailablePods, 10*time.Second, 200*time.Millisecond).Should(BeEmpty())
+	g.Consistently(unavailablePods, 3*time.Second, 500*time.Millisecond).Should(BeEmpty())
 }
 
-// testStep3HoldsUnreadyUpdated verifies that when a pod is at the target
-// revision but not Ready (updated pod has not rejoined quorum), Step 3 holds
-// and no participating outdated pod is deleted.
-func testStep3HoldsUnreadyUpdated(t *testing.T, ns string, env reconcilerTestEnv) {
+// testHoldsWhileUpdatedPodNotReady verifies that while a pod at the target
+// revision is not Ready (it has not rejoined quorum), no participating
+// outdated pod is deleted.
+func testHoldsWhileUpdatedPodNotReady(t *testing.T, ns string, env reconcilerTestEnv) {
 	ctx := env.itTestEnv.GetContext()
 	cl := env.itTestEnv.GetClient()
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	// p0 was recreated by a prior delete and is still coming up; deleting p1 or p2 now would drop quorum.
+	createStsPodsWithRevisionAndReady(ctx, t, cl, sts, []podSpec{
+		{revision: "rev-new", ready: false},
+		{revision: "rev-old", ready: true},
+		{revision: "rev-old", ready: true},
+	})
 	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	// p0 is already at rev-new but NOT ready (simulates a pod just recreated
-	// from a prior delete, still coming up). p1 and p2 are at rev-old and
-	// participating. Step 3 must hold — deleting p1 or p2 would drop quorum.
-	labels := sts.Spec.Selector.MatchLabels
-	_ = createStsPodsWithRevisionAndReady(ctx, t, cl, sts, labels, map[int]podSpec{
-		0: {revision: "rev-new", ready: false},
-		1: {revision: "rev-old", ready: true},
-		2: {revision: "rev-old", ready: true},
-	})
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+	consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, 1), 5*time.Second, 500*time.Millisecond)
+	consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, 2), 5*time.Second, 500*time.Millisecond)
+}
 
-	// Neither p1 nor p2 should be deleted while p0 is not Ready.
-	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-1", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
-	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-2", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+// testDeletesOutdatedPodAfterUpdatedPodsReady verifies that a Ready outdated pod
+// is retained while the updated pods are not Ready, and is deleted once they are.
+func testDeletesOutdatedPodAfterUpdatedPodsReady(t *testing.T, ns string, env reconcilerTestEnv) {
+	ctx := env.itTestEnv.GetContext()
+	cl := env.itTestEnv.GetClient()
+
+	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	pods := createStsPodsWithRevisionAndReady(ctx, t, cl, sts, []podSpec{
+		{revision: "rev-old", ready: true},
+		{revision: "rev-new", ready: false},
+		{revision: "rev-new", ready: false},
+	})
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
+
+	consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, 0), 5*time.Second, 500*time.Millisecond)
+
+	setPodReady(ctx, t, cl, pods[1], true)
+	setPodReady(ctx, t, cl, pods[2], true)
+	g := NewWithT(t)
+	g.Eventually(func() []int { return deletedPodOrdinals(ctx, cl, sts) }, 30*time.Second, 500*time.Millisecond).Should(Equal([]int{0}))
 }
 
 // testScaleUpHoldsTopGate covers the "1 -> 3 replicas + template change"
@@ -222,80 +196,35 @@ func testScaleUpHoldsTopGate(t *testing.T, ns string, env reconcilerTestEnv) {
 	cl := env.itTestEnv.GetClient()
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	// Only 1 of 3 pods exists — as if the STS controller has just been asked
-	// to scale up but has not yet created p1 and p2. p0 is on rev-old and
-	// participating.
+	// Only 1 of 3 pods exists, as if the STS controller has just been asked
+	// to scale up but has not yet created p1 and p2.
 	createStsPods(ctx, t, cl, sts, 1, "rev-old", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	// p0 must NOT be deleted; the top gate holds.
-	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-0", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+	consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, 0), 5*time.Second, 500*time.Millisecond)
 }
 
 // testQuorumVetoHolds verifies that when the live cluster is one failure away
 // from losing quorum, the controller refuses to delete an outdated pod whose
-// removal would breach quorum — the pre-delete quorum gate holds.
+// restart would breach quorum.
 func testQuorumVetoHolds(t *testing.T, ns string, env reconcilerTestEnv) {
 	ctx := env.itTestEnv.GetContext()
 	cl := env.itTestEnv.GetClient()
 
-	// Live cluster: 3 voters, member-0 already Unhealthy. The two deletion
-	// candidates (member-1 and member-2) are both healthy, and removing either
-	// would leave 1 healthy voter of 2 — below the quorum floor — so whichever
-	// Step 4 selects, the delete must be vetoed.
+	// member-0 is Unhealthy: restarting member-1 or member-2 would leave 1 of 3
+	// voters healthy, below the quorum of 2, whichever one is selected.
 	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(0)))
 	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	// All three pods outdated and participating by the lagging K8s signal; member-0
-	// is unhealthy only in the live etcd view, so the quorum gate (not the K8s
-	// signal) is what must stop the delete.
+	// All pods look participating to Kubernetes; only the live etcd view shows
+	// member-0 unhealthy, so the quorum check is what must stop the delete.
 	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	for i := 0; i < 3; i++ {
-		consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+	for ordinal := range 3 {
+		consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, ordinal), 5*time.Second, 500*time.Millisecond)
 	}
-}
-
-// testQuorumLostBatchDeletes verifies that once quorum is already lost, the
-// controller abandons the one-pod-per-reconcile discipline and deletes every
-// outdated pod together so the cluster can recover.
-func testQuorumLostBatchDeletes(t *testing.T, ns string, env reconcilerTestEnv) {
-	ctx := env.itTestEnv.GetContext()
-	cl := env.itTestEnv.GetClient()
-
-	// Live cluster: 3 voters, only 1 healthy, and etcd reports no leader ->
-	// quorum is conclusively lost. Set both the member health (used by the
-	// selector) and QuorumState (the ObserveQuorum signal that drives batch-delete).
-	env.etcdClient.SetMembers(liveMembers(3, healthyExcept(1, 2)))
-	env.etcdClient.QuorumState = etcdmember.QuorumStateLost
-	t.Cleanup(func() {
-		env.etcdClient.SetMembers(liveMembers(3, healthyExcept()))
-		env.etcdClient.QuorumState = etcdmember.QuorumStatePresent
-	})
-
-	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
-
-	// All three outdated pods must be deleted (or terminating) in a single cycle.
-	g := NewWithT(t)
-	g.Eventually(func() int {
-		var deleted int
-		for i := range 3 {
-			key := types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, key, pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 30*time.Second, 500*time.Millisecond).Should(Equal(3))
 }
 
 // testRollingUpdateStsIgnored verifies the onDeleteStrategy predicate: a
@@ -309,13 +238,11 @@ func testRollingUpdateStsIgnored(t *testing.T, ns string, env reconcilerTestEnv)
 	// Flip the strategy to RollingUpdate after creation so the ondelete
 	// controller's predicate rejects every event on this STS.
 	patchStsUpdateStrategy(ctx, t, cl, sts, appsv1.RollingUpdateStatefulSetStrategyType)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	// Nothing should be deleted — the predicate short-circuits every event.
-	for i := 0; i < 3; i++ {
-		consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, i), Namespace: ns}, 3*time.Second, 500*time.Millisecond)
+	for ordinal := range 3 {
+		consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, ordinal), 3*time.Second, 500*time.Millisecond)
 	}
 }
 
@@ -329,62 +256,38 @@ func testStatusOnlyUpdateDoesNotTrigger(t *testing.T, ns string, env reconcilerT
 	cl := env.itTestEnv.GetClient()
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
+	createStsPods(ctx, t, cl, sts, 3, "rev-a", true)
 	setStsUpdateRevision(ctx, t, cl, sts, "rev-a")
-	pods := createStsPods(ctx, t, cl, sts, 3, "rev-a", true)
-	createMemberLeases(ctx, t, cl, ns, sts, followerFor)
 
-	// All pods at target revision — nothing outdated. Bump only a non-relevant
+	// All pods at target revision, nothing outdated. Bump only a non-relevant
 	// status field (readyReplicas). If the predicate lets this through the
 	// reconciler would still find no outdated pods and no-op, so absence of
 	// deletion is the correct signal here.
 	patchStsReadyReplicas(ctx, t, cl, sts, 3)
 
 	g := NewWithT(t)
-	g.Consistently(func() int {
-		var deleted int
-		for _, p := range pods {
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, client.ObjectKeyFromObject(p), pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 3*time.Second, 500*time.Millisecond).Should(Equal(0))
+	g.Consistently(func() []int { return deletedPodOrdinals(ctx, cl, sts) }, 3*time.Second, 500*time.Millisecond).Should(BeEmpty())
 }
 
-// testLeaderDeletedLast verifies that when all outdated pods are participating, the controller deletes a follower before the leader.
-func testLeaderDeletedLast(t *testing.T, ns string, env reconcilerTestEnv) {
+// testSelectsFollowerBeforeObservedLeader verifies that when all outdated pods
+// are participating, the controller deletes a follower before the leader
+// reported by the live member list.
+func testSelectsFollowerBeforeObservedLeader(t *testing.T, ns string, env reconcilerTestEnv) {
 	ctx := env.itTestEnv.GetContext()
 	cl := env.itTestEnv.GetClient()
 
-	// Live cluster with 3 healthy voters and the leader at ordinal 1.
-	env.etcdClient.SetMembers(liveMembersWithLeader(3, 1, healthyExcept()))
+	// The leader is at the highest ordinal, which an ordinal-only pick would choose first.
+	const leaderOrdinal = 2
+	env.etcdClient.SetMembers(liveMembersWithLeader(3, leaderOrdinal, healthyExcept()))
 	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	// All three pods outdated and participating. The pod update procedure must pick a follower
-	// (ordinal 0 or 2), should not delete the leader (ordinal 1).
 	createStsPods(ctx, t, cl, sts, 3, "rev-old", true)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	leaderKey := types.NamespacedName{Name: fmt.Sprintf("%s-1", sts.Name), Namespace: ns}
 	g := NewWithT(t)
-	// Eventually exactly one follower is deleted.
-	g.Eventually(func() int {
-		var deleted int
-		for _, ordinal := range []int{0, 2} {
-			pod := &corev1.Pod{}
-			err := cl.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s-%d", sts.Name, ordinal), Namespace: ns}, pod)
-			if apierrorsNotFound(err) || (err == nil && pod.DeletionTimestamp != nil) {
-				deleted++
-			}
-		}
-		return deleted
-	}, 30*time.Second, 500*time.Millisecond).Should(Equal(1))
-
-	// The leader must never be the one deleted.
-	consistentlyPodNotDeleted(ctx, t, cl, leaderKey, 5*time.Second, 500*time.Millisecond)
+	g.Eventually(func() []int { return deletedPodOrdinals(ctx, cl, sts) }, 30*time.Second, 500*time.Millisecond).Should(HaveLen(1))
+	consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, leaderOrdinal), 5*time.Second, 500*time.Millisecond)
 }
 
 // testScaleUpWithTemplateChangeHoldsExisting covers scaling from 1 -> 3 replicas with a template change in the same update.
@@ -400,12 +303,9 @@ func testScaleUpWithTemplateChangeHoldsExisting(t *testing.T, ns string, env rec
 	t.Cleanup(func() { env.etcdClient.SetMembers(liveMembers(3, healthyExcept())) })
 
 	_, sts := createEtcdAndStatefulSet(ctx, t, cl, ns, 3)
-	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
-	// Only p0 exists (old revision, participating). p1/p2 not yet created by the
-	// StatefulSet controller the scale-up is in flight.
+	// Only p0 exists (old revision, participating); the StatefulSet controller has not created p1/p2 yet.
 	createStsPods(ctx, t, cl, sts, 1, "rev-old", true)
+	setStsUpdateRevision(ctx, t, cl, sts, "rev-new")
 
-	// p0 must be retained: with pod count (1) below desired (3), the top gate holds
-	// and the sole existing member is never deleted mid scale-up.
-	consistentlyPodNotDeleted(ctx, t, cl, types.NamespacedName{Name: sts.Name + "-0", Namespace: ns}, 5*time.Second, 500*time.Millisecond)
+	consistentlyPodNotDeleted(ctx, t, cl, stsPodKey(sts, 0), 5*time.Second, 500*time.Millisecond)
 }

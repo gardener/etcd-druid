@@ -70,19 +70,6 @@ func makeStsPod(name, namespace, revision string, participating bool) *corev1.Po
 	}
 }
 
-// withContainerState replaces the etcd container's state on the pod, useful for
-// classifier tests where the Running default of makeStsPod would give the wrong
-// bucket.
-func withContainerState(pod *corev1.Pod, state corev1.ContainerState) *corev1.Pod {
-	for i := range pod.Status.ContainerStatuses {
-		if pod.Status.ContainerStatuses[i].Name == common.ContainerNameEtcd {
-			pod.Status.ContainerStatuses[i].State = state
-			return pod
-		}
-	}
-	return pod
-}
-
 // withDeletionTimestamp marks the pod as terminating.
 func withDeletionTimestamp(pod *corev1.Pod) *corev1.Pod {
 	now := metav1.Now()

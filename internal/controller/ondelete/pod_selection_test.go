@@ -5,6 +5,7 @@
 package ondelete
 
 import (
+	"cmp"
 	"fmt"
 	"testing"
 
@@ -45,9 +46,6 @@ func selectionPod(name string, ready bool) corev1.Pod {
 }
 
 func TestComparePodUpdateCandidates(t *testing.T) {
-	t.Parallel()
-
-	// Helper to build a candidate with explicit readiness and role.
 	cand := func(podName string, readiness etcdContainerReadiness, role memberRolePriority) podUpdateCandidate {
 		return podUpdateCandidate{
 			pod:          &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: podName}},
@@ -56,69 +54,99 @@ func TestComparePodUpdateCandidates(t *testing.T) {
 		}
 	}
 
-	t.Run("not-ready beats ready regardless of role: not-ready leader before ready follower", func(_ *testing.T) {
-		g := NewWithT(t)
-		notReadyLeader := cand("etcd-0", etcdContainerNotReady, memberRolePriorityLeader)
-		readyFollower := cand("etcd-1", etcdContainerReady, memberRolePriorityFollower)
-		g.Expect(comparePodUpdateCandidates(notReadyLeader, readyFollower)).To(BeNumerically("<", 0),
-			"not-ready pod must sort before ready pod regardless of role")
-	})
+	tests := []struct {
+		name     string
+		a, b     podUpdateCandidate
+		wantSign int
+	}{
+		{
+			name:     "not-ready leader sorts before ready follower",
+			a:        cand("etcd-0", etcdContainerNotReady, memberRolePriorityLeader),
+			b:        cand("etcd-1", etcdContainerReady, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "ready follower sorts after not-ready leader",
+			a:        cand("etcd-1", etcdContainerReady, memberRolePriorityFollower),
+			b:        cand("etcd-0", etcdContainerNotReady, memberRolePriorityLeader),
+			wantSign: 1,
+		},
+		{
+			name:     "among not-ready pods, higher ordinal sorts first",
+			a:        cand("etcd-2", etcdContainerNotReady, memberRolePriorityFollower),
+			b:        cand("etcd-0", etcdContainerNotReady, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "among not-ready pods, role is ignored: higher-ordinal leader sorts first",
+			a:        cand("etcd-2", etcdContainerNotReady, memberRolePriorityLeader),
+			b:        cand("etcd-0", etcdContainerNotReady, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "among ready pods, follower sorts before leader",
+			a:        cand("etcd-0", etcdContainerReady, memberRolePriorityFollower),
+			b:        cand("etcd-1", etcdContainerReady, memberRolePriorityLeader),
+			wantSign: -1,
+		},
+		{
+			name:     "among ready pods, leader sorts after follower",
+			a:        cand("etcd-1", etcdContainerReady, memberRolePriorityLeader),
+			b:        cand("etcd-0", etcdContainerReady, memberRolePriorityFollower),
+			wantSign: 1,
+		},
+		{
+			name:     "among ready pods, learner sorts before follower",
+			a:        cand("etcd-0", etcdContainerReady, memberRolePriorityLearner),
+			b:        cand("etcd-1", etcdContainerReady, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "among ready pods, follower sorts before unknown role",
+			a:        cand("etcd-1", etcdContainerReady, memberRolePriorityFollower),
+			b:        cand("etcd-2", etcdContainerReady, memberRolePriorityUnknown),
+			wantSign: -1,
+		},
+		{
+			name:     "among ready pods, unknown role sorts before leader",
+			a:        cand("etcd-2", etcdContainerReady, memberRolePriorityUnknown),
+			b:        cand("etcd-3", etcdContainerReady, memberRolePriorityLeader),
+			wantSign: -1,
+		},
+		{
+			name:     "unknown readiness sorts before ready at the same role",
+			a:        cand("etcd-0", etcdContainerReadinessUnknown, memberRolePriorityFollower),
+			b:        cand("etcd-1", etcdContainerReady, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "unknown readiness does not join the not-ready group: not-ready leader sorts first",
+			a:        cand("etcd-0", etcdContainerNotReady, memberRolePriorityLeader),
+			b:        cand("etcd-1", etcdContainerReadinessUnknown, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "same readiness and role, higher ordinal sorts first",
+			a:        cand("etcd-2", etcdContainerReady, memberRolePriorityFollower),
+			b:        cand("etcd-0", etcdContainerReady, memberRolePriorityFollower),
+			wantSign: -1,
+		},
+		{
+			name:     "equal candidates compare as 0",
+			a:        cand("etcd-0", etcdContainerReady, memberRolePriorityFollower),
+			b:        cand("etcd-0", etcdContainerReady, memberRolePriorityFollower),
+			wantSign: 0,
+		},
+	}
 
-	t.Run("among not-ready pods: higher ordinal first (role irrelevant)", func(_ *testing.T) {
-		g := NewWithT(t)
-		notReady0 := cand("etcd-0", etcdContainerNotReady, memberRolePriorityFollower)
-		notReady2 := cand("etcd-2", etcdContainerNotReady, memberRolePriorityFollower)
-		// ordinal 2 > ordinal 0 so etcd-2 sorts first in the list
-		g.Expect(comparePodUpdateCandidates(notReady2, notReady0)).To(BeNumerically("<", 0))
-	})
-
-	t.Run("among ready pods: follower before leader", func(_ *testing.T) {
-		g := NewWithT(t)
-		follower := cand("etcd-0", etcdContainerReady, memberRolePriorityFollower)
-		leader := cand("etcd-1", etcdContainerReady, memberRolePriorityLeader)
-		g.Expect(comparePodUpdateCandidates(follower, leader)).To(BeNumerically("<", 0))
-	})
-
-	t.Run("among ready pods: learner before follower before unknown-role before leader", func(_ *testing.T) {
-		g := NewWithT(t)
-		learner := cand("etcd-0", etcdContainerReady, memberRolePriorityLearner)
-		follower := cand("etcd-1", etcdContainerReady, memberRolePriorityFollower)
-		unknownRole := cand("etcd-2", etcdContainerReady, memberRolePriorityUnknown)
-		leader := cand("etcd-3", etcdContainerReady, memberRolePriorityLeader)
-		g.Expect(comparePodUpdateCandidates(learner, follower)).To(BeNumerically("<", 0))
-		g.Expect(comparePodUpdateCandidates(follower, unknownRole)).To(BeNumerically("<", 0))
-		g.Expect(comparePodUpdateCandidates(unknownRole, leader)).To(BeNumerically("<", 0))
-	})
-
-	t.Run("readiness-unknown groups with ready (conservative): unknown before ready at same role", func(_ *testing.T) {
-		g := NewWithT(t)
-		unknownReadiness := cand("etcd-0", etcdContainerReadinessUnknown, memberRolePriorityFollower)
-		ready := cand("etcd-1", etcdContainerReady, memberRolePriorityFollower)
-		// unknown-readiness sorts before ready at same role
-		g.Expect(comparePodUpdateCandidates(unknownReadiness, ready)).To(BeNumerically("<", 0))
-	})
-
-	t.Run("readiness-unknown does NOT sort into the not-ready group: unknown-readiness follower after not-ready leader", func(_ *testing.T) {
-		g := NewWithT(t)
-		notReadyPod := cand("etcd-0", etcdContainerNotReady, memberRolePriorityLeader)
-		unknownFollower := cand("etcd-1", etcdContainerReadinessUnknown, memberRolePriorityFollower)
-		// not-ready wins regardless as unknown-readiness follower should not come before a not-ready pod
-		g.Expect(comparePodUpdateCandidates(notReadyPod, unknownFollower)).To(BeNumerically("<", 0))
-	})
-
-	t.Run("ordinal tiebreak: among same readiness+role, higher ordinal first", func(_ *testing.T) {
-		g := NewWithT(t)
-		low := cand("etcd-0", etcdContainerReady, memberRolePriorityFollower)
-		high := cand("etcd-2", etcdContainerReady, memberRolePriorityFollower)
-		g.Expect(comparePodUpdateCandidates(high, low)).To(BeNumerically("<", 0))
-	})
-
-	t.Run("comparator is total: equal candidates return 0", func(_ *testing.T) {
-		g := NewWithT(t)
-		a := cand("etcd-0", etcdContainerReady, memberRolePriorityFollower)
-		b := cand("etcd-0", etcdContainerReady, memberRolePriorityFollower)
-		g.Expect(comparePodUpdateCandidates(a, b)).To(Equal(0))
-	})
+	t.Parallel()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			g.Expect(cmp.Compare(comparePodUpdateCandidates(tc.a, tc.b), 0)).To(Equal(tc.wantSign))
+		})
+	}
 }
 
 func TestSelectNextPodForUpdate(t *testing.T) {
