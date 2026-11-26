@@ -23,6 +23,7 @@ This proposal introduces a declarative hibernation API on the `Etcd` resource, a
 - **Wake-up:** The reverse of hibernation — restoring the etcd cluster to a fully running and usable state.
 - **Scale-to-zero:** Setting StatefulSet replica count to zero, terminating all pods.
 - **Full snapshot:** A complete point-in-time capture of the etcd keyspace, written to the configured object store by the `etcd-backup-restore` sidecar.
+- **Data loss acceptance:** An explicit consumer declaration that the data in a cluster is disposable, relaxing snapshot and storage policy requirements on hibernation.
 
 ## Motivation
 
@@ -41,6 +42,7 @@ Hibernating an etcd cluster is an etcd concern and should be owned by `etcd-drui
 - Provide a declarative API on the `Etcd` resource to hibernate and wake up a cluster.
 - Allow consumers to configure whether and how a full snapshot is taken before scale-to-zero.
 - Allow consumers to configure whether persistent volume claims are retained or deleted after scale-to-zero.
+- Allow consumers to explicitly accept data loss for disposable-data clusters, relaxing snapshot and storage policies.
 - Report hibernation progress and outcome through the `Etcd` resource so consumers can observe the current state.
 
 ### Non-Goals
@@ -52,26 +54,56 @@ Hibernating an etcd cluster is an etcd concern and should be owned by `etcd-drui
 
 ### Approach
 
-Etcd hibernation is driven by a new `spec.hibernate` field on the `Etcd` resource. Setting it to `true` signals intent to hibernate the etcd cluster; setting it back to `false` triggers wake-up. The `etcd-druid` controller reconciles toward the desired state. Additionally, the hibernation behaviour is configured via `spec.hibernationPolicy`, which applies to all hibernate/wake-up cycles. A new feature gate will be introduced to gate this functionality, ensuring backward compatibility for existing consumers.
+Etcd hibernation is driven by a new `spec.hibernate` field on the `Etcd` resource. Setting it to `true` signals intent to hibernate the etcd cluster; setting it back to `false` triggers wake-up. The `etcd-druid` controller reconciles toward the desired state. Hibernation behaviour is configured via `spec.hibernationPolicy`, which applies to all hibernate/wake-up cycles.
 
-The hibernation workflow is:
+The hibernation workflow includes:
 
 1. **Full snapshot** (optional, governed by `spec.hibernationPolicy.fullSnapshot.policy`)
 2. **Scale-to-zero** — set `StatefulSet.spec.replicas` to `0`
 3. **PVC deletion** (optional, governed by `spec.hibernationPolicy.pvcRetentionPolicy`)
 
-The wake-up workflow is the reverse. `etcd-druid` only performs the scale operations; PVC (re)provisioning and snapshot restore happen automatically as side-effects of scaling up:
+The wake-up workflow is the reverse. The sequence depends on `spec.hibernationPolicy.pvcRetentionPolicy` — the two policies leave the cluster in fundamentally different states and require different scale-up sequences.
 
-1. **Scale to 1 replica** — bring one member up first. If its PVC was deleted during hibernation, the StatefulSet controller provisions a fresh PVC from the `volumeClaimTemplate`, and the `etcd-backup-restore` sidecar restores from the last full snapshot before etcd starts. If the PVC was retained, the existing volume is reused and no restore occurs.
-2. **Scale to configured replicas** — scale out to `spec.replicas`
-
-Progress and outcome are reported through a new `Hibernation` condition in `etcd.status.conditions`.
+Progress and outcome are reported through a new `Hibernated` condition in `etcd.status.conditions`.
 
 The flow diagrams below illustrate the primary paths:
 
-![Hibernation flow](assets/09-hibernation-flow.png)
+**Hibernation flow**
 
-![Wake-up flow](assets/09-wakeup-flow.png)
+```mermaid
+flowchart TD
+    A([hibernate: true]) --> D{Snapshot Policy?}
+    D -- BestEffort --> E[Attempt full snapshot\nfixed retries]
+    D -- Required --> F[Attempt full snapshot\nretry w/ backoff until success]
+    E --> G[Scale to 0]
+    F --> G
+    G --> I{PVC Retention Policy?}
+    I -- Retain --> J([True / Hibernated])
+    I -- Delete --> K[Delete PVCs]
+    K --> J
+```
+
+**Wake-up flow**
+
+```mermaid
+flowchart TD
+    A([hibernate: false]) --> B{PVC Retention Policy?}
+    B -- Retain --> C[Scale 0 → spec.replicas]
+    C --> Z([False / Awake])
+    B -- Delete --> E[Scale 0 → 1]
+    E --> F[Restore from last full snapshot]
+    F --> G[Wait until member ready]
+    G --> H[Scale 1 → spec.replicas]
+    H --> Z
+```
+
+#### Wake-up sequence
+
+**`Retain` — scale `0 → spec.replicas` directly (all members at once).**
+The data volumes are intact. Each member restarts from its existing data directory, which still records the full cluster membership. Brought up together, the members re-establish connections and re-form quorum, exactly as in an ordinary cluster restart. This is the single-step scale that `etcd-druid` already performs today. A staged `0 → 1 → N` wake-up must **not** be used here: a lone member resuming a data directory that records an N-member cluster cannot reach quorum on its own (it holds 1 of N votes), never becomes ready, and a readiness-gated scale-out would stall indefinitely.
+
+**`Delete` — scale `0 → 1`, wait for readiness, then `1 → spec.replicas` (staged).**
+The data volumes were deleted, so there is nothing to resume. The first member comes up with a fresh volume and the `etcd-backup-restore` sidecar restores from the last full snapshot, bootstrapping a **fresh single-member** cluster (quorum 1 of 1) that becomes ready on its own. Only after it is ready does `etcd-druid` scale out; the remaining members come up with fresh volumes and join the running member as learners. A direct `0 → N` must **not** be used here: all members would independently restore the same snapshot and bootstrap disjoint single-member clusters — a split brain.
 
 ### API changes
 
@@ -107,9 +139,20 @@ type HibernationPolicy struct {
     // FullSnapshot configures the full snapshot taken before scale-to-zero.
     // +optional
     FullSnapshot *HibernationSnapshotConfig `json:"fullSnapshot,omitempty"`
+
+    // AcceptDataLoss, when true, declares that the data in this cluster is
+    // disposable and that permanent data loss on hibernation is acceptable.
+    // It bypasses the validations that require a backup store and a guaranteed
+    // snapshot before PVCs are deleted. Set this only for clusters whose data
+    // has no value (e.g. an events-only etcd with no backup).
+    // +optional
+    // +kubebuilder:default=false
+    AcceptDataLoss *bool `json:"acceptDataLoss,omitempty"`
 }
 
 // HibernationPVCRetentionPolicy defines what happens to etcd PVCs on hibernation.
+// Deleting a PVC removes the claim object; whether the underlying PV is released
+// or deleted is governed by the StorageClass reclaim policy.
 // +kubebuilder:validation:Enum=Retain;Delete
 type HibernationPVCRetentionPolicy string
 
@@ -130,26 +173,29 @@ const (
 // HibernationSnapshotConfig configures the full snapshot taken before scale-to-zero.
 type HibernationSnapshotConfig struct {
     // Policy controls the snapshot behaviour before scale-to-zero.
-    //   - None: no snapshot is taken.
-    //   - BestEffort: a single snapshot attempt is made; hibernation proceeds
-    //     regardless of outcome. A Warning event is emitted on failure.
+    //   - BestEffort: a fixed number of snapshot attempts are made; hibernation
+    //     proceeds regardless of outcome. A Warning event is emitted on failure.
     //   - Required: the snapshot is retried with exponential backoff. Hibernation
     //     is blocked until the snapshot succeeds.
-    // +kubebuilder:default=None
+    // +kubebuilder:default=BestEffort
     Policy FullSnapshotPolicy `json:"policy"`
+
+    // TimeoutSeconds overrides the per-attempt timeout for the full snapshot
+    // taken before scale-to-zero. When unset, the existing default (900 seconds)
+    // applies; the minimum of 120 seconds is enforced.
+    // +optional
+    // +kubebuilder:validation:Minimum=120
+    TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
 }
 
-// FullSnapshotPolicy defines whether and how strictly a full snapshot is taken
+// FullSnapshotPolicy defines how strictly a full snapshot is taken
 // before the etcd cluster is scaled to zero on hibernation.
-// +kubebuilder:validation:Enum=None;BestEffort;Required
+// +kubebuilder:validation:Enum=BestEffort;Required
 type FullSnapshotPolicy string
 
 const (
-    // FullSnapshotPolicyNone takes no snapshot before hibernating. Default.
-    FullSnapshotPolicyNone FullSnapshotPolicy = "None"
-
-    // FullSnapshotPolicyBestEffort makes a single snapshot attempt and proceeds
-    // regardless of outcome. A Warning event is emitted on failure.
+    // FullSnapshotPolicyBestEffort makes a fixed number of snapshot attempts and
+    // proceeds regardless of outcome. A Warning event is emitted on failure.
     FullSnapshotPolicyBestEffort FullSnapshotPolicy = "BestEffort"
 
     // FullSnapshotPolicyRequired retries the snapshot with exponential backoff
@@ -158,57 +204,112 @@ const (
 )
 ```
 
-#### `Etcd` status — `Hibernation` condition
+#### Valid policy combinations and validation
 
-A new `Hibernation` condition is added to `etcd.status.conditions`:
+The retention and snapshot policies interact: deleting PVCs removes the only on-disk copy of the data, so it is only safe when a guaranteed snapshot exists to restore from. The following rules are enforced at admission time (CEL validation on the `Etcd` resource). They are all relaxed when `acceptDataLoss: true`.
+
+| `acceptDataLoss` | `pvcRetentionPolicy` | `fullSnapshot.policy` | Backup store | Verdict |
+|------------------|----------------------|------------------------|--------------|---------|
+| `false` (default) | `Retain` | `BestEffort` or `Required` | configured | Valid |
+| `false` | `Delete` | `Required` | configured | Valid |
+| `false` | `Delete` | `BestEffort` | — | **Rejected** — a best-effort snapshot may fail, destroying the only copy |
+| `false` | any | `BestEffort` or `Required` | not configured | **Rejected** — snapshot policy needs a backup store to write to |
+| `true` | `Delete` or `Retain` | any | optional | Valid — data loss is explicitly accepted |
+
+The rules, stated plainly:
+
+1. **A snapshot policy requires a backup store.** `fullSnapshot.policy` (`BestEffort` or `Required`) is meaningless without `spec.backup.store` — there is nowhere to write the snapshot. Rejected unless `acceptDataLoss: true`.
+2. **`Delete` requires `Required`.** `pvcRetentionPolicy: Delete` must be paired with `fullSnapshot.policy: Required` so a snapshot is guaranteed before the disks are removed. `BestEffort` is not sufficient — a failed attempt would still delete the only copy. Rejected unless `acceptDataLoss: true`.
+3. **`Delete` requires a backup store.** By rule 2, `Delete` implies `Required`, which by rule 1 implies a backup store. So `pvcRetentionPolicy: Delete` without a configured backup store is rejected unless `acceptDataLoss: true`. A consumer that hits this must either configure a backup store, switch to `Retain`, or set `acceptDataLoss: true`.
+
+`acceptDataLoss: true` is the single, explicit opt-in for disposable-data clusters (for example an events-only etcd with no backup store, as in [etcd-druid#887](https://github.com/gardener/etcd-druid/issues/887)). It is the only way to delete PVCs without a guaranteed snapshot; the loss is accepted by contract rather than inferred from a silent default.
+
+#### CEL validation rules
+
+The rejection rules are enforced as `+kubebuilder:validation:XValidation` markers on the `Etcd` resource. Rules 1 and 2 enforce the policy-combination matrix above; Rule 3 enforces the [consumer migration guard](#consumer-migration-path); Rule 4 enforces the [`Retain` decrease guard](#spec-replicas-changes-while-hibernated).
+
+```go
+// Rule 1: snapshot policy requires a backup store (unless acceptDataLoss).
+// +kubebuilder:validation:XValidation:message="fullSnapshot.policy requires spec.backup.store to be configured; set acceptDataLoss: true to override.",rule="!has(self.spec.hibernationPolicy) || !has(self.spec.hibernationPolicy.fullSnapshot) || (has(self.spec.hibernationPolicy.acceptDataLoss) && self.spec.hibernationPolicy.acceptDataLoss == true) || has(self.spec.backup.store)"
+
+// Rule 2: pvcRetentionPolicy: Delete requires fullSnapshot.policy: Required (unless acceptDataLoss).
+// +kubebuilder:validation:XValidation:message="pvcRetentionPolicy: Delete requires fullSnapshot.policy: Required; set acceptDataLoss: true to override.",rule="!has(self.spec.hibernationPolicy) || !has(self.spec.hibernationPolicy.pvcRetentionPolicy) || self.spec.hibernationPolicy.pvcRetentionPolicy != 'Delete' || (has(self.spec.hibernationPolicy.acceptDataLoss) && self.spec.hibernationPolicy.acceptDataLoss == true) || (has(self.spec.hibernationPolicy.fullSnapshot) && self.spec.hibernationPolicy.fullSnapshot.policy == 'Required')"
+
+// Rule 3: spec.hibernate: true requires spec.replicas > 0.
+// +kubebuilder:validation:XValidation:message="spec.hibernate: true cannot be set while spec.replicas is 0.",rule="!has(self.spec.hibernate) || self.spec.hibernate == false || self.spec.replicas > 0"
+
+// Rule 4: spec.replicas cannot be decreased while hibernated with pvcRetentionPolicy: Retain.
+// Reducing replicas under Retain leaves stale membership on retained data dirs; the surviving
+// member(s) cannot reach quorum on wake-up.
+// +kubebuilder:validation:XValidation:message="spec.replicas cannot be decreased while hibernated with pvcRetentionPolicy: Retain.",rule="!(has(self.spec.hibernate) && self.spec.hibernate == true && (!has(self.spec.hibernationPolicy) || !has(self.spec.hibernationPolicy.pvcRetentionPolicy) || self.spec.hibernationPolicy.pvcRetentionPolicy == 'Retain') && self.spec.replicas < oldSelf.spec.replicas)"
+```
+
+#### `Etcd` status — `Hibernated` condition
+
+A new `Hibernated` condition is added to `etcd.status.conditions`:
 
 ```go
 const (
-    ConditionTypeHibernation ConditionType = "Hibernation"
+    ConditionTypeHibernated ConditionType = "Hibernated"
 )
 ```
 
 | `status` | `reason` | Meaning |
 |----------|----------|---------|
-| `False` | `Awake` | Cluster is running normally. Initial state; also set after wake-up completes. |
-| `False` | `InProgress` | Hibernation is in progress (snapshot, scale-to-zero, or PVC deletion). |
+| `False` | `Awake` | Cluster is running normally. Set after wake-up completes. |
+| `False` | `InProgress` | A hibernation or wake-up operation is actively in progress. |
 | `True` | `Hibernated` | Cluster is fully hibernated. |
 
-The condition is never removed — like all other druid conditions it persists and transitions. The `message` field carries a human-readable description of the current step (e.g., `"Taking full snapshot before scale-to-zero"`).
+The condition is absent until the first hibernation intent is observed. Once written, it is never removed — like all other druid conditions it persists and transitions. The `message` field carries a human-readable description of the current step (e.g., `"Taking full snapshot before scale-to-zero"`).
 
-### Snapshot retry behaviour
+#### Snapshot retry behaviour
 
 The snapshot is triggered via an `EtcdOpsTask` (`OnDemandSnapshot`). The `etcd-druid` controller creates a new task per attempt, gating the next hibernation step on a `Succeeded` outcome. A terminal `Failed` task causes the `etcd-druid` controller to create a new task on the next reconcile. Exponential backoff between attempts will be introduced as part of this proposal.
 
 | Policy | Retry behaviour | On failure |
 |--------|----------------|------------|
-| `None` | No snapshot attempted | — |
-| `BestEffort` | Single attempt, no retry | Emit Warning event, proceed to scale-to-zero |
-| `Required` | Retry with exponential backoff, 5s → 15m ceiling | Keep retrying at 15m interval; `Hibernation` condition stays `False / InProgress` |
+| `BestEffort` | Fixed number of attempts, then proceed | Emit Warning event, proceed to scale-to-zero |
+| `Required` | Retry with exponential backoff, 5s → 15m ceiling | Keep retrying at 15m interval; `Hibernated` condition stays `False / InProgress` |
 
 For `Required`, the `etcd-druid` controller never gives up. The external backstop is consumer-defined.
 
-The `EtcdOpsTask` snapshot timeout follows the existing implementation: `OnDemandSnapshotConfig.TimeoutSecondsFull` (default 900 seconds).
+The `EtcdOpsTask` snapshot timeout defaults to the existing `OnDemandSnapshotConfig.TimeoutSecondsFull` (900 seconds). A consumer can override it via `spec.hibernationPolicy.fullSnapshot.timeoutSeconds`, which the hibernation controller passes through to the `EtcdOpsTask` it creates. The existing minimum of 120 seconds is inherited. This field is intended for a modest adjustment when snapshots consistently complete slightly past the default.
 
-### State diagram
+#### State diagram
 
-The diagram below shows the observable states of the `Hibernation` condition and the transitions between them:
+The diagram below shows the observable states of the `Hibernated` condition and the transitions between them:
 
-![Hibernation state diagram](assets/09-hibernation-states.png)
+```mermaid
+stateDiagram-v2
+    [*] --> InProgress : hibernate: true set
+
+    state "Awake (False / Awake)" as Awake
+    state "InProgress (False / InProgress)" as InProgress
+    state "Hibernated (True / Hibernated)" as Hibernated
+
+    InProgress --> Hibernated : all hibernation steps complete
+    InProgress --> Awake    : wake-up complete
+    Hibernated --> InProgress : hibernate: false set
+    Awake      --> InProgress : hibernate: true set
+```
 
 ### Druid migration path
 
 `etcd-druid` already takes a snapshot before scaling to zero today, as a side-effect of the `StatefulSet` component's `PreSync` step. `ensurePreSyncSnapshotIfNeeded` uses `etcd.spec.replicas == 0` as a proxy for "the cluster is being hibernated": when the backup store is enabled and the spec requests zero replicas, it sequences a full-snapshot `EtcdOpsTask` (`presync-snapshot-hibernation-<generation>-<index>`) via `ensurePreSyncSnapshot` before the StatefulSet is scaled down. This path retries up to a fixed number of attempts and then proceeds with the scale-down regardless of the snapshot outcome.
-This proposal does not remove that behaviour. Instead, the existing `replicas == 0` snapshot path is placed behind the new feature gate so that it only runs when the gate is **disabled**:
 
-- **Feature gate disabled** — the existing `PreSync` snapshot path is preserved unchanged (`replicas == 0` continues to act as the hibernation proxy). This keeps the current behaviour intact for consumers that have not yet adopted the new API.
-- **Feature gate enabled** — the `replicas == 0` proxy path is skipped, and hibernation is driven entirely by the new `spec.hibernate` field and `spec.hibernationPolicy`, which own snapshotting, scale-to-zero, and PVC handling end to end.
+This proposal does not remove that behaviour. The existing `replicas == 0` proxy path is preserved for consumers that have not yet adopted the new API, and is guarded by a field-presence check:
 
-This preserves backward compatibility while the dedicated API becomes the single source of truth for hibernation.
+```go
+if etcd.Spec.Hibernate == nil && etcd.Spec.Replicas == 0 {
+    // legacy path: replicas==0 proxy, unchanged
+}
+```
+
+A consumer that sets `spec.hibernate: true` takes the new path; the legacy path only fires when `spec.hibernate` is absent.
 
 #### `spec.replicas` remains the source of truth
 
-Setting `spec.hibernate: true` does **not** change `etcd.spec.replicas`. The configured replica count stays intact throughout hibernation and remains the single source of truth for the cluster size. On wake-up, `etcd-druid` scales the cluster back up to `spec.replicas` — the original count was never lost because it was never overwritten. This is a departure from the current Gardener flow, which overwrites `spec.replicas: 0` and relies on the consumer to remember the original count externally. By leaving `spec.replicas` untouched, `etcd-druid` owns the count itself and does not depend on any consumer bookkeeping.
+Setting `spec.hibernate: true` does **not** change `etcd.spec.replicas`. The configured replica count stays intact throughout hibernation and remains the single source of truth for the cluster size. On wake-up, `etcd-druid` scales the cluster back up to `spec.replicas` — the original count was never lost because it was never overwritten. Any consumer that previously signalled hibernation by setting `spec.replicas: 0` had to remember the original count externally and restore it on wake-up. By leaving `spec.replicas` untouched, `etcd-druid` owns the count itself and no consumer bookkeeping is required.
 
 A consequence is an expected divergence while hibernated: `spec.replicas` reflects the desired cluster size (e.g. `3`), while the `StatefulSet` runs `0` replicas. `etcd-druid` must treat this as the intended steady state and not reconcile the StatefulSet back up to `spec.replicas`.
 
@@ -217,11 +318,19 @@ A consequence is an expected divergence while hibernated: `spec.replicas` reflec
 Two touch-points in the `StatefulSet` component must consult the hibernation signal:
 
 - **StatefulSet replica target** — the component currently patches the StatefulSet to `etcd.Spec.Replicas` unconditionally (`createOrPatch` → `createOrPatchWithReplicas`). When hibernation reaches the scale-down step (i.e. after the full snapshot step has completed per `spec.hibernationPolicy`), the target replica count must be overridden to `0`, so the StatefulSet is scaled down while `spec.replicas` is left unchanged. While hibernation is still in progress on an earlier step — for example, the full snapshot is still being taken — the StatefulSet must not yet be patched to `0`; it retains its current replica count until the scale-down step is reached.
-- **Pre-sync snapshot trigger** — `ensurePreSyncSnapshotIfNeeded` currently keys the hibernation snapshot off `etcd.Spec.Replicas == 0`. With the feature gate enabled, this trigger must instead key off `spec.hibernate`, since `spec.replicas` no longer drops to `0` during hibernation.
+- **Pre-sync snapshot trigger** — `ensurePreSyncSnapshotIfNeeded` currently keys the hibernation snapshot off `etcd.Spec.Replicas == 0`. When `spec.hibernate` is set, this trigger must instead key off `spec.hibernate`, since `spec.replicas` no longer drops to `0` during hibernation.
 
-Because `spec.replicas` is never changed by hibernation, the existing CEL scale-validation rules on `spec.replicas` (scale-out, scale-in, and scale-to-zero guards tied to the `ScaleOperationComplete` condition) are not triggered by a hibernation toggle and remain unaffected.
+### Compaction controller guard
 
-### Gardener migration path
+The full snapshot trigger (`triggerFullSnapshot`) issues an HTTP request to the `etcd-backup-restore` sidecar. With zero replicas the service has no endpoints — the request fails and the reconcile is requeued indefinitely. The trigger fires on accumulated delta above threshold **and** on a prior deadline-exceeded or snapshot-failure condition; the second case fires even when a snapshot was attempted immediately before scale-to-zero, so the guard is needed regardless of snapshot policy.
+
+Though rare, a guard must be added to skip only the `triggerFullSnapshot` HTTP call in `triggerFullSnapshotAndUpdateStatus` when `StatefulSet.spec.replicas == 0`. The rest of the compaction reconcile loop continues normally.
+
+### Consumer migration path
+
+Any consumer currently using `spec.replicas: 0` as the hibernation signal must migrate to the new API. The migration patch must be atomic: set `spec.hibernate: true` and restore `spec.replicas` to the original cluster size. Setting `spec.hibernate: true` while leaving `spec.replicas: 0` is rejected at admission time by a CEL validation rule.
+
+#### Gardener — current workflow
 
 Currently, Gardener triggers the hibernation of an etcd cluster. The relevant steps are:
 
@@ -230,30 +339,44 @@ Currently, Gardener triggers the hibernation of an etcd cluster. The relevant st
 
 Gardener retries a failed shoot reconcile for up to 12 hours (`RetryDuration`) before marking it permanently `Failed`.
 
-To adopt the new API, Gardener replaces the `ScaleETCDToZero` patch with a `spec.hibernate: true` update and configures `spec.hibernationPolicy` to match the desired snapshot and PVC retention behaviour. A new feature gate will be introduced to gate this functionality, ensuring backward compatibility for existing consumers.
+#### Gardener — proposed changes
 
-The `WaitUntilEtcdsReady` polling logic remains unchanged — it already handles `spec.replicas == 0` by skipping pod readiness checks, and the `Hibernation` condition provides an additional observable signal for consumers that want finer-grained progress reporting.
+To adopt the new API, Gardener replaces the `ScaleETCDToZero` patch with a `spec.hibernate: true` update and configures `spec.hibernationPolicy` to match the desired snapshot and PVC retention behaviour.
 
-The member lease component already handles `spec.replicas == 0` by preserving the member leases instead of deleting them, so they are available when the cluster wakes up. This behaviour is unchanged by this proposal.
+The `WaitUntilEtcdsReady` polling logic must be updated. With the new API, `etcd.spec.replicas` is never set to zero, so the existing `spec.replicas == 0` skip condition no longer triggers. Gardener must instead skip pod readiness checks when `spec.hibernate: true` is set or the `Hibernated` condition is `True`.
 
-### Compaction controller guard
+#### Member lease handling
 
-The compaction controller has no guard for a hibernated cluster. It reconciles when snapshot leases or its compaction job change. On a hibernated cluster the delta over the last full snapshot stops advancing and no new leases change, so the controller usually goes quiet — but it can still take a path that contacts the now-absent cluster.
+Member lease handling must depend on `pvcRetentionPolicy`. The member lease is a fallback identity signal: the `etcd-backup-restore` sidecar reads it on startup only when the live cluster is unreachable, to decide whether the member is a returning participant or a fresh one. The lease must therefore stay consistent with what is on the member's data volume.
 
-The full snapshot trigger (`triggerFullSnapshot`) issues an HTTP request to the `etcd-backup-restore` sidecar through the client service. With zero replicas the service has no endpoints, so the request fails and the reconcile is requeued with backoff, retrying until the condition clears. This trigger fires in two cases, both of which can occur while hibernated:
+- **`Retain`** — keep the member leases (the current behaviour). The data volumes are intact, so the preserved leases correctly identify returning members. The component today preserves leases whenever `spec.replicas == 0`; this is correct for `Retain`.
+- **`Delete`** — delete the member leases. The data volumes are gone and the woken cluster is reconstructed from a snapshot, so the preserved member IDs and peer URLs are stale. Deleting the lease ensures the fallback correctly identifies the member as new.
 
-- The accumulated delta since the last full snapshot is at or above `triggerFullSnapshotThreshold`. A full snapshot taken as part of the hibernation flow resets this delta to near zero, so this case is avoided when `fullSnapshot.policy` is `BestEffort` or `Required`. It is **not** avoided under the default `None`, or when a `BestEffort` snapshot fails — in either case a cluster that hibernates with a large accumulated delta trips the threshold on the first reconcile.
-- The last compaction status condition was a deadline-exceeded or full-snapshot failure. This is independent of the delta, so it fires even when a full snapshot was taken immediately before scale-to-zero.
+The current component preserves leases unconditionally at `spec.replicas == 0`, which is correct for `Retain` but must become conditional on the retention policy so that leases are deleted under `Delete`.
 
-Because the trigger does not depend solely on the delta, taking a snapshot before hibernation is not sufficient on its own. A guard must be added to skip compaction reconciliation when `StatefulSet.spec.replicas == 0`, consistent with the existing early-return when backups are disabled.
+### Constraints and behaviour
+
+#### `spec.replicas` changes while hibernated
+
+Changing `spec.replicas` while `spec.hibernate: true` is set is allowed, with one restriction: **decreasing `spec.replicas` is rejected at admission when `pvcRetentionPolicy: Retain`**. Under `Retain`, PVCs for all original members are preserved. Reducing the replica count would leave those members' data directories recording a larger cluster membership; the surviving member(s) would hold insufficient votes to reach quorum on wake-up. Increasing `spec.replicas` or changing it under `pvcRetentionPolicy: Delete` is permitted.
+
+On wake-up, the scale sequence depends on `pvcRetentionPolicy`. Under `Retain`, `etcd-druid` scales directly to the current value of `spec.replicas`; under `Delete`, it scales to 1 first (to allow snapshot restore) and then to `spec.replicas`. If `spec.replicas` was changed while hibernated — for example from 3 to 5 — the cluster wakes up to 5 members.
+
+Continuing the 3→5 example — for `pvcRetentionPolicy: Retain`: only the original 3 PVCs exist. Pods 0–2 reuse them and restart from local disk; the two additional members (pods 3–4) get fresh PVCs provisioned by the StatefulSet controller and restore from the last full snapshot via the backup-restore sidecar, joining the quorate cluster as it scales out.
+
+For `pvcRetentionPolicy: Delete`: all members find empty data dirs and restore from the last full snapshot.
+
+#### No backup store configured
+
+If `spec.backup.store` is not configured, any `fullSnapshot.policy` value is meaningless — there is nowhere to write the snapshot. The resource is rejected at admission unless `acceptDataLoss: true` is set.
 
 ## Alternatives
 
 ### Add a `RetryTimeout` to bound snapshot retries
 
-A `retryTimeout` field was considered on `HibernationSnapshotConfig` to bound how long the `etcd-druid` controller retries a failing snapshot. **Rejected** because retrying indefinitely is the correct contract for a Kubernetes operator: the controller should keep making progress on every reconcile and leave timeout decisions to the consumer's own retry policy. For Gardener, the 12-hour `RetryDuration` is already the backstop. A `retryTimeout` would add API surface, require classification of transient vs. terminal errors, and introduce a failure terminal that the operator cannot self-heal from.
+A `retryTimeout` field was considered on `HibernationSnapshotConfig` to bound how long the `etcd-druid` controller retries a failing snapshot, moving the `Hibernated` condition to a terminal `False / Failed` on expiry. **Rejected** because retrying indefinitely is the correct contract for a Kubernetes operator: the controller should keep making progress on every reconcile and leave timeout decisions to the consumer's own retry policy. For Gardener, the 12-hour `RetryDuration` is already the backstop. A `retryTimeout` would add API surface and require classification of transient vs. terminal errors. Crucially, a failing snapshot is a *transient, recoverable* condition — the next reconcile may succeed — so a terminal `Failed` would declare defeat on something that could self-heal.
 
-This rejection applies only to the new `Required` semantics under the feature gate. The legacy gate-off path (`replicas == 0`) retains its existing bounded-retry-then-proceed behaviour, as described in [Druid migration path](#druid-migration-path).
+This rejection applies only to the new `Required` semantics. The legacy `replicas == 0` proxy path retains its existing bounded-retry-then-proceed behaviour, as described in [Druid migration path](#druid-migration-path).
 
 ## Metrics
 
@@ -263,10 +386,10 @@ The following metrics will be introduced, following the convention of the existi
   Gauge — the current hibernation state of the cluster, so operators can see across a landscape how many clusters are hibernated, awake, or mid-transition.
   Labels:
   - `etcd_namespace` — namespace of the target `Etcd` resource.
-  - `state` — one of `awake`, `inProgress`, `hibernated`, mirroring the `Hibernation` condition reasons. The value is `1` for the current state and `0` for the others.
+  - `state` — one of `awake`, `inProgress`, `hibernated`, mirroring the `Hibernated` condition reasons. The value is `1` for the current state and `0` for the others.
 
 - `etcddruid_hibernation_duration_seconds`
-  Histogram — wall-clock time taken to complete a hibernation or wake-up, measured from the first reconcile of the intent to the terminal `Hibernation` condition. Surfaces clusters taking abnormally long to hibernate or wake up.
+  Histogram — wall-clock time taken to complete a hibernation or wake-up, measured from the first reconcile of the intent to the terminal state (`True / Hibernated` for hibernation, `False / Awake` for wake-up). Surfaces clusters taking abnormally long to hibernate or wake up.
   Labels:
   - `etcd_namespace` — namespace of the target `Etcd` resource.
   - `direction` — one of `hibernate`, `wakeup`.
@@ -274,3 +397,4 @@ The following metrics will be introduced, following the convention of the existi
 ## References
 
 - [etcd-druid issue #922 — Hibernation support](https://github.com/gardener/etcd-druid/issues/922)
+- [etcd-druid issue #887 — Support Ephemeral Storage ](https://github.com/gardener/etcd-druid/issues/887)
